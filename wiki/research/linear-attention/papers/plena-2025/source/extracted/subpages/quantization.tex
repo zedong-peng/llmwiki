@@ -1,0 +1,190 @@
+\section{Quantization}
+\label{sec:quantization}
+
+Our work is closely related to prior studies that use the microscaling data format \cite{microscaling, Microscopiq}. Nonetheless, we highlight in our work that while existing SoTA PTQ optimizations -- such as rotation \cite{QuaRot} and norm-guided optimization \cite{frantar2022gptq} are beneficial for integer quantization, they do not align well with the microscaling format.
+We identify these caveats for applying PTQ optimization techniques to microscaling arithmetics:
+
+\begin{enumerate}
+    \item For weight quantization, MXFP is generally incompatible with these PTQ optimizations. MXINT demonstrates compatibility, but naively applying it leads to degradation. We introduce a novel block-wise clipping optimization that naturally complements block-based arithmetic like MXINT (\Cref{sec:quantization:gptq}).
+    \item For activation quantization, rotation schemes such as QuaRot, when naively applied, lead to performance degradation for both MXINT and MXFP. A performance boost is realized only when they are selectively applied to activations (\Cref{subsec:act_quant}).
+\end{enumerate}
+
+In summary, we point out that MXINT with PTQ optimization is the de-facto approach for weight quantization. Meanwhile, activation quantization can utilize MXINT or MXFP, but rotation should be applied only selectively. 
+The rest of the section elaborates on these optimization strategies and the root causes of incompatibilities, with \Cref{subsec:co_design} detailing the integration of these quantizations into the PLENA system to facilitate a software-hardware co-design.
+
+
+\subsection{Preliminaries}
+We start by formalizing MX quantization under a single-level scaling scheme using three elements: the MX data format ($\tau$), the scale factor ($s$), and the zero point ($z$). The MX data format is defined by a tuple $\tau = (d, b, B)$, where $d$ denotes the datatype, $b$ is its bit-width, and $B$ is the microscaling block size. For example, $\tau = (\texttt{INT}, 4, 16)$ corresponds to an $\texttt{MXINT4}$ format with block size $B=16$, while $\tau = (\texttt{minifloat}, 4, 16)$ corresponds to an $\texttt{MXFP4}$ format with the same block size. In both cases, all values within a block share a single block-wise scale factor $s$ and zero point $z$.
+
+For any data format $\tau$, the set of representable values is bounded to a finite interval, which we denote as:
+\begin{equation}
+\Omega(\tau) = \{\, x \in \mathbb{R} \mid
+\min_{(d,b)} \le x \le \max_{(d,b)} \,\}.
+\end{equation}
+
+ the representable range $[\min_{\tau}, \max_{\tau}]$ of integer MX formats (i.e., $d = \texttt{INT}$) is given by:
+\begin{equation}
+\min_{\tau} = -(2^{b-1}-1),
+\qquad
+\max_{\tau} = \;\;2^{b-1}-1.
+\end{equation}
+
+We partition a high-precision tensor $\mathbf{W}$ into blocks $w \in \mathbb{R}^B$ of size $B$. For each block $w$, the scaling factor is
+\begin{equation}
+s = \frac{\max |w|}{\max_{\tau}}.
+\label{eq:scaling_calculating}
+\end{equation}
+
+The zero-point $z$ shifts the range for alignment; we adopt symmetric quantization ($z=0$) throughout and omit it from subsequent expressions. Quantization then maps $w$ into the target format $w_{\tau}$ as:
+\begin{equation}
+\label{equ:clip}
+w_{\tau}
+=
+\mathrm{clip}\!\left(
+\mathrm{RTN}\!\left(\frac{w}{s}\right),\;
+\min_{\tau},\, \max_{\tau}
+\right),
+\end{equation}
+where $\mathrm{RTN}(\cdot)$ denotes round-to-nearest projection. The corresponding dequantization operator reconstructs an approximation of the original block:
+\begin{equation}
+Q\!\left(w;\, s, \tau\right) = s \cdot w_{\tau}.
+\end{equation}
+
+
+\subsection{Optimizing Microscaling Clipping for Weight Quantization}
+\label{sec:quantization:gptq}
+
+Existing microscaling arithmetic implementations utilize a static clipping strategy, typically using a fixed value (eg. the maximum value) as clipping threshold for each block (see \Cref{eq:scaling_calculating}). However, a distinct advantage of employing smaller blocks is the opportunity for more granular control over numerical values. Consequently, we introduce \emph{microscaling block-wise clipping}, a technique that provides a conscious balancing between the clipping overflow error and the underflow errors for inliers.
+
+For the same sliced block $w$ expressed in format $\tau$, with representable range $[\min_{\tau}, \max_{\tau}]$ and empirical range $[\min_{w}, \max_{w}]$, we introduce a \emph{clipping parameter} $p \in \mathcal{P} \subset [0.5,\, 0.99]$. This parameter shrinks the effective range to $[p\min_{w},\, p\max_{w}]$. 
+
+
+By sweeping over a discrete set $\mathcal{P}$, we can obtain optimal clipping $p^\star$ for a given block:
+
+\begin{equation}
+\label{eq:rowwise-argmin}
+p^\star
+= \arg\min_{p \in \mathcal{P}}
+\left\|
+w
+- \textsc{Q}(w;\, p, \tau)
+\right\|_2^2 .
+\end{equation}
+Here $\|\cdot\|_2^2$ denotes the squared Euclidean norm.
+
+
+
+\label{subsec:weights_quant}
+Clipping the empirical range introduces a trade-off between the clipping error and the underflow error. This issue is particularly critical for microscaling-based arithmetic, as the block size is relatively small compared to tensor dimensions. Making an optimal selection of clipping ranges can significantly influence performance; in our experiments, optimized clipping improved perplexity by 5.5\% on \llamaIIISmall{} in 4-bits weights only quantization setting.
+
+We then detail our method, where we integrate our clipping optimization directly into GPTQ's iterative error propagation flow, and introduce a new \emph{output-norm guided} blockwise clipping search that \emph{minimizes the quantization error of the output block rather than the weight block}.
+Formally, let $\mathbf{X} \in \mathbb{R}^{M \times K}$ be the inputs, and $\mathbf{W} \in \mathbb{R}^{N \times K}$ be the weights. 
+Given a linear layer $\mathbf{Y} = \mathbf{X} \mathbf{W}^\top$, we slice the weights across the $K$ dimension with block size $B$ (e.g., $\text{MLEN}$ in an MX data format $\tau$), yielding block slices $\mathbf{W}_b \in \mathbb{R}^{N \times B}$ to be quantized, and similarly we can have activations across the $K$ dimension $\mathbf{X}_b \in \mathbb{R}^{M \times B}$.
+Let $\mathcal{P}$ denote the set of admissible clipping percentiles, and let $\textsc{Q}(\cdot;\,P,\tau)$ denote per-row quantization in data format $\tau$, where $P = (p_1,\dots,p_N) \in \mathcal{P}^N$ is a collection of row-wise clipping percentiles, our new optimization is then uses an outer loop optimization with the hessian information $\mathbf{H}_F$ to iteratively calibrate the weight value ($W_b += \boldsymbol{\delta}_F$, adapted from GPTQ). 
+\begin{equation}
+\label{eq:dual-optimization-description}
+\begin{aligned}
+& \boldsymbol{\delta}_F =
+-\Big(\mathbf{W}_b - \textsc{Q}\big(\mathbf{W}_{b};\,P_b^\star,\tau\big)\Big)\,
+\Big([\mathbf{H}_F^{-1}]_{bb}\Big)^{-1}
+(\mathbf{H}_F^{-1})_{:,b}, \\
+& \text{where } \mathbf{H}_F = 2\mathbf{X}_F\mathbf{X}_F^\top.
+\end{aligned}
+\end{equation}
+
+This is combined with a novel inner loop optimization, which is output-norm guided:
+\begin{equation}
+\quad P_b^\star
+= \arg\min_{P_b\in\mathcal{P}^N}
+\left\|
+\mathbf{X}_b
+\Big(
+\mathbf{W}_{b}
+-
+\textsc{Q}(\mathbf{W}_{b};\,P_b,\tau)
+\Big)^\top
+\right\|^2_2, 
+\end{equation}
+
+
+
+\subsection{Selectively Rotated Microscaling Data Formats for Activation and KV Quantization}
+\label{subsec:act_quant}
+
+Rotation-based optimization, such as QuaRot\cite{QuaRot} tries to smooth the numerical outlier by introducing a rotation matrix, where $\mathbf{X}, \mathbf{W}, \mathbf{H}$ represent the activation, weight, and Hadamard matrix respectively. 
+\begin{equation}
+l_{rot}(\mathbf{X}) = \textsc{Q}(\mathbf{X}\mathbf{H}) \cdot \textsc{Q}(\mathbf{H}^{-1}\mathbf{W})
+\label{eq:quant_with_rotated_weight}
+\end{equation}
+
+Surprisingly, we notice that applying the rotation to finer-grained weight quantization (e.g., MXINT with small block sizes) actually increases perplexity. Intuitively, weights have smaller dynamic ranges compared to activations. The rotation may be unnecessary since most weight outliers are already captured by the shared exponents.
+
+We then propose a \textit{selective rotation} strategy for activation quantization:
+
+
+\begin{equation}
+\begin{aligned}
+S &= \arg\min_{s\in\mathcal{M}} \sum_{s\in\mathcal{M}} \Delta_{ppl}(l^*_{rot}), \\
+l_{rot}^*(\mathbf{X}) &= \textsc{Q}(\mathbf{X}\mathbf{H}) \cdot \mathbf{H}^{-1} \cdot \textsc{Q}(\mathbf{W}),
+\end{aligned}
+\label{eq:concise-selective-rotation}
+\end{equation}
+
+Now $S$ is a set composed of layers from $\mathcal{M}$, and $\Delta_{ppl}(l_{rot}^*)$ reflects the performance improvement due to rotation for each layer $l$. The objective is to minimize the sum of the performance loss across all layers in $\mathcal{M}$ to select the subset to be included in $S$. Another critical difference is that when such rotation is applied to activations, we have to apply a multiplication with $\mathbf{H}^{-1}$ at run-time, and PLENA provides a native hardware support for this operation. 
+
+\subsection{Asymmetric Quantization and Hardware Co-Design}
+\label{subsec:co_design}
+
+As discussed earlier, MXINT is the de-facto quantization for weights, whereas we now exposed a search space for using either MXINT or MXFP for \Cref{subsec:act_quant}. Also, we have to consider various precision setups and hardware design parameters (e.g., tile sizes, load/write sizes). 
+We then established a co-design framework to conduct such explorations supported by PLENA's multi-fidelity simulators, as shown in \Cref{fig:PLENA_overview}. 
+It is worth noting that our co-design can run at different fidilities as illustrated in \Cref{fig:PLENA_overview}, but we choose to run at the transactional-level, unless specified otherwise, for both reasonable speed and good fidelity.
+\Cref{tab:design_space} shows the search space and its related constraints. Our search space considers a range of arithmetic types for A/KV, including MXINT and MXFP, as well as different precision configurations. The result can provide an asymmetrically quantized PLENA accelerator design upon completion of the search.
+
+To automate finding the optimal hardware design and quantization parameters, we propose to employ active learning for design space exploration (DSE). We also provide the capability for investigating the trade-offs between optimizing different objectives. For this, we employ multi-objective Bayesian optimization (BO) in BOTorch, which allows exploring the Pareto frontier in an active manner. In our case, the objective function has three components: accuracy, latency, and chip area: $\mathbf{f} = \big[ f_\text{accuracy}(\cdot), f_\text{latency}(\cdot), f_\text{area}(\cdot) \big]$. The exploration method also accounts for constraints by applying rejection sampling to discard invalid or infeasible candidates. This avoids unnecessary, costly objective evaluations and accelerates convergence of the search.
+We first conduct experiments on \llamaTiny{} to enable rapid iteration, and then extend our evaluation to \llamaIIISmall{}. 
+The results are described in Section~\ref{subsec:co_design}.
+
+
+
+\begin{table}[h]
+\centering
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{1}
+\caption{Selected hardware and quantization parameter co-design search space. 
+% Categorical parameters are one-hot encoded; integer parameters are expressed as powers of two. 
+Example constraints include: (1) memory bandwidth constraint 
+$\texttt{MLEN} \cdot \texttt{KV\_WIDTH} \leq \textit{MemBandwidth}$; 
+(2) $\texttt{MLEN} \bmod \texttt{BLEN} = 0$; 
+(3) $\texttt{MLEN} \geq \texttt{HLEN} \geq \texttt{BLEN}$.}
+\begin{tabular}{cll}
+\toprule
+\textbf{Parameter} & \textbf{Description} & \textbf{Search Range} \\
+\midrule
+\texttt{BLEN} & Tile size of block unit & [2, 4, ..., 64] \\
+% \texttt{HLEN} & Tile size of partitioned matrix unit & [32, ..., 256] \\
+\texttt{MLEN} & Tile size of Matrix Unit & [2, 4, ..., 1024] \\
+\texttt{VLEN} & Tile size of Vector Unit & [2, 4, ..., 1024] \\
+% \textbf{HBM\_M\_Prefetch} & Prefetch matrix amount to matrix sram &  [2, 4, ..., 1024] \\
+
+
+\texttt{M\_LOAD} & Matrix SRAM load amount from HBM \\[-1pt]
+                    & (num of matrices loaded per instruct) & [2, 4, ..., 256] \\
+\texttt{V\_LOAD} & Vector SRAM load amount from HBM \\[-1pt]
+                    & (num of vectors loaded per iteration) & [2, 4, ..., 256] \\
+\texttt{V\_WRITE} & Vector SRAM write amount to HBM \\[-1pt]
+                    & (num of vectors written per iteration) & [2, 4, ..., 256] \\
+\midrule
+\texttt{ACT\_WIDTH} & Activation precision & MXINT$^{\dagger}$, MXFP$^{\dagger}$ \\
+\texttt{KV\_WIDTH}  & Key/Value precision & MXINT$^{\dagger}$, MXFP$^{\dagger}$ \\
+\texttt{FP\_SETTING} & Floating-point precision & FP$^{\dagger}$ \\ 
+\bottomrule
+\end{tabular}
+\label{tab:design_space}
+\vspace{-10pt}
+\end{table}
+
+
+
+
+
+

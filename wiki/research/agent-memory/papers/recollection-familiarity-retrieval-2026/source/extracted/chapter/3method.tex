@@ -1,0 +1,246 @@
+\section{Method: Recollection–Familiarity Memory Retrieval}
+
+% We propose \textbf{RF-Mem}, a dual-process framework that dynamically adapts retrieval strategy according to uncertainty. The method consists of four components: probe retrieval, entropy-based decision, a fast \emph{Familiarity} path, and a slow \emph{Recollection} path.
+We propose \textbf{RF-Mem}, a dual-process memory retrieval framework that adapts the retrieval strategy according to uncertainty. As illustrated in Figure~\ref{fig:framework}, RF-Mem consists of five stages: \ding{192} user query input, \ding{193} user memory retrieval, \textit{i.e.} the RF-Mem module, is a familiarity uncertainty-guided selection introduced in Section~\ref{sec:switch} that adaptively switches between one-shot \emph{Familiarity} introduced in Section~\ref{sec:FR} and stepwise \emph{Recollection} retrieval introduced in Section~\ref{sec:FR}, \ding{194} extracting the memory text, and \ding{195} answer generation by LLM using the memory text.
+% \yc{link this paragraph with the sub-title of the following sections}
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\linewidth]{chapter/figure/framework.pdf}
+\caption{The overall architecture of \textbf{RF-Mem}. A dual-process memory retrieval system dynamically switches between the Familiarity and the Recollection paths.}
+\label{fig:framework}
+\vspace{-10pt}
+\end{figure}
+
+% \subsection{Familiarity Uncertainty-Driven Retrieval Strategy Selection}
+% Most existing memory retrieval method rely on a one-shot top-$k$ retrieval strategy, where the retriever returns the most similar entries from a static memory index based solely on surface-level similarity to the input query. While effective for generic questions or high-confidence scenarios, this approach struggles with ambiguous, underspecified, or evolving user needs. 
+% Inspired by dual-process theories in cognitive science, we propose a familiarity uncertainty-aware retrieval routing mechanism that adaptively selects between a \emph{Familiarity} path and a \emph{Recollection} path. This is realized through an entropy-driven signal that guides the retrieval strategy.
+
+% The process begins with a \emph{probe retrieval}, where the system collects the initial similarity scores of top-$k$ candidates. These scores are then transformed into a probability distribution to measure retrieval uncertainty. Formally, given the sorted similarity scores $\{s_i\}_{i=1}^k$, we compute their normalized distribution $p_i$ as:
+% \begin{equation}
+% p_i = \frac{\exp(\lambda (s_i - \max_j s_j))}{\sum_{j=1}^k \exp(\lambda (s_j - \max_j s_j))},
+% \end{equation}
+% where $\lambda$ is a temperature coefficient controlling sharpness. The retrieval uncertainty is quantified by the entropy of this distribution:
+% \begin{equation}
+% H(p) = - \sum_{i=1}^k p_i \log(p_i).
+% \end{equation}
+
+% The entropy $H(p)$ acts as a regulation signal. If $H(p)$ is below a threshold $\tau$, the retrieval is deemed confident and the system directly returns the probe results as the \textbf{Familiarity Retrieval}. Otherwise, a \textbf{Recollection Retrieval} is activated, where the initial candidates are expanded via iterative clustering and query reformulation, simulating chain-like human recollection. The final retrieval strategy is therefore determined by:
+% \begin{equation}
+% \text{Strategy}(q) = 
+% \begin{cases}
+% \text{Familiarity}, & H(p) \leq \tau, \\
+% \text{Recollection}, & H(p) > \tau. \\
+% \end{cases}
+% \end{equation}
+
+% This entropy-gated mechanism allows the retriever to dynamically balance efficiency and depth, ensuring that the system responds rapidly when confidence is high while engaging in structured recollection when uncertainty arises.
+
+% \subsection{Familiarity Uncertainty-Driven Retrieval Strategy Selection}
+% Most existing memory retrieval methods rely on a static top-$k$ similarity search, where the retriever simply returns the most similar user memory based on embedding scores. While this is effective for straightforward queries, it fails to adapt under ambiguous or evolving user needs, leading either to insufficient recall or the inclusion of noisy information. 
+
+% Inspired by the \emph{dual-process theory} in cognitive science, we design a familiarity uncertainty-aware routing mechanism that adaptively selects between the \emph{Familiarity} path and the \emph{Recollection} path. The decision is driven not only by entropy but also by average similarity signals, combining efficiency and robustness. 
+
+% Formally, given probe retrieval scores $\{s_i\}_{i=1}^k$, we compute normalized weights:
+% \begin{equation}
+% p_i = \frac{\exp(\lambda (s_i - \max_j s_j))}{\sum_{j=1}^k \exp(\lambda (s_j - \max_j s_j))},
+% \end{equation}
+% with $\lambda$ as a sharpness factor. The retrieval uncertainty is quantified by entropy:
+% \begin{equation}
+% H(p) = - \sum_{i=1}^k p_i \log(p_i).
+% \end{equation}
+
+% The final strategy combines multiple decision rules. If the mean similarity score exceeds a confidence threshold, retrieval directly follows the \textbf{Familiarity} path. If the mean score is below a low baseline, retrieval defaults to the \textbf{Recollection} path. Otherwise, entropy $H(p)$ acts as the disambiguator: low-entropy probes reflect high confidence in the retrieved evidence, while high-entropy probes trigger recollection for deeper evidence reconstruction. Thus, the selection policy is:
+% \begin{equation}
+% \text{Strategy}(q) = 
+% \begin{cases}
+% \text{Familiarity}, & \bar{s} \geq \theta_{\text{high}} \ \text{or}\ H(p) \leq \tau, \\
+% \text{Recollection}, & \bar{s} \leq \theta_{\text{low}} \ \text{or}\ H(p) > \tau,
+% \end{cases}
+% \end{equation}
+% where $\bar{s}$ is the mean score and $\theta_{\text{high}}, \theta_{\text{low}}$ are empirical thresholds. 
+
+% This multi-signal gating aligns with cognitive theory: familiarity is engaged for high-confidence recognition, while recollection is invoked for uncertain or underspecified cases, enabling a dynamic balance between efficiency and diagnostic depth.
+\subsection{Familiarity Uncertainty-Driven Retrieval Selection}
+\label{sec:switch}
+% Most existing memory retrieval methods rely on a static top-$K$ similarity search, where the retriever simply selects the most similar $K$ entries from a user's memory corpus.  
+Guided by dual-process theory, we argue that memory retrieval should not be reduced to a single static top-$K$ similarity search. Instead, retrieval should dynamically select between a fast Familiarity path and a deeper Recollection path depending on the familiarity signal.
+
+We first perform a probe retrieval for calculating the familiarity signal between this question and the user's memory. Let $\mathcal{M}=\{m_1,\ldots,m_M\}$ denote the set of user memory fragments, where $m_i$ is encoded as an embedding vector $\mathbf{z}_i=\phi(m_i)$.  
+Given a query $q$, its embedding $\mathbf{x}_t=\phi(q)$ is used to compute cosine similarity with each fragment $m_i$ as $s_i=\langle \mathbf{x}_t,\mathbf{z}_i\rangle$, and the retriever returns the candidate set  $\mathcal{C}=\text{Top-}K\big(\{(m_i,s_i)\}_{i=1}^M\big).$
+% While effective for straightforward queries, this one-shot procedure fails under ambiguous or evolving user needs, often yielding insufficient recall or injecting noisy, irrelevant fragments.  
+
+% Inspired by the dual-process theory in cognitive science, we introduce a familiarity uncertainty-aware routing mechanism that adaptively selects between the \emph{Familiarity} path and the \emph{Recollection} path. 
+The familiarity signal is governed jointly by similarity and uncertainty, thus integrating efficiency with robustness.  
+Formally, given probe scores $\{s_i\}_{i=1}^k$, we normalize them as follows:
+\begin{equation}
+p_i = \frac{\exp(\lambda (s_i - \max_j s_j))}{\sum_{j=1}^k \exp(\lambda (s_j - \max_j s_j))}, \qquad i=1,\ldots,K , 
+\end{equation}
+where $\lambda$ controls sharpness. The uncertainty is then measured by the entropy:
+\begin{equation}
+H(p) = - \sum_{i=1}^K p_i \log p_i .
+\end{equation}
+The final selection combines the familiarity of the mean score with the uncertainty of the entropy. If the mean similarity score $\bar{s}=\frac{1}{K}\sum_{i=1}^K s_i$ exceeds the upper threshold $\theta_{\text{high}}$, the memory is highly relevant and retrieval proceeds along the \textbf{Familiarity} path. Conversely, when $\bar{s}$ falls below the lower threshold $\theta_{\text{low}}$, the memory is considered weakly relevant and the system switches to the \textbf{Recollection} path. For intermediate cases where $\bar{s}$ lies between $\theta_{\text{low}}$ and $\theta_{\text{high}}$, entropy $H(p)$ serves as the disambiguator: low entropy, indicating concentrated evidence, selects \textbf{Familiarity}, whereas high entropy, reflecting uncertainty, triggers \textbf{Recollection}. Formally, the policy is defined as:
+% , which served as familiarity signal, exceeds a threshold $\theta_{\text{high}}$, retrieval follows the \textbf{Familiarity} path; if $\bar{s}$ falls below a baseline $\theta_{\text{low}}$, retrieval defaults to the \textbf{Recollection} path. Otherwise, entropy $H(p)$ acts as the disambiguator: low entropy indicates concentrated evidence and triggers \textbf{Familiarity}, whereas high entropy signals uncertainty and activates \textbf{Recollection}. Thus, the policy is:
+% \begin{equation}
+% \text{Strategy}(q) =
+% \begin{cases}
+% \text{Familiarity}, & \bar{s} \geq \theta_{\text{high}} \ \text{or}\ H(p) \leq \tau, \\
+% \text{Recollection}, & \bar{s} \leq \theta_{\text{low}} \ \text{or}\ H(p) > \tau.
+% \end{cases}
+% \end{equation}
+\begin{equation}
+\text{Strategy}(q) =
+\begin{cases}
+\text{Familiarity}, & \bar{s} \geq \theta_{\text{high}}, \\[6pt]
+\text{Recollection}, & \bar{s} \leq \theta_{\text{low}}, \\[6pt]
+\begin{cases}
+\text{Familiarity}, & H(p) \leq \tau, \\
+\text{Recollection}, & H(p) > \tau,
+\end{cases} & \theta_{\text{low}} < \bar{s} < \theta_{\text{high}}.
+\end{cases}
+\end{equation}
+This gating mechanism follows our cognitive motivation: 
+when the familiarity signal is strong, the system relies on the fast Familiarity path for confident recognition; 
+when the signal is weak, it engages the Recollection path to deliberately reconstruct evidence; 
+and in the intermediate regime, the entropy serves as an additional cue to regulate switching. 
+In this way, RF-Mem mirrors the dual-process nature of human memory, dynamically balancing efficiency with retrieval depth.
+% This multi-signal gating aligns with cognitive theory: familiarity is engaged for high-confidence recognition, while recollection is invoked for uncertain or underspecified queries, enabling a dynamic balance between efficiency and diagnostic depth.
+
+\subsection{Familiarity Retrieval}
+\label{sec:FR}
+When the probe retrieval yields a familiarity signal, that is, a sufficiently high average similarity score or low uncertainty $H(p) \leq \tau$, or the system interprets the evidence as confident. In this case, it adopts the \textbf{Familiarity} path. Consistent with dual-process theory, this path corresponds to rapid, low-effort recognition, i.e., the retriever directly selects the top-$K$ memory evidence based on raw similarity, ensuring efficiency without invoking further reasoning or expansion.
+
+% \subsection{Familiarity Retrieval}
+% When the entropy of the probe retrieval is low ($H(p) \leq \tau$), it reflects a concentrated similarity distribution and high decision confidence, prompting the system to adopt the \textbf{Familiarity path}. In line with dual-process theory, this path corresponds to rapid, low-effort recognition based on surface-level cues, where the retriever directly selects the top-$k$ memory entries using raw similarity without further elaboration or reasoning.
+
+% When the entropy of the probe retrieval is low ($H(p) \leq \tau$), the query exhibits high retrieval confidence, and the system follows the \textbf{Familiarity path}. This fast retrieval mechanism directly returns the top-$k$ memory entries based on raw similarity to the query vector, avoiding additional expansion or reasoning steps.
+
+% \paragraph{Scoring.}
+% Let $\mathbf{x}_t=\phi(q_t)$ and $\mathbf{z}_i=\phi(m_i)$ be unit-normalized embeddings. We compute
+% \begin{equation}
+% s(\mathbf{x}_t,\mathbf{z}_i) \;=\; \langle \mathbf{x}_t,\mathbf{z}_i\rangle .
+% \end{equation}
+
+% \paragraph{Retriever.}
+% Using the standard retriever $\mathsf{R}$, we obtain the top-$k$ candidate set
+% \begin{equation}
+% \mathcal{C}_t \;=\; \text{Top}-k\Big(\{(m_i,\,s(\mathbf{x}_t,\mathbf{z}_i))\}_{i=1}^{N}\Big).
+% \end{equation}
+
+% This retrieval mode reflects the \emph{Familiarity} process in dual-process theory: a high-confidence query yields a sharply peaked score distribution, indicating that sufficient evidence has been retrieved. Thus, the system halts after a single step, achieving minimal latency and bounded cost.
+
+\textbf{Scoring and Retrieval.}
+\label{sec:RR}
+Given a query $q_t$, we encode it as $\mathbf{x}_t=\phi(q_t)$ and each memory entry $m_i$ as $\mathbf{z}_i=\phi(m_i)$, where all embeddings are unit-normalized. The similarity score is computed as $
+s(\mathbf{x}_t,\mathbf{z}_i) \;=\; \langle \mathbf{x}_t,\mathbf{z}_i\rangle $.
+We then obtain top-$K$ candidate memory fragments according to their similarity scores:
+\begin{equation}
+\mathcal{C}_t \;=\; \text{Top-}K\Big(\{(m_i,\,s(\mathbf{x}_t,\mathbf{z}_i))\}_{i=1}^{M}\Big).
+\end{equation}
+This retrieval mode reflects the \emph{Familiarity} process in dual-process theory: when the question is familiar, it signals that sufficient evidence has been retrieved, so recognition can be completed in a single step with minimal latency.
+
+% \subsection{Recollection Retrieval}
+
+% When the probe entropy indicates low confidence ($H(p) > \tau$), the system transitions into the \textbf{Recollection path}, reflecting the deliberate and effortful retrieval mode described in dual-process theory. Rather than relying on superficial match signals, this path initiates structured, multi-round evidence expansion—mirroring how humans reconstruct contextual memory under uncertainty—to progressively recover more diagnostic and temporally distant cues.
+
+% \paragraph{Entry and notation.}
+% Let $\mathcal{C}_{k}^{(0)}=\{(m_i,s_i)\}_{i=1}^{k}$ denote the probe candidates (sorted by $s_i$), and let the query embedding be $\mathbf{x_t}=\phi(q)$. The slow path proceeds in rounds $r=0,1,\dots$ and maintains a working set $\mathcal{C}_{k}^{(r)}$.
+
+% \paragraph{Candidate grouping.}
+% At round $r$, we group $\mathcal{C}_{k}^{(r)}$ into $C_r$ semantic clusters $\{G_c^{(r)}\}_{c=1}^{C_r}$ (e.g., by $k$-means on $\{\mathbf{z}_i\}$). Let $\mathbf{g}_c^{(r)}$ be the (unit-normalized) centroid of cluster $G_c^{(r)}$:
+% \begin{equation}
+% \mathbf{g}_c^{(r)} \;=\; \frac{\sum_{m_i \in G_c^{(r)}} \mathbf{z}_i}{\left\|\sum_{m_i \in G_c^{(r)}} \mathbf{z}_i\right\|}.
+% \end{equation}
+
+% \paragraph{Query refinement via $\alpha$-mix.}
+% Each cluster induces a refined sub-query by mixing the original query with its centroid:
+% \begin{equation}
+% \mathbf{x}_{c}^{(r)} \;=\; \frac{\alpha\,\mathbf{x} + (1-\alpha)\,\mathbf{g}_c^{(r)}}{\left\|\alpha\,\mathbf{x} + (1-\alpha)\,\mathbf{g}_c^{(r)}\right\|}, \qquad \alpha \in [0,1].
+% \end{equation}
+% Here $\alpha$ balances on-intent fidelity (larger $\alpha$) and semantic exploration (smaller $\alpha$).
+
+% \paragraph{Branch expansion and retrieval.}
+% Each sub-query retrieves a local candidate list of size $K$:
+% \begin{equation}
+% \mathcal{R}_{c}^{(r)} \;=\; \operatorname{TopK}\Big(\{(m_j,\, \langle \mathbf{x}_{c}^{(r)}, \mathbf{z}_j \rangle)\}_{j=1}^{N}\Big).
+% \end{equation}
+% To encourage diversity across sub-queries, we select at most $F$ items from $\mathcal{R}_{c}^{(r)}$ using a maximal marginal relevance (MMR) criterion. Let $\mathcal{S}^{(r)}$ be items already selected at round $r$; for a candidate $m$ with score $s(m)$ and embedding $\mathbf{z}(m)$, define
+% \begin{equation}
+% \mathrm{MMR}(m) \;=\; \lambda\, s(m) \;-\; (1-\lambda)\,\max_{m'\in \mathcal{S}^{(r)}} \langle \mathbf{z}(m), \mathbf{z}(m') \rangle, \qquad \lambda\in[0,1].
+% \end{equation}
+% We keep the top-$F$ items by $\mathrm{MMR}(\cdot)$ from each $\mathcal{R}_{c}^{(r)}$, add them to $\mathcal{S}^{(r)}$, and union across $c$ to form the next-round pool.
+
+% \paragraph{Beam-style consolidation.}
+% We summarize each sub-query branch by an aggregate score and retain the best $B_r$ branches (beam width) for the next round. The working candidate set is updated as
+% \begin{equation}
+% \mathcal{C}_{k}^{(r+1)} \;=\; \operatorname{TopK}\!\left(\bigcup_{c=1}^{C_r} \mathcal{R}_{c}^{(r)}\right),
+% \end{equation}
+% with de-duplication and score maximization when the same item appears multiple times.
+
+% \paragraph{Stopping and evidence assembly.}
+% Expansion proceeds until a budget or entropy-based criterion is met. Let $H^{(r)}$ be the list entropy of $\mathcal{C}_{k}^{(r)}$ (defined as in the probe). We stop at the first round $r^\star$ such that
+% \begin{equation}
+% H^{(r-1)} - H^{(r)} \;\le\; \delta \quad \text{or} \quad \operatorname{Cost}\big(\{\mathcal{R}_{c}^{(0{:}r)}\}\big) \;\ge\; B,
+% \end{equation}
+% where $\delta>0$ is a minimal entropy-improvement threshold and $B$ is the per-turn budget. The final evidence set is
+% \begin{equation}
+% \mathcal{E}_{\text{slow}} \;=\; \operatorname{TopK}\!\left(\bigcup_{t=0}^{r^\star} \mathcal{C}_{k}^{(t)}\right),
+% \end{equation}
+% which is then provided to the generator $y=\mathsf{LLM}(q,\mathcal{E}_{\text{slow}})$.
+
+% This slow path operationalizes \emph{Recollection}: cluster-conditioned sub-queries trigger chain-like contextual reconstruction, while beam and MMR maintain relevance–diversity balance. The entropy/budget-based stopping ensures controlled depth and latency.
+
+\subsection{Recollection Retrieval}
+When the probe yields an unfamiliar signal, indicated by insufficient mean scores or a high entropy $H(p) > \tau$, the system interprets the evidence as uncertain. It then transitions into the \textbf{Recollection} path, corresponding to the deliberate and effortful retrieval mode in dual-process theory. Instead of stopping at surface matches, this path initiates multi-round evidence expansion, progressively reconstructing context and recovering more diagnostic evidence. A case can be found at~\ref{app:case}.
+
+\textbf{Candidate Memory Retrieval.}
+Let $\mathbf{x}^{(0)} = \mathbf{x}_t=\phi(q_t)$ denote the query embedding. At each round $r$, we obtain the candidate memory set as $\mathcal{C}^{(r)}=\text{Top-}N\Big(\{(m_i,\,\langle \mathbf{x}^{(r)},\mathbf{z}_i\rangle)\}_{i=1}^{M}\Big)$, where $N=(B+r) \times F<K$ is determined by beam width $B$,  fanout size $F$, and round number $r \in \{0,\dots,R\}$. 
+% \wl{Why does N increase with the number of iterations? Fixed N can also achieve recollection. Give some reason or explanation.} 
+% where $N=(B+r)\times F < K$ is determined by beam width $B$, fanout size $F$, and iteration index $r \in \{0,\dots,R\}$.  
+% Unlike using a fixed $N$, gradually enlarging $N$ ensures that later rounds do not simply re-sample the same high-scoring fragments already retrieved in earlier iterations.
+\yy{We enlarge $N$ with $r$ to prevent the query in round $r$, which is formulated from previous rounds, from repeatedly retrieving the same memories. Duplicated memories in $\mathcal{C}^{(r)}$ are excluded if they appeared in earlier rounds.}
+% Memory fragments that have already been retrieved in previous iterations are excluded from the current set.
+
+
+
+% and define the initial candidate memory pool as
+% \begin{equation}
+% $\mathcal{C}^{(0)}=\text{Top-}N\Big(\{(m_i,\,\langle \mathbf{x}^{(0)},\mathbf{z}_i\rangle)\}_{i=1}^{N}\Big),$
+% \end{equation}
+% where $N=(B+r) \times F<K$ is determined by beam width $B$,  fanout size $F$, and iteration number $r$. 
+% At each iteration, we can obtain candidate memory set $\mathcal{C}^{(r)}=\text{Top-}N\Big(\{(m_i,\,\langle \mathbf{x}^{(r)},\mathbf{z}_i\rangle)\}_{i=1}^{N}\Big)$. 
+
+\textbf{Relevant Memory Clustering.}
+Given the top-$N$ memory $\mathcal{C}^{(r)}$, we group the candidate memory embeddings $\{\mathbf{z}_i: m_i\in\mathcal{C}^{(r)}\}$ into $B$ clusters using KMeans. Each cluster $G_b^{(r)}$ corresponds to a branch in the retrieval tree, and its \textbf{centroid} vector $\mathbf{g}_b^{(r)}$ serves as the base for further expansion:
+\begin{equation}
+\mathbf{g}_b^{(r)} \;=\; \frac{1}{|G_b^{(r)}|}\sum_{m_i\in G_b^{(r)}} \mathbf{z}_i, 
+\qquad b=1,\dots,B .
+\end{equation}
+These centroids serve as branching points from which new retrieval paths unfold, simulating a tree-like process of recollection. By clustering memories into semantically coherent sets, they reduce redundancy while highlighting anchors that capture essential cues. In line with dual-process theory, these anchors initiate progressive recollection, supporting chain-like reconstruction of evidence that expands outward yet remains grounded in the user's memory context.
+
+\textbf{Recollect Queries Generation via $\alpha$-mix.}
+Each centroid $\mathbf{g}_b^{(r)}$ is blended with the current query to form a \emph{recollect query}, with weights matching the annotations $\alpha$ (current query) and $1-\alpha$ (centroid), and uses residual to maintain original query information:
+\begin{equation}
+\mathbf{x}_b^{(r+1)} \;=\; \mathrm{norm}\!\big(\alpha\,\mathbf{x}^{(r)} + (1-\alpha)\,\mathbf{g}_b^{(r)} + \mathbf{x}_t \big), \qquad \alpha\in[0,1].
+\end{equation}
+
+\textbf{Retrieve-Cluster-Mix Loop.}
+The recollect query $\mathbf{x}_b^{(r+1)}$ will be used to perform the next round of retrieval to obtain the candidate set:
+\begin{equation}
+\mathcal{C}^{(r+1)} \;=\; \text{Top-}N\Big(\{(m_j,\,\langle \mathbf{x}_b^{(r+1)},\mathbf{z}_j\rangle)\}_{j=1}^{M}\Big).
+\end{equation}
+Afterwards, the memory cluster and recollect query mix are conducted. This \emph{retrieve-cluster-mix} routine is repeated across rounds, progressively expanding evidence chains.  
+To keep the search tractable, we maintain at most $B$ active branches per round and caps the recursion depth at $R$. 
+
+% \paragraph{Retrieve–cluster–mix loop.}
+% Each $\mathbf{x}_c^{(r+1)}$ performs a fresh Top-$N$ retrieval, $\mathcal{R}_c^{(r+1)} \;=\; \text{Top}-N\Big(\{(m_j,\,\langle \mathbf{x}_c^{(r+1)},\mathbf{z}_j\rangle)\}_{j=1}^{N}\Big).$
+% The results are de-duplicated to update $\mathcal{C}^{(r+1)}$, and the above \emph{cluster–mix–retrieve} routine repeats. We retain at most $B$ active branches per round and cap the depth by $R$.
+
+\textbf{Stop and Generation.}
+The process stops when a round limit $R$ is reached or a target number of items is gathered. The recollection evidence is a truncated union $\mathcal{C}_t \;=\; \text{Top-}K \!\left(\bigcup_{r=0}^{R}\mathcal{C}^{(r)}\right)$.
+% \begin{equation}
+% \mathcal{C}_t \;=\; \text{Top-}K \!\left(\bigcup_{r=0}^{R}\mathcal{C}^{(r)}\right).
+% \end{equation}
+
+% The above retrieval process instantiates the \emph{Recollection} in dual-process theory: when the system meets an unfamiliar signal that cannot resolve the query. 
+In analogy to human memory, this recollection triggers deliberate, cue-driven reconstruction, where related fragments are progressively retrieved, clustered, and mixed to surface latent context. Through structured retrieve-cluster-mix iterations under beam and depth budgets, which trade additional latency for more diagnostic evidence, enabling the evocation of question-specific memories. The pseudocode is provided in Appendix~\ref{app:pse_code}. And theoretical analysis can be found at Appendix~\ref{app:theory}.

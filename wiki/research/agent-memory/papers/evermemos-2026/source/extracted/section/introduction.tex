@@ -1,0 +1,37 @@
+\section{Introduction}
+
+Large Language Models (LLMs) are increasingly deployed as long-term interactive agents rather than transient conversational tools \cite{Yehudai2025LLMAgentEval, Ferrag2025LLMAgents}. For providing better personalized services, LLM-based agents must maintain consistent personas and user models over extended interactions while continuously incorporating new constraints over extended timeframes, spanning days, months, or even years. To address this challenge, expanding context windows is a direct approach, but ultra-long contexts still degrade in performance (e.g., the ``Lost-in-the-Middle'' phenomenon) and incur prohibitive computational costs \cite{liu2024lost}. Consequently, recent research has increasingly focused on constructing memory for LLMs that can both store past information and organize experiences into coherent, evolving structures that support long-horizon reasoning \cite{wu2025long,maharana2024locomo}.
+
+ Recently, a broad range of memory-augmented approaches have been proposed, including retrieval-based memory \cite{zhong2024memorybank,packer2024memgpt}, trainable memory \cite{zheng2024memoryllm,gong2024mplus}, and more recently \textit{Memory Operating Systems} that unify storage, retrieval, filtering, and updating \cite{li2025memos,kang2025memory}. However, enabling long-term consistency in reasoning remains challenging. While these methods improve scalability and modularity, most of them treat memory as flat collections of isolated records. 
+ %
+As a result, many failures stem not from missing information but from poor integration, where fragmented experiences are not consolidated into higher-level semantic structures. Without consolidation and abstraction, agents may retrieve relevant facts yet fail to detect conflicts, maintain stable user models, or reason consistently over time.
+%
+\textbf{Therefore, a key limitation of existing memory methods is the absence of an explicit mechanism to transform fragmented episodic experiences into coherent and stable knowledge structures that support long-horizon reasoning.}
+
+% \bing{If change Figure 1 to a bar chart, need to merge this and the next paragraphs.}
+% Motivated by the above observation, we argue that effective long-term interaction requires memory to be designed around an explicit lifecycle, rather than isolated memory operations. Inspired by organizational principles observed in biological memory systems, we propose \textbf{EverMemOS}, a unified Memory Operating System that models memory as a dynamic lifecycle spanning episodic trace formation, semantic consolidation, and reconstructive recollection. This lifecycle-centric view moves beyond recalling individual facts to integrating experiences into structured representations that support consistent reasoning over time.
+% %
+
+
+To address the above limitation, we propose \textbf{EverMemOS}, a unified and product-ready Memory Operating System that models memory as a dynamic lifecycle for long-term LLM-based agents. 
+%
+As shown in Figure \ref{fig:fig1}, EverMemOS significantly outperforms the state-of-the-art memory methods for LLMs in experimental evaluation, relatively improving overall accuracy by 9.2\% on LoCoMo and 6.7\% on LongMemEval compared to the strongest baseline method.
+%
+EverMemOS aims to transform fragmented episodic experiences into coherent and stable knowledge structures that support long-horizon reasoning through three phases. First, \textbf{Episodic Trace Formation} transforms the unbounded stream of interaction history into discrete, stable memory traces (termed \textit{MemCells}). Second, \textbf{Semantic Consolidation} transforms MemCells into stable, scene-level structures (termed \textit{MemScenes}) that support coherent aggregation, such as maintaining consistent user profiles across interactions. Finally, \textbf{Reconstructive Recollection}, guided by the principle of \textit{necessity and sufficiency}, actively composes only the grounded context required for a given query and supports long-horizon reasoning, rather than indiscriminately retrieving all potentially relevant records.
+
+EverMemOS does not aim to simulate biological memory at the neural level. Instead, it draws on organizing principles from biological memory systems and translates them into a computational framework. %In particular, we operationalize the consolidation of transient episodic experiences into stable semantic structures \cite{mcclelland1995there, frankland2005organization}. This lifecycle-based design provides an extensible foundation for robust long-horizon interaction while remaining agnostic to specific downstream tasks or domains. 
+%In this work, we focus our quantitative evaluation on memory-augmented reasoning and illustrate profile consistency and foresight-related behaviors through qualitative analysis. 
+Figure~\ref{fig:comparison} illustrates the intuition behind EverMemOS. A fragment-based system may recall a user's preference for IPA and recommend an alcoholic drink, failing to account for a newly introduced constraint that the user is taking antibiotics. In contrast, EverMemOS consolidates these experiences into a coherent representation of the user's state, enabling the agent to safely recommend a non-alcoholic alternative. Although such foresight-oriented behaviors are not explicitly captured by existing benchmarks, they expose a fundamental limitation of fragment-based memory and motivate the system-level design of EverMemOS.
+%
+Empirically, comprehensive experiments on three benchmarks for memory-augmented reasoning consistently indicate the superiority of EverMemOS, compared to the state-of-the-art methods.
+%EverMemOS sets a new state of the art in experimental evaluation, relatively improving overall accuracy by 9.2\% on LoCoMo and 6.7\% on LongMemEval compared to the strongest baseline method. 
+
+Our contributions are summarized as follows:
+\begin{itemize}
+    \item \textbf{System Design:} We introduce \textbf{EverMemOS}, a unified and product-ready Memory Operating System for LLMs that reconceptualizes memory as a lifecycle, shifting from passive storage of records to structured organization of experience.
+    \item \textbf{Innovative Method:} We propose a three-phase method 
+    %composed of episodic trace formation, semantic consolidation, and reconstruction recollection. Our method 
+    %
+    that can transform fragmented episodic experiences into coherent and stable knowledge structures that support long-horizon reasoning.
+    \item \textbf{Empirical Validation:} Experimental results demonstrate that EverMemOS achieves state-of-the-art performance on multiple long-context benchmarks for memory-augmented reasoning, validating the effectiveness of lifecycle-based memory organization.
+\end{itemize}

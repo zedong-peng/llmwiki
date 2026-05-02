@@ -1,0 +1,26 @@
+\section{Experimental Setup}
+
+\subsection{Retrieval and Evaluation Protocol}
+For all datasets, we use the PubMed Entrez API to execute the generated Boolean queries and retrieve candidate documents by matching on PMIDs~\cite{sayers2010general}. This simulates a realistic literature search workflow, allows us to evaluate query effectiveness in a practical retrieval setting, and follows standard methodology from previous work~\cite{wang2023can, wang2025reassessing}.
+We apply the same query validity check protocol described in Section~\ref{sec:retrieval_reward} to detect and reject malformed queries. Queries that fail this check are considered invalid, and the model is prompted to regenerate until a valid query is produced, with a maximum of 10 attempts.%
+\footnote{We cap regenerations at 10 to avoid excessive API usage and model inference.}
+This validation process aligns with established evaluation practices~\cite{wang2025reassessing}.
+
+We evaluate with measures used in earlier research~\cite{wang2025reassessing}. The \textbf{primary evaluation metrics} are recall, F\textsubscript{3}, and the percentage of queries obtaining recall above 80\% and 90\%. These reflect the high-recall requirements of systematic reviews, where omissions of relevant studies can critically undermine review quality.
+As \textbf{secondary metrics}, we report precision, the average number of documents retrieved (to measure screening effort), the average number of regenerations per query, and the success rate under 10 attempts---to capture robustness and generation stability beyond recall-focused evaluation.
+
+\subsection{Model Variants}
+Our primary experiments are conducted using models from the Qwen3 family~\cite{yang2025qwen3}. Unless otherwise specified, all trained AutoBool Models are based on \texttt{Qwen3-4B}, which serves as the default backbone throughout our main results. These models are fine-tuned using our reward-driven training framework (Section~\ref{sec:retrieval_reward}) to optimize for systematic review retrieval effectiveness. GRPO is applied to guide query generation behavior based on retrieval performance signals. 
+At inference time, we use the same prompt as during training and fix the decoding temperature to 0.6, following the Qwen3 recommendations~\cite{yang2025qwen3}.
+
+
+\subsection{Evaluation Datasets}
+We evaluate our models on three datasets: the \textbf{PubTemp set}, and two established benchmarks: the \textbf{CLEF TAR} collection~\cite{kanoulas2018clef} and the \textbf{Seed Collection}~\cite{wang2022little}.
+
+We follow prior work~\cite{wang2025reassessing} using the CLEF TAR 2017 and 2018 subsets (72 topics total) and the Seed Collection (40 topics). Each topic is defined by experts and paired with a manually curated set of relevant studies. These benchmarks have been widely adopted for evaluating automatic Boolean query generation in the context of systematic review automation~\cite{macfarlane2022search, kusa2023csmed, wang2022neural, stevenson2023stopping, lee2018seed}.
+
+\subsection{Training Parameters}
+
+All models are trained using the GRPO RL algorithm with a retrieval-based reward. We adopt LoRA-based parameter-efficient fine-tuning and use the vLLM backend in colocated mode.
+For each prompt the model generates four completions to compute reward scores. We use an effective batch size of 16 via gradient accumulation. Prompt and completion length limits are 768/1024 tokens for non-reasoning prompts and 1024/3072 for reasoning-based prompts.
+Unless otherwise noted, we set the training temperature to 1.2; its effect is analyzed in Section~\ref{sec:ablation}. Full training hyperparameters are listed in Table~\ref{appendix:tab-training-details} in Appendix~\ref{appendix:training-details}.

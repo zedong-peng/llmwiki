@@ -1,0 +1,300 @@
+\begin{table}[t]
+    \centering
+\caption{\wiki perplexity (\textbf{$\downarrow$}) under GEMM-only emulation (nonlinear ops in full precision) for \llamafamily. 
+% Results for GPTQ, AWQ, OmniQuant, and Atom are taken from MicroScopiQ; QuaRot numbers are from the paper or reproduced when not reported. 
+W/A/KV denote bit widths for weights, activations, and KV cache. Results marked with $^*$ are reproduced from released code.}
+
+\resizebox{1.0\linewidth}{!}{
+    \begin{tabular}{lcccccc}
+    \toprule
+    &   & \multicolumn{3}{c}{\textbf{LLaMA-2} \cite{llama2}} & \multicolumn{2}{c}{\textbf{LLaMA-3} \cite{llama3}} \\
+    \cmidrule(lr){3-5}
+    \cmidrule(lr){6-7}
+    \textbf{Method} & \textbf{W/A/KV}  & \textbf{7B} & \textbf{13B} & \textbf{70B} & \textbf{8B} & \textbf{70B} \\
+    \midrule
+    Baseline & 16/16/16 & 5.47 & 4.83 & 3.31 & 6.13 & 2.85 \\
+    \midrule
+    GPTQ \cite{frantar2022gptq} & 4/16/16 & 6.23 & 5.58 & 4.28 & 8.12 & 3.75 \\
+    AWQ \cite{lin2024awq} & 4/16/16 & 5.82 & 5.19 & 4.08 & 7.96 & 3.58 \\
+    OmniQuant \cite{shao2023omniquant} & 4/16/16 & 5.74 & 5.02 & 3.47 & 7.09 & 3.46 \\
+    MicroScopiQ \cite{Microscopiq} & 4/16/16 & 5.65 & 5.02 & 3.42 & 6.89 & \best{3.25} \\
+    QuaRot \cite{QuaRot} & 4/16/16 & \best{5.60} & 5.00 &  3.41& 6.52$^*$ &  3.53$^*$ \\
+    \textbf{PLENA (MXFP)} & 4/16/16 & 7.09 & 5.91 & - & 11.95 & - \\
+    \textbf{PLENA (ours)} & 4/16/16 & 5.61 & \best{4.97} & \best{3.41}& \best{6.45} & 3.59 \\
+    \midrule
+    OmniQuant \cite{shao2023omniquant} & 4/4/16 & 11.47 & 8.32 & 5.41 & 10.21 & 5.30 \\
+    SmoothQuant \cite{xiao2023smoothquant} & 4/4/16 & 20.47 & 15.63 & 17.62 & 29.54 & 19.32 \\
+    Atom \cite{zhao2024atom} &  4/4/16 & 6.16 & 6.12 & 5.20 & 8.12 & 4.69 \\
+    MicroScopiQ \cite{Microscopiq} &  4/4/16 & 6.11 & 5.57 & 4.48 & 8.12 & 4.65 \\
+    QuaRot \cite{QuaRot}& 4/4/16 & 6.02$^*$  & 5.36$^*$ & 3.78& 8.00$^*$& 6.33$^*$ \\
+    M-ANT \cite{hu2025mant}& 4/4/16 & 5.92  & 5.24 & - & - & - \\
+    \textbf{PLENA (MXFP)} & 4/4/16 & 15.89 & 10.30 & - & 91.71 & - \\
+    \textbf{PLENA (ours)} &  4/4/16 & \best{5.69} & \best{5.03} & \best{3.59}& \best{6.76} & \best{4.51} \\
+    \midrule
+    QuaRot \cite{QuaRot} & 4/4/4 & 6.10 & 5.40 & 3.79&  8.16 & 6.66 \\
+    QuaRot-128G \cite{QuaRot}& 4/4/4 & 5.93& 5.26 & \best{3.61} & 7.36&  5.51 \\
+    \textbf{PLENA (MXFP)} & 4/4/4 & 67.35 & 27.44 & - & 256.22 & - \\
+    \textbf{PLENA (ours)} &  4/4/4 & \best{5.89} & \best{5.18} & 3.62 & \best{7.22} & \best{4.77} \\
+    \bottomrule
+    \end{tabular}}
+    \label{tab:llm_results}
+    % \vspace{-10pt}
+    % \parbox{1.0\linewidth}{\small\emph{Note: Results marked with $^*$ are reproduced from the authors’ released code. 
+    % Specifically, for the QuaRot 4/4/16 configuration, we follow the experimental setup described in their paper, where activations are symmetric-quantized with a clipping ratio of 0.9.}}
+\end{table}
+
+
+
+\begin{table}[t]
+\centering
+\caption{Ablation study of quantization techniques and their impact on microscaling data formats, evaluated across all 9 GEMMs in \llamaIIISmall. Results are reported on \wiki{} perplexity. GPTQ is used for clipping: $\mathrm{Err}_{y}$ denotes output-norm clipping; $\mathrm{Err}_{w}$ denotes weight-norm clipping.}
+\label{tab:ablation}
+
+\resizebox{\linewidth}{!}{
+
+\begin{tabular}{lrlr}
+\toprule
+\textbf{Method} & \multicolumn{1}{l}{\textbf{PPL\textbf{$\downarrow$}}} & \textbf{Method} & \multicolumn{1}{l}{\textbf{PPL\textbf{$\downarrow$}}} \\
+\cmidrule(lr){1-2}
+\cmidrule(lr){3-4}
+\textbf{Baseline FP16} & 6.13 & \multicolumn{2}{l}{\textbf{ACT and KV Only}} \\
+\cmidrule(lr){1-2}
+\multicolumn{2}{l}{\textbf{Weight Only}} & MXFP4 & 29.75 \\
+MXINT + RTN & 6.83 & MXINT4 & 7.24 \\
+MXFP + RTN & 11.94 & MXFP4 + Selective Rotate & 14.50 \\
+MXINT4 + Rotation & 6.98 & MXINT4 + Selective Rotate & \best{7.05} \\
+\cmidrule(lr){3-4}
+MXFP4 + Rotation & 13.71 & \multicolumn{2}{l}{\textbf{MXINT Full System}} \\
+MXINT4 + $\mathrm{Err}_{w}$ Clip & 6.53 & RTN & 8.28 \\
+MXINT4 + $\mathrm{Err}_{y}$ Clip & \best{6.45} & $\mathrm{Err}_{y}$ Clip & 7.60 \\
+\multicolumn{2}{l}{\textbf{}} & $\mathrm{Err}_{y}$ Clip +Selective Rotation & \best{7.22} \\
+\bottomrule
+\end{tabular}
+}
+\vspace{-13pt}
+\end{table}
+
+
+\begin{table}[t]
+    \centering
+    \footnotesize
+    \setlength{\tabcolsep}{3.5pt}
+    \caption{Zero-shot downstream task accuracy of LLaMA-3 models with 4-bit weight, activation, and KV quantization, evaluated on PIQA (PQ), WinoGrande (WG), HellaSwag (HS), Arc-Easy (A-e), Arc-Challenge (A-c), and LAMBADA (LA).}
+    \begin{tabular}{l|cccccc|c}
+        \toprule
+        \textbf{Method} & \textbf{PQ} & \textbf{WG} & \textbf{HS} & \textbf{A-e} & \textbf{A-c} & \textbf{LA} & \textbf{Avg.} \\
+        \midrule
+        \multicolumn{8}{l}{\textit{LLaMA-3-8B}} \\
+        \quad FP16                 & 80.74 & 72.77 & 79.06 & 77.82 & 53.33 & 75.63 & 73.22 \\
+        \quad QuaRot~\cite{QuaRot} & 75.14 & 65.82 & 72.94 & 68.01 & 43.34 & 65.81 & 65.18 \\
+        \quad \textbf{PLENA (ours)}&79.00  & 71.90 & 76.07 & 74.71 &  48.21 & 72.44 & 70.39 \\
+        \midrule
+        \multicolumn{8}{l}{\textit{LLaMA-3-70B}} \\
+        \quad   FP16   & 84.66 & 80.51 & 84.89 & 85.86 & 64.25 & 79.47 & 79.94 \\
+        \quad  QuaRot & 78.07 & 69.30 & 77.33 & 73.44 & 47.53 & 69.57 & 69.21 \\
+        \quad  \textbf{PLENA (ours)} &   82.48 &  77.51 &  83.47  & 78.54   &  57.17   &  78.05   &   76.20   \\
+        \bottomrule
+    \end{tabular}
+    \label{tab:zero_shot_combined}
+\end{table}
+
+
+
+\begin{table}[t]
+\centering
+\caption{Evaluation of long-context and agentic workloads across code generation (HumanEval~\cite{chen2021codex}), mathematical reasoning (GSM8K~\cite{cobbe2021training}), and function-calling (BFCL-Web Search Base~\cite{patil2025berkeley}) benchmarks. W/A/KV denotes bit widths for weights, activations, and KV cache.}
+\label{tab:long_context_agentic}
+\begin{tabular}{lc ccc}
+    \toprule
+    \textbf{Model / Method} & \textbf{W/A/KV} & \textbf{HumanEval} & \textbf{GSM8K} & \textbf{BFCL-W} \\
+     & & pass@1 $\uparrow$ & EM $\uparrow$ & Acc $\uparrow$ \\
+    % \midrule
+    % \multicolumn{5}{l}{\textit{Qwen3-8B}} \\
+    % \quad Baseline              & 16/16/16 & 84.8 & 90.9 & 5.0 \\
+    % \quad \textbf{PLENA (ours)} & 4/4/4    & 78.7   & --   & -- \\
+    \midrule
+    % \multicolumn{5}{l}{\textit{Qwen3-32B}} \\
+    \quad Baseline              & 16/16/16 & 89.6 & 97.85 & 27.0 \\
+    \quad \textbf{PLENA (ours)} & 4/4/4    & 84.1   & 97.85  & 24.0 \\
+    \bottomrule
+\end{tabular}
+\vspace{-10pt}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Ablation study of quantization techniqeus on Qwen3 model across HumanEval, GSM8K, and BFCL-Web Search Base. $\mathrm{Err}_{y}$ denotes output-norm clipping. Qwen3-8B on HumanEval and GSM8K, Qwen3-32B on BFCL-Web Search Base. Results for HumanEval and GSM8K use Qwen3-8B; results for BFCL-Web Search Base use Qwen3-32B, as its higher baseline accuracy better isolates the effect of quantization.}
+\label{tab:ablation_new}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{l ccc}
+    \toprule
+    \textbf{Configuration} & \textbf{HumanEval} & \textbf{GSM8K} & \textbf{BFCL-W} \\
+     & pass@1 $\uparrow$ & EM $\uparrow$ & Acc $\uparrow$ \\
+    \midrule
+    Baseline (FP16) & 84.8 & 90.9 & 27 \\
+    \midrule
+    W-only INT4 (RTN)      & 82.9 & 88.7 & 22 \\
+    + ACT \& KV INT4       & 72.0 & 74.4 & 15 \\
+    + GPTQ                 & 73.2 & 87.7 & 24 \\
+    + $\mathrm{Err}_{y}$ Clip & 74.4 & 88.6 & 24 \\
+    + Selective Rotation   & \best{78.7} & \best{88.8} & \best{24} \\
+    \bottomrule
+\end{tabular}}
+\vspace{-10pt}
+\end{table}
+
+% \begin{table}[t]
+
+% \centering
+% \caption{Ablation study of quantization techniques and their impact on microscaling data formats, evaluated across all 9 GEMMs in \llamaIIISmall. Results are reported on \wiki{} perplexity, with ablations on (i) weights-only quantization, (ii) activation and KV-cache–only quantization, and (iii) full-system 4-bit quantization. GPTQ is used for all clipping methods: $\mathrm{Err}_{y}$ Clip denotes our output-norm–guided clipping search, while $\mathrm{Err}_{w}$ Clip denotes weight-norm–based clipping.}
+
+% \label{tab:ablation}
+
+% \begin{tabular}{ll|c}
+
+% \toprule
+% \textbf{Method} & \textbf{PPL\textbf{\best{$\downarrow$}}} \\
+% \midrule
+% \textbf{Baseline FP16} & 6.13 \\
+% \midrule
+
+% \multicolumn{2}{l}{\textbf{Weight Only}} \\
+% MXINT + RTN & 6.83 \\
+% MXFP  + RTN  & 11.94 \\
+% MXINT4 + Rotation & 6.98 \\
+% MXFP4 + Rotation & 13.71 \\
+% MXINT4 + $\mathrm{Err}_{w}$ Clip & 6.53 \\
+% MXINT4 + $\mathrm{Err}_{y}$ Clip & 6.45 \\
+
+% % MXINT (8 / 6 / 4) & 6.14 / 6.19 /6.83 \\
+% % MXINT4 + Err$_w$ Clip & 6.78 \\
+% % MXFP6 (E1M4 / E2M5) & 6.33 / 6.15 \\
+% % MXFP4 (E1M2 / E2M1) 
+% %   & 11.95 / 3247.40 \\
+
+% % MXFP4 (E1M2 / E2M1) + QuaRot 
+% %   & 13.71 / 5377.72 \\
+
+% % MXINT4 + QuaRot & 6.98 \\
+% \midrule
+% \multicolumn{2}{l}{\textbf{ACT and KV Only}} \\
+% MXFP4 & 29.75 \\
+% MXINT4 & 7.24 \\
+% % MXFP4 + Rotation & 14.50 \\
+% % MXINT4 + Rotation & nan \\
+% MXFP4 + Selective Rotate & 14.50 \\
+% MXINT4 + Selective Rotate & 7.05 \\
+% \midrule
+% \multicolumn{2}{l}{\textbf{MXINT Full System}} \\
+
+% % $\mathrm{Err}_{w}$ Clip & 8.52  \\
+% RTN & 8.28 \\
+% $\mathrm{Err}_{y}$ Clip & 7.60  \\
+% $\mathrm{Err}_{y}$ Clip +Selective Rotation& 7.22 \\
+% % MXFP (E2M5 / E1M4) & 6.15 / 6.20 \\
+% % MXINT (8 / 6) & 6.14 / 6.19 \\
+% % \midrule
+% % \multicolumn{2}{l}{\textbf{RTN (KV Only)}} \\
+% % MXFP (E1M6 / E1M4) & 6.14 / 6.20 \\
+% % MXINT (8 / 6) & 6.14 / 6.15 \\
+% % \midrule
+
+% % \multicolumn{2}{l}{\textbf{RTN + QuaRot (Weights Only)}} \\
+% % MXFP4 (E1M2 / E2M1) & 13.71 / 5377.72 \\
+% % MXINT4 & 6.9783 \\
+% % \midrule
+
+% % \multicolumn{2}{l}{\textbf{GPTQ (Weights Only)}} \\
+% % INT4 & 8.12 \ \\
+% % MXFP4 E1M2 & 8.19 \ \\
+% % MXINT4 & 6.65 \ \\
+% % MXINT4 + ($\mathrm{Err}_{\textbf{w}}$ Clip / $\mathrm{Err}_{\textbf{y}}$ Clip) & 6.53 / 6.45  \\
+% % % MXINT4 + $\mathrm{Err}_{\textbf{y}}$ Clip & 6.45\\
+% % \midrule
+% % \multicolumn{2}{l}{\textbf{Full Model}} \\
+
+% % W8A8KV8  \\
+% % \midrule
+% % MXINT4 + $\mathrm{Err}_{w}$ Clip & 8.52 \\
+% % MXINT4 + $\mathrm{Err}_{y}$ Clip & \multirow{2}{*}{7.60} \\
+
+% % MXINT4 + $\mathrm{Err}_{y}$ Clip & \multirow{2}{*}{7.2218} \\
+% % + Selective Rotation  \\
+
+% \bottomrule
+% \end{tabular}
+% \vspace{-10pt}
+% \end{table}
+
+
+
+
+
+
+
+
+% \subsection{Ablation Study on Quantization Methods}
+% \begin{table}[h]
+% \centering
+% \caption{Ablation study on quantization techniques. Covering all 9 GEMMs in the \llamaIIISmall model. Quantization configured with W\_MXINT4, A\_MXINT4, KV\_MXINT4 with block size 16. }
+% \begin{tabular}{l|c}
+% \toprule
+% \textbf{Method} & \textbf{ Perplexity (lower is better)} \\
+% \midrule
+% \textbf{Baseline FP16} & 6.14 \\
+% \midrule
+% RTN & 8.2763($2.3793\uparrow$) \\
+% RTN + $\mathrm{Err}_{w}$ Clip &  8.1948($0.0815\downarrow$) \\
+% GPTQ + $\mathrm{Err}_{w}$ Clip & 8.5193  ($0.3245\uparrow$) \\
+% GPTQ + $\mathrm{Err}_{y}$ Clip & 7.6026 ($0.9167\downarrow$) \\
+% \midrule
+% GPTQ + $\mathrm{Err}_{y}$ Clip & \multirow{2}{*}{7.2218($0.3808\downarrow$)} \\
+% + Selective Rotation  \\
+
+% \bottomrule
+% \end{tabular}
+% \label{tab:ablation}
+% \end{table}
+
+% \jn{Add ablation on methods here}
+% \begin{table}[t]
+%     \centering
+%     \small
+%     \caption{Zero-shot accuracy of \llamaIII and \llama{} models with 4 bits (A4W4KV4) only comparing with QuaRot on PIQA (PQ), WinoGrande (WG), HellaSwag (HS), Arc-Easy (A-e), Arc-Challenge (A-c), and LAMBADA (LA). Results for QuaRot is taken from thier paper.}
+% \resizebox{1.0\linewidth}{!}{
+%     \begin{tabular}{c|c|cccccc|c|}
+%         \toprule
+%         \textbf{Model} & \textbf{Method} & \textbf{PQ~\cite{piqa}} & \textbf{WG~\cite{sakaguchi2021winogrande}} & \textbf{HS~\cite{hellaswag}} & \textbf{A-e~\cite{arcc}} & \textbf{A-c~\cite{arcc}} & \textbf{LA~\cite{paperno2016lambada}} & \textbf{Avg.} \\
+%         \midrule
+%         \midrule
+%         \multirow{3}{*}{\llamaIIISmall} 
+%             & FP16   & 80.74 & 72.77 & 79.06 & 77.82 & 53.33 & 75.63 & 73.22 \\
+%             & QuaRot~\cite{QuaRot} & 75.14 & 65.82 & 72.94 & 68.01 & 43.34 & 65.81 & 65.18 \\
+%             & \textbf{PLENA}   &  79.11  &   71.35   &   76.97   &   74.07   &   50.51   &   74.07   &   71.01   \\
+%         \midrule
+  
+%         \midrule
+%         \multirow{2}{*}{\llamaSmall} 
+%             & FP16   & 79.11 & 69.06 & 75.99 & 74.58 & 46.25 & 73.90 & 69.82 \\
+%             & QuaRot~\cite{QuaRot} & 76.77 & 63.77 & 72.16 & 69.87 & 40.87 & 70.39 & 65.64 \\
+%             & \textbf{PLENA}   &   78.73   &   68.19   &   74.24   &   72.52   &   43.69   &   73.30   &   68.45   \\
+%         \midrule
+%         % \multirow{2}{*}{\llamaSmall} 
+%         %     & FP16   & 79.11 & 69.06 & 75.99 & 74.58 & 46.25 & 73.90 & 69.82 \\
+%         %     & QuaRot & 76.77 & 63.77 & 72.16 & 69.87 & 40.87 & 70.39 & 65.64 \\
+%         %     & Ours   &   77.58/78.73   &   68.19   &   55.53/74.24   &   74.87/72.52   &   41.04/43.69   &   73.30   &   -   \\
+%         % \midrule
+%         \multirow{2}{*}{\llamaMedium} 
+%             & FP16   & 80.47 & 72.22 & 79.39 & 77.48 & 49.23 & 76.75 & 72.59 \\
+%             & QuaRot & 78.89 & 70.24 & 76.37 & 72.98 & 46.59 & 73.67 & 69.79 \\
+%             & Ours   &   78.29/80.03   &   71.82   &   58.86/78.26   &   78.62/76.81   &   45.90/48.55   &   76.42   &   -   \\
+%         % \midrule
+%         % \multirow{2}{*}{\llamaBig} 
+%         %     & FP16   & 82.70 & 77.98 & 83.84 & 80.98 & 57.34 & 79.58 & 77.07 \\
+%         %     & QuaRot & 82.43 & 76.24 & 81.82 & 80.43 & 56.23 & 78.73 & 75.98 \\
+%         %     & Ours   &   -   &   -   &   -   &   -   &   -   &   -   &   -   \\
+%         % \bottomrule
+%     \end{tabular}
+% }
+%     \label{tab:zero_shot_combined}
+% \end{table}

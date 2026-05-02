@@ -1,0 +1,82 @@
+\section{Putting it all together: Unified Hindsight Architecture}
+\label{sec:hindsight-architecture}
+
+We have now described TEMPR, which implements Hindsight's \emph{retain} and \emph{recall} operations (Section~\ref{sec:tempr}), and CARA, which implements the \emph{reflect} operation (Section~\ref{sec:cara}). In this section, we show how these components compose into a single end-to-end system and highlight the system-level properties that emerge from their interaction. At a high level, Hindsight turns raw conversational input into a structured memory bank and then uses that bank to support preference-conditioned reasoning over time.
+
+\subsection{Integration: Retain, Recall, Reflect}
+
+The Hindsight system integrates TEMPR and CARA into a unified architecture centered on three core operations. We summarize each operation here for completeness, using the same definitions introduced in Section~\ref{sec:hindsight-overview}.
+
+\paragraph{Retain.}
+
+The retain operation stores information into memory banks. Formally, given a memory bank $B$ and input data $D$, the retain function is:
+\begin{equation}
+\text{Retain}(B, D) \rightarrow \mathcal{M}' = \{\mathcal{W}', \mathcal{B}', \mathcal{O}', \mathcal{S}'\}
+\end{equation}
+where $\mathcal{M}'$ is the updated four-network memory structure. The retain pipeline performs the following steps: \textbf{\textit{1)}} LLM-powered fact extraction with temporal ranges to convert $D$ into a set of structured facts $\mathcal{F} = \{f_1, \ldots, f_n\}$; \textbf{\textit{2)}} entity recognition and resolution to map entity mentions to canonical entities $E$; \textbf{\textit{3)}} graph link construction to create edges of type temporal, semantic, entity, and causal in the memory graph $\mathcal{G} = (V, E)$; \textbf{\textit{4)}} automatic opinion reinforcement for existing beliefs when new evidence arrives, where for each opinion $o \in \mathcal{O}$, we identify related new facts and update the confidence score according to the reinforcement rules defined in Section~\ref{sec:cara}; and \textbf{\textit{5)}} background merging to keep the bank profile coherent over time using the merging function $h' = \text{Merge}_{\text{LLM}}(h, h_{\text{new}})$.
+
+\paragraph{Recall.}
+
+The recall operation retrieves memories using multi-strategy search. Formally, given a memory bank $B$, query $Q$, and token budget $k$, the recall function is:
+\begin{equation}
+\text{Recall}(B, Q, k) \rightarrow \{f_1, \ldots, f_n\}
+\end{equation}
+where $\sum_{i=1}^n |f_i| \leq k$ and the returned facts are ordered by relevance. The recall pipeline performs the following steps: \textbf{\textit{1)}} four-way parallel retrieval (semantic, keyword, graph, temporal) to generate candidate sets $R_{\text{sem}}, R_{\text{bm25}}, R_{\text{graph}}, R_{\text{temp}}$; \textbf{\textit{2)}} Reciprocal Rank Fusion to combine ranked lists using
+\begin{equation}
+\text{RRF}(f) = \sum_{R \in \{R_{\text{sem}}, R_{\text{bm25}}, R_{\text{graph}}, R_{\text{temp}}\}} \frac{1}{k + \text{rank}_R(f)}
+\end{equation}
+\textbf{\textit{3)}} neural cross-encoder reranking for final precision using $\text{CE}(Q, f)$ scores; and \textbf{\textit{4)}} token budget filtering to ensure $\sum_{i=1}^n |f_i| \leq k$ by greedily selecting the top-ranked facts until the budget is exhausted.
+
+\paragraph{Reflect.}
+
+The reflect operation generates preference-conditioned responses. Formally, given a memory bank $B$, query $Q$, and preference profile $\Theta$, the reflect function is:
+\begin{equation}
+\text{Reflect}(B, Q, \Theta) \rightarrow (r, \mathcal{O}')
+\end{equation}
+where $r$ is the generated response and $\mathcal{O}'$ is the updated opinion network. The reflect pipeline performs the following steps: \textbf{\textit{1)}} use TEMPR to retrieve relevant memories from world, experience, opinion, and observation networks: $\mathcal{F}_Q = \text{Recall}(B, Q, k)$; \textbf{\textit{2)}} load the bank's preference profile $\Theta = (S, L, E, \beta)$ and background $h$; \textbf{\textit{3)}} generate a response whose reasoning and tone are influenced by the configured preferences and bias-strength parameter $\beta$, where the generation is conditioned on the system message $s = \text{Verbalize}(n, h, \Theta)$ and retrieved facts $\mathcal{F}_Q$; \textbf{\textit{4)}} form new opinions with confidence scores when appropriate, where for each new opinion $o = (t, c, \tau, b, \mathcal{E})$, we add $o$ to the opinion network $\mathcal{O}$; and \textbf{\textit{5)}} store opinions for future retrieval and reinforcement, updating $\mathcal{O}' = \mathcal{O} \cup \{o_1, \ldots, o_m\}$.
+
+Together, these operations define a full loop: new experiences are retained into structured memory, recalled as needed for a given query, and reflected upon in a way that updates the agent's beliefs and identity configuration.
+
+\iffalse
+\subsection{System Properties}
+
+Beyond the behavior of TEMPR and CARA in isolation, the unified Hindsight architecture exhibits several desirable system-level properties that emerge from their interaction.
+
+\subsubsection{Epistemic Clarity}
+
+The four-network architecture provides a clear separation between different kinds of information. Let $\mathcal{M} = \{\mathcal{W}, \mathcal{B}, \mathcal{O}, \mathcal{S}\}$ denote the four networks, where each network has a distinct epistemic role: the \textbf{\textit{world network $\mathcal{W}$}} represents what the bank knows about the external world (objective facts); the \textbf{\textit{experience network $\mathcal{B}$}} captures what the bank has done and experienced (first-person facts); the \textbf{\textit{opinion network $\mathcal{O}$}} stores what the bank believes, with confidence scores (subjective beliefs); and the \textbf{\textit{observation network $\mathcal{S}$}} contains preference-neutral summaries of entities synthesized from underlying facts (derived knowledge).
+
+This separation enables transparent reasoning by tracing opinions back to supporting and contradicting world facts and experiences. It also enables debugging by allowing developers to distinguish missing or incorrect facts from flawed reasoning or miscalibrated opinions. Finally, it enables confidence calibration by having opinions carry explicit confidence scores while facts and observations do not, clarifying what is believed versus what is merely known or observed.
+
+\subsubsection{Temporal Awareness}
+
+Hindsight maintains a multi-dimensional temporal representation for each memory. Let $f = (u, b, t, v, \tau_s, \tau_e, \tau_m, \ell, c, x)$ be a memory unit. The temporal metadata includes $\tau_s, \tau_e$ (when the event actually happened, i.e., the occurrence interval, supporting both point events where $\tau_s = \tau_e$ and extended periods where $\tau_s < \tau_e$) and $\tau_m$ (when the bank learned or discussed the event, i.e., the mention time).
+
+This enables precise historical queries by matching occurrence intervals against query ranges. For a temporal query $[\tau_{\text{start}}, \tau_{\text{end}}]$, we retrieve facts where $[\tau_s, \tau_e] \cap [\tau_{\text{start}}, \tau_{\text{end}}] \neq \emptyset$. It also enables recency-aware ranking where more recent mentions can be prioritized when appropriate using $\tau_m$. Finally, it supports period matching for events spanning weeks or months, rather than only instantaneous timestamps.
+
+\subsubsection{Entity-Aware Reasoning}
+
+LLM-based entity recognition and disambiguation turn raw text into a knowledge graph over entities. Let $E$ be the set of canonical entities and $\rho: M \rightarrow E$ be the resolution function. The memory graph $\mathcal{G} = (V, E)$ contains entity links that connect semantically distant facts through shared entities (e.g., different conversations about ``Alice'' and her team), enable multi-hop discovery (e.g., ``Alice's manager's team'') via graph traversal using spreading activation, and disambiguate mentions (``Alice'' vs.\ ``Alice Chen'') by tying them to canonical entities in $E$.
+
+Entity links are then exploited during recall via spreading activation, making it possible to surface relevant but indirectly related memories that would be missed by semantic or keyword search alone.
+
+\subsubsection{Multiple Link Types}
+
+The memory graph incorporates multiple relationship types, each contributing different signals during retrieval. Let $e = (f_i, f_j, w, \ell)$ be an edge in the memory graph where $\ell \in \{\text{entity}, \text{semantic}, \text{temporal}, \text{causal}\}$ is the link type and $w \in [0,1]$ is the weight. \textbf{\textit{Entity links}} connect memories mentioning the same entities with $w = 1.0$; \textbf{\textit{semantic links}} connect conceptually similar memories based on embedding similarity with $w = \text{sim}(v_i, v_j)$ where $\text{sim}$ is cosine similarity; \textbf{\textit{temporal links}} connect temporally proximate memories, capturing context adjacency in time with $w = \exp(-\Delta t / \sigma_t)$; and \textbf{\textit{causal links}} represent identified cause-effect relationships extracted by the LLM with type-specific weights (causes, caused\_by, enables, prevents).
+
+Links are weighted differently during graph traversal via the multiplier function $\mu(\ell)$. Causal and entity links typically have $\mu(\ell) > 1$, carrying higher weight to favor explanatory and identity-based connections. This heterogeneity allows Hindsight to surface information that is relevant by identity, meaning, time, or explanation, rather than relying on a single notion of similarity.
+
+\subsubsection{Preference-Conditioned Consistency}
+
+CARA's preference model and bias-strength parameter ensure that agents exhibit stable reasoning styles over time. Let $\Theta = (S, L, E, \beta)$ be the preference profile. The system provides \textbf{\textit{configurable bias strength}} where agents can range from nearly objective ($\beta \approx 0$) to strongly preference-conditioned ($\beta \approx 1$), \textbf{\textit{preference-appropriate opinion formation}} where different preference profiles lead to systematically different emphases and conclusions when reflecting on the same facts (formalized as $o = \text{OpinionFormation}(\mathcal{F}_Q, \Theta, Q)$ where the preference profile $\Theta$ modulates the generation process), and \textbf{\textit{consistent voice}} where system messages and background profiles keep tone and stance aligned across interactions through the verbalization function $\phi(\Theta)$.
+
+Because preference conditioning operates over the structured memory provided by TEMPR, this consistency extends across long-lived conversations and diverse topics.
+
+\subsubsection{Dynamic Belief Systems}
+
+Opinion reinforcement allows beliefs to evolve as new information is retained. Let $o = (t, c, \tau, b, \mathcal{E})$ be an opinion with current confidence $c$. When new facts $\mathcal{F}_{\text{new}}$ arrive, confidence increases with supporting evidence ($c' = \min(c + \alpha, 1.0)$ if evidence reinforces), decreases with contradictory evidence ($c' = \max(c - \alpha, 0.0)$ if evidence weakens, or $c' = \max(c - 2\alpha, 0.0)$ if evidence contradicts), accumulates nuance as opinions become more qualified over time with additional considerations (potentially updating both $c$ and $t$), and maintains auditability where the evolution of an opinion's confidence and text over time provides an audit trail of belief changes.
+
+This yields agents whose beliefs are neither static nor purely reactive, but instead evolve in a way that is guided by both evidence and the configured preference profile $\Theta$.
+
+These properties emerge from the interaction between TEMPR's structured, temporal, entity-aware memory and CARA's preference-conditioned reflection. In Section~\ref{sec:experiments} we empirically evaluate how these design choices affect retrieval quality and behavior on long-term conversational benchmarks.
+\fi

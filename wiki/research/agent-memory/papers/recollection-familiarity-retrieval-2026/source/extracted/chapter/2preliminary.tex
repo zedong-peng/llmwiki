@@ -1,0 +1,41 @@
+% \section{Problem Definition}
+
+% \paragraph{Objects.}
+% We study a memory-augmented personalized LLM system for a user $u$.
+% Let the user memory store be $\mathcal{M}=\{m_i\}_{i=1}^{N}$ (\textit{e.g.} prior conversations).
+% At interaction step $t$, the user issues a query $q_t$ and the system returns a response $y_t$.
+
+% \paragraph{Embeddings and similarity.}
+% An encoder $\phi(\cdot)$ maps text to vectors: $\mathbf{x}_t=\phi(q_t)$, $\mathbf{z}_i=\phi(m_i)\in\mathbb{R}^d$.
+% A similarity function $s(\mathbf{x},\mathbf{z})$ (e.g., dot/cosine) induces a ranking over $\mathcal{M}$.
+
+% \paragraph{Retriever output.}
+% Given $q_t$, a retriever $\mathsf{R}$ returns a candidate set
+% \begin{equation}
+%     \mathcal{C}_t=\text{TopK}\big(\{(m_i,\,s(\mathbf{x}_t,\mathbf{z}_i))\}_{i=1}^N\big),
+% \end{equation}
+
+% \paragraph{Evidence and generation.}
+% The system selects an evidence set $\mathcal{E}_t \subseteq \mathcal{M}$ (typically derived from $\mathcal{C}_t$) and produces
+% \begin{equation}
+%     y_t = \text{LLM}(q_t,\,\mathcal{E}_t).
+% \end{equation}
+
+
+% \paragraph{Budget.}
+% Each turn is subject to a resource budget $B$ (latency / tokens / compute) measured via a cost function $\operatorname{Cost}(\mathcal{E}_t)\le B$.
+
+% \paragraph{Personalization objective.}
+% Let $\mathrm{Util}(y_t; q_t, u)$ denote task utility under user $u$ (task fidelity, consistency with user context, traceability).
+% The problem is:
+% \[
+% \max_{\mathcal{E}_t \subseteq \mathcal{M}} \; \mathrm{Util}\big(\mathsf{LLM}(q_t,\mathcal{E}_t); q_t,u\big)
+% \quad \text{s.t.}\quad \operatorname{Cost}(\mathcal{E}_t)\le B.
+% \]
+
+% \paragraph{Assumptions.}
+% (i) \textbf{Personal memory:} $\mathcal{M}$ is user-specific, long-tailed, and non-stationary (items may be added/edited/expired). 
+% (ii) \textbf{Heterogeneity:} items vary in granularity and reliability.
+% (iii) \textbf{Real-time:} responses must respect budget $B$.
+% (iv) \textbf{Familiarity vs.\ Recollection (operational view):} one-shot similarity captures fast, coarse \emph{familiarity}; deeper, context-reconstructive \emph{recollection} may be needed when initial confidence is low.
+% (This work formalizes retrieval under this dual-process view in subsequent sections.)

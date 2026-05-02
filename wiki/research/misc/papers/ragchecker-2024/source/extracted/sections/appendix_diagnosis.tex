@@ -1,0 +1,78 @@
+\section{Diagnosis on RAG for Improvements}
+\label{appendix:diagnosis}
+% \input{tables/ablation_k}
+% \input{tables/ablation_prompt}
+% \input{tables/ablation_chunk_size}
+% \input{tables/ablation_chunk_overlap}
+
+We modify hyper-parameters commonly tuned in RAG systems to observe performance variance under the metrics defined by \benchname\space. We focus on how \benchname\space explains this variance and provides tuning suggestions for improvements on certain aspects. In this section, we evaluate three RAG baselines (BM25\_GPT-4, E5-Mistral\_GPT-4, and E5-Mistral\_Llama3-70B) across three domains with increasing difficulty: Writing, Finance, and KIWI.
+We use our default settings (Appendix~\ref{appendix:experiment_setup_detail}) in main experiments as controls.
+We experiment with different numbers of chunks selected as context $k\in$\{5,10,20\}, different chunk size \{150,300,600\}\footnote{We omit chunk size of 600 for E5-Mistral\_Llama3-70B due to the limited 8K context window of Llama3.}, different chunk overlap ratio \{0.0,0.2,0.4\}, and different generation prompts.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/radar_topk.pdf}
+    \caption{Diagnosis on Top-k Selection}
+    \label{fig:radar-topk}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/radar_chunk_size.pdf}
+    \caption{Diagnosis on Chunk Size}
+    \label{fig:radar-chunk-size}
+\end{figure}
+
+\paragraph{More Context Enhances Faithfulness}
+Top-k selection and chunk size both balance the amount of noise and useful information presented to the generator, but in different manners. Corresponding results are demonstrated in Fig.~\ref{fig:radar-topk} and Fig.~\ref{fig:radar-chunk-size}. Increasing $k$ adds more context that could be less relevant, while increasing chunk size provides more surrounding context of relevant facts. Thus \emph{context precision} decreases with larger $k$ but increases with larger chunk sizes. Despite this, they both lead to better \emph{claim recall} in Retrieval.
+
+Generators tend to be more faithful when provided with more context, though this trend is less pronounced for Llama3, which already exhibits high faithfulness. \emph{Context utilization} generally worsens with more context due to increasing noise, leading to higher \emph{relevant noise sensitivity}.
+
+Overall, the end-to-end RAG performance is slightly better with more context, primarily due to improved \emph{recall}. We recommend moderately increasing the two parameters for more faithful generation, noting that saturation occurs at high values as the amount of useful information is limited. Given a limited context length, a larger chunk size with a smaller k is preferred, especially for easier datasets (Finance, Writing). This is evident when comparing a chunk size of 150 with $k$=20 against a chunk size of 300 with $k$=10.
+
+% \paragraph{Top-k Selection}  The number of chunks selected as context for generation balances the amount of noise and useful information presented to the generator. We compare using  $k \in\{5,10\}$ against our default setting of 20, which is already quite large.
+
+% As shown in Fig.~\ref{fig:radar-topk}, Claim Recall increases while Context Precision decreases as more chunks are involved, regardless of whether sparse or dense retrieval is used. For the GPT-4 generator, it tends to be more faithful to the provided context with more chunks, whereas the trend is less pronounced for Llama3, which already has high faithfulness. Context Utilization generally worsens with larger k because the inclusion of more noisy chunks disrupts generation, leading to higher Noise Sensitivity in Relevant contexts. However, Noise Sensitivity in Irrelevant contexts slightly decreases as more relevant chunks become available as knowledge sources. As a combined effect of these nuanced aspects, the end-to-end RAG system typically achieves slightly better or comparable precision and improved recall, resulting in a slightly better overall F1 score.
+
+% Based on these observations, we recommend involving more chunks as context for generation, especially for harder tasks like scientific reading (KIWI). Note that the benefits of increasing k saturate earlier on easier datasets (Finance and Writing), which require less context to answer.
+
+
+
+% \paragraph{Chunk Size}  We compare chunk sizes of 100 and 600 against our default setting of 300. Due to the limited 8K context window of Llama3, we omit the experiment of chunk size 600 for the combination E5-Mistral+Llama3-70B.
+
+% Larger chunk sizes lead to easier retrieval, with each chunk having a higher probability of including useful information and more text overall to help answer the query. However, generation becomes more difficult with longer context to process, increasing the challenge of identifying useful parts within the context.
+
+% As shown in Fig.~\ref{fig:radar-chunk-size}, retrieval performance generally improves for both Claim Recall and Context Precision with larger chunk sizes. The trend levels off for sizes greater than 300 in Finance and Writing, as documents in these datasets are generally shorter (only 13\% longer than 300 tokens in Writing and 16\% in Finance). For other metrics on generators and overall performance, we observed a similar trend and saturation effect as seen in Top-k Selection, as both approaches provide more context to the generator. Therefore, moderately increasing chunk size can help improve final generation performance. Given a limited context window, a larger chunk size with a smaller k is preferred, especially for easier datasets (Finance, Writing). This is evident when comparing a chunk size of 150 with k=20 against a chunk size of 300 with k=10.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/radar_prompt.pdf}
+    \caption{Diagnosis on Generation Prompts}
+    \label{fig:radar-prompt}
+\end{figure}
+
+\paragraph{Explicit Requirements in Prompts Affect Generation Preferences}  To validate the effect of the generation prompt, we added more detailed requirements to guide the generation for better \emph{faithfulness}, \emph{context utilization}, and lower \emph{noise sensitivity}. The optimized prompt is shown in Fig.~\ref{fig:improved_generation_prompt}.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/improved_generation_prompt.pdf}
+    \caption{The optimized prompt for response generation. In this prompt, we explicitly instruct the LLMs to be faithful to the context and identify relevant information as possible.}
+    \label{fig:improved_generation_prompt}
+\end{figure}
+
+As shown in Fig.~\ref{fig:radar-prompt}, we observed a general improvement in \emph{context utilization}. However, as a counterpart to \emph{context utilization}, \emph{noise sensitivity} generally worsened. It demonstrates the difficulty of meeting all prompt requirements when there are subtle tension between them.
+
+For the two generators, GPT-4 generally showes improvements in metrics related to faithfulness (\emph{hallucination}, \emph{self-knowledge}, \emph{faithfulness}), whereas Llama3 does not exhibit the same behavior. This aligns with our previous observation (Sec.~\ref{sec:analysis}) that Llama3 already performs well on \emph{faithfulness}, while GPT-4 tends to rely on self-knowledge without explicit requirements. Consequently, there is a steady improvement in overall \emph{F1} for GPT-4 when switched to the optimized prompt, while the difference for Llama3 is negligible.
+
+RAG builders can optimize prompts by combining performance on modular metrics provided by \benchname\space with user preferences and generator capabilities on different aspects.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/radar_overlap_ratio.pdf}
+    \caption{Diagnosis on Chunk Overlap Ratio}
+    \label{fig:radar-overlap-ratio}
+\end{figure}
+
+\paragraph{Chunk Overlap Does Not Matter a Lot}  Chunk overlap ratio between adjacent chunks is usually set to be non-zero to help the generator better utilize surrounding information and identify chunks with coherent logic, thus alleviating the impact of hard splits in significant semantics.
+
+According to our results in Fig.~\ref{fig:radar-overlap-ratio}, higher overlap ratios generally lead to improved \emph{context precision}. However, this does not necessarily translate to an increase in the total amount of useful information retrieved. This phenomenon can be attributed to the retrieval of more chunks that contain the same segment of useful information. Consequently, we observed that overlap ratio adjustments do not have a significant impact on other performance metrics in a consistent and obvious manner. This suggests that the overlap ratio may not require extensive tuning in practice.

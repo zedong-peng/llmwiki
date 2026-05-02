@@ -1,0 +1,144 @@
+\vspace{-3mm}
+\section{Background: Linear Attention}
+\vspace{-3mm}
+We first give a brief background on linear attention layers. For notation we  use bold upper-case letters for matrices (e.g., $\rmS$, $\rmQ$),  bold lower-case letters  for vectors (e.g., $\vq_t$, $\vk_t$), and italic upper-case  for learnable parameters matrices (e.g., $\mW_K$). We generally use the same alphabet to show the rows of a matrix, e.g., $\vq_t$ is the $t$-th row of $\rmQ$.
+
+\label{sec:background}
+\vspace{-2mm}
+\subsection{Parallel and Recurrent Forms}
+\vspace{-2mm}
+\label{subsec:background-lin}
+Standard autoregressive Transformers employ a softmax attention mechanism which takes an input sequence $\rmX \in \R^{L \times d}$ (here $L$ is the length and $d$ is the hidden dimension) and computes the output $\rmO \in \R^{L \times d}$ through,
+\begin{align*}
+\rmQ, \rmK, \rmV &= \rmX \mW_Q, \rmX \mW_K, \rmX \mW_V, \\  \rmO &= \softmax\big((\rmQ \rmK^\intercal) \odot \rmM \big) \rmV,
+%
+\end{align*}
+%
+where $\mW_Q, \mW_K, \mW_V \in \R^{d \times d}$ are learnable matrices and 
+$\rmM \in \{-\infty,1\}^{L \times L}$ is a mask that prevents the model from attending to  future tokens, i.e., $\rmM_{ij}=1$ if $i\ge j$ and $\rmM_{ij}=-\infty$ if $i<j$. (Here we assume a single attention head for simplicity.) 
+The above \textit{parallel form} of attention can compute $\rmO$ in parallel given the full input $\rmX$, thus enabling efficient training. However, during inference Transformers must use the following \emph{recurrent form},
+\begin{align*}
+\vq_t, \ \vk_t, \ \vv_t &= \vx_t \mW_Q, \  \vx_t \mW_K, \ \vx_t \mW_V, \\ \vo_t &= \frac{\sum_{i=1}^{t} \exp(\vq_t  \vk_i^\intercal)\vv_i}{\sum_{i =1} ^{t} \exp(\vq_t  \vk_i^\intercal)},
+\end{align*}
+which calculates the query ($\vq_t$), key ($\vk_t$), and value ($\vv_t$) vectors given the current token's representation $\vx_t \in \R^{1 \times d}$ and the performs attention over the (growing) set of keys $\{\vk_1, \dots, \vk_t\}$ and values   $\{\vv_1, \dots, \vv_t\}$ (i.e., the ``KV cache''). 
+
+Linear attention mechanisms~\citep{katharopoulos2020transformers} replace $\exp(\vq_t \vk_i^\intercal)$ with a kernel $k(\vx, \vy)$ with an associated feature map $\phi$ (i.e., $k(\vx, \vy) = \langle\phi(\vx), \phi(\vy)\rangle$).  This simplifies the calculation of $\vo_t$ since we have
+\begin{align*}
+ \vo_t &= \frac{\sum_{i=1}^{ t}\phi(\vq_t)\phi(\vk_i)^\intercal \vv_i}{\sum_{i=1}^{t} \phi(\vq_t)\phi(\vk_i)^\intercal  }  
+ = \frac{\phi(\vq_t)   \sum_{i=1}^{t}\phi(\vk_i)^\intercal \vv_i}{\phi(\vq_t) \sum_{i=1}^{t}\phi(\vk_i)^\intercal}.
+ %
+\end{align*}
+Letting $\rmS_t=\sum_{i=1}^{t}\phi(\vk_i)^\intercal \vv_i$ and $\vz_t=\sum_{i=1}^{t}\phi(\vk_i)^\intercal$ where $\rmS_t \in \mathbb{R}^{d\times d}, \vz_t \in \mathbb{R}^{d\times 1}$, we can rewrite the above as an RNN,
+\begin{align*}
+\rmS_t = \rmS_{t-1} &+ \phi(\vk_t)^\intercal \vv_t, \hspace{1mm} \vz_t = \vz_{t-1} + \phi(\vk_t)^\intercal, \hspace{1mm} \vo_t = \frac{\phi(\vq_t) \rmS_t}{ \phi(\vq_t) \vz_t}.
+\end{align*}
+ Although various kernels have been explored~\citep{kasai-etal-2021-finetuning,peng2021random}, recent work has found that a linear kernel (i.e., setting $\phi$ to be the identity) without a normalizer  works well in practice \cite{sun2023retentive}. 
+This results in an (unnormalized) linear attention layer with the following update equation,
+\begin{align}
+& \rmS_t = \rmS_{t-1} + \vk_t^\intercal \vv_t, \quad \vo_t = \vq_t \rmS_t   .
+\label{eq:simple_linear_attention}
+\end{align}
+Eq.~\ref{eq:simple_linear_attention} makes it clear that  a linear attention layer is essentially a linear recurrent layer with matrix-valued hidden states $\rmS_t$ that is updated via the outer-product $\vk_t^\intercal\vv_t = (\vx_t \mW_K)^\intercal (\vx_t \mW_V)$.\footnote{This type of model with matrix-valued hidden states that change over time is also known as ``fast weights'' \citep{hinton1987using,schmidhuber1992learning,ba2016using}, whose connection to Transformers was  explored in recent work \citep{linear-xmr-fastweight,irie2021going,mao-2022-fine}.} 
+The parallel form of causal linear attention, whose complexity is still quadratic in $L$, is given by
+$\rmO = \big((\rmQ \rmK^\intercal) \odot \rmM \big)\rmV$,
+where $\rmM \in \{0,1\}^{L \times L}$ is a mask such that $\rmM_{ij}=1$ if $i\ge j$ and $\rmM_{ij}=0$ if $i<j$. Due to $\rmM$ it is not possible to exploit the associative property of matrix multiplication to reduce the parallel form complexity from quadratic to linear.\footnote{Without $\rmM$, one can transform $(\rmQ \rmK^\intercal)\rmV$ to $\rmQ( \rmK^\intercal\rmV)$ reducing the complexity from quadratic ($O(L^2d)$) to linear ($O(Ld^2)$).}
+
+
+\vspace{-3mm}
+\subsection{Chunkwise Parallel Form} 
+\vspace{-2mm}
+\label{background:lin-chunkwise}
+
+The \emph{chunkwise} parallel form of linear attention  strikes a balance between parallel and recurrent form \cite{GAU,sun2023retentive}, and allows for subquadratic, partially parallel training.
+ Formally, suppose the input $\rmX$ is now split into non-overlapping chunks, where each chunk is of length $C$. 
+Let $\rmS_{[i]} \in \R^{d \times d}$ be the chunk-level hidden state after processing $i$ chunks, i.e., $\rmS_{[i]}:=\rmS_{iC}$. Further let $\rmQ_{[i]}:=\rmQ_{iC+1:(i+1)C+1} \in \mathbb{R}^{C\times d}$ be the query vectors corresponding to the $i$-th chunk; let $\rmK_{[i]}$, $\rmV_{[i]}$, $\rmO_{[i]}$ be similarly defined. We then have the following inter-chunk recurrence (for $i \in [0, 1, \dots \frac{L}{C}-1]$):
+    \begin{equation}
+\rmS_{[i+1]} = \rmS_{[i]} + \underbrace{\sum_{j=iC + 1}^{(i+1)C} \vk_{j}^\intercal \vv_{j}}_{\rmK^\intercal_{[i]}\rmV_{[i]}} \quad \hspace{1mm} \in \mathbb{R}^{d\times d}.
+\label{eq:la-inter-chunk}
+    \end{equation}
+Here  $\rmS_{[0]}$ can be initialized to  zero or from the previous segment's hidden state. The sum of all RNN inputs from a chunk (i.e., $\rmK^\intercal_{[i]}\rmV_{[i]}$) can be computed in $O(C^2d)$ in parallel.
+The intra-chunk parallel computation for the output is given by
+\begin{equation*}    
+\rmO_{[i+1]} = \underbrace{\rmQ_{[i+1]}\rmS_{[i]}}_{\text{inter-chunk}: \rmO^\text{inter}_{[i+1]}} + \underbrace{\big((\rmQ_{[i+1]}\rmK_{[i+1]}^{\intercal})\odot\rmM\big)\rmV_{[i+1]}}_{\text{intra-chunk}: \rmO^{\text{intra}}_{[i+1]}},
+\label{eq:la_block_wise}
+\end{equation*}
+where $\rmO_{[i+1]} \in \mathbb{R}^{C\times d}$. Here the ``intra-chunk'' component $\rmO^\text{intra}_{[i+1]}$  has exactly the same parallel form as Eq.~\ref{eq:simple_linear_attention} and thus takes $O(C^2d + Cd^2)$. The ``inter-chunk'' component $\rmO^\text{inter}_{[i+1]}$ accounts for the contribution from the hidden state from the previous chunk, and takes $O(Cd^2)$. Training complexity is thus  $O\left(\frac{L}{C}(C^2d + Cd^2) \right)=O(LCd+Ld^2)$, which is less than $O(L^2d)$ when $L>d$.  Note that setting $C = L$ recovers the parallel form, and $C=1$ recovers the recurrent form.
+
+\vspace{-2mm}
+\section{Hardware-Efficient Linear Attention}
+\vspace{-2mm}
+\label{sec:algorithm}
+We describe \textsc{FlashLinearAttention}, an I/O-aware, hardware-efficient algorithm for linear attention in the spirit of \textsc{FlashAttention} \cite{flashattention1,flashattention2}. We first discuss aspects of hardware that should be taken into account for a practically efficient implementation.
+
+\vspace{-2mm}
+\subsection{Principles of Hardware-Efficient Algorithms}
+\vspace{-2mm}
+ An efficient  algorithm should be aware of the compute model, memory hierarchy, and specialized compute units on modern hardware. 
+
+
+
+
+\vspace{-2mm}
+\paragraph{Occupancy.} GPUs have many threads executed in parallel; threads are grouped into thread blocks, which execute on streaming multiprocessors (SMs). To maintain a high GPU occupancy (i.e., fraction of GPU resources being used), it is necessary to use a sufficient number of SMs. 
+In large-scale training and long-sequence modeling scenarios where the batch size tends to be small, 
+parallelizing over the temporal dimension enables high GPU occupancy \cite{flashattention2}. 
+
+
+\vspace{-2mm}
+\paragraph{Specialized compute units.} Modern hardware for neural network training typically have specialized compute units (e.g., {tensor cores} on NVIDIA GPUs, matrix mutiply units on TPUs), which can significantly accelerate matmuls; for example half-precision matmuls
+%
+on an A100 can be roughly 16 times faster on tensor cores than on CUDA cores. These specialized units are crucial for large-scale training.
+
+
+\vspace{-2mm}
+\paragraph{Memory hierarchy.} GPUs have a memory hierarchy with larger but slower global GPU memory (high bandwidth memory; HBM) and smaller but faster shared memory (SRAM). Optimal utilization of SRAM to reduce HBM I/O cost can therefore lead to significant speed-ups.
+
+
+
+
+\input{algorithms/la-chunk-fwd}
+
+
+\vspace{-2mm}
+\subsection{Hardware Considerations for Linear Attention}
+\vspace{-2mm}
+We now discuss hardware considerations pertaining to the efficiency of the different forms of linear attention.  
+
+\vspace{-2mm}
+\paragraph{Recurrent form.}  A basic implementation of the recurrent form  stores the 2D hidden states of all time steps in HBM, resulting in  high I/O cost \cite{mao-2022-fine}. I/O cost could be reduced by avoiding such materialization and recomputing the hidden states during the backward pass, as in \citet{katharopoulos2020transformers}, but the elementwise operations in the recurrent update cannot make use of tensor cores and result in low arithmetic intensity. Hence, while the recurrent form generally has the lowest total FLOPs among the three forms, this does not translate to actual wall-time efficiency.  And while it is theoretically possible to parallelize  linear recurrences via the parallel scan algorithm, this method requires materializing the 2D hidden state for each time step. This  incurs a significant memory I/O burden, thereby offsetting the benefits of parallelism over the sequence length and resulting in slow actual running speeds, as in 
+ \citet{gatedloop}. 
+
+
+
+\vspace{-2mm}
+\paragraph{Parallel form.} The parallel form could be as efficient as \textsc{FlashAttention} using similar I/O optimization techniques, as demonstrated by \citet{qin2023scaling}. However, the high number of FLOPs (due to the quadratic complexity) makes the long-sequence training expensive, the same issue that the na\"ive implementation of softmax attention would suffer from. %
+
+\vspace{-2mm}
+\paragraph{Chunkwise form.} The chunkwise parallel form, which interpolates between the parallel and recurrent forms with an extra ``parameter'' $C$, makes it possible to more easily make the above tradeoffs for fine-grained  optimization. 
+Unlike the recurrent form, most operations can be done via matmuls, enabling the use of tensor cores (if $C$ is set to a multiple of 16). 
+Though the chunkwise training algorithm has been discussed before in the literature \cite{GAU, sun2023retentive}, most implementations are not I/O-aware and thus slower than \textsc{FlashAttention} for moderate sequence lengths (e.g., 2K-4K). 
+
+\input{figures/chunk}
+
+\vspace{-2mm}
+\subsection{\textnormal{\textsc{FlashLinearAttention}}: Hardware-Efficient  Linear Attention with the Chunkwise Form}
+\label{sec:fla}
+\vspace{-2mm}
+We describe our I/O-aware, hardware-efficient implementation of the chunkwise form. We give two versions, whose forward and backward passes differ depending on whether the chunk-level hidden states  $\rmS_{[n]}$ are materialized in HBM. See Alg.~\ref{algo:la-chunk-fwd} and Fig.~\ref{fig:chunk} for the forward pass. (Alg.~\ref{algo:la-chunk-bwd} in the appendix describes the backward pass.)  At a high level, we use tiling to load tensors block-by-block and re-use tensor blocks on chip to avoid multiple HBM I/O as {much} as possible. For example, when $\rmQ_{[n]}$ is loaded to SRAM, both $\rmQ_{[n]}\rmS$ and $(\rmQ_{[n]}\rmK_{[n]}^{\top}\odot\rmM)\rmV_{[n]}$ can be computed on chip, which avoids loading $\rmQ_{[n]}$ twice, thus saving HBM I/O. 
+
+
+\textbf{The non-materialization version} computes $\rmO_{[n]}$ sequentially for $n \in [N]$, using SRAM to temporarily store $\rmS_{[n]}$, which is memory-efficient. This version parallelizes across batch size, number of heads, and head dimensions, but lacks sequence-level parallelim. When the batch size is large, this level of parallelism is sufficient to enable high GPU occupancy. In long-sequence and large scale training settings where batch size is small, the SMs cannot be fully exploited in this case. \textbf{The materialization version} first performs the inter-chunk recurrence (Eq.~\ref{eq:la-inter-chunk}) and stores all $\rmS_{[n]}$ for $n \in [N]$ in HBM. Then, the $\rmO_{[n]}$'s can be computed in parallel for all chunks.  
+ This approach offers better parallelism but increases the memory footprint by approximately 10-20\%. We mitigate this through \textit{recomputation}, where the hidden states discarded  after the forward pass and recomputed during the backward pass. We find this introduces a small runtime  overhead but significantly reduces the memory footprint, and  we adopt this strategy by default.
+
+
+
+\input{figures/flashlinearattn}
+
+%
+ Figure \ref{fig:flashlinearattn} shows the speed and memory footprint of our implementation. Both versions of \textsc{FlashLinearAttention} are substantially faster than \textsc{FlashAttention-2} \cite{flashattention2} and a pure PyTorch (i.e., I/O-unaware) implementation of chunkwise linear attention, showing the benefits of I/O-awareness. 
+ %
+
+%
+
+%
+

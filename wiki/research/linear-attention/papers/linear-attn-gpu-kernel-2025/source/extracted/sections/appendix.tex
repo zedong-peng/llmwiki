@@ -1,0 +1,197 @@
+\section{Implementation Pseudo Codes}
+\label{app:code}
+This appendix provides the CUDA pseudo codes of our implementations referenced in Section~\ref{sec4}
+\begin{algorithm}
+\begin{spacing}{1}
+  \caption{Forward-Pass, Constant term}
+  \label{alg1}
+  \begin{algorithmic}[1] % The [1] adds line numbers
+  \STATE \textbf{Input:} v $\in \mathbb{R}^{B\times H,\,N,\,D}$
+  \STATE \textbf{Output:} f $\in \mathbb{R}^{B\times H,\,N,\,D}$
+    \STATE \textbf{Call} $B\times H$ blocks ($1\leq bh\leq B\times H$)
+    \STATE \textbf{Call} $D$ threads in each block ($1\leq j\leq D$) 
+    \STATE In each thread:
+    \STATE x = 0 (on-thread register)
+    \FOR {$i \gets 1$ \TO $N$}
+       \STATE x += v[$bh$][$i$][$j$]
+       \STATE f[$bh$][$i$][$j$] = x
+    \ENDFOR
+  \end{algorithmic}
+  \end{spacing}
+\end{algorithm}
+
+\begin{algorithm}
+\begin{spacing}{1}
+  \caption{Forward-Pass, Linear term}
+  \label{alg2}
+  \begin{algorithmic}[1] % The [1] adds line numbers
+    \STATE \textbf{Input:} q, k, v $\in \mathbb{R}^{B\times H,\,N,\,D}$
+    \STATE \textbf{Output:} f $\in \mathbb{R}^{B\times H,\,N,\,D}$
+    \STATE \textbf{Call} $B\times H$ outer blocks ($1\leq bh\leq B\times H$)
+    \STATE \textbf{Call} $L$ inner blocks ($1\leq l\leq L$)
+    \STATE \textbf{Call} $D$ threads in each block ($1\leq j\leq D$) 
+    \STATE In each thread:
+    \STATE vr, x = 0 (on-thread register)
+    \STATE r[$1$ to $D/L$] = 0 (on-thread register)
+    \STATE sq[$1$ to $D$] = 0 (shared memory)
+    \STATE sk[$1$ to $D$] = 0 (shared memory)
+    \FOR {$i \gets 1$ \TO $N$}
+        \STATE x = 0
+        \STATE vr = v[$bh$][$i$][$j$]
+        \STATE \textbf{load} k[$bh$][$i$][$j$] \textbf{to} sk[$j$]
+        \STATE \textbf{load} q[$bh$][$i$][$j$] \textbf{to} sq[$j$]
+       \FOR {$m \gets 1$ \TO $D/L$}
+           \STATE r[$m$] += vr$\times$sk[$l\times D/L + m$]
+           \STATE x += r[$m$]$\times$sq[$l\times D/L + m$]
+       \ENDFOR
+       \STATE f[bh][i][j] += x
+    \ENDFOR
+  \end{algorithmic}
+  \end{spacing}
+\end{algorithm}
+
+\begin{algorithm}
+\begin{spacing}{1}
+  \caption{Backward-Pass, Alpha term}
+  \label{alg3}
+  \begin{algorithmic}[1] % The [1] adds line numbers
+    \STATE \textbf{Input:} q, v, $\hat{\Omega}$ $\in \mathbb{R}^{B\times H,\,N,\,D}$
+    \STATE \textbf{Output:} $\nabla_{\mathbf{k}}\mathbf{\Psi}$ $\in \mathbb{R}^{B\times H,\,N,\,D}$
+    \STATE \textbf{Call} $B\times H$ outer blocks ($1\leq bh\leq B\times H$)
+    \STATE \textbf{Call} $L$ inner blocks ($1\leq l\leq L$)
+    \STATE \textbf{Call} $D$ threads in each block ($1\leq j\leq D$) 
+    \STATE In each thread:
+    \STATE qr, x = 0 (on-thread register)
+    \STATE r[$1$ to $D/L$] = 0 (on-thread register)
+    \STATE sv[$1$ to $D$] = 0 (shared memory)
+    \STATE sg[$1$ to $D$] = 0 (shared memory)
+    \FOR {$i \gets N$ \TO $1$}
+        \STATE x = 0
+        \STATE qr = q[$bh$][$i$][$j$]
+        \STATE \textbf{load} v[$bh$][$i$][$j$] \textbf{to} sv[$j$]
+        \STATE \textbf{load} $\hat{\Omega}$[$bh$][$i$][$j$] \textbf{to} sg[$j$]
+       \FOR {$m \gets 1$ \TO $D/L$}
+           \STATE r[$m$] += qr$\times$sg[$l\times D/L + m$]
+           \STATE x += r[$m$]$\times$sv[$l\times D/L + m$]
+       \ENDFOR
+       \STATE $\nabla_{\mathbf{k}}\mathbf{\Psi}$[bh][i][j] = x
+    \ENDFOR
+  \end{algorithmic}
+  \end{spacing}
+\end{algorithm}
+
+\begin{algorithm}[!h]
+\begin{spacing}{1}
+  \caption{Backward-Pass, Beta term}
+  \label{alg4}
+  \begin{algorithmic}[1] % The [1] adds line numbers
+    \STATE \textbf{Input:} q, v, $\hat{\Omega}$ $\in \mathbb{R}^{B\times H,\,N,\,D}$
+    \STATE \textbf{Output:} $\nabla_{\mathbf{k}}\mathbf{\Psi}$ $\in \mathbb{R}^{B\times H,\,N,\,D}$
+    \STATE \textbf{Call} $B\times H$ outer blocks ($1\leq bh\leq B\times H$)
+    \STATE \textbf{Call} $L$ inner blocks ($1\leq l\leq L$)
+    \STATE \textbf{Call} $D$ threads in each block ($1\leq j\leq D$) 
+    \STATE In each thread:
+    \STATE qr, x = 0 (on-thread register)
+    \STATE r[$1$ to $D/L$] = 0 (on-thread register)
+    \STATE so[$1$ to $D$] = 0 (shared memory)
+    \STATE sg[$1$ to $D$] = 0 (shared memory)
+    \FOR {$i \gets N$ \TO $1$}
+        \STATE x = 0
+        \STATE qr = q[$bh$][$i$][$j$]
+        \STATE \textbf{load} o[$bh$][$i$][$j$] \textbf{to} so[$j$]
+        \STATE \textbf{load} $\hat{\Omega}$[$bh$][$i$][$j$] \textbf{to} sg[$j$]
+       \FOR {$m \gets 1$ \TO $D/L$}
+           \STATE r[$m$] += qr$\times$sg[$l\times D/L + m$]$\times$so[$l\times D/L + m$]
+           \STATE x += r[$m$]
+       \ENDFOR
+       \STATE $\nabla_{\mathbf{k}}\mathbf{\Psi}$[bh][i][j] -= x
+    \ENDFOR
+  \end{algorithmic}
+  \end{spacing}
+\end{algorithm}
+
+\newpage
+
+\section{RNN and Transformer-Based Linear Attention}
+\label{app:rnn}
+The original softmax-based attention mechanism in Transformers can be expressed as below, where the $q,k,v$ represent the Query, Key, Value matrices, and $o$ the attention layer output.(See Section~\ref{related-works})
+\begin{gather}
+        \mathbf{o_{ij}} \!=\! \dfrac{\sum_{n=1}^{N}{\exp(\mathbf{q}_i.\mathbf{k_n}/\sqrt{D})\mathbf{v_{n,j}}}}{\sum_{n=1}^{N}{\exp(\mathbf{q}_i.\mathbf{k}_n/\sqrt{D})}}\label{eqa0}
+\end{gather}
+
+By substituting the exponential in Equation~\ref{eqa0} with a linear approximation we arrive at Linear Attention (LA), expressed as below
+
+\begin{gather}
+        \mathbf{o_{ij}} \!=\! \dfrac{\sum_{n=1}^{N}{(\mathbf{q}_i.\mathbf{k_n}+1)\mathbf{v_{n,j}}}}{\sum_{n=1}^{N}{(\mathbf{q}_i.\mathbf{k_n}+1)}}\label{eqa1}
+\end{gather}
+
+\par There are generally two approaches to calculate LA: 1. Transformer-based and 2. RNN-based.
+
+\subsection{RNN-Based}
+First proposed in 2020~\cite{pmlr-v119-katharopoulos20a}, Linear Attention (LA) can be implemented using Recurrent Neural Networks (RNNs). Specifically, by defining the hidden state as $S_t = \sum_{i=1}^t  \mathbf{k}_i.\mathbf{v}_i$ and the update state as $z_t = \sum_{i=1}^t  \mathbf{k}_i$, Equation~\ref{eqa1} can be expressed in the following recurrent format:
+\begin{gather}
+    S_t = S_{t-1} + \mathbf{k}_t.\mathbf{v}_t,\quad \mathbf{o}_t = \dfrac{\mathbf{q}_t\,S_t}{\mathbf{q}_t\,z_t}.
+\end{gather}
+However, the normalizing term, $\mathbf{q}_t\,z_t$, is observed to cause instability and is often omitted, resulting in $\mathbf{o}_t = \mathbf{q}_t\,S_t$. Recent works have studied use of gates ($\phi(.)$) alternative to the linear kernel, with the general formulation expressed as below
+\begin{gather}
+    S_t = \sum_{i=1}^t \phi({\mathbf{k}_i}.\mathbf{v}_i),\quad S_t = S_{t-1} +\phi({\mathbf{k}_t}.\mathbf{v}_t),\quad o_t =  \phi({\mathbf{q}_t})\,S_t.
+\end{gather}
+The ideal choice for $\phi(.)$ is an open area of research, and Table~\ref{tab:ap1} provides a summary on recent work and their recurrent formulation.
+
+% You may need to add \usepackage{booktabs} to your preamble
+\begin{table}[h!]
+\begin{minipage}{0.8\linewidth} % <-- Table is now inside a minipage
+\centering
+\caption{Comparison of RNN-based linear attention formulations.}
+\label{tab:ap1}
+\begin{tabular}{lll}
+\toprule
+\textbf{Model} & \textbf{Recurrence} & \textbf{Layer Output}\\
+\midrule
+LA~\cite{pmlr-v119-katharopoulos20a}& $S_t = S_{t-1} + v_t k_t^\top$ & $o_t = S_t q_t$ \\
+LA with Normalization& $S_t = S_{t-1} + v_t \phi(k_t)^\top, \quad z_t = z_{t-1} + \phi(k_t)$ & $o_t = q_t\,S_t / (q_t\,z_t)$\\
+DeltaNet~\cite{schlag2021linear}& $S_t = S_{t-1}(I - \beta_t k_t k_t^\top) + \beta_t v_t k_t^\top$ & $o_t = S_t q_t$ \\
+Mamba~\cite{gu2023mamba}& $S_t = S_{t-1} \odot \exp(-(\alpha_t \mathbf{1}^\top) \odot \exp(A)) + (\alpha_t \odot v_t) k_t^\top$ & $o_t = S_t q_t + D \odot v_t$ \\
+GLA~\cite{yang2023gated}& $S_t = S_{t-1} \odot (\mathbf{1} \alpha_t^\top) + v_t k_t^\top, \quad S_t = S_{t-1} \text{Diag}(\alpha_t) + v_t k_t^\top$ & $o_t = S_t q_t$ \\
+Mamba-2~\cite{dao2024transformers}& $S_t = \gamma S_{t-1} + v_t k_t^\top$ & $o_t = S_t q_t$ \\
+Gated DeltaNet~\cite{yang2024gated}& $S_t = S_{t-1} \left(\alpha_t (I - \beta_t k_t k_t^\top) \right) + \beta_t v_t k_t^\top$ & $o_t = S_t q_t$ \\
+\bottomrule
+\end{tabular}
+\end{minipage} % <-- End of minipage
+\end{table}
+
+\par Traditional RNNs struggle with learning long-term dependencies, which can be addressed with the use of \textit{Forget Gates}. Similarly, Mamba~\cite{gu2023mamba} introduces a selection mechanism to selectively remember important tokens, and to selectively forget irrelevant ones by choosing to compress or reset the token's state. Furthermore, due to sequential nature of RNNs, RNNs are known to suffer from limited parallelizability. GLA~\cite{yang2023gated} proposes an efficient GPU implementation chunk-wise attention calculation, where instead of processing the sequence token-by-token (like an RNN) or all at once (which can exhaust memory), the sequence is divided into fixed-size segments, or "chunks". The final hidden state from the end of one chunk is saved and used as the initial hidden state for the beginning of the next chunk. This "carries over" the contextual information, mimicking the behavior of the sequential RNN and ensuring that information flows across the entire sequence. DeltaNet~\cite{schlag2021linear} introduces a novel linear attention mechanism based on the delta rule, a classic error-correction learning principle. Instead of just adding new information to a memory state like in standard linear attention, DeltaNet retrieves an old value from memory associated with the current query, and computes the "delta" or difference between this old value and the new incoming value, and uses this difference to update the memory.
+
+\par Although the choice of omitting the normalization and use of various gates will result in a considerable deviation from the original Attention mechanism, these models have gained more popularity compared to Transformer-based LA. One reason contributing to this choice is a lack of convenient and efficient implementation of Transformer-based LA.
+
+\subsection{Transformer-Based}
+The Transformer-based approach follows the same formulation as Equation~\ref{eqa1}. This implementation closely resembles a standard Transformer architecture, with attention computed using the traditional all-to-all softmax mechanism, but with one key modification: the exponential function is replaced by a linear approximation. This substitution enables reordering of operations, reducing computational complexity from quadratic to linear time (see Section~\ref{sec3}.
+
+\par We should emphasize that the RNN and Transformer-based approaches employ fundamentally different architectures. The RNN-based approach derives layer outputs, $\mathbf{o_i},\, \forall 1\leq i \leq N$, sequentially through a recurrent formulation, where each state $i$ depends on the previous state $i-1$ and a gating function applied to the $i$-th Query, Key, and Value. In contrast, the Transformer-based approach computes outputs by constructing an attention matrix from Query and Key vectors, then multiplying this matrix with the Value vectors. Since the row and column operations in attention matrix construction and matrix multiplication are independent of one another, the computation of all layer outputs $\mathbf{o_i}$ can be performed in parallel for $1\leq i \leq N$. This makes the Transformer-based approach inherently more parallelizable than its RNN counterpart.
+
+
+% \begin{table}[!h]
+% \caption{Comparing accuracy of Regular Attention and linear attention (LA) implementations. Unlike regular attention, which scales at $O(N^2)$ with the number of tokens $N$, LA scales linearly at $O(N)$ while achieving comparable accuracy.}
+% \vspace{-5pt}
+% \begin{center}
+% \resizebox{1\linewidth}{!}{
+% \begin{tabular}{l|ccccccccc}
+% \toprule
+% \textbf{Mechanism}&\makecell{\textbf{MMLU}\\(0-shot)}&\makecell{\textbf{MMLU}\\(5-shot)} & \textbf{PIQA} & \textbf{ARC-C}& \textbf{ARC-E}& \textbf{ARC-E}\\
+% \hline
+% Regular Attention & 22.10&23.04& 69.18& 33.83& 61.12& 60.34\\
+% \hline
+% Gated LA~\cite{yang2023gated}&   21.15&22.27& 65.38& 30.52& 57.73& 58.12\\
+% \hline
+% \textbf{Our LA} &  21.16&25.90& 68.63& 32.43& 59.95& 59.08\\
+% \bottomrule
+% \end{tabular}
+% }
+% \label{mmlu}
+% \end{center}
+% % \vspace{-5pt}
+% % \begin{tablenotes}
+% % \small
+% % \item \hspace{150pt} * The values reported are based on \cite{you2024linear}.
+% % \end{tablenotes}
+% \end{table}

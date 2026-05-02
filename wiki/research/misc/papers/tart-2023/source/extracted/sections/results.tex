@@ -1,0 +1,29 @@
+\section{Results}
+\subsection{Zero-shot Evaluation Results}
+
+As shown in Table~\ref{tab:beir}, \model-full significantly outperforms larger models and customized models trained on millions of synthetically generated in-domain data, advancing the state of the art on BEIR and LOTTE.  
+Unlike prior methods that require additional data generation, {\model only requires a single human-written instruction to adapt to a new task. }
+Compared to other methods using cross-encoder-based reranking models (e.g., BM25 + MonoT5), \model-full uses a much smaller number of paragraphs to be re-ranked, which significantly reduces latency caused by reranking at test time. 
+
+
+The large performance gain from Contriever-MS MARCO to \model-dual on six out of the nine BEIR tasks (e.g., SciFact, Arguana) shows the effectiveness of instructions and knowledge distillations from a larger to a smaller model.
+{On the other hand, for the other three datasets (e.g., Touche-2020, Climate-FEVER), \model-dual shows large performance deterioration, degrading average performance. 
+We hypothesize that model capacity (i.e., BERT-base encoder) and limited interactions between the query and document embeddings could be major bottlenecks. 
+Prior work on instruction training in LLMs has shown that smaller models often do not get as much benefit as larger ones from instructions and increasing dataset size, possibly due to their limited model capacities~\cite{flan_palm,wang2022benchmarking}. 
+}
+
+For LOTTE-pooled, \model-full significantly outperforms prior state of the art by a large margin. 
+We found that simply adding instructions at test time does not help, indicating that our instruction models do not simply exploit lexical matching. See more detailed results in Section~\ref{sec:robustness}.
+
+\subsection{\task Evaluation Results}
+Table~\ref{tab:cross_task_results} shows the models' \task performance. Contriever and Contriever+CE show competitive closed performance in the closed setup, as in BEIR, but they struggle in the pooled setup due to their inability to handle human instructions. 
+{Especially Contriever+CE shows a large performance drop on AmbigQA-pooled by retrieving documents instead of queries due to the biases from fine-tuning on a QA dataset (i.e., MS MARCO) only.} 
+
+\model-full shows the best closed performance and pooled performance, indicating its strong zero-shot adaptation and cross-task abilities. 
+We found that a model can flexibly change its behavior based on the instructions, as shown in Table~\ref{tab:cross_task_examples}. 
+
+{
+Although the closed setting performance of \model-dual under-performs Contriever, \model-dual shows strong performance on the pooled setup, resulting in the best robustness among all. }
+{This indicates that even smaller models can be guided by instructions, although they may have limited capabilities of zero-shot transfer to new tasks due to the limited model capacity and interactions.}
+
+

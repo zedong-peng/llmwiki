@@ -1,0 +1,342 @@
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+        
+%
+%
+
+%
+%
+%
+%
+        
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+
+
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+
+    
+%
+
+%
+
+%
+%
+
+%
+
+%
+
+%
+%
+%
+    
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+
+   
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+  
+%
+%
+
+
+
+
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+
+%
+     
+
+%
+
+%
+
+%
+%
+
+%
+
+%
+
+        
+%
+%
+%
+
+       
+%
+%
+%
+
+
+%
+%
+         
+%
+%
+
+%
+%
+%
+
+%
+
+%
+%
+%
+
+%
+
+        
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+  
+%
+%
+
+
+\begin{algorithm}[b!]
+\footnotesize
+\caption{Forward pass for gated linear attention (w. materialization)}
+\label{algo:gla-chunk-scan-1-fwd}
+\begin{algorithmic}
+    \Require $\rmQ, \rmK, \in \R^{L \times d_k}, \rmV  \in \R^{L \times d_v}$, $\rmG =[\balpha_1 \dots \balpha_L] \in \R^{L \times d_k}$, chunk size $C$
+    \State Divide $\rmQ, \rmK, \rmG$ into $N = \frac{L}{C}$ blocks $\{ \rmQ_{[1]} \dots \rmQ_{[N]} \} $, $\{ \rmK_{[1]} \dots \rmK_{[N]} \}$, $\{ \rmG_{[1]} \dots \rmG_{[N]} \} $ of size $C \times d_k$ each.
+    \State Divide $\rmV$ into $N$ blocks $\{ \rmV_{[1]} \dots \rmV_{[N]} \}$ of size $C \times d_v$ each.
+     \State{Initialize $\rmS = \bm{0} \in \mathbb R^{d_k\times d_v} $ on SRAM}
+    \For{$n \gets 1, N$}
+      \State{Write $\mathbf S$ to HBM as $\rmS_{[n]}$.} 
+        \State Load $\rmK_{[n]}, \rmG_{[n]} \in \R^{C \times d_k}$ from HBM to SRAM. 
+        \State Load $\rmV_{[n]} \in \R^{C \times d_v}$ from HBM to SRAM.
+        \State On chip, compute $\bgamma_{[n]} \in \R^{d_k}, \bGamma_{[n]} \in \R^{C \times d_k}$ and $\tilde \rmK_{[n]} = \rmK_{[n]} \odot \bGamma_{[n]}$. %
+        \State{On chip, compute $\rmS = \left(\bgamma_{[n]}^\intercal\mathbf{1}\right) \odot \mathbf{S} + \tilde \rmK_{[n]}^{\top}  \rmV_{[n]}$.}  
+        %
+    \EndFor
+   \ParFor{$n \gets 1, N$}
+        \State Load $\rmQ_{[n]}, \rmK_{[n]}, \rmG_{[n]} \in \R^{C \times d_k}$ from HBM to SRAM.
+        \State Load $\rmV_{[n]}  \in \R^{C \times d_v}$ from HBM to SRAM.
+        \State Load $\rmS_{[n]} \in \R^{d_k \times d_v}$ from HBM to SRAM.
+        \State On chip, construct causal mask $\rmM\in \R^{C \times C}$ %
+        \State On chip, compute $\bLambda_{[n]}, \bGamma_{[n]} \in \R^{C \times d_k}$
+        \State On chip, compute $\tilde \rmQ_{[n]} = \rmQ_{[n]} \odot \bLambda_{[n]}$, $\tilde \rmK_{[n]} = \rmK_{[n]} \odot \bGamma_{[n]}$, $\bar \rmK_{[n]} = \rmK_{[n]} / \bLambda_{[n]}$
+        \State On chip, compute $\rmO_{[n]}^{\text{inter}} = \tilde \rmQ_{[n]} \rmS_{[n]} \in \R^{C \times d_v}$
+        \State On chip, compute $\rmP = (\tilde \rmQ_{[n]} \bar \rmK^\intercal_{[n]})\odot \rmM  \in \R^{C \times C} $
+        \State On chip, compute $\rmO^{\text{intra}} = \rmP \rmV_{[n]} $ 
+        \State On chip, compute $ \rmO_{[n]} = \rmO^{\text{inter}} + \rmO^{\text{intra}} $
+        \State Store $\rmO_{[n]}$ to HBM.
+   \EndParFor
+  \State \Return $\rmO = \{ \rmO_{[1]} \dots \rmO_{[N]} \}$, $\rmS=\{ \rmS_{[1]} \dots \rmS_{[N]} \}$.
+\end{algorithmic}
+\end{algorithm}
+\begin{algorithm}[tbh!]
+\footnotesize
+\caption{Backward pass for gated linear attention (w. materialization)}
+\label{algo:gla-chunk-scan-1-bwd}
+\begin{algorithmic}
+    \Require $\rmQ, \rmK, \rmG \in \R^{L \times d_k}$, $\rmV, \rmO, \rmdO \in \R^{L \times d_v}$, chunk size $C$
+     \State{Initialize $\rmdS = \bm{0} \in \mathbb R^{d_k\times d_v} $ on SRAM}
+    \For{$n \gets N, 1$} %
+        \State Store $\rmdS$ in HBM as $\rmdS_{[n]}$
+        \State{Load $\rmG_{[n]}  \in \R^{C \times d_k}$ from HBM to SRAM.}
+        \State{Load $\rmQ_{[n]}  \in \R^{C \times d_k}$ from HBM to SRAM.}
+        \State{Load $\rmdO_{[n]}  \in \R^{C \times d_v}$ from HBM to SRAM.}
+        \State On chip, compute $\bgamma_{[n]}$, $\bGamma_{[n]}$ and $\tilde \rmQ{[n]} =  \rmQ_{[n]} \odot \bGamma{[n]}$
+        \State On chip, compute $\rmdS = \left(\bgamma_{[n]}^\intercal\mathbf{1}\right) \odot \rmdS + \tilde \rmQ_{[n]}^\intercal \rmdO_{[n]}$
+      \EndFor
+      \ParFor{$n \gets 1, N$}
+        \State{Load $\rmQ_{[n]}, \rmK_{[n]}, \rmG_{[n]} \in \R^{C \times d_k}$ from HBM to  SRAM.}
+        \State Load $\rmS_{[n]} \in \R^{d_k \times d_v}$ from HBM to  SRAM.
+        \State Load $\rmV_{[n]}, \rmO_{[n]}, \rmdO_{[n]} \in \R^{C \times d_v}$ from HBM to  SRAM.
+        \State Load $\rmdS_{[n]} \in \R^{d_k \times d_v}$ from HBM to SRAM.
+        \State On chip, construct causal mask $\rmM\in \R^{B\times B}$ %
+        \State On chip, compute $\bLambda_{[n]}, \bGamma_{[n]} \in \R^{C \times d_k}$
+        \State On chip, compute $\tilde \rmQ_{[n]} = \rmQ_{[n]} \odot \bLambda_{[n]}$, $\tilde \rmK_{[n]} = \rmK_{[n]} \odot \bGamma_{[n]}$, $\bar \rmK_{[n]} = \rmK_{[n]} / \bLambda_{[n]}$.
+        \State On chip, compute $\rmP = (\tilde \rmQ_{[n]} \tilde \rmK^\intercal_{[n]})\odot \rmM  \in \R^{C \times C} $
+        \State On chip, compute $\rmdP =( \rmdO_{[n]} \rmV_{[n]}^\intercal) \odot \rmM $
+        \State On chip, compute $ \rmdbK_{[n]} = \tilde \rmQ_{[n]} \rmdP^\intercal$
+        \State On chip, compute $ \rmdtK_{[n]} = \rmV_{[n]} \rmdS_{[n]}  ^\intercal$
+        \State On chip, compute $\rmdK_{[n]} =  \rmdtK_{[n]} \odot \bGamma_{[n]}  + \rmdbK_{[n]} / \bLambda_{[n]} $
+        \State{On chip, compute $\rmdtQ_{[n]} = \rmdP \, \bar \rmK_{[n]} + \rmdO_{[n]} \rmS_{[n]}^\intercal $}
+        \State On chip, compute $\rmdQ_{[n]} =  \rmdtQ_{[n]} \odot \bLambda_{[n]} $
+        \State On chip, compute $\rmdV_{[n]} = \rmP^\intercal \, \rmdO_{[n]} + \tilde \rmK_{[n]} \rmdS_{[n]} $
+        \State Store $\rmdK_{[n]}, \rmdV_{[n]}$ in HBM.
+      \EndParFor
+  \State Let $\rmdQ = \{ \rmdQ_{[1]} \dots \rmdQ_{[N]} \}$, $\rmdK=\{ \rmdK_{[1]} \dots \rmdK_{[N]} \}$, $\rmdV=\{ \rmdV_{[1]} \dots \rmdV_{[N]} \}$.
+  \State Compute $\rmdA = \rmQ \odot \rmdQ - \rmK \odot \rmdK $, $\rmdG = \revcum(\rmdA) $
+  \State \Return $\rmdQ, \rmdK, \rmdV, \rmdG$
+\end{algorithmic}
+\end{algorithm}
+

@@ -1,0 +1,511 @@
+\appendix
+\clearpage
+\addcontentsline{toc}{section}{Appendix} % Add the appendix text to the document TOC
+\part{Appendix} % Start the appendix part
+\parttoc % Insert the appendix TOC
+
+\section{System Prompts}
+\label{sec:appendix-prompts}
+
+This appendix provides the complete prompt templates used in the \our framework for fact extraction, opinion formation, observation generation, and evaluation.
+
+\subsection{Fact Extraction Prompt (TEMPR)}
+\label{sec:appendix-fact-extraction}
+
+The fact extraction prompt is used to convert conversational transcripts into structured narrative facts with temporal ranges, entities, and causal relationships.
+
+\begin{tcolorbox}[
+    colback=teal!5!white,
+    colframe=teal!60!black,
+    title=Fact Extraction System Prompt,
+    fonttitle=\bfseries,
+    coltitle=white,
+    colbacktitle=teal!60!black,
+    boxrule=1.0pt,
+    arc=1.5mm,
+    enhanced,
+    breakable
+]
+\small
+\textbf{User Prompt:}
+
+Extract facts from text into structured format with FOUR required dimensions - BE EXTREMELY DETAILED.
+
+\vspace{0.2cm}
+
+\rule{\linewidth}{0.4pt}
+
+\textbf{FACT FORMAT - ALL FIVE DIMENSIONS REQUIRED - MAXIMUM VERBOSITY}
+
+\rule{\linewidth}{0.4pt}
+
+\vspace{0.2cm}
+
+For EACH fact, CAPTURE ALL DETAILS - NEVER SUMMARIZE OR OMIT:
+
+\textbf{1) what:} WHAT happened - COMPLETE description with ALL specifics (objects, actions, quantities, details)
+
+\textbf{2) when:} WHEN it happened - ALWAYS include temporal info with DAY OF WEEK
+\begin{itemize}
+    \item Always include the day name: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
+    \item Format: ``day\_name, month day, year'' (e.g., ``Saturday, June 9, 2024'')
+\end{itemize}
+
+\textbf{3) where:} WHERE it happened or is about - SPECIFIC locations, places, areas, regions (if applicable)
+
+\textbf{4) who:} WHO is involved - ALL people/entities with FULL relationships and background
+
+\textbf{5) why:} WHY it matters - ALL emotions, preferences, motivations, significance, nuance
+\begin{itemize}
+    \item For assistant facts: MUST include what the user asked/requested that triggered this!
+\end{itemize}
+
+Plus: fact\_type, fact\_kind, entities, occurred\_start/end (for structured dates), where (structured location)
+
+\vspace{0.2cm}
+
+\textbf{VERBOSITY REQUIREMENT:} Include EVERY detail mentioned. More detail is ALWAYS better than less.
+
+\vspace{0.2cm}
+
+\rule{\linewidth}{0.4pt}
+
+\textbf{COREFERENCE RESOLUTION (CRITICAL)}
+
+\rule{\linewidth}{0.4pt}
+
+\vspace{0.2cm}
+
+When text uses BOTH a generic relation AND a name for the same person, LINK THEM!
+
+\textbf{Example:}
+\begin{itemize}
+    \item Input: ``My roommate Emily got married. She works at Google.''
+    \item Correct: ``Emily (the user's roommate) got married. She works at Google.''
+    \item Wrong: Treating ``my roommate'' and ``Emily'' as separate entities
+\end{itemize}
+\end{tcolorbox}
+
+\subsection{Opinion Formation Prompt (CARA)}
+\label{sec:appendix-opinion-formation}
+
+The opinion formation prompt is used during the reflect operation to extract and form new opinions from generated responses.
+
+\begin{tcolorbox}[
+    colback=teal!5!white,
+    colframe=teal!60!black,
+    title=Opinion Formation System Prompt,
+    fonttitle=\bfseries,
+    coltitle=white,
+    colbacktitle=teal!60!black,
+    boxrule=1.0pt,
+    arc=1.5mm,
+    enhanced,
+    breakable
+]
+\small
+\textbf{User Prompt:}
+
+Extract any NEW opinions or perspectives from the answer below and rewrite them in FIRST-PERSON as if YOU are stating the opinion directly.
+
+\vspace{0.2cm}
+
+\textbf{ORIGINAL QUESTION:} \\
+\texttt{\{query\}}
+
+\vspace{0.2cm}
+
+\textbf{ANSWER PROVIDED:} \\
+\texttt{\{text\}}
+
+\vspace{0.2cm}
+
+Your task: Find opinions in the answer and rewrite them AS IF YOU ARE THE ONE SAYING THEM.
+
+An opinion is a judgment, viewpoint, or conclusion that goes beyond just stating facts.
+
+\vspace{0.2cm}
+
+\textbf{IMPORTANT:} Do NOT extract statements like:
+\begin{itemize}
+    \item ``I don't have enough information''
+    \item ``The facts don't contain information about X''
+    \item ``I cannot answer because...''
+\end{itemize}
+
+ONLY extract actual opinions about substantive topics.
+
+\vspace{0.2cm}
+
+\rule{\linewidth}{0.4pt}
+
+\textbf{CRITICAL FORMAT REQUIREMENTS:}
+
+\rule{\linewidth}{0.4pt}
+
+\vspace{0.2cm}
+
+\textbf{1)} ALWAYS start with first-person phrases: ``I think...'', ``I believe...'', ``In my view...'', ``I've come to believe...'', ``Previously I thought... but now...''
+
+\textbf{2)} NEVER use third-person: Do NOT say ``The speaker thinks...'' or ``They believe...'' - always use ``I''
+
+\textbf{3)} Include the reasoning naturally within the statement
+
+\textbf{4)} Provide a confidence score (0.0 to 1.0)
+
+\vspace{0.2cm}
+
+\textbf{CORRECT Examples (First-Person):}
+\begin{itemize}
+    \item ``I think Alice is more reliable because she consistently delivers on time and writes clean code''
+    \item ``Previously I thought all engineers were equal, but now I feel that experience and track record really matter''
+    \item ``I believe reliability is best measured by consistent output over time''
+    \item ``I've come to believe that track records are more important than potential''
+\end{itemize}
+\end{tcolorbox}
+
+\subsection{Observation Generation Prompt (TEMPR)}
+\label{sec:appendix-observation-generation}
+
+The observation generation prompt synthesizes factual observations about entities from multiple underlying facts without behavioral profile influence.
+
+\begin{tcolorbox}[
+    colback=teal!5!white,
+    colframe=teal!60!black,
+    title=Observation Generation System Prompt,
+    fonttitle=\bfseries,
+    coltitle=white,
+    colbacktitle=teal!60!black,
+    boxrule=1.0pt,
+    arc=1.5mm,
+    enhanced,
+    breakable
+]
+\small
+\textbf{System Message:}
+
+You are an objective observer synthesizing facts about an entity. Generate clear, factual observations without opinions or behavioral profile influence. Be concise and accurate.
+
+\vspace{0.2cm}
+
+\rule{\linewidth}{0.4pt}
+
+\textbf{User Prompt:}
+
+Based on the following facts about ``\texttt{\{entity\_name\}}'', generate a list of key observations.
+
+\vspace{0.2cm}
+
+\textbf{FACTS ABOUT \texttt{\{ENTITY\_NAME\}}:} \\
+\texttt{\{facts\_text\}}
+
+\vspace{0.2cm}
+
+Your task: Synthesize the facts into clear, objective observations about \texttt{\{entity\_name\}}.
+
+\vspace{0.2cm}
+
+\textbf{GUIDELINES:}
+\begin{enumerate}
+    \item Each observation should be a factual statement about \texttt{\{entity\_name\}}
+    \item Combine related facts into single observations where appropriate
+    \item Be objective - do not add opinions, judgments, or interpretations
+    \item Focus on what we KNOW about \texttt{\{entity\_name\}}, not what we assume
+    \item Include observations about: identity, characteristics, roles, relationships, activities
+    \item Write in third person (e.g., ``John is...'' not ``I think John is...'')
+    \item If there are conflicting facts, note the most recent or most supported one
+\end{enumerate}
+
+\vspace{0.2cm}
+
+\textbf{EXAMPLES of good observations:}
+\begin{itemize}
+    \item ``John works at Google as a software engineer''
+    \item ``John is detail-oriented and methodical in his approach''
+    \item ``John collaborates frequently with Sarah on the AI project''
+    \item ``John joined the company in 2023''
+\end{itemize}
+
+\textbf{EXAMPLES of bad observations (avoid these):}
+\begin{itemize}
+    \item ``John seems like a good person'' (opinion/judgment)
+    \item ``John probably likes his job'' (assumption)
+    \item ``I believe John is reliable'' (first-person opinion)
+\end{itemize}
+
+\vspace{0.2cm}
+
+Generate 3-7 observations based on the available facts. If there are very few facts, generate fewer observations.
+\end{tcolorbox}
+
+\subsection{LongMemEval Judge Prompts}
+\label{sec:appendix-judge-prompts}
+
+The judge prompts are used in the LongMemEval benchmark to evaluate whether model responses are correct. Different prompts are used for different question types.
+
+\subsubsection{Single-Session and Multi-Session Questions}
+
+\begin{tcolorbox}[
+    colback=teal!5!white,
+    colframe=teal!60!black,
+    title=Judge Prompt: Single/Multi-Session Questions,
+    fonttitle=\bfseries,
+    coltitle=white,
+    colbacktitle=teal!60!black,
+    boxrule=1.0pt,
+    arc=1.5mm,
+    enhanced,
+    breakable
+]
+\small
+I will give you a question, a correct answer, and a response from a model. Please answer yes if the response contains the correct answer. Otherwise, answer no. If the response is equivalent to the correct answer or contains all the intermediate steps to get the correct answer, you should also answer yes. If the response only contains a subset of the information required by the answer, answer no.
+
+\vspace{0.2cm}
+
+\textbf{Question:} \texttt{\{question\}}
+
+\textbf{Correct Answer:} \texttt{\{answer\}}
+
+\textbf{Model Response:} \texttt{\{response\}}
+
+\vspace{0.2cm}
+
+Is the model response correct?
+
+You may provide reasoning, but you MUST end your response with your final answer in the format: \textbackslash boxed\{yes\} or \textbackslash boxed\{no\}
+\end{tcolorbox}
+
+\subsubsection{Temporal Reasoning Questions}
+
+\begin{tcolorbox}[
+    colback=teal!5!white,
+    colframe=teal!60!black,
+    title=Judge Prompt: Temporal Reasoning Questions,
+    fonttitle=\bfseries,
+    coltitle=white,
+    colbacktitle=teal!60!black,
+    boxrule=1.0pt,
+    arc=1.5mm,
+    enhanced,
+    breakable
+]
+\small
+I will give you a question, a correct answer, and a response from a model. Please answer yes if the response contains the correct answer. Otherwise, answer no. If the response is equivalent to the correct answer or contains all the intermediate steps to get the correct answer, you should also answer yes. If the response only contains a subset of the information required by the answer, answer no. In addition, do not penalize off-by-one errors for the number of days. If the question asks for the number of days/weeks/months, etc., and the model makes off-by-one errors (e.g., predicting 19 days when the answer is 18), the model's response is still correct.
+
+\vspace{0.2cm}
+
+\textbf{Question:} \texttt{\{question\}}
+
+\textbf{Correct Answer:} \texttt{\{answer\}}
+
+\textbf{Model Response:} \texttt{\{response\}}
+
+\vspace{0.2cm}
+
+Is the model response correct?
+
+You may provide reasoning, but you MUST end your response with your final answer in the format: \textbackslash boxed\{yes\} or \textbackslash boxed\{no\}
+\end{tcolorbox}
+
+\subsubsection{Knowledge Update Questions}
+
+\begin{tcolorbox}[
+    colback=teal!5!white,
+    colframe=teal!60!black,
+    title=Judge Prompt: Knowledge Update Questions,
+    fonttitle=\bfseries,
+    coltitle=white,
+    colbacktitle=teal!60!black,
+    boxrule=1.0pt,
+    arc=1.5mm,
+    enhanced,
+    breakable
+]
+\small
+I will give you a question, a correct answer, and a response from a model. Please answer yes if the response contains the correct answer. Otherwise, answer no. If the response contains some previous information along with an updated answer, the response should be considered as correct as long as the updated answer is the required answer.
+
+\vspace{0.2cm}
+
+\textbf{Question:} \texttt{\{question\}}
+
+\textbf{Correct Answer:} \texttt{\{answer\}}
+
+\textbf{Model Response:} \texttt{\{response\}}
+
+\vspace{0.2cm}
+
+Is the model response correct?
+
+You may provide reasoning, but you MUST end your response with your final answer in the format: \textbackslash boxed\{yes\} or \textbackslash boxed\{no\}
+\end{tcolorbox}
+
+\subsubsection{Preference Questions}
+
+\begin{tcolorbox}[
+    colback=teal!5!white,
+    colframe=teal!60!black,
+    title=Judge Prompt: Preference Questions,
+    fonttitle=\bfseries,
+    coltitle=white,
+    colbacktitle=teal!60!black,
+    boxrule=1.0pt,
+    arc=1.5mm,
+    enhanced,
+    breakable
+]
+\small
+I will give you a question, a rubric for desired personalized response, and a response from a model. Please answer yes if the response satisfies the desired response. Otherwise, answer no. The model does not need to reflect all the points in the rubric. The response is correct as long as it recalls and utilizes the user's personal information correctly.
+
+\vspace{0.2cm}
+
+\textbf{Question:} \texttt{\{question\}}
+
+\textbf{Rubric:} \texttt{\{answer\}}
+
+\textbf{Model Response:} \texttt{\{response\}}
+
+\vspace{0.2cm}
+
+Is the model response correct?
+
+You may provide reasoning, but you MUST end your response with your final answer in the format: \textbackslash boxed\{yes\} or \textbackslash boxed\{no\}
+\end{tcolorbox}
+
+\subsubsection{Abstention Questions}
+
+\begin{tcolorbox}[
+    colback=teal!5!white,
+    colframe=teal!60!black,
+    title=Judge Prompt: Abstention Questions,
+    fonttitle=\bfseries,
+    coltitle=white,
+    colbacktitle=teal!60!black,
+    boxrule=1.0pt,
+    arc=1.5mm,
+    enhanced,
+    breakable
+]
+\small
+I will give you an unanswerable question, an explanation, and a response from a model. Please answer yes if the model correctly identifies the question as unanswerable. The model could say that the information is incomplete, or some other information is given but the asked information is not.
+
+\vspace{0.2cm}
+
+\textbf{Question:} \texttt{\{question\}}
+
+\textbf{Explanation:} \texttt{\{answer\}}
+
+\textbf{Model Response:} \texttt{\{response\}}
+
+\vspace{0.2cm}
+
+Does the model correctly identify the question as unanswerable?
+
+You may provide reasoning, but you MUST end your response with your final answer in the format: \textbackslash boxed\{yes\} or \textbackslash boxed\{no\}
+\end{tcolorbox}
+
+\subsection{Structured Output Schemas}
+\label{sec:appendix-schemas}
+
+Hindsight uses Pydantic models to enforce structured output from LLM calls. This ensures reliable parsing and validation of extracted information.
+
+\subsubsection{Fact Schema}
+
+\begin{tcolorbox}[
+    colback=teal!5!white,
+    colframe=teal!60!black,
+    title=Fact Extraction Schema (Pydantic),
+    fonttitle=\bfseries,
+    coltitle=white,
+    colbacktitle=teal!60!black,
+    boxrule=1.0pt,
+    arc=1.5mm,
+    enhanced,
+    breakable
+]
+\small
+\begin{verbatim}
+class ExtractedFact(BaseModel):
+    # Five required dimensions
+    what: str  # Complete description with ALL specifics
+    when: str  # Temporal info with day of week
+    where: str # Specific locations, places, areas
+    who: str   # All people/entities with relationships
+    why: str   # Emotions, preferences, motivations
+
+    # Classification
+    fact_type: Literal["world", "experience", "opinion"]
+
+    # Optional structured fields
+    occurred_start: Optional[str] = None
+    occurred_end: Optional[str] = None
+    mentioned_at: Optional[str] = None
+    entities: Optional[List[Entity]] = None
+    causal_relations: Optional[List[CausalRelation]] = None
+
+class Entity(BaseModel):
+    text: str  # Named entity as it appears
+
+class CausalRelation(BaseModel):
+    target_fact_index: int  # Index of related fact
+    relation_type: Literal[
+        "causes", "caused_by", "enables", "prevents"
+    ]
+    strength: float  # 0.0 to 1.0
+\end{verbatim}
+\end{tcolorbox}
+
+\subsubsection{Opinion Schema}
+
+\begin{tcolorbox}[
+    colback=teal!5!white,
+    colframe=teal!60!black,
+    title=Opinion Extraction Schema (Pydantic),
+    fonttitle=\bfseries,
+    coltitle=white,
+    colbacktitle=teal!60!black,
+    boxrule=1.0pt,
+    arc=1.5mm,
+    enhanced,
+    breakable
+]
+\small
+\begin{verbatim}
+class Opinion(BaseModel):
+    opinion: str  # First-person opinion statement
+    confidence: float  # 0.0 to 1.0
+    reasoning: str  # Why this opinion was formed
+
+class OpinionExtractionResponse(BaseModel):
+    opinions: List[Opinion] = Field(
+        default_factory=list,
+        description="List of opinions extracted from text"
+    )
+\end{verbatim}
+\end{tcolorbox}
+
+\subsubsection{Observation Schema}
+
+\begin{tcolorbox}[
+    colback=teal!5!white,
+    colframe=teal!60!black,
+    title=Observation Extraction Schema (Pydantic),
+    fonttitle=\bfseries,
+    coltitle=white,
+    colbacktitle=teal!60!black,
+    boxrule=1.0pt,
+    arc=1.5mm,
+    enhanced,
+    breakable
+]
+\small
+\begin{verbatim}
+class Observation(BaseModel):
+    observation: str  # Factual statement about entity
+
+class ObservationExtractionResponse(BaseModel):
+    observations: List[Observation] = Field(
+        default_factory=list,
+        description="List of observations about entity"
+    )
+\end{verbatim}
+\end{tcolorbox}

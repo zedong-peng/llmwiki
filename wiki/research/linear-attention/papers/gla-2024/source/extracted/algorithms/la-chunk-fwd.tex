@@ -1,0 +1,58 @@
+\begin{algorithm}[t!]
+\vspace{-0.5mm}
+\scriptsize
+\caption{\textsc{FlashLinearAttention}: Forward Pass}
+\label{algo:la-chunk-fwd}
+\begin{algorithmic}
+    \Require $\rmQ, \rmK, \rmV \in \R^{L \times d}, \rmV  \in \R^{L \times d}$, chunk size $C \in [L]$, \texttt{materialize} $\in$ \{\texttt{True,False}\} 
+    \State Divide $\rmQ, \rmK, \rmV$ into $N = \frac{L}{C}$ blocks $\{ \rmQ_{[1]} \dots \rmQ_{[N]} \} $, $\{ \rmK_{[1]} \dots \rmK_{[N]} \}$ of size $C \times d$ each.
+     \State{Initialize $\rmS = \bm{0} \in \mathbb R^{d\times d} $ on SRAM}
+    \State{On chip, construct causal mask $\rmM\in \R^{C\times C}$}
+    \If{\texttt{materialize}} \Comment{the materialization version}
+    \For{$n \gets 1, N$}
+    %
+    %
+      \State{Store $\rmS$ to HBM as 
+      $\rmS_{[n]}$.}
+      %
+      %
+      %
+        \State{Load $\rmK_{[n]}, \rmV_{[n]} \in \mathbb{R}^{C \times d}$ from HBM to SRAM}
+        \State{On chip, compute $\mathbf{S} = \mathbf{S} + \rmK_{[n]}^{\top}  \rmV_{[n]}$.}
+        %
+        %
+        %
+        %
+        %
+        %
+        \color{black}
+    \EndFor
+    %
+    %
+    \ParFor{$n \gets 1, N$}
+    %
+        \State Load $\rmQ_{[n]}, \rmK_{[n]}, \rmV_{[n]}, \rmS_{[n]}$ from HBM to SRAM.
+        \State On chip, compute $\rmO^{\prime} = \rmQ_{[n]} \rmS_{[n]} + (\rmQ_{[n]} \rmK^\intercal_{[n]} \odot \rmM)\rmV_{[n]}$  
+        \State Store $\rmO^{\prime}$ to HBM as $\rmO_{[n]}$.
+    \EndParFor
+  \State \Return $\rmO = \{ \rmO_{[1]} \dots \rmO_{[N]} \}$, $\rmS=\{ \rmS_{[1]} \dots \rmS_{[N]} \}$.
+        \Else \Comment{the non-materialization version}
+         \For{$n \gets 1, N$}
+      \color{black}
+        \State{Load $\rmQ_{[n]}, \rmK_{[n]}, \rmV_{[n]} \in \mathbb{R}^{C \times d}$ from HBM to SRAM}
+        %
+        \State{On chip, compute $\rmO' = \rmQ_{[n]}\rmS + (\rmQ_{[n]}\rmK_{[n]}^{\top}\odot\rmM)\rmV_{[n]}$}
+        \State{On chip, compute $\mathbf{S} = \mathbf{S} + \rmK_{[n]}^{\top}  \rmV_{[n]}$.}
+        \State{Store $\rmO'$ to HBM as $\rmO_{[n]}$ }
+        \color{black}
+    \EndFor
+   \State  \Return $\rmO = \{ \rmO_{[1]} \dots \rmO_{[N]} \}$   
+\EndIf 
+%
+  %
+%
+%
+%
+\vspace{-0.5mm}
+\end{algorithmic}
+\end{algorithm}

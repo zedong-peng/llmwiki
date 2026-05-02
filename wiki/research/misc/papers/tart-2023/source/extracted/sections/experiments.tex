@@ -1,0 +1,148 @@
+\begin{table*}[ht!]
+\center
+\small
+\begin{tabular}{l  c  c  l  l l}
+\toprule 
+% \small
+% \small
+\textbf{Task}  & $|\boldsymbol{q}|$ &  $|\mathcal{C}|$ & \textbf{Domain} & \textbf{Query} & \textbf{Gold documents} \\  
+\midrule
+Ambig QA~\cite{min-etal-2020-ambigqa} & 1,172 & 18,809 & Wikipedia & question & duplicated question  \\
+WIKIQA~\cite{yang-etal-2015-wikiqa} & 369 & 26,196 & Wikipedia & question & answer sentence \\
+\midrule
+SciFact~\cite{wadden-etal-2020-fact} & 300 & 5183 & Science & claim & scientific paper paragraph \\ 
+\midrule
+GooAQ-Technical~\cite{khashabi-etal-2021-gooaq-open} & 1,000 & 4,086 & Technical & question & StackOverflow answer \\
+LinkSo-Python~\cite{linkso} & 1,000 & 485,413 &  Technical & question & StackOverflow question \\
+CodeSearchNet-Python~\cite{husain2019codesearchnet} & 1,000 & 457,414 & Code & comment & Python code \\
+% CodeSearch-java & 1k & 500k  & Code & comment & Java code \\
+\bottomrule
+\end{tabular}
+\caption{The \task evaluation. Example pairs of queries and documents are shown in Table~\ref{tab:cross_task_eval_examples}. In addition to the corpora listed above, we add the Natural Questions corpus data from BEIR~\cite{thakur2021beir}, which consists of 2,681,468 documents from Wikipedia. 
+}
+\label{tab:cross_task_eval}
+\end{table*}
+
+\section{Experiments}
+{
+We evaluate
+% our instruction-following retrieval systems 
+\model on zero-shot retrieval (Section~\ref{sec:beir_lotte}) and in a challenging new evaluation setup, \task (Cross-task Cross-domain Retrieval; detailed in Section~\ref{sec:evaluatiom_benchmark}), comparing them with state-of-the-art models described in Section~\ref{sec:baselines}. 
+}
+
+
+\subsection{Zero-shot Retrieval Evaluations}
+\label{sec:beir_lotte}
+To evaluate the models' ability to perform zero-shot transfer via {\it instructions}, we run experiments on two widely used zero-shot transfer evaluation benchmarks: {\bf BEIR}~\cite{thakur2021beir} and {\bf LOTTE-pooled}~\cite{santhanam-etal-2022-colbertv2}.
+{
+Notably, none of the evaluation datasets and instructions overlap with \rib. 
+Moreover, many tasks differ significantly from tasks used during training (e.g., argument retrieval)}.
+
+{\bf BEIR} is a collection of diverse retrieval tasks in multiple domains (e.g., Wikipedia, biomedical) where the retrieval target is restricted to the target corpus in a single domain. We used publicly available datasets. Following \citet{promptagator}, we exclude Natural Questions, MS MARCO, HotpotQA, FEVER and CQADupStack from our evaluation targets for fair comparison since they are included either in encoders' pretraining or in \rib. 
+
+{\bf LOTTE-Search} samples GooAQ~\cite{khashabi-etal-2021-gooaq-open} questions whose answers come from certain forums in StackExchange. 
+We evaluate our model in the pooled setup, where documents come from forums in diverse domains (e.g., cooking, technical). GooAQ is not included in our training set. 
+In LOTTE, our instructions specify which {\it forum domains} our system should retrieve evidence from (e.g., ``Retrieve a {\it cooking} StackExchange forum post that answers this question''). 
+
+\paragraph{Metrics.}
+Following \citet{thakur2021beir}, for BEIR, we use NDCG@10 as our primary metric on BEIR. For LOTTE-pooled, we use Success@5 ($=$ Recall@5) as our primary metric, as in the original paper~\cite{santhanam-etal-2022-colbertv2}.
+
+\subsection{\task: Cross-task Cross-domain Retrieval Evaluation} 
+\label{sec:evaluatiom_benchmark}
+{
+{
+Normal retrieval benchmarks often assume that a system must deal with only a single intent and a closed corpus, which may oversimplify real-world scenarios: users' intents can be diverse, requiring searching in a truly open-domain environment that includes diverse documents~\cite{piktus2021web}. 
+}
+We introduce a more realistic evaluation setup, \task, where several retrieval tasks with different intents are pooled to form a single retrieval target containing diverse documents. This setup requires a system to adapt to a new task in a zero-shot manner and to model users' intents expressed in natural languages, to find documents aligning their expectations from an open-domain corpora. 
+}
+
+\paragraph{Tasks and queries.}
+Our \task evaluation covers six datasets across three domains, namely, Wikipedia, Science, and Technical (Table~\ref{tab:cross_task_eval}) domains. 
+The key challenge here includes datasets with different search intents that may not always be obvious from the queries alone. 
+% Even when queries look similar the expected retrieval results are different given different implicit intents. 
+
+\paragraph{A pooled corpus.}
+For the primary \emph{pooled} setup, we combine all documents from different tasks and the BEIR NQ Wikipedia corpus to form a single retrieval corpus, consisting of approximately 3.7 million documents. 
+We also report the simplified \emph{closed} setup performance as an oracle setup, where a system retrieves only from the original task corpus, which is similar to BEIR. 
+
+\paragraph{{Metrics}.}
+We report NDCG@10 on both pooled and closed setups for each task. In addition, we evaluate the performance gap between the closed and pooled setups and refer to it as \emph{robustness}.
+A smaller gap means that the model is distracted less by the documents from undesirable corpora.
+
+
+\begin{table*}[t!]
+\centering
+\footnotesize
+\addtolength{\tabcolsep}{-4.25pt}  
+\begin{tabular}{@{}l|a|a | a| cccccccccb|c@{}}\toprule
+ & \multicolumn{3}{c|}{model size \& rerank}   &\multicolumn{10}{c}{\textbf{BEIR}} & \textbf{LOTTE} \\ \midrule
+& Ret. & Gen. & $K$ &TREC & NFC & FQA & ARG& TOU & DBP & SCD & CLI&SCF & Avg. & Search-Pooled \\\midrule
+BM 25 & 0 & 0 & 0 & 65.6  & 32.5  & 23.6 & 31.5 & 36.7 & 31.3 & 15.8 &  21.3&  66.5 & 36.0 & 48.3  \\
+Contriever & 110M & 0 & 0 & 27.4 & 31.7 & 24.5 & 37.9 & 19.3 & 29.2 & 14.9 & 15.5 & 64.9 & 29.3 & 55.5 \\ 
+UPR$^\dagger$ & 3B & 0 & 0 & 60.4 & 33.3 & 45.0 & 50.3 &  21.3 & 33.8 & 17.3 & 9.5 & 69.6 & 37.8  & --  \\ 
+% SGPT-CE & 6.1 B & 0 & &  79.1 & 34.7 & 40.1 & 28.6 & 23.4 & 37.0 & 19.6 & 16.1 & 68.2 & 38.6 \\ 
+\hline
+Contriever (MS) & 110M & 0 & 0 & 59.6 &	32.8 &	32.9 &	44.6 &	23.0 & 41.3	& 16.5 & 	23.7 & 	67.7 & 	38.0 &  66.0  \\
+Contriever+CE$^\dagger$& 133M & 0&  100&  70.1 &34.4 & 	36.7 &	41.3&	{ 29.8} &	47.1 &	17.1 &	25.8 &	69.2 &	41.3  & 73.5  \\
+ColBERT-v2 & 110M &  0& 0 &  73.8 & 33.8 & 35.6 & 47.9 & 26.3 & 44.6 & 15.8 & 17.6 & 69.3 & 40.5 &   71.6 \\
+BM25 + MonoT5 (3B)$^\dagger$ & 3B & 0& 1000& {\bf 79.6} & {\bf 38.4} & {\bf 51.2} &	28.8& 20.0 & {\bf 47.8} &	18.4 &	28.9 & 	{\bf 77.7} & 	43.4  & --   \\
+GTR-11B& 4.8B & 0& 0 &  50.1 & 34.2 & 46.7 & {\bf 54.0} & 25.6 & 40.8& 16.1 & 27.0 &  63.5 & 39.8 & --  \\
+SGPT-6.8B & 6.8B & 0 & 0 & 87.3 & 36.2 & 37.2 & 51.4 & 25.4 & 39.9 & {\bf 19.7} & 30.5 & 74.7 & 44.7 & --   \\
+\midrule
+GPL &  66M$\times$9 & 220M & 0 & 72.6 & -- & 32.8 & -- & -- &  -- & -- & -- & 66.4 & -- & --\\
+Promptagator & 110M $\times$9 & 175B & 0 & 72.7 & 33.4 & 40.4 & 53.8 & 26.6 & 36.4 & 16.3 & 21.4 & 62.3 & 40.4 & --  \\
+Promptagator (rank)$^\dagger$ & 220M $\times$9 & 175B & 200 & 76.0 &	36.0 & 	45.9 & 	53.1 & 	27.8  & 	41.3 & 	{ 19.1} &	22.6 & 	73.6 & 	43.9
+& -- \\
+\midrule
+{\bf \model-dual} &110M &0 & 0 & 62.6 & 33.7 & 33.7 & 48.9 & 20.1 & 41.5 & 14.2 & 13.8 & 69.0 & 37.4 & 56.8  \\
+{\bf \model-full (T0-3B)}$^\dagger$ &1.5B &0 & 100 &  71.7 & 34.0 & 42.2& 	49.8 & 	{\bf 31.2} & 	45.1 & 	17.5 & 	{ 30.0} & 	75.8 & 	{ 44.1}	& {\bf 75.7}  \\ 
+{\bf \model-full (FLAN-T5)}$^\dagger$ &1.5B &0 & 100 & { 72.8} & 33.4 & 41.8 & { 51.5} & 24.9 & {46.8} & { 18.7} & {\bf  35.4} & {\bf 77.7} & {\bf 44.8}	& 73.1 \\
+\bottomrule
+\end{tabular}
+    \caption{Zero-shot retrieval results on BEIR and LOTTE-Search (pooled). $\dagger$ indicates the models using cross-encoder-based reranking models. The first group of models use no labeled data during training. The second group uses MS MARCO at training time but have no customized task-specific data. The third group trains individual retrieval systems using automatically generated data. TREC, NFC, FQA, ARG, TOU, DBP, SCD, CLI, SCF indicates TREC-COVID~\cite{10.1145/3451964.3451965}, FIQA~\cite{10.1145/3184558.3192301}, NF Corpus~\cite{nfcorpus}, Arguana~\cite{wachsmuth-etal-2018-retrieval}, Touche-2020~\cite{touch}, DBPedia~\cite{dbpedia}, SciDocs~\cite{cohan-etal-2020-specter}, Climate- Fever~\cite{climate_fever}, and SciFact~\cite{wadden-etal-2020-fact}, respectively. ``$\times 9$'' of GPL, Promptagator means that those models train customized models for each of the datasets.  
+    }
+    \label{tab:beir}
+\end{table*}
+\begin{table*}[t!]
+\centering
+\footnotesize
+\addtolength{\tabcolsep}{-2.pt}  
+\begin{tabular}{l|cc|cc|cc|cc|cc|cc|bb| b}\toprule
+& \multicolumn{2}{c}{AMB}  &
+\multicolumn{2}{c}{WQA} &  \multicolumn{2}{c}{SCF}  &  \multicolumn{2}{c}{GAT} & \multicolumn{2}{c}{LSO} & \multicolumn{2}{c}{CSP} & \multicolumn{2}{b}{Avg.} &  $\Delta$ \\
+&cl&pl&cl&pl&cl&pl&cl&pl&cl&pl&cl&pl&cl&pl & cl$-$pl\\
+\midrule
+% BM25 &  & & &&  & & & & & & &   \\
+Contriever & {\bf 96.8} & { 93.8}  & 80.9& 54.1 &  67.7 & 57.4  & 73.2 & 59.8 & { 28.0} & 26.7 & 36.7 &  36.1 & 63.9 & 54.6 & 9.3 \\
+% Contr & \\\hline
+Contriever+CE & 96.6  & 47.4  & 78.2 & 58.4 & 69.1 & 61.7 &  75.4 &66.0  & {\bf 32.1} & {\bf 31.4} & 42.0 & 40.2  & 65.5 & 50.9 & 13.4 \\
+\model-dual &  96.3 &  {\bf 95.3}  &  80.2 &   {\bf 63.1} & 70.1  & {66.2 } & 75.0 & 65.0 & 23.0 & 23.4 & 31.3 & 31.3 & 60.5  &  53.6 & {\bf 6.9} \\
+{\bf \model-full (T0)} & 91.1 &  90.5 & { 82.1} &  52.5  &  { 74.7} & {66.2}  & {\bf 80.5} & {\bf 68.6} & 25.1 & 24.9 & { 51.4}  & {\bf 51.4} & { 67.5} & {\bf 59.1} & 8.4   \\
+{\bf \model-full (FLAN)} & 94.0 &  89.6 &  8\bf 6.9 & 55.9 &  \bf 77.4 & \bf 66.3 & 78.3 & 66.7  & 18.1 & 18.4 & \bf 51.8 & 50.1 & {\bf 67.7} & 57.8 &  9.9 \\
+\bottomrule
+\end{tabular}
+    \caption{Cross-task retrieval results.  $\Delta$ shows the performance gap between the averaged pooled performance and the averaged closed performance. AMB, WQA, SCF, GAT, LSO, CSP denote AmbigQA, WikiQA, SciFact, GooAQ-Technical, LinkSO-Python, and CodeSearchNet-Python, respectively. 
+    }
+    \label{tab:cross_task_results}
+\end{table*}
+\subsection{Baselines}
+\label{sec:baselines}
+We compare \model with various state-of-the-art methods. 
+The first group we consider are unsupervised models that are not trained or trained only on unlabeled text;  
+these include {\bf Contriever}~\cite{izacard2022unsupervised} and {\bf BM25}. 
+We also compare \model with {\bf UPR}~\cite{sachan2022improving}, which reranks the Contriever results using a pretrained T0-3B. 
+
+The second group trains retrievers and rerankers on MS MARCO or a few large-scale datasets and directly transfers them to new tasks with no adaptations, including {\bf MonoT5}~\cite{nogueira-etal-2020-document}, {\bf Contriever-MS MARCO} and {\bf Contriever-MS MARCO + Cross Encoder (CE)}, {\bf ColBERT v2}~\cite{santhanam-etal-2022-colbertv2}, {\bf GTR}~\cite{ni2021large} and {\bf SGPT-BE}~\cite{muennighoff2022sgpt}. 
+
+The final group of models is specialized retrievers trained for each task on additional task-specific data that was automatically generated given the target corpus. 
+{\bf Promptagator}~\cite{promptagator} generates large amount of in-domain data using FLAN~\cite{wei2022finetuned}, and {\bf GPL}~\cite{wang-etal-2022-gpl} generates them using DocT5Query~\cite{doc2query}. 
+
+\subsection{Experimental Settings}
+We initialize \model-full from the T0-3B encoder~\cite{sanh2022multitask} {and FLAN-T5 encoder~\cite{flan_palm}}. We sample positive and negative passages with a 1:4 ratio. 
+We train \model-full up to 10k steps and take the best checkpoint based on development split performance. 
+We initialize \model-dual from a Contriever-MS MARCO checkpoint~\cite{izacard2022unsupervised} and train up 30k steps. 
+Per-GPU batch size is 16, and for each positive document, we sample in total 5 negative passages; 90\% of them are randomly sampled from $\mathcal{D}$, and 10\% are sampled from $\boldsymbol{d}^{\rm HD}$ and $\boldsymbol{d}^{\rm UF}$ in addition to the in-batch negative documents. 
+We use 8 GPUs to train \model-full and 64 GPUs to train \model-dual.
+To retrieve the initial document candidates for \model-full, we use Contriever-MS MARCO and rerank the top 100 documents.\footnote{We found that combining \model-full with the original Contreiver performs better than combining \model-full with \model-dual, possibly because \model-full uses the hard negative samples retrieved by Contriever's top-retrieved results. }
+{Table~\ref{tab:list_of_instructions_beir} shows the full list of instructions for evaluations}. 
+More details are in Appendix~\ref{sec:hyperparameters}. 

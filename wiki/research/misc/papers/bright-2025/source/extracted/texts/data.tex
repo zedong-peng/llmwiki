@@ -1,0 +1,151 @@
+
+\section{Constructing \ours}
+\label{sec:construct}
+We introduce \ours, a retrieval benchmark that tests whether retrieval systems can match queries and documents whose relevance requires intensive reasoning to solve, beyond just lexical and semantic similarities.
+% based on reasoning steps rather than lexical and semantic similarities. 
+In this section, we first formulate the task of reasoning-intensive retrieval (Section \ref{sec:problem_formulation}). Then, we detail the data collection process for the data from StackExchange (Section \ref{sec:stackexchange}), coding datasets (Section \ref{sec:code}), and theorem-based questions (Section \ref{sec:theorem}). In Table~\ref{tab:statistics}, we present the benchmark statistics.
+% \mz{We need an appendix section describing our human annotators.}
+\input{tables/statistics/main}
+
+\subsection{Task formulation}
+\label{sec:problem_formulation}
+Given a query $Q$ and the retrieval corpus $\mc{D} = \{D_1, \ldots, D_n\}$, retrievers are tasked to find relevant documents $\mc{D}^+_Q = \{D_{Q,1}^+, \ldots, D_{Q,m}^+\} \subset \mc{D}$, where $m \ll n$ (positive). 
+% \howard{the positive and negative docs are query-dependent, which nesscitates a _Q subscript for each}
+Negative documents are defined as $\mc{D}_Q^- = \mc{D} \setminus \mc{D}_Q^+$.
+% $\mc{D}^-_Q = \{D_i \mid D_i \in \mc{D}\hspace{0.1cm}and\hspace{0.1cm}D_i \not\in \mc{D}^+_Q, 1 \le i \le n \}$.
+In reasoning-intensive retrieval, the relevant document set $\mc{D}^+_Q$ is connected to the query $Q$ through specific reasoning traces or explanations (e.g., underlying principles, algorithms, or theorems) related to the query. For instance, common reasoning traces might involve identifying the query’s intent, analyzing and modeling the problem, and drawing sub-conclusions based on the provided descriptions. Such reasoning traces are typically absent from the query itself, making direct retrieval using only the query very challenging.
+
+% The oracle reasoning steps $\mc{R}_Q$ are not provided in the evaluation.
+% The reasoning steps $\mc{R}_Q$ are not provided, thus the retrieval system needs to be capable of reasoning by itself to distinguish the positive documents $\mc{D}^+_Q$ from the negative documents $\mc{D}^-_Q$.
+% Depending on the implementation methods, $\mc{R}_Q$ could be both explicitly and implicitly incorporated to solve this level 3 retrieval.
+
+\subsection{StackExchange: Retrieving web pages that help answer questions}
+\label{sec:stackexchange}
+\label{sec:StackExchangeAnnotate}
+% One major source of \ours is 
+\begin{relevance}
+\textbf{Relevance}: A document is considered relevant to a query only if it is cited in an accepted or highly voted answer and unanimously confirmed by annotators and domain experts that it helps reason through the query with critical concepts or theories.
+\end{relevance}
+StackExchange\footnote{\url{https://stackexchange.com/}} is a popular community-driven platform where users ask questions and receive answers from other users. 
+Among its 170+ sites, we select 7 diverse and 
+% academically-oriented 
+knowledge-intensive domains: \sustainable, \econ, \psychology, \robotics, \earth, \biology, and coding in \stackoverflow. Unlike the short questions in traditional retrieval benchmarks, questions on StackExchange often contain long and technical descriptions of the problems and end with a logically complex question, such as fixing a bug. 
+Responses often link to external web pages that contain relevant information to address the question. 
+We construct query-document pairs based on user posts and documents referenced in the answers (see Figure~\ref{fig:data_annotation}). 
+
+
+\textbf{Selecting posts.} Human annotators\footnote{authors and college students from corresponding fields.} browse posts from newest to oldest and select a post with at least one answer that (1) is accepted by the user or receives $>$ 5 votes, and (2) contains one or more URL links. This process ensures that each dataset has a sufficient number of high-quality examples.
+
+\textbf{Constructing query and positive documents.} For each selected post, we construct the query and positive documents as follows:
+\vspace{-8pt}
+\begin{steps}[itemsep=0mm]
+  \item The annotator combines the title and content of the post to form the query $Q$.
+  \item The annotator visits web pages linked in the answers and includes them as positive documents if they are relevant to queries or discards them otherwise.
+  
+  \item If no web page is considered positive, 
+  the post itself is discarded. For each collected web page, the annotator splits the content into passages 
+
+  and selects positives $\mc{D}_{Q,i}^+$
+  following the relevance definition. 
+  % Each selected passage serves as a positive document $D_{Q,i}^+$ for the query $Q$. 
+  % Details about LLM usage in the annotation process are in Appendix~\ref{app:llm_usage}.
+  % \mz{Can we link to appendix to explain what it means by LLM assisted?} 
+\end{steps}
+% \howard{overall could be a bit more concise about the descriptions imo}
+% To ensure consistent annotations on the positive relationships between queries and documents, we define the relevance as the following: the positive documents should explain critical concepts or theories behind a phenomenon description, or provide code pieces, documentation that will be useful to solve problems. Please find examples in Table \ref{tab:biology_example} to \ref{tab:example_sustainable_living}. 
+% the positive documents should provide critical information to understand the post or address the question, which could include: (1). explain critical concepts or details (Example in Table~\ref{tab:biology_example} and \ref{tab:example_sustainable_living}); (2). providing theorems, lemmas or code pieces that would contribute to solving the problem (Examples in Table~\ref{tab:earth_science_example}, \ref{tab:economic_example}, \ref{tab:psychology_example}, \ref{tab:robotics_example}, \ref{tab:stackoverflow_example});
+% (2). providing critical evidence or support to explain the post (Examples in Table~\ref{tab:biology_example}, \ref{tab:earth_science_example}, \ref{tab:psychology_example}); (3). offering critical information missing in the post (Example in Table~\ref{tab:example_sustainable_living}).
+
+
+\begin{figure}[t!]
+  \centering
+  \includegraphics[width=\textwidth]{figures/data_annotation.pdf}
+  \caption{
+  \textbf{An overview of the data annotation process for StackExchange data.} The post content is used as the query. Positive documents are selected passages from web pages linked in the answer, while the remaining passages, results from Google, and passages filtered by annotators are considered negatives. The web pages can include content from Wikipedia, blogs, articles, reports, and more.
+  } 
+  \vspace{-12.0pt}
+  \label{fig:data_annotation}
+\end{figure}
+
+\textbf{Constructing negative documents.} 
+To prevent models from relying purely on lexical or semantic similarities, we ensure that the negative documents for each query also address similar topics. Specifically, annotators gather search results from Google on the same topic and select documents that, while topically related, do not meet the specific requirements of the query (for more examples, see Appendix~\ref{app:data_examples}). The collection procedure is as follows:
+\vspace{-8pt}
+\begin{steps}[itemsep=0mm]
+  \item Annotators search Google using the posts' title or LLM-summarized post keywords, and identify web pages that are semantically similar but not relevant to answering the question. 
+  \item Annotators collect up to 5 negative web pages for each query and split them into hard negative passages, which consist of $\mc{D}^{-}_Q$.
+\end{steps}
+
+For each dataset, we compile all the collected passages into a unified retrieval corpus $\mc{D}$. For any given query, all passages in the corpus—excluding its positive passages—are treated as negatives, including positive and negative passages associated with other queries. In contrast to traditional retrieval tasks such as open-domain QA~\citep{fan2019eli5, kwiatkowski2019natural}, where the retrieval pool typically includes documents that directly answer the query, we simulate a realistic scenario where positive documents only provide useful information to help users derive an answer. Please find more details on the construction of the dataset in Appendix~\ref{app:stackexchange}.
+
+The annotation process involves a single computer science student performing the initial annotations, which are then verified by two PhD students specializing in the corresponding fields. Only annotations that receive unanimous approval from all involved parties, the original annotator and two expert reviewers, are retained in the final dataset. 
+This approval process applies to both the positive and negative document annotations, ensuring a high standard of accuracy and reliability in the annotated examples.
+See more guidelines to annotators in Appendix~\ref{app:annotator_instruction}.
+
+
+% we may not want to highlight the multi-hot characteristics in bright?
+% information of interest is scattered across multiple documents. 
+
+
+\subsection{Coding: Retrieving documentation or similar solved problems}
+\begin{relevance}
+\textbf{Relevance}: The relevance between queries and positive documents is defined by whether the coding problem (i.e., query) either requires the corresponding syntax documentation or involves the same algorithm and/or data structure.
+\end{relevance}
+
+\label{sec:code}
+To solve a coding problem, programmers often need to refer to the documentation or find similar problems that share the same algorithmic design.
+However, given only a problem description, it is difficult to find relevant documentation or similar problems via simple keyword or semantic matching. We construct two retrieval datasets on coding, where the relevance between queries and documents is grounded in the syntax usage and algorithm design. 
+% We describe the construction of the datasets below.
+
+% In the domain of code, the retrieval usually involves the alignment of two modalities: text and code.
+% The retrieval models are required to comprehend both natural language descriptions and complex logic of code structures or algorithms, where intensive reasoning is commonly applied.
+% In this section, we describe the construction of two retrieval datasets on code: \pony (coding in a rare programming language) and \leetcode.
+
+\textbf{\pony.}
+% When working with a rare programming language that may be unfamiliar to both programmers and LLMs, consulting the language manual can be invaluable for understanding its syntax and function usage.
+When working with a rare programming language, consulting the manual can be invaluable for understanding its syntax and function usage.
+However, in such cases, the problem description would likely have low semantic similarity and lexical overlap with the relevant documentation. 
+This discrepancy necessitates intensive reasoning in identifying the particular syntax or function that is relevant to the problem at hand. 
+We adopt a code generation dataset featuring Pony~\citep{su2024arks}, a rare programming language, and construct a retrieval dataset.
+We use the instructions of coding problems as queries $Q$, the annotated documentation about the required syntax as the positive documents $\mc{D}^+_Q$, and the complete language manual as the retrieval pool of documents $\mc{D}$, where each $D_i$ contains descriptions about syntax usage of Pony, such as conditionals, loops, and classes. 
+% \mz{@hongjin, could you briefly describe what scope a document could be about? e.g., conditionals, loops, etc.}
+
+\textbf{\leetcode.}
+We also explore coding problems that deal with algorithms and data structures, where the goal is to retrieve problems and solutions that share the same algorithmic design.
+We source coding problems and solutions from \leetcode.\footnote{\url{https://leetcode.com/}} The problem descriptions are used as queries $Q$, and the positive documents $\mc{D}_Q^+$ are solved problems (with solutions) that were annotated as similar problems by LeetCode.
+Each document $D_i = (Q_i, A_i)$ from \leetcode contains a problem statement $Q_i$ and a Python solution $A_i$.
+To increase difficulty, we only keep questions that are grounded in real-world scenarios, where arriving at the key algorithm or data structure requires intensive reasoning.
+We construct a large corpus $\mc{D}$ by combining questions and solutions from \leetcode and Python code from CodeSearchNet \citep{husain2019codesearchnet}. See Appendix \ref{app:data:leetcode} for more details on the dataset.
+
+
+\vspace{-8pt}
+\subsection{Theorem-based questions: Retrieve solved problems using the same theorems or relevant theorem statements}
+% \subsection{Theorem-based questions: Retrieve solutions using relevant theorems}
+\begin{relevance}
+\textbf{Relevance}: A query (i.e., a solved problem) is relevant to a document if the document references the same theorem used in the query.
+\end{relevance}
+\label{sec:theorem}
+When tackling a new math or physics problem, users often reference previously solved problems or directly consult relevant theorem statements to guide their reasoning. Retrieving such similar problems or theorems can be challenging, as problems that share the same underlying logic may differ significantly in surface form, as shown in Table~\ref{tab:example_theoremqa}.
+In this setting, the query $Q$ is a theorem-based question, and the corpus $\mc{D}$ consists of solved STEM problems $D_i = (Q_i, A_i)$, where $Q_i$ is the problem statement and $A_i$ is its solution, or $D_i$ are theorem documents from formal theorem collections such as ProofWiki. We consider $D_i$ as a positive document if it shares the same theorem as the query's solution. The dataset is built from high-quality STEM sources \citep{cobbe2021training,yuan2023scaling,hendrycks2021measuring,ling-etal-2017-program,chen-etal-2023-theoremqa,li2023camel}, and for details on corpus construction, refer to Appendix \ref{app:data:stem_corpus}.
+
+\textbf{\theorem.}
+Derived from textbooks, online resources, and experts, TheoremQA \citep{chen2023theoremqa} contains questions that are based on specific mathematical or scientific theorems (e.g., the binomial theorems), and represent problems that students and other users might encounter in their studies.
+To ensure that the model does not simply rely on the surface-level wording of the questions, we use GPT-4\footnote{GPT-4 refers to the version \ttt{gpt-4-0125-preview} throughout this work.} to rephrase the question into more concrete, applied scenarios while maintaining the same required theorem.
+The prompts used for rewriting the questions and an example are shown in Table~\ref{tab:ex_rewrite}.
+Human annotators carefully review the rewritten questions and make necessary revisions to ensure that they are valid and consistent with the original questions.
+A document $D_i = (Q_i, A_i)$ is positive if $A_i$ uses the same theorem as the query's solution.
+Additional details are in Appendix \ref{app:data:theoremqa}.
+
+\textbf{\aops.}
+Math competition problems have been widely used to evaluate the problem-solving skills of students and LLMs \citep{hendrycks2021measuring}.
+Sourced from American and International Math Olympiads, these problems often require the application of advanced mathematical theorems and techniques, such as Fermat's Little Theorem or Ptolemy's theorem.
+To practice for the competitions, students often learn by solving other problems that require the same problem-solving skills. 
+To this end, we collect a new dataset of math competition problems, called \aops, annotated with their respective problem-solving skills from \aops{} Wiki
+\footnote{\url{https://artofproblemsolving.com/wiki/}}.
+The collected problem-solving skills are shown in Table~\ref{tab:aops_topics}.
+Similar to \theorem, we consider a solved math problem $D_i=(Q_i, A_i)$ positive if its solution uses the same problem-solving skill as the query's solution. 
+From preliminary qualitative analysis, we find that competition problems are deliberately written in diverse ways such that it is challenging to identify the required techniques; thus, we do not rephrase the problem statements. Details are in Appendix~\ref{app:aops}.
+
+
+\textbf{Theorem retrieval.} Besides similar problems, retrieving relevant theorem definitions is also helpful.
+We use the queries from the aforementioned \theorem dataset with a different corpus $\mc{D}$, where each document $D_i$ is a theorem statement from ProofWiki\footnote{\href{https://proofwiki.org}{proofwiki.org}; a collection of over 20K formal definitions and proofs of mathematical theorems.}.
+We align theorems in theoremQA with ProofWiki documents using title matching, followed by GPT-4 verification to ensure a candidate theorem is used in the solution. We retain only queries with at least one relevant theorem statement. Manual annotation of relevance between problems and documents also showed substantial agreement (Cohen's $\kappa = 0.62$) between human annotators and GPT-4. Details are in Appendix \ref{app:theoremqa_theorems}.

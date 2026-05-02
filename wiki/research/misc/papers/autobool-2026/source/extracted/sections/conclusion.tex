@@ -1,0 +1,21 @@
+\section{Conclusion}
+
+We present \textbf{AutoBool}, a reinforcement learning framework for training language models to generate high-quality Boolean queries for systematic reviews. We also release PubTemp: a real-world dataset significantly larger than existing training and evaluation resources.
+
+AutoBool provides scalable training by optimizing directly for retrieval effectiveness without requiring ground-truth queries. This overcomes a major limitation of supervised fine-tuning: the need for gold-standard Boolean queries, which are not available in large quantities for systematic reviews.
+AutoBool substantially improves recall and robustness over zero-shot and few-shot methods using the same backbone, and matches or exceeds much larger models (GPT-4o and O3). Reinforcement learning enhances both retrieval effectiveness and generation stability: trained models consistently achieve higher recall, broader recall-threshold coverage, and stronger success rates. These improvements generalize to external test collections like CLEF and the Seed Collection, highlighting the transferability of retrieval-aware optimization.
+
+Ablation studies reveal several key insights. Larger models improve F\textsubscript{3} but slightly reduce recall. Backbone choice matters: LLaMA is more effective than Qwen at the same scale. Higher decoding temperatures improve retrieval by increasing query diversity. Notably, No Reasoning prompts consistently yield the highest effectiveness after training but require carefully designed rewards, while reasoning-based prompts are more robust across different reward hyperparameters.
+
+Together, these findings establish AutoBool as a scalable, flexible, and highly effective solution for automated Boolean query generation, balancing comprehensiveness, efficiency, and reliability for evidence-based search.
+
+
+
+\section{Limitations}
+While our findings demonstrate the effectiveness of AutoBool in generating high-recall Boolean queries with relatively small language models, several limitations remain.
+
+First, we are currently limited to fine-tuning open-source models with moderate sizes (e.g., up to 14B parameters). Although AutoBool outperforms much larger commercial LLMs (e.g., GPT-4o, O3) in recall, prior work suggests that larger models may better support reasoning-based prompts and produce higher-quality queries. Due to GPU memory constraints, we are unable to fine-tune such models, limiting our ability to explore how retrieval-aware training scales with model size—particularly in prompt-sensitive settings.
+Second, while LLaMA3.1 models achieved higher retrieval effectiveness in our experiments, their RL training was significantly less stable than Qwen3. We observed abrupt collapses in average reward during training that often did not recover, preventing reliable replication and leading us to focus on Qwen-based models for core experiments. We provide detailed analysis of this instability in Appendix~\ref{appendix:llama-instability}.
+Third, as with most RL-fine-tuned LLMs, AutoBool exhibits stochastic behavior during training due to non-deterministic generation and moderate-temperature decoding. This can introduce minor variance across runs and affect reproducibility at the query level, though overall performance trends remain consistent.
+
+Future work could improve training stability for architectures like LLaMA and investigate the root causes of instability. Access to larger and more robust open-source models may further enhance AutoBool’s effectiveness and generalizability.

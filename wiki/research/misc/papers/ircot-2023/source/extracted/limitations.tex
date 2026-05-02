@@ -1,0 +1,10 @@
+\section*{Limitations}
+\label{sec:limitations}
+
+\iconsys relies on the base LM to have a zero or few-shot CoT-generation ability.  While this is commonly available in large LMs (over 100B), it's not as common for small LMs (under 20B), which to some extent limits \iconsys adoptability. Given the recent surge of interest~\cite{ul2,reasoningdistillation1,reasoningdistillation2}, however, smaller LMs will likely increasingly acquire such ability, making IRCoT compatible with many more LMs.
+
+\iconsys also relies on the base LM to support long inputs as multiple retrieved paragraphs need to fit in the LM's input, in addition to at least a few demonstrations of QA or CoT with paragraphs. This was supported by the models we used as \texttt{code-davinci-002} (GPT3) allows 8K tokens and Flan-T5-* uses relative position embeddings making it as extensible as the GPU memory constraints allow. Future work can explore strategies to rerank and select the retrieved paragraphs instead of passing all of them to the LM to alleviate the need for the LM to support long input.
+
+The performance gain of \iconsys retriever and QA (over OneR and ZeroR baselines) come with an additional computational cost. This is because \iconsys makes a separate call to an (L)LM for each sentence of CoT. Future work can focus on, for instance, dynamically deciding when to retrieve more information and when to perform additional reasoning with the current information.
+
+Lastly, a portion of our experiments was carried out using a commercial LLM API from OpenAI (\texttt{code-davinci-002}). This model was deprecated by OpenAI after our submission making the reproduction of these experiments challenging despite our best efforts, just like any other work using such APIs. The trends discussed in the paper (\iconsys $>$ OneR $>$ NoR), we believe, would still hold. Additionally, all our experiments using Flan-T5-*, which exhibit similar trends as that of GPT3, will remain reproducible, thanks to its publicly available model weights.

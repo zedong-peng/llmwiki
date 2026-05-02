@@ -1,0 +1,197 @@
+\usetikzlibrary{arrows.meta,
+                positioning,
+                shadows}
+
+\usetikzlibrary{shapes.multipart,positioning}
+
+\usetikzlibrary{shapes, arrows, arrows.meta, fit,backgrounds, positioning, calc}
+
+\tikzstyle{process} = [rectangle, minimum width=2cm, minimum height=1cm, text centered, text width=2cm,  draw=black, fill=orange!30]
+\tikzstyle{arrow} = [thick,->,>=stealth]
+\tikzstyle{container1} = [draw, rectangle, inner sep=0.3cm, fill=gray!20]
+\tikzset{
+  mybackground/.style={execute at end picture={
+      \begin{scope}[on background layer]
+        \node[] at (current bounding box.north){\bottom{1cm} #1};
+        \end{scope}
+    }},
+}
+
+\tikzset{
+    font=\sffamily,
+    BLOCK/.style={
+        draw,
+        align=center,
+        %
+        draw=red!50,
+        fill=red!20,
+        rectangle split, 
+        rectangle split horizontal,
+        rectangle split parts=#1, 
+    }
+}
+\tikzset{cross/.style={cross out, draw, 
+         minimum size=2*(#1-\pgflinewidth), 
+         inner sep=0pt, outer sep=0pt}}
+\begin{figure}[t]
+\centering  
+		\resizebox{.8\columnwidth}{!}{  
+        \begin{tikzpicture}[%
+            every path/.style={thick,%
+            },
+                           dcs/.style = {double copy shadow, shadow xshift=4pt, shadow yshift=-4pt}
+          ]
+        \node [rectangle, minimum width=.5cm, minimum height=1cm, text centered, text width=1cm,  draw=black, fill=blue!30] (process3) at (-2, -1.5) {$\mathbf{S}_{[i-1]}$};
+
+        \node [rectangle, minimum width=.5cm, minimum height=.75cm, text centered, text width=.75cm,  draw=black, fill=red!20] (hh1) at (-2, -6.5) {$\mathbf{S}_{[i-1]}$};
+        \node [rectangle, minimum width=.5cm, minimum height=.75cm, text centered, text width=.75cm,  draw=black, fill=red!20] (hh2) at (-0.5, -6.5) {$\mathbf{S}_{[i]}$};
+        \node [rectangle, minimum width=.5cm, minimum height=.75cm, text centered, text width=.75cm,  draw=black, fill=red!20] (hh3) at (1, -6.5) {$\mathbf{S}_{[i+1]}$};
+
+        \node [rectangle, minimum width=.5cm, minimum height=.7cm, text centered, text width=.7cm,  draw=black, fill=orange!30] (hh4) at (3, -6.5) {$\mathbf{S}_{[i]}$};
+        
+        \node [rectangle, minimum width=.5cm, minimum height=1cm, text centered, text width=1cm,  draw=black, fill=blue!30] (h2) at (2, -1.5) {$\rmS_{[i]}$};
+        \node [rectangle, minimum width=.5cm, minimum height=1cm, text centered, text width=1cm,  draw=black, fill=blue!30] (h3) at (6, -1.5) {$\rmS_{[i+1]}$};
+        
+        \node[draw, align=center,        draw=red!50,fill=red!20,rectangle split, 
+        rectangle split horizontal,
+        rectangle split parts=2, 
+    %
+    %
+    ] (block4) at (4, 0){
+        \nodepart{one} $\rmO^{\text{inter}}_{[i+1]}$ \nodepart{two} $\rmO^{\text{intra}}_{[i+1]}$ };
+            
+\node[draw,
+        align=center,
+        %
+        draw=red!50,
+        fill=red!20,
+        rectangle split, 
+        rectangle split horizontal,
+        rectangle split parts=2, 
+    %
+    %
+    ] (blockk4) at (5.5, -6.5){
+        \nodepart{one} $\rmO^{\text{inter}}_{[i+1]}$ \nodepart{two} $\rmO^{\text{intra}}_{[i+1]}$
+    };
+
+    \node[draw,
+        align=center,
+        %
+        draw=red!50,
+        fill=red!20,
+        rectangle split, 
+        rectangle split horizontal,
+        rectangle split parts=2, 
+    %
+    %
+    ] (block2) at (0,0)
+    {
+        \nodepart{one} $\rmO^{\text{inter}}_{[i]}$ \nodepart{two} $\rmO^{\text{intra}}_{[i]}$
+    };
+    
+    \node[BLOCK=3, fill=orange!30, draw=orange!80
+              %
+    %
+    %
+    ] (block) at (0,-3) {
+        \nodepart{one} $\rmQ_{[i]}$ \nodepart{two} $\rmK_{[i]}$ \nodepart{three} $\rmV_{[i]}$
+};
+
+    \node[BLOCK=2, fill=orange!30, draw=orange!80
+              %
+    %
+    %
+    ] (blockk1) at (-2,-8) {
+      \nodepart{one} $\rmK_{[i]}$ \nodepart{two} $\rmV_{[i]}$
+};
+    \node[BLOCK=2, fill=orange!30, draw=orange!80
+              %
+    %
+    %
+    ] (blockk2) at (0.5,-8) {
+      \nodepart{one} $\rmK_{[i+1]}$ \nodepart{two} $\rmV_{[i+1]}$
+};
+    \node[BLOCK=3,  fill=orange!30, draw=orange!80
+              %
+    %
+    %
+    ] (block3) at (4,-3) {
+        \nodepart{one} $\rmQ_{[i+1]}$ \nodepart{two} $\rmK_{[i+1]}$ \nodepart{three} $\rmV_{[i+1]}$
+        
+    };
+    \node[BLOCK=3,  fill=orange!30, draw=orange!80
+              %
+    %
+    %
+    ] (blockk3) at (4.75,-8) {
+        \nodepart{one} $\rmQ_{[i+1]}$ \nodepart{two} $\rmK_{[i+1]}$ \nodepart{three} $\rmV_{[i+1]}$
+    };
+
+    \node [rectangle, text centered, text width=.5cm, text height=.5cm, draw=black, fill=orange!30, label=right:{Load from HBM}] (node1) at (-2.5, -4.25){};
+    \node [rectangle, text centered, text width=.5cm, text height=.5cm, draw=black, fill=red!20, label=right:Store to HBM] (node2) at (.9, -4.25){};
+    \node [label=right:(a)] (labell) at (6, -3.3){};
+        \node [label=right:(c)] (labelc) at (6, -8.6){};
+            \node [label=right:(b)] (labelb) at (1, -8.6){};
+    \node [rectangle, text centered, text width=.5cm, text height=.5cm, draw=black, fill=blue!30, label=right:On-chip construct] (node3) at (4, -4.25){};
+
+            \draw [arrow] (process3) -- (block2.one south);
+                \draw [arrow] (h2) -- (block4.one south);
+            \draw [arrow] (block.one north) -- (block2.one south);
+            \draw [arrow, dashed] (process3) -- (h2);
+            \draw [arrow, dashed] (h2) -- (h3);
+            \draw [arrow] (block.one north) -- (block2.two south);
+                    \draw [arrow] (block3.one north) -- (block4.one south);
+                                    \draw [arrow] (block3.two north) -- (block4.two south);
+            \draw [arrow] (block3.three north) -- (block4.two south);
+            \draw [arrow] (block3.three north) -- (h3);
+            \draw [arrow] (block3.one north) -- (block4.two south);
+            \draw [arrow] (block.two north) -- (block2.two south);
+            \draw [arrow] (block.three north) -- (block2.two south);
+            \draw [arrow] (block.two north) -- (h2);
+            \draw [arrow] (block.three north) -- (h2);
+            \draw [arrow, dashed] (hh1) -- (hh2);
+            \draw [arrow, dashed] (hh2) -- (hh3);
+            \draw [arrow] (blockk1.one north) -- (hh2);
+            \draw [arrow] (blockk1.two north) -- (hh2);
+            \draw [arrow] (blockk2.two north) -- (hh3);
+            \draw [arrow] (blockk2.one north) -- (hh3);
+            \draw [arrow] (hh4) -- (blockk4.one west);
+            \draw [arrow] (blockk3.one north) -- (blockk4.one west);
+                        \draw [arrow] (blockk3.one north) -- (blockk4.two south);
+            \draw [arrow] (blockk3.two north) -- (blockk4.two south);
+            \draw [arrow] (blockk3.three north) -- (blockk4.two south);
+                        \draw [arrow, dashed] ($(hh1)-(1,0)$) -- (hh1);
+                        \draw [arrow, dashed] (hh3) -- ($(hh3)+(1,0)$);
+                        \draw [arrow, dashed] (h3) -- ($(h3)+(1.5,0)$);
+                        \draw [arrow, dashed] ($(process3)-(1.5,0)$) -- (process3);
+
+
+        \begin{scope}[on background layer]
+    \node  [container1,fit= {(process3) (h2) (block) (block2) (h3) (block3) (labell)}, label=north:\large Sequential] (contain1) {};
+                %
+                %
+                %
+                %
+                %
+    \end{scope}
+                        \begin{scope}[on background layer]
+                \node  [container1,fit= { (hh1) (hh2) (hh3) (blockk1)  (blockk2) (labelb)}, label=north:\large Sequential] (contain2) {};
+            \end{scope}
+                        \begin{scope}[on background layer]
+                \node  [container1,dcs, fit= { (hh4) (blockk3) (blockk4) (labelc)}, label={[label distance=0.25cm]north:\large Chunkwise Parallel}, fill=yellow!20] (contain3) {};
+            \end{scope}
+
+%
+%
+%
+%
+%
+%
+
+%
+        \end{tikzpicture}   
+}
+        \vspace{-2mm}
+        \caption{(a) \textsc{FlashLinearAttention} without materialization. This version is more memory-efficient. (b-c) \textsc{FlashLinearAttention} with materialization. This version enables sequence-level chunkwise parallelism.} \label{fig:chunk}
+              
+    \end{figure}

@@ -1,0 +1,273 @@
+
+\section{Proof of \cref{thm:logit}}
+\label{app:proof}
+
+For completeness, we first restate the theorem with the precise bounds derived from the assumptions.
+
+\begingroup
+\renewcommand{\thetheorem}{1}
+\begin{theorem}[Logit-wise Effect of LM-Aligned Target v.s. Reconstruction Target (Restated)]
+
+\label{thm:app-logit}
+
+Under the specified setting and assumptions, for a learning rate $\lambda_{\text{lr}}>0$, the expected change in logits $\Delta\boldsymbol{\ell}_{n}$ after one update step using the \textbf{NTP-aligned target} satisfies:
+\begin{align}
+\text{\textbf{(Correct logit increases)}}\quad
+\mathbb{E}\left[\Delta\boldsymbol{\ell}_{n}[v^*]\right] &\geq \lambda_{\text{lr}} \cdot c_{\text{norm}}^2 \cdot c_{\text{align}},\label{eq:app-ntp_correct-logit} \\
+\text{\textbf{(Other logits almost unchanged)}}\quad
+\left|\mathbb{E}\left[\Delta\boldsymbol{\ell}_{n}[w]\right]\right| &\leq \lambda_{\text{lr}} \cdot \epsilon \cdot c_{\text{align}}, \quad \forall w \neq v^*.
+\label{eq:app-ntp-other-logits}
+\end{align}
+In contrast, for the \textbf{reconstruction target}, the expected change in logits is negligible for the correct token:
+\begin{equation}
+\label{eq:app-recon-flat}
+        |\mathbb{E}\left[\Delta\boldsymbol{\ell}_{n} [v^*] \right]| \leq \lambda_{\text{lr}} \cdot \epsilon \cdot c_{\text{align}}.
+\end{equation}
+
+\end{theorem}
+\endgroup
+
+\begin{proof}
+We begin from the setup defined in \cref{sec:theory}. The change to the fast weights $\mathbf{W}_{\mathrm{down}}$ from all prior context tokens is given by $\Delta \mathbf{W}_{\mathrm{down}} = \lambda_{\text{lr}} \sum_{t \in \text{prior}} \mathbf{v}_t \mathbf{z}_t^\top$, where we use $\lambda_{\text{lr}}$ to denote the learning rate $\eta$ for consistency with the theorem statement. The resulting change in the logit for an arbitrary token $w$ at the query position $n$ is:
+\begin{equation}
+\Delta \boldsymbol{\ell}_{n}[w] = \mathbf{e}_w^\top (\Delta \mathbf{W}_{\mathrm{down}}) \mathbf{z}_{n} = \lambda_{\text{lr}} \sum_{t \in \text{prior}} \mathbf{e}_w^\top (\mathbf{v}_t \mathbf{z}_t^\top) \mathbf{z}_n.
+\end{equation}
+Since $\mathbf{e}_w^\top \mathbf{v}_t$ and $\mathbf{z}_t^\top \mathbf{z}_n$ are scalars, we can rearrange the terms to get:
+\begin{equation}
+\Delta \boldsymbol{\ell}_{n}[w] = \lambda_{\text{lr}} \sum_{t \in \text{prior}} (\mathbf{e}_w^\top \mathbf{v}_t) (\mathbf{z}_t^\top \mathbf{z}_n).
+\end{equation}
+To analyze the expected change, we take the expectation over the representations. Applying the linearity of expectation, we have:
+\begin{equation}
+\mathbb{E}[\Delta \boldsymbol{\ell}_{n}[w]] = \lambda_{\text{lr}} \sum_{t \in \text{prior}} \mathbb{E}[(\mathbf{e}_w^\top \mathbf{v}_t) (\mathbf{z}_t^\top \mathbf{z}_n)].
+\end{equation}
+Per our setup, the target vectors $\mathbf{v}_t$ (e.g., $\mathbf{e}_{x_t}$ or $\mathbf{e}_{x_{t+1}}$) are treated as determined. Thus, we can factor them out of the expectation:
+\begin{equation}
+\mathbb{E}[\Delta \boldsymbol{\ell}_{n}[w]] = \lambda_{\text{lr}} \sum_{t \in \text{prior}} \mathbf{e}_w^\top \mathbb{E}[\mathbf{v}_t \mathbf{z}_t^\top \mathbf{z}_n].
+\end{equation}
+Now, we invoke Assumption 2. It states that for the unique key position $t^*$, we have $\mathbb{E}[\mathbf{z}_{t^*}^\top \mathbf{z}_n] = c_{\text{align}}$, and for all other prior positions $t \neq t^*$, the updates provide no information gain, which implies $\mathbb{E}[\mathbf{v}_t \mathbf{z}_t^\top \mathbf{z}_n]=\mathbf{0}$. This simplifies the summation to a single term corresponding to the key-value pair $(k^*, v^*)$ at position $t^*$:
+\begin{equation}
+\label{eq:app-simplified-form}
+\mathbb{E}\left[\Delta \boldsymbol{\ell}_{n}[w]\right] = \lambda_{\text{lr}} \cdot \mathbb{E}\left[(\mathbf{e}_w^\top \mathbf{v}_{t^*}) \cdot (\mathbf{z}_{t^*}^\top \mathbf{z}_n)\right].
+\end{equation}
+We now analyze this simplified expression for the two target choices.
+
+\vspace{1em}
+\textbf{Case 1: NTP-Aligned Target ($\mathbf{v}_{t^*} = \mathbf{e}_{x_{t^*+1}}$)}
+\vspace{0.5em}
+
+First, we consider the logit of the correct token, $w = v^*$. Substituting the target and the token into \cref{eq:app-simplified-form} yields:
+\begin{equation}
+\mathbb{E}\left[\Delta\boldsymbol{\ell}_{n}[v^*]\right] = \lambda_{\text{lr}} \cdot \mathbb{E}\left[(\mathbf{e}_{v^*}^\top \mathbf{e}_{v^*}) \cdot (\mathbf{z}_{t^*}^\top \mathbf{z}_n)\right].
+\end{equation}
+By \textbf{Assumption 1}, token embeddings have a non-trivial magnitude, $\|\mathbf{e}_{v^*}\|^2 \geq c_{\text{norm}}^2$. This gives us the lower bound in \cref{eq:app-ntp_correct-logit}:
+\begin{equation}
+\mathbb{E}\left[\Delta\boldsymbol{\ell}_{n}[v^*]\right] \geq \lambda_{\text{lr}} \cdot c_{\text{align}} \cdot c_{\text{norm}}^2.
+\end{equation}
+Next, for any incorrect token $w \neq v^*$, the expected change is $\mathbb{E}\left[\Delta\boldsymbol{\ell}_{n}[w]\right] = \mathbb{E}\left[(\mathbf{e}_{w}^\top \mathbf{e}_{v^*}) \cdot (\mathbf{z}_{t^*}^\top \mathbf{z}_n)\right]$. Taking the absolute value and applying Assumption 1, which states that distinct embeddings are nearly orthogonal ($|\mathbf{e}_w^\top \mathbf{e}_{v^*}| \leq \epsilon$), we obtain the bound in \cref{eq:app-ntp-other-logits}:
+\begin{equation}
+\left|\mathbb{E}\left[\Delta\boldsymbol{\ell}_{n}[w]\right]\right| \leq \lambda_{\text{lr}} \cdot c_{\text{align}} \cdot \epsilon.
+\end{equation}
+
+\vspace{1em}
+\textbf{Case 2: Reconstruction Target ($\mathbf{v}_{t^*} = \mathbf{e}_{x_{t^*}}$)}
+\vspace{0.5em}
+
+Here, we analyze the effect on the correct logit $w=v^*$. The expected change is:
+\begin{equation}
+\mathbb{E}\left[\Delta\boldsymbol{\ell}_{n}[v^*]\right] = \mathbb{E}\left[(\mathbf{e}_{k^*}^\top \mathbf{e}_{v^*}) \cdot (\mathbf{z}_{t^*}^\top \mathbf{z}_n)\right].
+\end{equation}
+In an induction task, the key $k^*$ is distinct from the value $v^*$. We again invoke Assumption 1 for these distinct tokens. Taking the absolute value gives the bound in \cref{eq:app-recon-flat}:
+\begin{equation}
+\left|\mathbb{E}\left[\Delta\boldsymbol{\ell}_{n}[v^*]\right]\right| \leq \lambda_{\text{lr}} \cdot c_{\text{align}} \cdot \epsilon.
+\end{equation}
+This confirms that the reconstruction target has a negligible expected effect on the logit of the correct answer $v^*$.
+
+\vspace{1em}
+The results from these two cases establish the claims in \cref{thm:logit}, providing a clear theoretical basis for the superiority of the NTP-aligned objective in the context of in-context learning. This completes the proof.
+\end{proof}
+
+\section{Context Parallel Algorithm for In-Place TTT}
+\label{app:cp}
+For more clarity, we list the pseudocode of the context parallel implementation of our In-Place TTT here in \cref{alg:inplaceTTT-cp}.
+\begin{algorithm}[h]
+\caption{\textbf{In-Place TTT with Context Parallelism (Single Layer)}}
+\label{alg:inplaceTTT-cp}
+\begin{algorithmic}[1]
+\Require Pre-trained weights $\theta$ (incl. $W_{\mathrm{up}}, W_{\mathrm{gate}}, W_{\mathrm{down}}^{(0)}$); Conv1D kernel $K$; projection $W_{\text{target}}$; learning rate $\eta$.
+\State \textbf{Input:} Sequence chunks $\{X^{(i)}\}_{i=1}^{T}$. \Comment{Sequence partitioned for Context Parallelism (CP).}
+\vspace{3pt}
+\ForAll{$i\in\{1,\dots,T\}$ \textbf{in parallel}} \Comment{Step 1: Compute update deltas.}
+    \State $H_i \leftarrow \mathrm{AttentionBlock}(X^{(i)};\theta)$ \Comment{Standard attention, no changes required.}
+    \State $U_i,G_i \leftarrow H_i W_{\mathrm{up}}^\top, H_i W_{\mathrm{gate}}^\top$
+    \State $Z_i \leftarrow \phi(G_i)\odot U_i$
+    \State $V_i \leftarrow \mathrm{Conv1D}_K(X_{0}^{(i)}) W_{\text{target}}$ \Comment{Compute NTP-aligned target with causal padding.}
+    \State $\Delta W_i \leftarrow V_i^\top Z_i$ \Comment{Compute gradient for the fast weight update.}
+\EndFor
+\vspace{3pt}
+\State $\{S_i\}_{i=1}^T \leftarrow \textsc{Cumsum}( \{\Delta W_i\}_{i=1}^T )$ \Comment{Step 2: Aggregate deltas associatively.}
+\vspace{3pt}
+\ForAll{$i\in\{1,\dots,T\}$ \textbf{in parallel}} \Comment{Step 3: Apply updates and compute outputs.}
+    \State $W_{\mathrm{down}}^{(i-1)} \leftarrow W_{\mathrm{down}}^{(0)} + \eta S_i$ \Comment{Effective weight for chunk $i$ uses updates from chunks $<i$.}
+    \State $O_i \leftarrow Z_i (W_{\mathrm{down}}^{(i-1)})^\top$
+\EndFor
+\vspace{3pt}
+\State \textbf{At document boundaries:} Reset fast weights to $W_{\mathrm{down}}^{(0)}$.
+\end{algorithmic}
+\end{algorithm}
+
+
+
+\section{Experiment Details}
+\label{app:exp}
+
+This appendix provides all details of the experimental settings, datasets, model configurations, and training hyperparameters used for the results presented in Section~\ref{sec:exp}. The following subsections detail the setups for our three primary sets of experiments: the \textbf{continual pre-training} of Qwen3-4B-Base, the \textbf{from-scratch pre-training} of models at multiple scales (500M, 1.5B, and 4B), and the \textbf{targeted ablation studies}. Our goal is to provide sufficient detail to ensure the reproducibility of our findings.
+
+
+\subsection{Details of Datasets}
+\label{app:dataset}
+
+For the large scale pretraining, continual pretraining, and ablation study, we use the dataset collected by ourselves, we give the details of these datasets as follows.
+
+\textbf{From Scratch Pretraining Dataset.} The pretraining dataset mainly includes general English and Chinese text, along with high knowledge- or reasoning-density data, code, mathematics data, and multilingual text, forming a balanced mixture of linguistic diversity, knowledge and reasoning-rich content, programming material, and mathematical reasoning. 
+
+\textbf{Continual Pretraining Dataset.} The continual pretraining dataset is designed to enhance long-context modeling: its short-document portion follows a distribution similar to Pretrain Data, while the long-document portion combines natural data such as books and repository-level code with synthetic data including retrieval-augmented and long-context-QA style constructions, ensuring both consistency with pretraining and coverage of challenging long-context scenarios. The data is organized into subsets with maximum sequence lengths of 32k and 128k for our two-stage training curriculum.
+
+
+\subsection{Details of Training and Evaluation}
+\label{app:train}
+
+\textbf{Training Details.} All models are trained on Nvidia H800 GPUs, with the detailed training hyperparameters listed in Tables~\ref{tab:small_scale_hparams} through~\ref{tab:continual_hparams}.
+
+\begin{table}[h!]
+\centering
+\caption{Training hyperparameters for 500M and 1.5B models.}
+\label{tab:small_scale_hparams}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Hyperparameter} & \textbf{500M Model} & \textbf{1.5B Model} \\
+\midrule
+Optimizer & AdamW & AdamW \\
+Learning Rate & 5e-4 & 3e-4 \\
+Batch Size & 2M tokens & 4M tokens \\
+Weight Decay & 0.1 & 0.1 \\
+Gradient Clipping & 1.0 & 1.0 \\
+Warmup Steps & 1024 & 1024 \\
+\midrule
+Sequence Length & 32,768 & 32,768 \\
+Tokens Trained & 20B & 60B \\
+Sliding Window Size & 2,048 & 4,096 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h!]
+\centering
+\caption{Training hyperparameters for 1.7B models and 4B models pretraining}
+\label{tab:large_scale_hparams}
+\begin{tabular}{lc}
+\toprule
+\textbf{Hyperparameter} & \textbf{value} \\
+\midrule
+Optimizer & AdamW  \\
+Learning Rate & 3e-4  \\
+Batch Size & 8M tokens  \\
+Weight Decay & 0.1 \\
+Gradient Clipping & 1.0  \\
+Warm-up Tokens\footnote{We use both batch size warm-up and learning rate warm-up here.} & 1.6B \\
+Sequence Length & 8,192  \\
+Tokens Trained & 120B  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h!]
+\centering
+\caption{Hyperparameters for two-stage continual pre-training.}
+\label{tab:continual_hparams}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Hyperparameter} & \textbf{Stage 1 (32k Context)} & \textbf{Stage 2 (128k Context)} \\
+\midrule
+Base Model & {Qwen3-4B-Base}& {Qwen3-4B-Base} \\
+Optimizer & {AdamW} & AdamW \\
+Learning Rate & {5e-6} & {5e-6} \\
+Weight Decay & {0.1} & {0.1} \\
+\midrule
+Sequence Length & 32,768 & 131,072 \\
+Tokens Trained & $\sim$20B & $\sim$15B \\
+RoPE Extension & None & {YaRN} \\
+Conv Size  & 5 & 5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h!]
+\centering
+\caption{Hyperparameters for continual pre-training of LLaMA-3.1-8B and Qwen3-14B-Base.}
+\label{tab:continual_hparams_ext}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Hyperparameter} & \textbf{LLaMA-3.1-8B} & \textbf{Qwen3-14B-Base} \\
+\midrule
+Optimizer & AdamW & AdamW \\
+Learning Rate & 5e-6 & 5e-6 \\
+Weight Decay & 0.1 & 0.1 \\
+\midrule
+Sequence Length & 32,768 & 32,768 \\
+Tokens Trained & $\sim$20B & $\sim$20B \\
+RoPE Extension & None & None \\
+Conv Size  & 5 & 5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\textbf{Evaluation Details.} We employ the evaluation framework lm-evaluation-harness~\citep{eval-harness} to evaluate the models on the common sense reasoning benchmarks and employ the evaluation framework opencompass~\citep{2023opencompass} to evaluate the models on the long context benchmarks. All evaluation are conducted on Nvidia H800 GPUs.
+
+In the evaluation of our continual pretrained Qwen3-4B model, we apply a clipping mechanism at inference time to ensure stable fast-weight updates. Specifically, if the Frobenius norm of an update delta $\|\Delta \mathbf{W}_{\text{down}}^{(i)}\|_F$ exceeds a predefined threshold $\tau$, the delta matrix is rescaled to have norm $\tau$ before being applied, i.e., $\Delta \mathbf{W}_{\text{down}}^{(i)} \leftarrow \tau \cdot \Delta \mathbf{W}_{\text{down}}^{(i)} / \|\Delta \mathbf{W}_{\text{down}}^{(i)}\|_F$. This prevents the accumulated updates from growing unboundedly as the sequence length increases, thereby maintaining numerical stability for long-context inference. For all reported evaluations of the Qwen3-4B model, this threshold was set to $\tau = 1\text{e-5}$.
+
+To evaluate the efficiency of our In-Place TTT, we evaluate the prefill throughput and peak memory for sequence length ranging from 8k to 128k. We run the inference for our continual pretrained checkpoints based on Qwen3-4B-Base model. For the setting of sliding window, we set change the attention mechanism of these pretrained checkpoints to sliding window of 1024 tokens manually. We run the inference on Nvidia H800 GPUs with batch size of 1.
+
+
+
+
+\subsection{Details of Model Configuration}
+\label{app:model}
+
+
+
+This section details the architectural configurations of the models used in our experiments. All models are decoder-only Transformer architectures featuring standard components, including SwiGLU activations and Rotary Position Embeddings (RoPE)~\citep{su2023roformer}. The key architectural parameters for all models trained from scratch are summarized in Table~\ref{tab:model_configs}.
+
+\begin{table}[h!]
+\centering
+\caption{Model architectural configurations for 500M and 1.5B Model.}
+\label{tab:model_configs}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Parameter} & \textbf{500M} & \textbf{1.5B}  \\
+\midrule
+Parameters (Approx.) & 500M & 1.5B  \\
+Hidden Size ($d_{\text{model}}$) & 1024 & 2048  \\
+Num Layers & 24 & 24  \\
+Num Attention Heads & 8 & 16  \\
+FFN Hidden Size ($d_{\text{ff}}$) & 3072 & 6144  \\
+Window Size & 2048 & 4096 \\
+Vocabulary Size & {32,000} & 32,000 \\
+Rope Base & 1e6 & 1e6 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The models trained from scratch employ different attention mechanisms based on their experimental purpose. The 500M, 1.5B utilize sliding-window attention and we list the model configuration in \cref{tab:model_configs}. The 4B-scale experiments and ablation study evaluate two variants: one with full attention and another with sliding-window attention. The backbone architectures for the 4B models and 1.7B models are identical to the Qwen3-4B-Base model and the Qwen3-1.7B-Base model.
+
+For the continual pre-training experiments described in \cref{sec:exp_continual_pretrain}, we start directly from publicly available pre-trained models---Qwen3-4B-Base~\citep{yang2025qwen3}, LLaMA-3.1-8B~\citep{grattafiori2024llama}, and Qwen3-14B-Base~\citep{yang2025qwen3}---inheriting their architectures without modification. In experiments featuring our method, the In-Place TTT module is integrated into the MLP blocks and applied to every sixth layer. For the ablation studies, this frequency is varied as described in the main paper. The training hyperparameters for Qwen3-4B-Base are listed in \cref{tab:continual_hparams}, and those for LLaMA-3.1-8B and Qwen3-14B-Base are listed in \cref{tab:continual_hparams_ext}.
+
+\textbf{Initialization of In-Place TTT Modules.}
+When integrating In-Place TTT into a pre-trained model for continual training, careful initialization is essential to preserve the model's pre-trained capabilities at the start of training. Specifically, we initialize the newly introduced TTT components---the Conv1D operator and the projection matrix $\mathbf{W}_{\text{target}}$---such that the TTT update $\Delta \mathbf{W}_{\text{down}}$ is negligible at initialization, ensuring the model begins from its original pre-trained behavior. Concretely, the depthwise Conv1D (kernel size 5, causal padding, no bias) is zero-initialized, so the target $\hat{\mathbf{V}}$ is zero at initialization. The projection matrix $\mathbf{W}_{\text{target}} \in \mathbb{R}^{d_{\text{model}} \times d_{\text{model}}}$ is initialized as a sparse diagonal matrix, where all off-diagonal entries are zero and the diagonal entries are drawn from $\mathcal{N}(0, \sigma^2)$ with $\sigma$ being the model's standard initializer range. This near-zero initialization of both components guarantees that the initial fast-weight update $\eta \hat{\mathbf{V}}_{[i]}^\top \mathbf{Z}_{[i]} \approx \mathbf{0}$, and consequently the effective $\mathbf{W}_{\text{down}}$ remains identical to its pre-trained value. As training progresses, the Conv1D and projection gradually learn to produce meaningful NTP-aligned targets, allowing the TTT mechanism to smoothly emerge without disrupting the pre-trained model.
+
+
+\section{Usage of LLMs}
+During the preparation of this manuscript, LLMs was used to check grammar and improve readability. All authors have reviewed, edited, and take full responsibility for the paper's final version.
+
+
+

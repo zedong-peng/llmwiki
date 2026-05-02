@@ -1,0 +1,95 @@
+\section{Method}
+We train an LLM to generate Boolean queries using GRPO to optimize retrieval effectiveness as detailed in Section~\ref{sec:related_work}. The central challenge in applying GRPO lies in designing an appropriate reward function. For systematic reviews, the effectiveness of a Boolean query can be evaluated by executing the query on a document collection (e.g., PubMed) and comparing the retrieved documents against a gold-standard set of included studies. This enables computation of retrieval metrics such as recall and precision which form the basis of the reward.
+
+\subsection{Reward Design}
+\label{sec:retrieval_reward}
+The total reward consists of three components: formatting correctness, syntactic validity, and retrieval effectiveness.
+
+\paragraph{Formatting Reward.}
+The formatting reward \( R_{\text{format}} \) checks whether the output follows expected structural conventions (e.g., quoted terms, capitalized Boolean operators):
+\begin{equation}\label{eq:format_reward}
+	R_{\text{format}} =
+	\begin{cases}
+		10 & \text{if format is correct} \\
+		-10 & \text{otherwise}
+	\end{cases}
+\end{equation}
+\paragraph{Validity Reward.}
+The validity reward \( R_{\text{validity}} \) ensures that the generated Boolean query can be both syntactically parsed and successfully executed in a retrieval system:
+\begin{equation}\label{eq:validity_reward}
+	R_{\text{validity}} =
+	\begin{cases}
+		10 & \text{if query is valid} \\
+		-10 & \text{if query is invalid}
+	\end{cases}
+\end{equation}
+A query is considered valid if it passes two checks:
+(1) it must be syntactically correct according to a custom Boolean query parser that verifies structural elements such as balanced parentheses and proper use of logical operators; and
+(2) it must return at least one result when executed via PubMed, and returns fewer than a maximum threshold of 200,000 documents.%
+\footnote{This threshold is enforced to ensure query efficiency and system responsiveness.}
+Queries that fail either check are treated as invalid and receive a penalty.
+
+\paragraph{Retrieval Reward.}
+The retrieval reward is designed to support recall-oriented Boolean query generation, reflecting the priorities of systematic reviews: retrieve as many relevant studies as possible while minimizing screening burden. It balances a direct reward for recall and a recall-modulated reward for precision.
+
+The reward function satisfies three core properties: 
+(1) \textbf{recall must be prioritized}, as high recall is essential in systematic reviews~\cite{straube2021recall};
+(2) \textbf{precision should matter more as recall increases}, since reducing irrelevant results becomes valuable once coverage improves; and 
+(3) \textbf{early precision gains should be emphasized}, as small improvements from very low precision levels bring significant practical benefit.
+
+To implement this, we apply two mechanisms: 
+(1) weighting precision by \( r^\alpha \) to reduce its impact at low recall; and 
+(2) applying a logarithmic transformation to increase sensitivity when precision is low. The resulting reward is:
+\begin{equation}\label{eq:reward_function}
+	\resizebox{0.5\columnwidth}{!}{$\displaystyle
+		F(r, p) = \underbrace{M \cdot r}_{\text{recall reward}} + \underbrace{M \cdot r^\alpha \cdot \log_{1 + s}(1 + s \cdot p)}_{\text{precision reward}}
+		$}
+\end{equation}
+where \( r \) is recall, \( p \) is precision, \( s = 100 \) is a smoothing constant, \( \alpha \geq 0 \) controls precision weighting, and \( M \) is a global scaling factor.
+%
+The complete retrieval reward is defined as:
+\begin{equation}\label{eq:retrieval_reward}
+	\resizebox{0.5\columnwidth}{!}{$\displaystyle
+		R_{\text{retrieval}}(r, p, |D|) =
+		\begin{cases}
+			-20 &\!\text{if } |D| = 0 \\
+			-5 &\!\text{if } r = 0 \land p = 0 \\
+			F(r, p) &\!\text{otherwise.}
+		\end{cases}
+		$}
+\end{equation}
+The choice of \( \alpha \) significantly influences retrieval behavior. When \( \alpha = 0.5 \), the reward is \textit{weakly recall-oriented}, allowing precision to contribute earlier in the learning process. At \( \alpha = 1 \), the behavior becomes \textit{moderately recall-oriented}, offering a balanced trade-off between recall and precision. Setting \( \alpha = 2 \) results in a \textit{strongly recall-oriented} reward, where precision only meaningfully contributes once high recall has been achieved.
+\paragraph{Total Reward.}
+The final reward combines all components: 
+\begin{equation}\label{eq:total_reward}
+	R_{\text{total}} = R_{\text{format}} + R_{\text{validity}} + R_{\text{retrieval}}
+\end{equation}
+
+\subsection{Training Procedure}
+We fine-tune a pretrained LLM using policy optimization to maximize \( R_{\text{total}} \). At each training step, the model is prompted with a systematic review topic and generates a Boolean query. This query is executed on a document collection, and its reward is computed. Gradients from GRPO are used to update the model, encouraging generation of valid, well-structured, and high-recall queries over time.
+
+\subsection{Prompting Strategies}
+We investigate four prompting strategies, each designed to elicit different forms of reasoning. No Reasoning \textbf{(N.R)} and Free-text Reasoning \textbf{(R)} provide essential instructions about what a Boolean query is, its components, requirements and how to use different search fields. Conceptual Reasoning \textbf{(R-con)} and Objective Reasoning \textbf{(R-obj)} are inspired by established approaches in query formulation. These prompts offer more structured, step-by-step guidance on how to decompose the topic and construct the query~\cite{scells2020objective, scells2020conceptual}.
+
+Table~\ref{tab:prompt-types} summarizes these strategies. Full prompt templates are provided in Appendix~\ref{appendix:prompts}. 
+
+\begin{table}[t]
+	\centering
+	\footnotesize
+	\caption{Prompting strategies for Boolean query generation. Full templates are in Appendix~\ref{appendix:prompts}.}
+	\label{tab:prompt-types}
+
+	\begin{tabular}{p{0.94\columnwidth}} % use 0.95 instead of full width
+		\toprule
+		\textbf{Prompt Type and Description} \\
+		\midrule
+		\textbf{No Reasoning (N.R):} Direct query generation with minimal explanation or structure. \\
+		\midrule
+		\textbf{Free-text Reasoning (R):} Includes a natural language explanation before query generation. \\
+		\midrule
+		\textbf{Conceptual Reasoning (R-con):} Uses structured decomposition (Population, Intervention, Outcome) to scaffold the query. \\
+		\midrule
+		\textbf{Objective Reasoning (R-obj):} Simulates a relevant abstract and extracts key terms empirically. \\
+		\bottomrule
+	\end{tabular}
+\end{table}

@@ -1,0 +1,113 @@
+\section{Experiments}
+%\bing{图表在论文中的位置，原则上尽量贴近主要讨论他们的文本部分，最后排版的时候注意一下}
+We evaluate EverMemOS on two long-horizon memory-augmented reasoning benchmarks (LoCoMo~\cite{maharana2024locomo} and LongMemEval~\cite{wu2025long}), and report a profile study on PersonaMem-v2~\cite{jiang2025personamem}.
+
+\subsection{Experimental Setup}
+
+\paragraph{Benchmarks}
+We evaluate memory-augmented reasoning on LoCoMo and LongMemEval. LoCoMo contains 1{,}540 questions over 10 ultra-long dialogues ($\sim$9K tokens each), spanning single-hop, multi-hop, and temporal questions. LongMemEval (S-setting, $\sim$115k tokens per conversation) evaluates 500 questions requiring full-history parsing across core capabilities (e.g., updates and abstention). We additionally evaluate user profiling on PersonaMem-v2.
+
+\paragraph{Baselines}
+We compare EverMemOS against state-of-the-art memory systems: \textbf{Zep} \cite{zep2025}, \textbf{Mem0} \cite{mem02025}, \textbf{MemOS} \cite{li2025memos}, \textbf{MemoryOS} \cite{kang2025memory}, and \textbf{MemU}\footnote{Open-source memory infrastructure: \url{https://github.com/NevaMind-AI/memU}}.
+\textbf{Fair comparison:} We standardize the answer-generation backbone across methods while keeping each baseline's official memory configuration unchanged; for LongMemEval, we report baseline scores from the official \textbf{MemOS} leaderboard. Full settings are provided in Appendix~\ref{sec:eval_setting}.
+
+\paragraph{Evaluation Protocol}
+We adopt the \textbf{LLM-as-a-judge} protocol, following MemOS: each answer is evaluated by GPT-4o-mini and two auxiliary judge models, and scores are averaged across the three judgments in a \emph{blind} setting. We validate the reliability of this protocol against human annotations in Section~\ref{sec:judge_reliability} (Appendix), showing high agreement (Cohen's $\kappa > 0.89$).
+
+
+\paragraph{Implementation Details}
+EverMemOS uses GPT-4.1-mini (or GPT-4o-mini where specified) for all reasoning and memory operations. Retrieval uses hybrid dense+BM25 fusion (RRF) with re-ranking. Default retrieval hyperparameters are in Appendix~\ref{sec:eval_setting}. Unless otherwise specified, quantitative experiments use \textbf{Memory-Augmented Reasoning}.
+We provide a token-level cost breakdown by lifecycle phase in Appendix (Table~\ref{tab:token_cost}).
+
+\subsection{Main Results}
+
+\input{table/locomo_main}
+\input{table/lme_main}
+
+Main results on two benchmarks are reported in Tables~\ref{tab:locomo-main}-\ref{tab:longmemeval-main}. We make three observations:
+
+(1) \textbf{Lifecycle-driven performance gains.}
+EverMemOS outperforms the strongest baseline on each benchmark overall, i.e., Zep on LoCoMo by 7.0\% and 9.2\%, and MemOS on LongMemEval by 6.7\%.
+%
+We attribute this to the shift from flat memory storage to a structured lifecycle, which consolidates fragmented experiences into usable knowledge before retrieval, providing a more robust context than isolated record matching. 
+
+
+(2) \textbf{Structural consolidation aids complex reasoning that requires integrating dispersed evidence.}
+%Improvements are most pronounced on multi-hop or temporal questions in LoCoMo and on knowledge update or SS-Asst in LongMemEval, while open domain remains comparable to Zep. 
+% \bing{对两个benchmarks的评测维度，写法要一直，比如首字母大小写、是否加粗}\
+We can observe significant gains on LoCoMo multi-hop (+19.7\%) and temporal (+10.0\%) tasks, as well as LongMemEval knowledge update (+20.6\%), validating the effectiveness of MemScenes. By clustering related episodes into coherent thematic units, EverMemOS presents the solver with a complete narrative context. This enables LLMs to naturally bridge dispersed evidence and resolve state conflicts that confuse other models relying on fragmented retrieval.
+
+(3) \textbf{EverMemOS offers a favorable accuracy-efficiency trade-off.}
+%Figure~\ref{fig:frontier} shows that EverMemOS attains high accuracy with moderate retrieval budgets, suggesting that improvements come from composing necessary and sufficient evidence rather than overly expanding context.
+%
+%\textbf{Precision via Reconstructive Recollection.} EverMemOS offers a favorable accuracy-efficiency trade-off. 
+As shown in Figure~\ref{fig:frontier} , EverMemOS attains high accuracy with moderate retrieval budgets. This efficiency confirms the utility of the Reconstructive Recollection phase, where the agentic sufficiency check ensures the context is composed of necessary and sufficient evidence, avoiding the noise accumulation common in fixed-budget retrieval.
+
+\subsection{Ablation Study}
+\label{sec:ablation}
+We conduct ablations on LoCoMo to isolate the contributions of \textit{MemScenes}, \textit{MemCells}, and episode segmentation.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figure/ablation_overall.pdf}
+    \vspace{-2mm}
+    \caption{Ablation results (overall accuracy) on LoCoMo and LongMemEval.}
+    \vspace{-4mm}
+    \label{fig:ablation_chart}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figure/hyperpara.pdf}
+    \vspace{-2mm}
+    \caption{Sensitivity analysis on the MemScene count ($N$).}
+    \vspace{-4mm}
+    \label{fig:hyperpara}
+\end{figure}
+
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figure/efficiency_tradeoff.pdf}
+    \vspace{-2mm}
+    \caption{Performance vs. cost frontier on LoCoMo by varying the retrieved episode count ($K$).}
+    \vspace{-4mm}
+    \label{fig:frontier}
+\end{figure}
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figure/case.pdf}
+    \vspace{-2mm}
+    \caption{Case studies illustrating Profile, Foresight, and Episode capabilities in Memory-Augmented Chat.}
+    \vspace{-2mm}
+    \label{fig:case_study}
+\end{figure*}
+
+\textbf{Impact of Memory Architecture.} 
+To isolate the contribution of memory structure, we compare EverMemOS with three degraded variants: w/o EverMemOS (no external memory), w/o MemScene (flat retrieval over MemCells), and w/o MemCell (retrieval over raw dialogue). The backbone model and prompts are fixed, and only the memory representation and retrieval pipeline are varied.
+
+As shown in Figure~\ref{fig:ablation_chart}, performance degrades stepwise as structure is removed, revealing three corresponding capability losses. Removing \textit{MemScenes} eliminates scene-level organization, weakening cross-turn aggregation over related episodes. Removing \textit{MemCells} further drops the stable semantic units (episodes/facts), forcing retrieval to rely on raw dialogue matching. Finally, removing external memory collapses long-horizon performance, indicating that many queries cannot be handled reliably within the context window alone.
+
+\textbf{Effectiveness of Episode Segmentation.} 
+We evaluate semantic episode segmentation against fixed heuristics and ground-truth boundaries under \textbf{w/o MemScene} to isolate boundary quality.
+%
+We compare three strategies: (1) \textbf{Fixed Heuristics} (fixed message count $N=10$ or token thresholds $N=512,1024$); (2) \textbf{Session (Oracle)} (ground-truth session boundaries); and (3) \textbf{EverMemOS} (semantic segmentation with different backbones).
+
+\input{table/locomo_bound}
+
+Table~\ref{tab:locomo-bound} shows that (i) semantic segmentation consistently outperforms fixed heuristics, especially coarse token chunking; (ii) it also outperforms Session (Oracle), suggesting sessions are not always optimal retrieval units; and (iii) results are robust across boundary-detection backbones (accuracy changes $\leq$0.7 points).
+
+\subsection{Hyperparameter Analysis}
+\label{sec:sensitivity}
+We investigate the impact of retrieval scope via two hyperparameters: the number of retrieved \textit{MemScenes} ($N$) and episodes ($K$). As shown in Figure~\ref{fig:hyperpara}, performance gains saturate around $N=10$. Figure~\ref{fig:frontier} further illustrates the efficiency--accuracy frontier governed by $K$. We therefore adopt $N=10$ and $K=10$ as the default configuration to balance performance with computational cost. Comprehensive sensitivity analysis is detailed in Appendix~\ref{sec:sensitivity_details}.
+
+
+\subsection{Profile Study}
+\label{sec:profile_study}
+\input{table/profile}
+We evaluate the effect of the consolidated user profile on PersonaMem-v2 (32k)~\cite{jiang2025personamem}; results are not directly comparable across dataset versions due to differences in task setup and annotations. Table~\ref{tab:profile_effect} shows that adding the User Profile to episodic evidence improves overall accuracy by 9.32 points over episodes-only (53.25 vs.\ 43.93), indicating that semantic consolidation provides complementary signal beyond episodic retrieval. We defer the full comparison against other memory systems on PersonaMem-v2 to Appendix~\ref{sec:personamem_full}.
+
+\subsection{Case Study}
+Existing benchmarks primarily evaluate answer-level accuracy/recall and do not capture several capabilities required for long-term conversational agents, such as conflict detection, profile stability, and experience-grounded foresight. To complement quantitative results, Figure~\ref{fig:case_study} shows three representative cases: \textbf{(Episode)} reconstructing a concrete past injury episode (a Grade-II ankle sprain during badminton) rather than producing a generic explanation; \textbf{(Profile)} maintaining longitudinal stability and using sustained improvements (waist 104$\rightarrow$96\,cm with stable weight) for trajectory-consistent goal setting; and \textbf{(Foresight)} leveraging previously observed failures (overcrowding and missing advance tickets) to make proactive recommendations for future travel.
+Together, these cases illustrate coherent, experience-aware behavior beyond what is measured by existing benchmarks.

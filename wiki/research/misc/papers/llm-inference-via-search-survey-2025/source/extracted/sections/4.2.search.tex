@@ -1,0 +1,324 @@
+\input{tables/frameworks}
+
+\section{Frameworks Based on Search Algorithms}
+\label{sec:search}
+% TODO:
+% decomposing them in a finer-grained manner, i.e., investigating the concrete implementations of the building blocks and procedures,
+
+This section summarizes how different frameworks utilize search algorithms, leveraging the LMPRs and search procedures introduced in Table~\ref{tab:llm_integrated_search}. Note that, some MCTS-specific procedures (e.g., \textbf{MCTS selection}, and \textbf{MCTS backpropagation}) are not elaborated in the table. UCT selection is highlighted to distinguish between PUCT and UCT variants; \textbf{simulation} is included to clarify whether LMPT or environment-based simulation or simulator is used.
+Below, we discuss perspectives that are not fully captured in Table~\ref{tab:llm_integrated_search}.
+
+\subsection{Beam Search}
+\label{sec:beam}
+Beam-LLM \citep{xie2023selfevaluation} and PathFinder \citep{golovneva2023pathfinder} adapt beam search for reasoning via concatenation, \red{while Think-on-Graph \citep{sun2024thinkongraph} and Think-on-Graph 2.0 \citep{ma2025thinkongraph} are applied for reasoning over knowledge graph}. 
+Generally, \textbf{Expansion} and \textbf{TopK-Based Selection} always alternate iteratively until reaching a terminal state.
+
+% At the next depth, another $N$ samples will be generated for each beam. Then $\text{lmpr}_\text{value}$ will be used to evaluate $N \times k$ paths. 
+\paragraph{Beam-LLM \citep{xie2023selfevaluation}}
+\begin{itemize}
+    \item \textbf{LMPP Expansion}:
+    Each set of beam nodes \(N_t\) is passed to the LMPP expansion procedure. Internally, \textsc{Sample\_LMPP} calls either \textsc{Sample\_Actions\_One\_At\_A\_Pass} or \textsc{Sample\_Actions\_Batch}, while \textsc{Simulate} can be a simple concatenation transition: each node \(n_t \in N_t\) has its parent state \(n_t.\text{parent}\) expressed as a sequence of actions \((a_1, \dots, a_{t-1})\), an action \(a_t\) assigned to \(n_t.\text{action}\), and the new node’s state ($n_t.\text{state}$) as \((a_1, \dots, a_{t-1}, a_t)\). The resulting set of expanded nodes is denoted \(N_{t}^{\text{sample}}\).
+    
+    \item \textbf{TopK-Based Selection}:
+     From \(N_{t}^{\text{sample}}\), a value-based selection procedure  is applied to pick the top-\(k\) nodes (the beam size). This subset is returned as \(N_{t}\). 
+     Specifically, it uses a value function implemented by \(\text{lmpe5} + \text{lmpr}_\text{policy\&eval1}\).
+\end{itemize}
+
+
+\paragraph{PathFinder \citep{golovneva2023pathfinder}}
+This framework also applies \textbf{LMPP Expansion} and \textbf{Value-Based TopK Selection} iteratively.
+However, it computes a summed similarity score as the value for each candidate node, comparing its state with those of other beams \(N_{t}^{\text{sample}}\). The similarity function can be as simple as n-gram overlap.
+
+\paragraph{\red{Think-on-Graph \citep{sun2024thinkongraph}}}
+\red{In the graph traversal tasks described in Section~\ref{sec:task_unify}, the search space is derived directly from explicit task specifications. In contrast, when searching over a knowledge graph, the search space is constructed from the graph itself. }
+% beyond the scope of this paper? -> as their search processes fundamentally rely on the existence of a knowledge graph.
+\begin{itemize}
+    \item \red{\textbf{Step 1: Entity Initialization}: An LLM is prompted twice to extract the topic entities in the question, and select the top-K entities (Procedure~\ref{proc:topk_selection2}), where $K$ is the beam size. The resulting entities $\mathcal{E}_{0}$ form the initial paths.}
+    
+    \item \red{\textbf{Step 2: Expansion via SPARQL Queries for Candidate Relations}: Unlike previous two frameworks, LMPP expansion and sampling are not necessary because neighboring nodes \(N_{t}^{\text{candidate}}\) can be identified via simple SPARQL queries, along with candidate relations, i.e., Exhaustive Action Retrieval is applied. The relation set can be denoted as $\mathcal{R}_{\text {entity}}$, where $\text{topic} \in \mathcal{E}_{t-1} = \{ n_{t-1}.\text{state}.\text{tail\_entity}| n\in N_{t-1}\}$.
+    The queries are run for each tail entity $e \in \mathcal{E}_{t-1}$ to get candidate relations. The size of $\mathcal{E}_{t-1}$ equals to beam size $B$.}
+    % each tail node of each path (i.e., one beam in the previous round).
+    
+    \item \red{\textbf{Step 3: TopK Selection from Candidate Relations}: Procedure~\ref{proc:topk_selection2} is applied to directly select the top K relations from candidates for each entity $e \in \mathcal{E}_{t-1}$. Note that both $K$ here is not necessarily the beam size $B$ or $B$ divided by $K$, since the final path will be formed after the following entity expansion and selection phases.}
+
+    \item \red{\textbf{Step 4: Expansion via SPARQL Queries for Candidate Entities}: Candidate entities are selected via SPARQL queries for each selected relations in the last step.}
+    
+    \item \red{\textbf{Step 5: TopK Selection from Candidate Entities}: 
+    To finish each triple tailed by the K relations selected above.$\text{lmpe6}$ would be used to score each triple regarding their contributions to solve the given question. This defines $\text{ValueFunc}$ in Procedure~\ref{proc:topk_selection}. Note that the $k$ here is the beam size.}
+   
+    \item \red{\textbf{Step 6: LLM Reasoning for Terminal States}: At the end of each iteration, the LLM is prompted to judge whether a terminal state is reached, where the knowledge is enough to reach the final answer.}
+\end{itemize}
+
+\paragraph{\red{Think-on-Graph 2.0 \citep{ma2025thinkongraph}}}
+\red{Think-on-Graph 2.0 \citep{ma2025thinkongraph} differs from Think-on-Graph in the following perspectives.}
+
+\begin{itemize}
+    \item \red{\textbf{Entity Initialization}: The initial entities $\mathcal{E}_0$ are initialized and linked to the knowledge graph via an entity linking method. }
+    
+    \item \red{\textbf{Context Retrieval}: A dense retrieval model (DRM) is used to retrieve context with $\mathcal{E}_0$ as input.}
+
+    \item \red{\textbf{LLM Reasoning for Terminal States}: Same as Step 6 in Think-on-Graph.}
+    
+    \item \red{\textbf{Relation Identification}: This is basically identical to Step 2-3 in Think-on-Graph. \footnote{For Step2, they do not explicitly specify SPARQL implementations.}  One difference in Step 3 is that Procedure~\ref{proc:topk_selection2} and the LMPE in Step 3 will evaluate the candidate relations of all the entities $\mathcal{E}_{t-1}$ in one LLM inference.}
+    
+    \item \red{\textbf{Entity Identification}: This corresponds Step 4-5 in Think-on-Graph. Step 4 still locates potential entities on knowledge graph \footnote{Still, they do not explicitly specify SPARQL implementations.}. The main difference is that the the pruning process is based on a context retrieval process over unstructured documents.}
+
+    \item \red{\textbf{LLM Reasoning for Terminal States}: Similar as Step 6. The only difference is that the retrieved context for each entity is added for prompting.}
+\end{itemize}
+
+\subsection{Breadth-First Search}
+\label{sec:breath}
+\paragraph{Tree-of-Thoughts (ToT) \citep{yao2023tree}}
+\begin{itemize}
+    \item Similar to beam search, breadth-first search (BFS) is performed by iteratively applying \textbf{LMPP Expansion} and \textbf{TopK Selection}.
+    
+    \item A key difference is that, in BFS, all nodes at depth \(t\) undergo the same number of actions before expanding further levels. This enforces uniform depths across expansions.
+\end{itemize}
+
+\subsection{Depth-First Search}
+\label{sec:depth}
+\paragraph{Tree-of-Thoughts (ToT) \citep{yao2023tree}}
+\citet{yao2023tree} also apply depth-first search (DFS) for LLM inference, relying on the \textbf{LMPP Expansion} and \textbf{Threshold-Based Selection}. Key points include:
+
+\begin{itemize}
+    \item \textbf{Threshold Selection}:
+     One action (node) is sampled at a time, but it is not compared with other nodes. Instead, once its value is evaluated by whether it surpasses a threshold, that path is followed to its conclusion.
+     
+    \item \textbf{LMPE Evaluation for Deadend}:
+    The system uses a deadend judgment to halt exploration of unpromising paths, which can be considered as another LMPE evaluation.
+    % decides which states to keep exploring and in what order
+    \item \textbf{Backtracking}:
+    Upon reaching a deadend, the system reverts to an earlier node and continues exploring other previously expanded but untried branches.
+    
+    \item \textbf{Path Maintenance}:
+    Because of backtracking, the framework must track partial paths, whereas BFS or beam search only needs to maintain the selected nodes at each depth.
+\end{itemize}
+% Precisely, depth-limited DFS is used for infinite space by assuming failure and backtracking when the limit is reached. 
+
+\subsection{Best-First Search}
+\label{sec:best}
+Best-first search typically uses a heuristic function \(h(s)\) to estimate how promising a state will reach the goal.
+
+\paragraph{Best-LLM 
+ \citep{koh2024tree}}
+\begin{itemize}
+    \item Uses \textbf{LMPP Expansion} for the selected node or the initial root node, where actions are executed in the environment (web interface) to simulate the next states. The generated nodes are saved in $N$.
+    
+    \item Employs \textsc{TopK\_Select} (k=1) through LMPE+ evaluation on each node in saved nodes \(n \in N\). The node value \(n.\text{val}\) is derived from evaluating its parent’s state.
+    
+    \item Continues until either the search tree reaches a specified budget \(\beta\) or the state value exceeds a threshold \(\theta\).
+\end{itemize}
+
+% As the state st of the simulator is not always accessible to the agent ($s_t$ may include private information such as database entries of the site) -> the current and previous observations as input
+% Same as DFS, it did backtracking.
+
+\subsection{A*}
+\label{sec:a_star}
+A* is similar to best-first search but augments the heuristic \(h(s)\) with the accumulated cost/utility \(g(s)\) to reach a node from the start. The evaluation function is
+\begin{equation}
+    f(s_t) = g(s_t) + \lambda \, h(s_t),
+    \label{eq:eval_a_star}
+\end{equation}
+where \(\lambda\) balances the two terms. Table~\ref{tab:a_star} summarizes how two frameworks implement this formula differently:
+% \footnote{Similar as $h(s_t)$, some works refer to $g(s_t)$ as the actual cost.}
+
+\begin{table*}[ht!]
+    \centering
+    \caption{LMPE+ Evaluation for LLM-A* and Q*. $\operatorname{dist}(\cdot, \cdot)$ represents the actual distance between two points, while $\|\cdot\|$ denotes the Euclidean norm.  $s_0, s_t, s_n, s_g, s_\text{llm}$ represent the initial, current, neighbor, goal, LMPP-generated states, respectively. % \(h(s)\): estimate how promising a state will reach the goal.
+    }
+    \label{tab:a_star}
+    \footnotesize
+    \begin{tabular}{p{2cm}p{3cm}p{3cm}p{3cm}p{3cm}}
+    \toprule
+         & \multicolumn{2}{c}{$g(s)$} & $h(s)$ & Use of LMPE
+         \\ \cmidrule{2-3}
+         &  $\operatorname{Agg}$ &  $R(s)$/$\operatorname{Cost}(s)$  &  & 
+         \\ \midrule 
+    LLM-A* \newline \citep{meng2024llm}
+    & $\sum$
+    & $\operatorname{dist}(s_0, s_n)$
+    & $\|s_n-s_g\|$ + $\|s_n-s_\text{llm}\|$ 
+    & $\text{lmpr}_\text{policy\&eval3}$ \newline (for $h(s)$)
+    \\ \addlinespace
+        
+    Q* \newline\citep{wang2024q} 
+    & $\min$ , $\max$ , $\sum$, $\operatorname{Last}$ 
+    & Human feedback, ground-truth, rules, LLM logits 
+    & $\max _{a_t \in \mathcal{A}} Q^*\left(s_t, a_t\right)$   
+    & $\text{lmpr}_\text{policy\&eval4}$ \newline (for $h(s)$)
+    \\ \addlinespace
+    
+    \red{ToolChain \citep{zhuang2024toolchain}}
+    & \red{$\sum$}
+    & \red{Self-consistency scores, Longest Common Subsequence scores}
+    & \red{Consistency scores, \newline relative position scores}
+    & \red{$\text{lmpr}_\text{policy\&eval2}$ 
+    \newline  (for $g(s)$), \newline $\text{lmpr}_\text{policy\&eval3}$ 
+    \newline  (for $h(s)$)}
+    \\ \bottomrule
+    \end{tabular}
+\end{table*}
+\paragraph{LLM-A* \citep{meng2024llm}}
+\begin{itemize}
+    \item Designed for path-finding tasks (e.g., mazes).
+    \item \(\boldsymbol{g(s_t)}\): Computed incrementally as the path cost from \(s_0\) to \(s_t\). Formally,
+    \begin{equation} 
+        g(s_t) = \sum_{i=1}^{t} \operatorname{Cost}(s_i).
+        \label{eq:gs_llm_a_star} 
+    \end{equation}
+    % LMPE+ evaluation?
+    % The reason is that LLM-A* is formulated under traditional path-finding tasks, and the distances of the best-known path from $s_0$ to the traversed states can be computed incrementally as $g(s_t)$. 
+    
+    \item \(\boldsymbol{h(s)}\) under LMPE+ evaluation:
+    The main modification beyond the typical A* is to integrate a LMPE to the $h(s)$.  Specifically, $\text{lmpr}_\text{policy\&eval3}$ (see Table~\ref{tab:lmpr_value}) is applied to evaluate the Euclidean distance from $s_n$ back to the recently visited $s_\text{llm} \in \text{lmpp}$, along with the typical Euclidean distance between $s_n$ (expanded neighbour node) and $s_g$.
+\end{itemize}
+
+\paragraph{Q* \citep{wang2024q}}
+\begin{itemize}
+    \item Targets reasoning and code-generation tasks.
+    
+    \item \(\boldsymbol{g(s_t)}\): Aggregates rewards via 
+    \begin{equation}
+        g(s_t) = \operatorname{Agg}\left(\mathcal{R}(s_1), \ldots, \mathcal{R}(s_t)\right),
+        \label{eq:gs_q_star}
+    \end{equation}
+    where $\operatorname{Agg} \in \{\min , \max , \sum, \operatorname{Last} \}$.  Under this definition, $\mathcal{R}\left(s\right)$ in $g(s_t)$ can be calculated as human feedback, ground-truth, rules or via LMPE+ evaluation, depending on tasks.
+    
+    \item \(\boldsymbol{h(s)}\) optionally under LMPE+ evaluation: It is initialized as the optimal Q-value of $s_t$ over all the possible actions:
+    \begin{equation}
+        \max _{a_t \in \mathcal{A}} Q^*\left(s_t, a_t\right)
+        \label{eq:q_value_as_heuristic}
+    \end{equation}
+    Optionally, \(\text{lmpr}_\text{policy\&eval4}\) introduces a stronger LMPP to approximate an optimal policy.
+\end{itemize}
+
+\paragraph{\red{ToolChain \citep{zhuang2024toolchain}}}
+\begin{itemize}
+    \item \red{Designed for tool-based tasks but can be generalized to language reasoning tasks ($\mathcal{T}$ via concatenation).}
+
+    \item \red{$\boldsymbol{g(s_t)}$: Aggregated from two terms:}
+        \begin{enumerate}
+            \item \red{\textbf{Self-consistency scores}: $\text{lmpr}_{\text{policy\&eval2}}$ is used to calculate self-consistency scores, normalized by the number of distinct actions.}
+            \item \red{\textbf{Longest Common Subsequence (LCS) scores}: The LCS score between the current generated path \(s_t\) and each completed path \(m\) in the memory is computed and normalized by the length of the shorter path (\(m\) or \(s_t\)). Among the scores obtained for each memory path, only the maximum score is used for \(\boldsymbol{g(s_t)}\).}
+        \end{enumerate}
+
+    \item \red{$\boldsymbol{h(s_t)}$: Also aggregated from two terms:}
+        \begin{enumerate}
+            \item \red{\textbf{Consistency scores} based on $\text{lmpr}_\text{policy\&eval3}$.}
+            \item \red{\textbf{Relative position scores}: Similar to the LCS scores in $\boldsymbol{g(s_t)}$, this metric is also based on memory. It computes the average relative position of a candidate action appearing in memory examples.}
+        \end{enumerate}
+    % $g(n)=\sum_{i \in\{a n(n), n\}}\left(1-g_{t, 1}(i)\right)^\alpha \cdot\left(1-g_{t, 2}(i)\right)^{1-\alpha}$
+\end{itemize}
+
+\subsection{Monte Carlo Tree Search}
+\label{sec:mcts}
+Monte Carlo Tree Search typically involves \textbf{MCTS Selection}, expansion (\textbf{LMPP Expansion} or \textbf{Exhaustive Action Retrieval}), \textbf{Path Simulation}, and \textbf{MCTS Backpropagation}, including both value and visit update. Most frameworks under review adhere to these steps, except where noted in the highlights that follow. 
+
+\red{The details of each framework are specified in Table~\ref{tab:llm_integrated_search}. Note that ReST-MCTS* \citep{zhang2024restmcts} and AlphaZero-Like Tree Search \citep{wan2024alphazerolike} feature a search process that is entangled with LLM fine-tuning. In contrast, we decouple the integration of training from the MCTS search, with the training component detailed in Section~\ref{sec:train}.}
+
+\red{\paragraph{Solution Selection} After MCTS completes its allotted iterations (or reaches its time/resource limit), a tree is left where each child of the root has associated statistics. The standard practice is to pick the move corresponding to the child node with the highest visit count. The reasoning is that more visits generally indicate a move that has been explored more thoroughly and is statistically more promising. In frameworks where final selection strategies are not specified, we assume this default approach.}
+
+\paragraph{RAP \citep{hao-etal-2023-reasoning}}
+\begin{itemize}
+    \item Applicable to BlocksWorld, Crosswords, and other reasoning tasks.
+    \item \textbf{LMPP Expansion} vs. \textbf{Exhaustive Action Retrieval}: The method of sampling actions depends on whether the action space is finite and predefined (e.g., BlocksWorld, where exhaustive retrieval is used) or open-ended (e.g., Crosswords, where LMPP sampling is used).
+\end{itemize}
+
+\paragraph{LATS \citep{zhou2024language}}
+\begin{itemize}
+    \item Targets tasks with reversible actions (e.g., certain reasoning problems, web navigation).
+    \item \textbf{Path Simulation}: Executes actions in the actual environment during path simulation, requiring actions to be reversible to allow repeated trials.
+    \item \red{\textbf{Solution Selection}: Besides reaching allotted iterations, the search is terminated when a task is completed successfully. The corresponding path is given as the solution.}
+    % \item Verbal reflection to the unsuccessful trajectories is added into the prompt of LMPP and LMPE. 
+    % LMPP-based expansion and LMPE-based value estimate. 
+\end{itemize}
+
+\paragraph{LLM-MCTS \citep{zhao2023large}}
+\begin{itemize}
+    \item Designed for robotic tasks.
+    \item \textbf{Path Simulation}: Uses random sampling and a domain-specific simulator for path simulation, producing next states and rewards.
+    \item \textbf{MCTS Selection}: Adopts a domain-specific \(P(s,a)\) in PUCT, which is derived from LMPP sampling to form an action distribution.
+\end{itemize}
+ % Observations are also given for simulation
+
+% \paragraph{PlanSearch \citep{wang2024planning}}
+
+\paragraph{\red{rStar \citep{anonymous2024mutual}}}
+\begin{itemize}
+    \item \red{Designed for reasoning tasks. However, a more heterogeneous set of actions is defined, including proposing an intermediate thought, generating multiple thoughts until reaching a terminal state, or rephrasing the original question and questions.}
+    
+    \item \red{Acknowledging the limitations of small language models (SLMs) in serving as direct evaluators, it employs self-consistency scores derived from multiple simulation samples (i.e., $\text{lmpr}_\text{policy\&eval2}$).}
+    
+    \item \red{\textbf{Solution Selection}: Instead of selecting only the next action at the root node, the framework selects an entire trajectory from all rollout trajectories. To verify candidates, the selected trajectory is pruned to assess whether another SLM would generate the same subsequent steps.}
+\end{itemize}
+
+\paragraph{\red{MC-DML \citep{shi2025monte}}}
+% Monte Carlo planning with Dynamic Memory-guided LLMs
+\label{para:mc-dml}
+\begin{itemize}
+    \item \red{Targets at embodied tasks. Specifically, they experiment on Interactive Friction (IF) games, where reward, state and observation are given by the game environment/simulator.}
+    
+    \item \red{\textbf{MCTS Selection}: Besides $\text{lmpp}^s_{logit}$, it also uses another two types of $\text{lmpp}^s$ in the case of black-box LLMs, e.g., OpenAI ChatGPT.}
+
+    \item \textbf{LMPP Expansion}: This phase is integrated with the selection phase, where only $\text{lmpp}^s$ generates prior distribution. If the action chose by the PUCT selection leads to a leaf node, the environment transits it to the next state, followed by the path simulation phase, where the uniform sampling will be applied.
+    
+    \item \red{\textbf{LMPE+ Evaluation}: $\text{lmpe}_\text{verbalize}$ is used to generate reflection on history failed episodes during the simulation (i.e., cross-trial information) phrase. We denote the pair of an episode and its reflection as $(\text{eps}_i, r_i)$}
+
+    \item \red{Cross-trial Information for LMPP Generation: 
+    Besides the previous steps along the current path (i.e., in-trial information),  $(\text{eps}_i, r_i)$ are also added as the prompt of the LMPP. It reminds of cross-trial information within Reflexion \citep{shinn2023reflexion}. However, MC-DML is first used within a LIS framework.}
+\end{itemize}
+
+\subsection{\red{AlphaZero-Like MCTS ($\alpha$-MCTS)}}
+\red{In traditional MCTS, after expanding a node, a path simulation is run to the end of the game to estimate the outcome. However, many modern implementations (like in AlphaGo/AlphaZero) skip the full simulation and instead use a direct evaluation function or Process Reward Model (PRM) to estimate the reward immediately after expansion rather than roll out the entire episode for a reward. 
+This approach can significantly speed up the process and provide more accurate evaluations if the evaluation function is well-tuned. In summary, the following phases are iteratively performed:  \textbf{Selection}, \textbf{Expansion}, \textbf{Evaluation} (replacing path simulation), and \textbf{Back-propagation}.}
+
+\paragraph{PG-TD \citep{zhang2023planning}}
+% Planning-Guided Transformer Decoding 
+\begin{itemize}
+    \item Specializes in code generation.
+    \item \textbf{MCTS Selection}: Treats the prior distribution \(P(a \mid s)\) in PUCT as the LMPP token probabilities for the next token (i.e., $\text{lmpp}^s_{logit}$), given the partial program.
+    % the probability of "token (action) $a$ is the next token given the partial program $s$".
+    
+    \item \textbf{Evaluation}: Rather than direct evaluation, the phase consists of the following processes: 1) Uses LMPT simulation to generate the rest of the program, but internally adopts beam search for transformer decoding to complete the program; 2) Generates a reward by running the program on the test cases.
+\end{itemize}
+
+\paragraph{GDP-ZERO \citep{yu2023promptbased}}
+\begin{itemize}
+    \item Designed for goal-oriented dialogue.
+    
+    \item \textbf{LMPP Expansion}: An LMPT is configured for transition, i.e.,  two inference calls are performed to simulate both the system and user responses. \red{The pairs of responses are stored in the memory $M_\text{response}$ for each state. Hence, if the maximum number of responses for state $s$ are reached, the transition is sampled from $M_\text{response}(s)$.}
+
+    \item \red{\textbf{Evaluation}: LMPE Evaluation is performed. In particular, $\text{lmpe2}$ serves as the PRM, generating a reward signal for MCTS backpropagation after expansion. Its profiling is similar to a simulator, wherein the LLM is configured to emulate a user who is prompted to indicate their willingness to perform a specific action (e.g., making a donation). However, different from the LMPT, a set of five choices is provided for rating, each corresponding to a different reward.}
+    % \item Caching mechanism: For each state (the concatenation of previous dialog act, system repsonses and user responses), they also cache the transition upon selected actions.
+\end{itemize}
+
+\paragraph{\red{Tree Search (TS)-LLM \citep{wan2024alphazerolike}}}
+\begin{itemize}
+    \item \red{\textbf{Target Tasks}:  
+    TS-LLM is designed for both combinatorial tasks (e.g., chess, Game-of-24) and reasoning tasks via concatenation, where each action is treated as a sentence. They also define each action as a token for general language reasoning for Reinforcement Learning from Human Feedback (RLHF).}
+    
+    \item \red{\textbf{Expansion}:  
+    The original work briefly describes two ways to define the search space during expansion: one based on an exhaustive set of possible tokens and the other using candidates sampled by LMPP.}
+    
+    \item \red{\textbf{Evaluation}:  
+    The LLM is fine-tuned as a RM to evaluate intermediate states (see details in Section~\ref{sec:train}).}
+
+    \item \red{\textbf{Solution Selection}: The search is performed multiple times to generate candidate solutions. The final solution is chosen according to either the majority voting or the sum of rewards, or the maximum reward, where ORM is used to generate rewards.}
+
+    \item \red{\textbf{Solution Selection}:  
+    The search process is repeated multiple times to generate candidate solutions. The final solution is selected based on majority voting, the sum of rewards, or the maximum reward, with an ORM used to produce the reward values.}
+\end{itemize}
+
+\paragraph{\red{ReST-MCTS* \citep{zhang2024restmcts}}}
+\begin{itemize}
+    \item \red{\textbf{Target Tasks}:  
+    ReST-MCTS* is designed for reasoning tasks via concatenation, where each sentence is treated as a discrete step.}
+    
+    \item \red{\textbf{Evaluation}:  
+    Similar to TS-LLM, the LLM is fine-tuned as a PRM to evaluate intermediate states (see Section~\ref{sec:train} for details). To estimate the value of the current state \(s_t\), the rewards from the PRM are weighted by the estimated reasoning distances, analogous to the \(h(s_t)\) term in A*.}
+    
+    \item \red{\textbf{Solution Selection:}  
+    After the selection phase, if the value of the selected node meets or exceeds a predefined threshold, the corresponding solution is returned.}
+\end{itemize}
+
+

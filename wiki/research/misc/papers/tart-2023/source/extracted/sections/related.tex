@@ -1,0 +1,45 @@
+\label{sec:related_work}
+\paragraph{Zero-shot training of retrievers.}
+Recent neural retrievers~\cite{karpukhin-etal-2020-dense,lee-etal-2019-latent,colbert} show their superiority over term-based retrievers (e.g., BM25; \citealt{robertson2009probabilistic}) across domains when training data is abundant~\cite{luo2022improving,asai2021one,petroni-etal-2021-kilt}.
+{Due to the high cost of annotating retrieval datasets for new target tasks, improving neural retrievers in zero-shot settings is an active area of study. 
+The first line of work uses purely unsupervised approaches, such as pre-training neural retrievers on {unlabeled} data (e.g., Contriever; \citealt{izacard2022unsupervised}).
+}
+The second line of work trains a single retrieval system on large-scale supervised datasets such as MS MARCO~\cite{msmarco} and then performs a transfer to new datasets~\cite{izacard2022unsupervised,colbert,nogueira-etal-2020-document,chen2021salient}, which often struggle with tasks unlike those used for training~\cite{promptagator}. 
+To address this, the third paradigm trains customized retrievers for each task using unlabeled corpora, leveraging another model to automatically generate training data~\cite{wang-etal-2022-gpl}. 
+Concurrent to our work, \citet{promptagator} use task-specific templates and few-shot samples to automatically generate in-domain training queries given randomly sampled documents from the target corpus using FLAN~\cite{wei2022finetuned}. 
+It often entails running massive LMs and training separate retrievers, resulting in slow and costly adaptation. 
+\begin{table*}[t!]
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{2pt}
+\footnotesize
+    \centering
+    \begin{tabular}{ll}%|ccccccc}
+\toprule
+\textbf{Dataset} & \textbf{Instruction} \\\midrule
+% {\bf Training} & \\
+NQ & \texttt{Retrieve a \hlc[cyan!30]{Wikipedia} \hlc[green!30]{paragraph} that \hlc[pink]{answers this question}.}  \\
+Med Simple & \texttt{Your task is to find a \hlc[pink]{simplified} \hlc[green!30]{paragraph} of this paragraph from a \hlc[cyan!30]{medical paper.} }\\
+% \hline
+% {\bf Evaluation} & \\
+QReCC & \texttt{Find a \hlc[green!30]{dialogue response} from  \hlc[cyan!30]{dialogue history} to \hlc[pink]{answer the user's question}. }  \\
+Arguana & \texttt{Retrieve a \hlc[green!30]{paragraph} from \hlc[cyan!30]{an argument website} that \hlc[pink]{argues against the following argument}.}  \\
+SciFact & \texttt{Find a \hlc[green!30]{sentence} from a \hlc[cyan!30]{scientific paper} to check if \hlc[pink]{the statement is correct or not}. } \\
+MultiLexSum & \texttt{I want to find the \hlc[green!30]{one-sentence} \hlc[pink]{summary of this} \hlc[cyan!30]{legal case}.} \\
+\bottomrule
+ \end{tabular}
+    \caption{Example instructions for natural questions (NQ; \citealt{47761}), medical text simplification (Med Simple;~\citealt{devaraj-etal-2021-paragraph}), QReCC~\cite{qrecc}, Arguana~\cite{wachsmuth-etal-2018-retrieval}, SciFact~\cite{wadden-etal-2020-fact} and MultiLexSum~\cite{shen2022multilexsum}. Each instruction defines \hlc[pink]{\emph{intent}}, \hlc[cyan!30]{\emph{domain}} and \hlc[green!30]{\emph{unit}}. 
+    }\label{tab:instructions}
+\end{table*}
+\paragraph{Instruction tuning.}
+Training large language models (LLMs) with instructions or demonstrations on many tasks has proven very effective for zero- or few-shot transfer in a variety of settings~\cite{wei2022finetuned,sanh2022multitask,instruct_gpt,min-etal-2022-metaicl,wang2022benchmarking,mishra-etal-2022-cross,flan_palm}. 
+However, such instruction tuning has not been systematically explored in retrieval for several reasons.
+First, large-scale instruction-annotated datasets~\cite{bach2022promptsource,wang2022benchmarking} do not include retrieval tasks.
+Second, successful instruction-following LLMs are encoder-decoder or decoder-only models with tens of billions of parameters, which are difficult to be adapted for retrieval tasks, as we typically need to encode millions of documents. 
+
+\paragraph{Retrieval with descriptions.}
+{
+To incorporate more fine-grained information needs, retrieval with descriptions or narratives (e.g., TREC 2004 Robust Track; \citealt{96071}) has been studied. 
+Descriptions or narratives are more detailed natural language explanations that describe the information needs (i.e., desirable documents) for each query mainly for query disambiguation. 
+However, early work shows that concatenating descriptions or narratives only marginally outperforms the baselines with titles only~\cite{walker1998okapi,10.1145/3404835.3462812}.
+More recent work~\cite{DBLP:conf/sigir/DaiC19,10.1145/3366423.3380258} suggests that powerful encoders such as BERT~\cite{devlin-etal-2019-bert} could better incorporate rich linguistic context and boost performance.  }
+

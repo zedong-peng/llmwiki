@@ -1,0 +1,47 @@
+\section{Results}
+
+\input{tables/result-base.tex}
+
+Table~\ref{tab:eval-results-pubmed} summarizes the evaluation results on the PubTemp set. We observe that reinforcement learning substantially improves Boolean query generation performance, especially in recall-critical settings like systematic reviews. 
+
+\subsection{Effectiveness of Reinforcement Learning}
+Compared to zero-shot prompting baselines using the same base model (Qwen3-4B), all RL-trained AutoBool models achieve substantially higher effectiveness. Top models obtain 0.70 average recall, with 35\% of queries exceeding 90\% recall, versus 0.35 recall and 6.5\% for zero-shot baselines. We also compare against in-context learning (ICL) with 1-shot, 3-shot, and 5-shot configurations (Appendix~\ref{appendix:icl}): AutoBool achieves 7× improvement over the best ICL result, demonstrating that RL provides optimization signals that cannot be communicated through examples alone.
+
+On secondary metrics, AutoBool models improve precision under the \texttt{N.R} and \texttt{R-obj} prompts, but slightly reduce precision under \texttt{R} and \texttt{R-con}. All trained models retrieve more documents than their zero-shot counterparts: an expected trade-off when optimizing for recall. However, this increase in retrieved set size remains reasonable (well under 1000 on average), and does not significantly increase screening burden compared to the gains in comprehensiveness.
+
+
+Training also improves generation stability. AutoBool models exhibit consistently higher success rates (near 100\%) and require fewer regenerations than zero-shot baselines, indicating more reliable formatting and syntactic validity—driven by our structured reward components.
+
+\paragraph{Comparison with Larger GPT-Based Models.}
+Compared to significantly larger GPT-based models (GPT-4o and O3),%
+~\footnote{While parameter counts are proprietary, these models are widely estimated to be ~100× larger than our 4B backbone.}
+AutoBool, despite using a much smaller model, achieves higher recall and a higher percentage of queries exceeding high-recall thresholds (e.g., 80\% and 90\%). Regeneration and success rates are also comparable across models. While AutoBool has lower precision and F\textsubscript{3}, this reflects domain-specific optimization: the screening burden difference is modest (O3: 499--603 documents vs AutoBool: 586--773), representing only 5–6 additional hours in a 30+ hour process, while missing studies can invalidate entire reviews. The average number of retrieved documents remains within a practical range, and AutoBool enables local deployment for organizations with API privacy restrictions. These results highlight the effectiveness of retrieval-driven RL training in generating high-recall Boolean queries, even under constrained model capacity.
+
+
+\paragraph{Effect of Prompt Type.}
+Under zero-shot settings, the \texttt{R-con} prompt generally yields the highest recall and F\textsubscript{3} scores (except for F\textsubscript{3} in GPT-4o and recall in O3), suggesting that structured reasoning aids query formulation when no retrieval feedback is available. However, this advantage diminishes after training. For trained AutoBool models, the \texttt{No Reasoning} prompt consistently achieves the best recall and high-recall threshold performance across all settings, while reasoning-based prompts tend to yield higher precision.
+
+We hypothesize two complementary explanations for these trends. First, RL enables the model to internalize task-specific structure and discover its own optimized generation strategy, which may diverge from human-designed decomposition frameworks. Second, Boolean queries are inherently interpretable and self-contained: their logic is fully encoded through syntax and operators. As such, requiring the model to verbalize intermediate reasoning may introduce unnecessary constraints or verbosity once it has learned to generate effective queries end-to-end.
+
+Nonetheless, reasoning-based prompts consistently yield higher success rates and require fewer regenerations than \texttt{No Reasoning}, even after training. This suggests that intermediate reasoning may still offer robustness benefits in more difficult systematic review topics, where generating a valid and well-formed Boolean query is especially challenging. In these cases, explicit reasoning may help the model maintain syntactic and semantic integrity under ambiguity or complexity.
+
+
+\paragraph{Which \texorpdfstring{$\alpha$}{α} Value Should Be Used?}
+We analyze the effect of the \(\alpha\) parameter in the retrieval reward, which adjusts the emphasis on recall over precision. In structured reasoning-based prompts (\texttt{R-con}, \texttt{R-obj}), increasing \(\alpha\) consistently improves recall, as intended. In contrast, results are more mixed for less-structured prompts: \(\alpha = 1\) yields the highest recall with \texttt{N.R}, while \(\alpha = 0.5\) performs best with \texttt{R}. For F\textsubscript{3}, \(\alpha = 1\) generally achieves the best performance across prompts, except in \texttt{N.R}, where \(\alpha = 0.5\) outperforms. Overall, \(\alpha = 1\) offers the most balanced trade-off between recall and precision, making it a strong default. Its effects are also more stable in structured prompts, where recall improves more predictably with higher \(\alpha\).
+
+
+\begin{figure*}[htbp]
+	\centering
+	\includegraphics[width=\textwidth]{figures/trained_model_size_comparison_final.pdf}
+	\caption{Effect of model size on the effectiveness of Boolean query generation across prompt types on the PubMed Temporal-Cutoff set, all result based on Qwen3 based Models.}
+		\label{fig:model-size-comparison}
+\end{figure*}
+
+\subsubsection{Generalization on Existing Datasets}
+
+To assess generalization, we evaluate our trained models on two established systematic review benchmarks: CLEF TAR and the Seed Collection (Table~\ref{tab:eval-results-clef} and Table~\ref{tab:eval-results-seed} in Appendix). Both datasets are relatively small and publicly available, raising potential concerns around bias and data leakage.
+
+\textbf{For CLEF TAR,} AutoBool generalizes well, obtaining substantially higher recall and recall-threshold metrics than its zero-shot counterparts. It is also more effective than larger models like GPT-4o and O3 in recall. With \(\alpha = 1\) and the \texttt{No Reasoning} prompt, AutoBool almost matches the recall of expert-crafted queries (within 1\%) while retrieving 17 times fewer documents; yielding improved F\textsubscript{3}, higher precision, and reduced screening effort. It is also more effective than the O1 model from~\citet{wang2025reassessing} in both recall and F\textsubscript{3}, highlighting the benefits of RL optimization.
+\textbf{For Seed Collection,} a similar pattern holds. While AutoBool is less effective than expert-written queries, it is significantly more effective than zero-shot baselines and the O1 model from~\citet{wang2025reassessing}. These results demonstrate that retrieval-aware training enables robust Boolean query generation, even when trained on a single corpus.
+
+

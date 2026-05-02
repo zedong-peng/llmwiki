@@ -1,0 +1,328 @@
+% Overview
+We present an overview of the \system{} system and discuss its primary components. 
+First, we describe \system{}'s relational model, the convert operator, and how AI workloads can be interpreted as computing relational views. Then we discuss a short sample program and language features.  Finally, we provide a high-level view of the system's architecture, including walking through a simple program execution.
+
+\subsection{Semantic Analytics and the Relational Model}
+\begin{figure}
+  \centering % breaklines
+  \begin{minted}[xleftmargin=17pt,linenos,escapeinside=||,fontsize={\fontsize{8.5}{7.5}\selectfont}]{python}
+import palimpzest as pz
+
+class Email(|\textcolor{blue}{pz.TextFile}|):
+  """Represents an email, which can subclass a text file"""
+  sender = |\textcolor{blue}{pz.StringField}|(desc="The email address of the sender", required=True)
+  subject = |\textcolor{blue}{pz.StringField}|(desc="The subject of the email", required=True)
+
+# define logical plan
+emails = |\textcolor{blue}{pz.Dataset}|(source="enron-emails", schema=|\textcolor{blue}{Email}|) # invokes a convert operation
+emails = emails.filter("The email is not quoting from a news article or an article ...")
+emails = emails.filter("The email refers to a fraudulent scheme (i.e., \"Raptor\", ...")
+
+# user specified policy
+policy = |\textcolor{blue}{pz.MinimizeCostAtFixedQuality}|(min_quality=0.8)
+
+# execute plan
+results = |\textcolor{blue}{pz.Execute}|(emails, policy=policy)
+    \end{minted}
+  \caption{The AI program written using \system{} for the Legal Discovery workload.}
+  \label{fig:enron-email-program}
+\end{figure}
+% \begin{figure}
+%   \centering % breaklines
+%   \begin{minted}[xleftmargin=17pt,linenos,escapeinside=||,fontsize={\fontsize{8.5}{7.5}\selectfont}]{python}
+% import palimpzest as pz
+    
+% class Email(|\textcolor{blue}{pz.TextFile}|):
+% """Represents an email, which can subclass a text file"""
+%   sender = |\textcolor{blue}{pz.Field}|(desc="The email address of the sender", required=True)
+%   subject = |\textcolor{blue}{pz.Field}|(desc="The subject of the email", required=True)
+%   body = |\textcolor{blue}{pz.Field}|(desc="The content of the email", required=True)
+
+% # simple AI program to count number of vacation emails sent per-employee
+% emails = |\textcolor{blue}{pz.Dataset}|(source="enron-emails", schema=Email)
+% emails = emails.filter("The email is about taking a vacation")
+% countEmails = emails.groupby(fields=["sender"], agg="count")
+
+% # user specified policy
+% policy = |\textcolor{blue}{pz.MinimizeCostAtFixedQuality}(min\_quality=0.5)|
+
+% # execute plan
+% results = |\textcolor{blue}{pz.Execute}|(countEmails, policy=policy)
+%     \end{minted}
+%   \caption{An example of a \system{} program.}
+%   \label{fig:email}
+% \end{figure}
+
+% "Relational Algebra and the Convert Operator; maybe move datasets + schemas paragraph up here?
+\system\ treats its programs primarily as a form of computing {\em relational views}: the user specifies a (set of) input relation(s) (called {\tt Datasets}) and a target output relation to be computed. Each relation has a corresponding {\tt Schema}. The user also describes a series of operations to be applied that transform the inputs into the output.
+
+\autoref{fig:enron-email-program} shows a short example program, which we used for our evaluation in \autoref{sec:evaluation}. In this program, the user wants to identify emails that are not quoting from sources outside of Enron and that reference fraudulent investment vehicles. As a first step, the programmer uses \system{} to create a custom schema for the input dataset of Emails -- on lines 3-6.
+% the user creates a custom schema to describe an Email. 
+In this case, Email is a subclass of {\tt TextFile}, which is defined in \system{}'s core library and inherits directly from the base {\tt Schema} class.  Starting on line 9, the user begins to describe data processing actions, beginning with instantiating an initial {\tt Dataset} that adheres to the {\tt Email} schema. The {\tt source} string ``enron-emails" uniquely identifies a set of files that have been preregistered with \system\ (see \autoref{sec:registration} for more details). The code on line 9 transforms the raw input data objects into the {\tt Email} Schema and stores the results int the {\tt emails} Dataset. On line 10, the program filters {\tt emails} for the subset which are not quoting from news articles. On line 11 the program filters for emails which discuss fraudulent investment entities.
+% resulting relation is grouped by the email sender and the number of emails per-sender is counted.
+
+
+% \st{None of the operations on lines 10-12 are executed yet.} 
+The programmer takes two more steps: on line 14, she specifies a {\tt policy} that describes how the system should choose among multiple possible implementations of the steps described so far. (In this case, the plan with the lowest expected financial cost, subject to a lower bound on quality, is preferred.) Finally, on line 17, the programmer asks \system\ to {\tt Execute()} the program; this entails generating a logical execution plan, generating multiple optimized physical execution plan candidates, choosing one according to the specified policy, and then executing the code and yielding results. Programs written with \system{} are executed lazily, thus no actual data processing occurs until line 17.
+
+The user-provided description strings for the schema fields and filters comprise both a way for the developer to specify correct program output, and a way for the system to find a high-quality implementation. As we will discuss more in \autoref{sec:convert} and \autoref{sec:quality}, these strings are provided to underlying operators which use them when constructing internal prompts. In contrast to prompt engineering, we do not intend for users to expend significant effort tuning these descriptions. (In our own evaluation, we set our field and filter descriptions once and never modified them). Instead, \system{} tunes the prompts automatically for the user.
+
+%\tim{The name of the policy on line 15 is also confusing. Minimizing  the cost at the expense of accuracy is easy: just don't execute anything. No cost, really bad recall. Maybe rename to ``CostConscious'' vs ``AccuracyConscious'' just to indicate it is not about just minimizing one dimension}
+
+Unlike SQL, \system\ is intended mainly to be used as a library in a host language; although the current implementation is in Python, there is no reliance on unique features of the Python language,
+% we have developed the system with Python in mind. However, apart from some syntactic sugar, we do not rely on special Python language features, 
+and porting the system to other languages would be straightforward. Even a host-independent program syntax, akin to SQL, would be possible. However, since we view easy programmatic integration with other data processing elements as a core design goal, we think that a strong hosted-language system is a better design choice.
+
+\autoref{fig:algebra} shows the logical relational operators supported by \system{}.  Some of the operators, such as groupby, aggregation, and limit, are not showcased in \autoref{fig:enron-email-program}. These operators currently follow their standard definitions from the data management literature, but in the future groupby and aggregation could also be implemented using AI-based operations. For example, an AI could be asked to group documents based on sentiment, or to compute the largest dog in a set of images. Line 9 --- which creates the initial {\tt Dataset} --- implies a new operator: the \textbf{Convert} operation. This operator transforms a record of one schema into a record of another schema. In this case, the source data objects have a default schema of {\tt File}, which must be converted to examples of {\tt Email}. This operator is how \system\ implements most of its AI-intensive steps and is worth describing in detail.
+
+\subsection{Convert}
+\label{sec:convert}
+Convert transforms a typed data object into a new object with a specified schema. Specifically, given an input object of Schema A and an output object of Schema B, the convert operation will produce the set of fields in Schema B which do not already exist in Schema A. One benefit of this design is that schemas can be defined incrementally. For example, if a user has defined a base schema \texttt{Animal} with fields such as \texttt{name}, \texttt{kingdom}, and \texttt{description}, they could then define schemas for individual animals such as \texttt{Dog}. The new class would inherit from \texttt{Animal} and only specify fields the user wishes to compute for \texttt{Dogs}. If the convert operation uses an LLM for its physical implementation, the fields of Schema A will be marshaled into a prompt as key-value pairs (along with the user-provided field descriptions) and the LLM will be asked to produce the output field(s) for Schema B.
+
+%\st{The name may suggest it is tailored for a narrow model management task, such as converting an operational schema into a star schema. But we take a very broad view of what the convert operator should be able to do; the name is meant to describe the task of converting one arbitrary type into another.}
+
+A point of emphasis is that {\bf the user does not need to specify how to implement a particular convert operation}.  Instead, it is the system's job to implement and perform the operation. By employing a range of different AI models and generation techniques, \system\ can automatically compute the conversion function for each pair of schemas observed in the user's program. This includes using built-in operators for some base type conversions (e.g. \texttt{File -> TextFile} and \texttt{XLSFile -> Table}). In some cases, users may wish to hard-code convert operations using lambda expressions for guaranteed conversions, but this is not required.
+
+%\srm{One question -- why is convert schema based and not field based?  Shouldn't I be able to describe a new schema that derives from an existing schema with one more new fields derived by AI ops over existing ones?  Perhaps we should mention that this is not currently supported but a natural kind of "syntactic sugar".} \mdr{This is spot on. For the Real Estate Search example we actually had to ``hack" PZ to support this underneath the hood. I've adjusted the language to try to highlight this.}
+
+%\srm{Can one only convert a file to a schema with several fields?  What happens if I want to convert an email to an e.g., slack message?  How would that be handled?} \mdr{I think the language above should now clarify this, and I've added an example of this below. In short, PZ will (1) identify the set of fields in SlackMessage which are not in Email, (2) (if convert uses an LLM) marshal the Email fields into an input prompt, and (3) ask the LLM to produce the output fields.}
+
+%\srm{Mention that some base type conversions are support not via AI ops but built in operators.} \mdr{Added a sentence for this.}
+
+
+Executing a particular convert operator may entail textual information extraction, text summarization, classification, image understanding, or any number of other AI tasks. The correct behavior of a convert operation is in most cases implied only by the user's specification of the input and output {\tt Schemas}. In the case of Figure~\ref{fig:enron-email-program}, the convert operator must extract the {\tt sender} and {\tt subject} fields from a raw data object in order to produce an {\tt Email}.
+
+%Note that the programmer of line 10 may not know the 
+%schema of the input data objects, but only that they should be converted --- if possible --- to objects of 
+%schema {\tt Email}.
+%\tim{Convert is much more related to extraction that conversion of schemas, is it? Converting one schema to another sounds more like a logical operation (e.g., transformating an operational schema into a star schema). What the special thing here is, that it can extract information. I would emphasize that stronger}
+
+Here are a few examples of useful convert tasks, from simple to more complex:
+\begin{itemize}
+  \item The system can convert a {\tt TextFile} into an {\tt Email} by extracting the email's sender and subject (\autoref{fig:enron-email-program}).% \srm{Note that there is a built in operator that can convert any text file into a schema with any number of text fields.} \mdr{Moved mention of built-in operators above example}
+  \item It can convert a {\tt PDFFile} into a {\tt ScientificPaper} by extracting the title, authors, abstract, and citations if the content includes elements of a scientific paper, returning None otherwise. (\autoref{fig:examples}).
+  \item It can convert an {\tt Image} into a {\tt DogBreed} by extracting the breed of any dogs that are present and returning None otherwise. (\autoref{fig:examples}).
+  \item The system can convert an {\tt Email} into a {\tt SlackMessage} by computing a summary of the email's contents. (\autoref{fig:examples}).
+\end{itemize}
+
+%\st{Crucially, {\bf the user does not need to specify how to implement a particular convert operation}. \srm{It's unclear to me how arbitrary type to type conversions are implemented;  does the system just support TextFile -> TextFields and Images -> TextField conversions? Text here makes it sound more magic than it is.} Instead, it is the system's job to implement and perform the operation. By employing a range of different AI models and generation techniques, \system\ can automatically compute the conversion function for each pair of schemas observed in the user's program. (In some cases, users may wish to hard-code convert operations using lambda expressions for guaranteed conversions, but this is not required and --- in our experience --- rarely necessary.)}
+
+In some cases, the user might specify a convert task that the system cannot figure out how to perform, either because the operator is not implemented well, or because the user's conversion request makes no sense. In such cases, the current prototype will always drop records for which the conversion fails and continue processing the input {\tt Dataset}. In the future we intend to support additional behaviors, such as logging warning messages or aborting the program. When converting a Dataset of Schema A to Schema B, the resulting set may contain fewer records than the original (e.g., if some records are dropped); it may contain a one-to-one mapping of records; and it may also contain more records than the original (e.g., if the conversion extracts each author of a scientific paper into a separate record or more than one dog from an image).
+
+We think the convert operator will be especially useful when the input object comprises multiple low-level datatypes, such as a real estate listing that has information in both image and text. Many listings will contain price data in text, but some include price directly embedded inside the images.  Ideally, users should not have to meticulously specify which specific real estate subfield contains the essential information; instead, the system will simply figure it out.  At the moment, implementing this flexibility is future work.
+
+%\mike{The user-implied convert implementation is not exposed directly to the user, and may change from execution to execution. Moreover, it may not even be expressible in a concrete human-understandable transformation language as the input and out schema can be very diverse.  The operator consumes a record in one schema and produces a record in another schema.}
+
+The implementation of the convert operator is intentionally abstracted from the user, as its internal mechanics can vary between executions and may not be representable in a standard transformation language due to the diverse input and output schemas it handles. This operator accepts data in one schema and outputs it in another, adapting dynamically to changing execution conditions.  While our current system often uses LLM inference to implement convert, the user cannot count on it. However, implementation details might be accessible through administrator-style tools.
+% (The \st{fact} \matt{implementation details} may, however, be available via administrator-style tools).  
+
+The convert operator is meant to transform
+data instances --- not models --- but it has similarities to some concepts from the model management literature. It is close to an execution of the
+{\sc ComplexMatch} operator described by Bernstein, followed by an execution of the resulting mapping
+on a particular data record~\cite{bernstein03}.  A single  convert execution is akin
+to writing and running an entire program in the Potter's Wheel language~\cite{hellerstein}. 
+
+%\st{\system\ has a number of basic built-in Schemas to reflect common data types, such as File, TextFile, ImageFile, PDFFile, and so on. In some cases, we use built-in rules to perform convert operations among them.  But most of the time we expect Schemas to reflect domain-specific user concerns and the system must dynamically figure out how to convert from one to another.}
+
+In some cases, the user's program
+may be ambiguous enough that several different convert implementations are arguably correct. This brings us to a core issue when designing \system: how to reason about quality and correctness.
+
+%\tim{If you want to focus on convert rather than extract, you should at least mention one example where the input is more than a single datatype object (image, text file, pdf, etc.). Right now it appears unneccessary complicated to me.}
+
+%\subsection{The Convert Operator and Related Work}
+%\textcolor{brown}{Matt: okay I see now what you were referring to above. I will say that reading this the first time it seems to come a bit out of left field, although I recognize that this is probably a response to the comment(s) re: ``why are you guys making such a big deal out of this convert operator." I feel though that --- where it's placed in the Section --- it disrupts the flow a bit of describing the major (pieces of) / (challenges designing) the system. Two thoughts I'm having are (A) maybe we can condense this and place it in 3.2 right above / below the paragraph that confused me? Possibly with its own un-indented, bold-faced subheading (similar to what we do for each optimization in Section 4)?; or (B) maybe we make this section 3.6 (before or after dataset registration / caching? Of course you can also ignore this feedback as this is just my hot takes.}
+
+
+%Bernstein and Melnik~\cite{bernstein} described a conceptual three step framework for translating instances (that is, records or objects)
+%from one schema to another, which is interesting to quote directly:
+%\begin{enumerate}
+%\item "Copy the source data into a universal metamodel's format"
+%\item "Reshape the data using instance-level rules that mimic the schema transformation rules"
+%\item "Copy the reshaped data into the target system"
+%\end{enumerate}
+
+%This is not so far from the process that \textsf{convert} performs, with the caveat that the
+%"instance-level rules" are not specified by the user and may only exist implicitly in the form of an LLM inference procedure.  Bernstein and Melnik went on to describe weaknesses with this approach, including "It is rather inefficient for data exchange." We 
+%mitigate this inefficiency using methods described in 
+%\autoref{sec:optimizations}.
+
+%The system never
+%asks users to directly provide any prompts and so
+%is not directly comparable to high-level LLM packages
+%like LangChain or DSPy.
+
+
+\subsection{Correctness and Quality}
+\label{sec:quality}
+A significant design challenge for \system\ lies in how to specify correctness and manage quality.
+
+Our design goal is to allow the user to treat data quality like she does performance in a modern RDBMS: It is usually good enough with no effort at all; but in rare cases where the quality is not good enough, improving through extra effort is possible. This philosophy extends to both the specification of correctness goals in the program and the practical achievement of high-quality data outputs at runtime.
+
+\noindent {\bf Correctness Goals:} During specification --- that is, when the user is writing the program --- there is ideally enough information in the source and destination schemas to fully indicate the desired AI steps. But what if the {\tt ScientificPaper} Schema in \autoref{fig:examples} had the field {\tt institution}?  Should the system populate it with the institution of the first author, or the most-frequently-seen institution among the others, or the institution associated with the publisher?  
+
+In most cases we expect a description of the goal, via field names and a simple text description, will be enough. However, if needed, our prototype provides users two primary levers for improving program correctness. First, the user can modify their logical plan's field and filter descriptions to be more precise. These descriptions are used to construct prompts for the convert and filter operations (either for direct invocation of an LLM or to help synthesize code), thus improving these descriptions can improve program correctness. Second, the user can rewrite their logical plan to have more concretely defined operations. For example, rather than writing our logical plan in \autoref{fig:enron-email-program} with a single filter to identify fraud-related emails, we broke the filter into two which were more well-defined.
+
+We are working on support for the user to provide validation examples in the program text.
+
+\noindent {\bf Output Quality:} A related concern is improving the system's ability to deliver high-quality outputs once the user's specification is clear. There are two subproblems. The first subproblem lies in accurately assessing the quality of a novel plan. The second subproblem lies in finding approaches that maximize assessed data quality.
+%, such as rewriting the prompt or providing multi-shot examples. 
+
+In our prototype, \system{} assesses quality of a novel plan by 
+using a ``champion model" approach, in which a powerful model (e.g., GPT-4) is used as a stand-in for ground truth against which all other methods' outputs are evaluated. In the near future, we will allow the user to provide labeled examples to compare against a plan's output.
+
+Improving output quality permits a range of approaches.  Currently we rely entirely on different optimization approaches, such as model selection and code synthesis, to obtain high-quality output.  Once again, allowing the user to provide labeled examples will let us create a few-shot LLM prompt, or in some cases, employ reinforcement learning from human feedback \cite{ouyang2022training, rafailov2023direct}) methods.  We will also explore DSPy-style prompt modification.
+
+%As we will discuss in \autoref{sec:planning} and \autoref{sec:choose-opt}, the system's cost optimization framework will score the output quality of each model at each plan operator to better determine where it can swap GPT-4 for faster and cheaper models. In brief, the \system{} prototype does not provide guarantees on correctness, but rather executes user programs on a best-effort basis. To provide guarantees on correctness --- and to identify optimizations which improve output data quality --- we plan on extending \system{} to make use of user-provided exemplars. These exemplars can be provided prior to plan selection (in the form of input-output pairs) or at runtime (in the form of human feedback). In each case, the system can use these data points to estimate its output quality, to compute error bounds, and to improve its output generations (for example, by using .} 
+
+
+%\st{The first subproblem lies in finding approaches that maximize data quality, such as rewriting the prompt or providing multi-shot examples. To achieve this, we will rely on a mixture of strictly internal approaches (perhaps using DSPy-like prompt optimization methods \cite{dspy}) and on allowing a "quality administrator" to provide out-of-band hints to the system, much like a traditional database administrator can create indexes that accelerate a user's relational query.  In the limit, this approaches the challenge of creating a machine learning component from scratch.  This will be much more challenging than improving traditional runtime performance, and will require engineers to become somewhat comfortable with soft quality guarantees.  However, we would argue that years of experience with search and increased experience with neural models have already trained engineers to build systems that are robust to small quality issues.  Moreover, the out-of-the-box experience with neural models keeps improving: there is an undeniable quality technology curve for \system\ to ride.} \srm{This whole paragraph is hand-wavey;  why not just say "we optionally allow the user to provide a set of output examples for a given pipeline, which we will use to do xxx..."}
+
+%\st{The second subproblem lies in accurately calibrating the quality of a novel plan.  Many optimizations involve trade-offs against output quality, so measuring the possible impact is crucial.  We can choose among many methods, ranging from the unsupervised, to the semi-supervised, to the fully-supervised. On the unsupervised side of the spectrum, we could simply choose an expensive "champion" model and treat its output as ground truth; \system{} can sample a candidate optimization's output and check to see if it matches the champion's. With a very small amount of coding effort by the quality administrator, we could also use distant supervision methods for detecting errors~\cite{Ratner_2017}.  We expect full human supervision to only be available for the most important subtasks, but if it is, we have many options, such as fine-tuning task-specific models via reinforcement learning from human feedback (RLHF) \cite{ouyang2022training,rafailov2023direct}. Someday, it may be possible to extend \system\ to be more fully integrated with end-user applications of the data it produces, and thereby marshal direct quality labels from end-user activity.}
+%\srm{Again, why not just allow the user to provide some examples and use those to estimate the quality of a plan?}
+
+%\mdr{I tried compressing these two paragraphs while also incorporating Sam's feedback. I may have cut some ideas worth keeping, so please feel free to edit at will.}
+
+%We want it to be easy for users to specify complicated tasks without getting bogged down in providing training data or 
+
+%The user can provide an implementation if she likes, or can add multi-shot hints to the program to help the system choose the correct implementation; but neither is required.
+
+
+
+%Most of the power of writing \system\ programs comes from the ability to \st{chain} \matt{interleave} multiple {\bf convert} and conventional relational operations. The ideal developer experience is one where these sequences can be specified easily and quickly, without getting bogged down by manually optimizing performance and quality at every step.
+
+%Thanks to years of experience with optimizing compilers and databases, developers are accustomed to deferring performance concerns until later. For most applications, SQL is fast enough on the first try; if not, the developer can always talk to a database administrator later and ask for an index to be added.
+
+%\system\ is designed with a similar philosophy around data quality. The developer should specify a program (using logical operators and expressive schemas), and defer quality concerns until later. We have found
+%that for most applications so far, the quality is good enough on the first try. For application where more quality is needed, in the future it will be possible to provide more few-shot examples, either in the program text itself or as part of an out-of-band "quality administrator" role. We have designed the system to permit these additional examples, but we have simply not found it necessary to implement yet.
+
+% The system's job is to find an efficient way to implement the user's specified steps.
+%Note that a \system{} {\tt Dataset} does not need to be a relational table, but it can be any data object 
+%(e.g., Image, binary document, natural language text...) with a {\tt Schema} expressing whichever 
+%attributes are of interest for the purpose of the program.
+
+
+\begin{figure*}[t!]
+    \begin{subfigure}[t]{0.55\textwidth}
+        \begin{minted}[escapeinside=||,fontsize={\fontsize{8.5}{7.5}\selectfont}]{python}
+import palimpzest as pz
+
+class ScientificPaper(|\textcolor{blue}{pz.PDFFile}|):
+  """Represents a scientific research paper"""
+  title = |\textcolor{blue}{pz.StringField}|(desc="Title of the paper")
+  authors = |\textcolor{blue}{pz.ListField}|(desc="Author names", ...)
+  abstract = |\textcolor{blue}{pz.StringField}|(desc="Paper abstract")
+  citation = |\textcolor{blue}{pz.StringField}|(desc="Paper citation")
+
+# load pdfs, convert, and filter
+pdfs = pz.Dataset(source="papers")
+papers = pdfs.convert(schema=ScientificPaper)
+
+###############################################
+class DogBreed(|\textcolor{blue}{pz.ImageFile}|):
+  breed = |\textcolor{blue}{pz.StringField}|(desc="The dog's breed")
+
+# load images, convert, and filter
+images = pz.Dataset(source="my-dog-pics")
+breeds = images.convert(schema=DogBreed)
+
+###############################################
+class SlackMessage(|\textcolor{blue}{pz.Schema}|):
+  short_msg = |\textcolor{blue}{pz.StringField}|(desc=
+    "A short summary message to be sent in Slack."
+  )
+
+# load emails, convert, and filter
+emails = pz.Dataset(source="emails")
+msgs = emails.convert(schema=SlackMessage)
+        \end{minted}
+        \caption{Example showing three AI programs. In the first, a dataset of PDF files is converted into {\tt ScientificPaper}. In the second, an image dataset is converted into {\tt DogBreeds} if the image contains a dog. In the third, emails are summarized into short Slack messages.}
+        \label{fig:examples}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.4\textwidth}
+        \vspace{0pt}
+        \renewcommand{\arraystretch}{1.3}
+        \begin{tabular}{|c|l|}
+        \hline
+        {\bf operator } & {\bf description } \\
+        \hline
+        Project & $\pi$(rel., cols) \\
+        \hline
+        Select & $\sigma$(rel., predicate) \\
+        \hline
+        Convert & $\chi$(rel., schema\_a, schema\_b) \\
+        \hline
+        Group By & $\Gamma$(rel., group\_cond., agg.) \\
+        \hline
+        Limit & $L$(rel., limit) \\
+        \hline
+        Agg. & $\alpha$(rel., agg\_func) \\
+        \hline
+        \end{tabular}
+        \caption{\system{}'s full relational algebra. We extend the traditional relational algebra to include operators such as groupby which produce multiple relations.}
+        \label{fig:algebra}
+    \end{subfigure}
+    \caption{\system{} code examples and a summary of its full relational algebra.}
+\end{figure*}
+
+
+\subsection{Cost Optimization Framework}
+
+\label{sec:planning}
+
+At its core, \system{} allows users to define and execute logical \emph{plans}, which are sequences of relational operations on datasets. By design, the declarative nature of these plans leaves many details of \textit{how} to execute them underspecified. The key role of \system's cost optimizer is to identify physical implementations of these plans which are (near) optimal and align with user-specified preferences. The system diagram showing the path from program implementation, to generating and selecting the most cost-effective plan, and finally to executing that plan is shown in \autoref{fig:intro}. We reference steps in the diagram by number (e.g. step \circlednum{1}).  The details of this optimization process are given in Section~\ref{sec:optimizations}, but we briefly summarize the process here.
+
+Developers first write declarative programs, such as the one shown in \autoref{fig:enron-email-program}. In this program, the user has specified a chain of Datasets and processing steps, which culminate in the final {\tt emails} set. Upon calling {\tt Execute()} on line 17, that chain is sent to the {\bf Program Optimizer} for compilation into an initial logical plan (step \circlednum{1}). The set of logical operators is shown in \autoref{fig:algebra}. Given this initial logical plan, \system{} performs logical optimization to create a set of new, functionally equivalent plans which may have different cost, runtime, and quality trade-offs (step \circlednum{2}). Many of these optimizations reuse traditional ideas from query optimization in databases, such as predicate pushdown, projection pushdown, and filter reordering. However, implementing these optimizations in \system{} presents new challenges. For example, effectively implementing projection pushdown may require determining the best way to split a single convert operation into multiple operations. %The logical planner these trade-offs and outputs the full set of logical plans that it computes.  \mike{Is that last sentence actually an accurate claim about the system today? Is there any weighing of tradeoffs involved?} \matt{Not at this stage no, it would simply enumerate all possible logical plans.}
+% \mjf{Q: is there some principle of goodness that Convert aims for, like maximizing the number of inputs that don't get "silently" dropped?} \mdr{I think the answer Mike is looking for is that --- in our current prototype --- we try to maximize the number of outputs which match GPT-4's output for a given convert. I think this has now been made more clear by revisions above.}
+
+The resulting logical plans are then used to generate an even larger set of candidate physical plans (step \circlednum{3}). This is akin to the physical optimization stage in relational databases. At this stage, the system hypothesizes a large number of concrete plans that are consistent with the input logical plans, but which make a range of detailed decisions specific to AI systems. These include decisions around model choice, k-v cache management, prompt generation, token reduction, and other areas. One LLM-specific optimization we implement is to combine multiple subtasks into a single LLM query (such as asking for both the {\tt title} and {\tt authors} of a scientific paper) in order to avoid unnecessary token duplication across tasks. This is similar to FrugalGPT's {\em query concatenation} method~\cite{chen2023frugalgpt}, but works at the compiled subtask level.
+
+Note that much of the flexibility of the \system\ optimization process comes from the wide number of possible implementations for even one particular convert operation. For example, converting a {\tt TextFile} to an {\tt Email} could be done by formulating an LLM task or by synthesizing appropriate traditional code. Converting a {\tt PDFFile} to a {\tt ScientificPaper} could be done by using a set of LLM tasks or perhaps by training a conventional local NLP model. LLM tasks can be modified by choosing a different model, by changing the prompt, by combining multiple tasks into a single prompt, or in some cases even by first fine-tuning a model. Each of these options presents different trade-offs. Of course, in some cases users may wish to explicitly state how to perform some operations, in which case they are free to provide UDFs --- but this is not required.
+
+At this point, the Program Optimizer has created a potentially large set of programs that are consistent with the user's input program and which operate at different points in the optimization space of runtime, financial cost, and quality. However, \system{} still needs to compute estimates of these metrics for each physical plan (steps \circlednum{4} and \circlednum{5}). To accomplish this, the {\bf Plan Executor} executes a small set of {\bf sentinel plans} to gather sample data on plan execution statistics. The quality of plan outputs are then evaluated against the output from a ``champion" plan as described in \autoref{sec:quality}, at the granularity of an individual operator. (We currently test against the plan which uses GPT-4 for every operation). This way, the system can score how well each model performs on each operation in a given plan. We provide more details on the specifics of this quality estimation procedure in \autoref{sec:choose-opt}. The Program Optimizer then chooses the best physical plan, according to per-plan estimates and the user's preference (step \circlednum{6}). Finally, this choice is sent back to the Plan Executor, which executes the plan and spends computation and financial resources, possibly drawing on many external model and data service providers (step \circlednum{7}).
+
+%\textcolor{brown}{Matt: it may make sense to simply pull the description of the Plan Scoring module up to this section, although maybe it's better the way it is. Just a thought to consider.}
+
+% \begin{figure}
+%   \centering
+%   \includegraphics[width=0.75\textwidth]{imgs/pz-figs-v7.png}
+%   \caption{The \system{} optimization and execution pipeline. With a user program,  \system{} processes a user program with the following steps:  \textcircled{1}  user plan compilation, \textcircled{2} logical plan generation, \textcircled{3} physical plan generation, \textcircled{4}  sample plan profiling, \textcircled{5} performance stats
+% gathering, \textcircled{6} suggesting optimal
+% plan and \textcircled{7} returning 
+% relational views to the user.
+% }
+%   \label{fig:arch}
+% \end{figure}
+
+% \begin{figure}
+%   \centering
+%   \includegraphics[width=0.85\textwidth]{imgs/pz-plan-opt.png}
+%   \caption{The \system{} plan optimization. }
+%   \label{fig:query_opt}
+% \end{figure}
+
+
+%we discuss how \system{} estimates the cost and quality of each plan, and in \autoref{sec:program-execution} we discuss how it chooses a plan from this space and executes it. \lei{We probably should move the above paragraph up to for example Sec. 3.1; and a figure that demonstrate this system architecture should be helpful.}
+
+
+
+
+\subsection{Dataset Registration and Result Caching}
+\label{sec:registration}
+Users must preregister named base-level source \texttt{Datasets} --- like {\tt enron-emails} in \autoref{fig:enron-email-program} --- before they can be consumed by \system{} operators at runtime. Giving every dataset an unambiguous name is meant to eventually allow an AI program to be run in different locations on the exact same set and thereby yield identical results. (However, 
+% as we describe in \autoref{sec:system} below,
+the current prototype supports only local names. We will support a global dataset naming service in the future.)
+
+The \system{} standard library implements a number of common datasource types already, including loading data from a single file or a single directory. In the future we will support relational databases, AWS S3, and other data sources. Users can also easily add custom datasources for their specific use cases. 
+
+Given the low-throughput associated with invoking LLM models and services, \system{} makes a best-effort attempt to avoid sending requests to an LLM unless it is absolutely necessary. As a result, caching is a key component of the \system{} system.  The system currently  caches intermediate results at the granularity of a \texttt{Dataset}, but in the future we may modify this to cache individual records.  Thanks to unambiguous base-level \texttt{Dataset} names, \system\ can detect when two different programs share computation, and thus when a cached intermediate result from program A can be re-used by program B.
+
+A caveat with caching is that different physical plans can yield results of different quality, so two runs of the same program may yield different results. In the future, the caching layer will record quality statistics with each cached intermediate result, so the system can invalidate previously cached results when user quality preferences change.
+
+
+
+
+
+
+
+

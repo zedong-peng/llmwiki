@@ -1,0 +1,35 @@
+
+\section{Preliminary: Test-Time Training}
+\label{sec:preliminary}
+
+This section introduces \emph{Test-Time Training (TTT)}, a paradigm that enables models to adapt dynamically to new data at inference time~\citep{sun2020ttt, sun2024tttLayers, zhang2025tttdr}. We will first elaborate on the TTT mechanism and then discuss the key desiderata for successfully applying TTT to LLMs, which directly motivates our framework.
+
+\textbf{The TTT mechanism.} At its core, the TTT mechanism leverages \emph{fast weights} \citep{ba2016fastweights,schlag2021linear}, denoted by $\mathbf{W}$. These weights constitute a small neural network $f_\mathbf{W}(\cdot):\mathbb{R}^d\to\mathbb{R}^d$, which is rapidly updated at test time. Unlike standard model weights that are frozen after training, the fast weights $\mathbf{W}$ act as a dynamic memory, continuously storing and retrieving contextual information from the sequence. 
+
+To process an input sequence $\mathbf{x} = [x_1, x_2, \dots, x_N]$, each token $x_i\in\mathbb{R}^d$ is typically projected to derive the necessary inputs for the TTT operations, such as a \emph{query} ($q_i$), a \emph{key} ($k_i$), and a \emph{value} ($v_i$). The TTT mechanism then operates through two core, sequential operations:
+
+\begin{enumerate}
+% \setlength\itemsep{1pt}
+    \item \textbf{Update Operation:} The fast weights $\mathbf{W}$ are updated to associate a key $k_i$ with its corresponding value $v_i$. This is framed as a single optimization step that minimizes a loss function $\mathcal{L}(\cdot, \cdot)$ (e.g., Mean Squared Error), which measures the discrepancy in this association. Intuitively, this step encodes the information from the $(k_i,v_i)$ pair into the neural memory $f_\mathbf{W}$. Given a learning rate $\eta$, the update rule is:
+
+    \begin{equation*}
+        \mathbf{W}_i \leftarrow \mathbf{W}_{i-1} - \eta \nabla_{\mathbf{W}} \mathcal{L}\big(f_{\mathbf{W}_{i-1}}(k_i), v_i\big).
+    \end{equation*}
+    \item \textbf{Apply Operation:} The newly updated network $f_\mathbf{W}$, now parameterized by $\mathbf{W}_i$, is used to process a query $q_i$, i.e., $o_i = f_{\mathbf{W}_i}(q_i)$. This output $o_i$ is enriched with the contextual information from preceding key-value pairs, as that information is now encoded in $\mathbf{W}_i$.
+\end{enumerate}
+
+While this two-step formulation describes the high-level mechanism of TTT, the specific implementation details can vary significantly. Indeed, numerous recent studies have investigated a rich design space, exploring different loss functions, more sophisticated optimizers, and alternative neural memory parameterizations to improve performance and efficiency~\citep{wang2025test, behrouz2024titans, behrouz2025s, karami2025lattice}. These design choices critically influence how effectively the fast weights can store, retrieve, and forget sequential information, positioning the TTT mechanism for different data modalities and tasks.
+
+\textbf{Desiderata for TTT within the LLM ecosystem.}
+Despite its promise as a paradigm for dynamic adaptation, unleashing TTT's potential within the LLM ecosystem requires addressing several critical challenges. For TTT to be a viable and effective component, it must satisfy the following desiderata:
+% \vspace{-5pt}
+\begin{itemize}
+% \setlength\itemsep{2pt}
+    \item \textbf{Architectural Compatibility}. We call an architecture compatible with LLM if it can warm start from a pretrained checkpoint.
+    % However, a practical TTT framework must be seamlessly integrable with the LLM architecture.
+    However, current TTT mechanisms are often developed as standalone recurrent layers designed to replace attention, rather than complement it ~\citep{sun2020ttt,wang2021tent,zhang2025tttdr,sun2024tttLayers,hu2025ttl}. This necessitates costly pretraining from scratch, creating a significant barrier to adoption for the massive, billion-parameter models that dominate the LLM ecosystem. Therefore, a key desideratum is a ``drop-in" design that requires no fundamental architectural modifications.
+    
+    \item \textbf{Computational Efficiency}. The mechanism must be efficient on modern parallel accelerators. The canonical per-token update rule of TTT is inherently sequential and, as a result, severely bottlenecks the parallel processing capabilities of GPUs and TPUs~\citep{ sun2020ttt,sun2024tttLayers,behrouz2024titans}. This operational inefficiency makes fine-grained updates impractical for high-throughput language modeling. Consequently, an efficient TTT implementation must move beyond per-token schemes and ensure scalability, for instance by adopting chunk-wise update mechanisms~\citep{li2025tnt,sun2023retentive,behrouz2024titans,irie2025fastweightprogramminglinear}.
+    
+    \item \textbf{Tailored Learning Objective for Language Modeling}. The predominant self-supervised objective in TTT is reconstruction, where the model learns to associate ($k_i$,$v_i$) pairs, and $v_i$ is typically derived from the input token $x_i$ itself \citep{sun2020ttt, sun2024tttLayers, zhang2025tttdr,wang2021tent,hu2025ttl}. While this generic objective enables the TTT mechanism to store information, its direct relevance to the ultimate goal of language modeling—predicting the next token—is not guaranteed. The choice of the target value $v$ remains a critical, yet underexplored, design decision that may be suboptimal for capturing the complex causal dependencies required for LLMs.
+\end{itemize}

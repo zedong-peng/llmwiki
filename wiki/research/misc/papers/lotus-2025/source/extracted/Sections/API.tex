@@ -1,0 +1,76 @@
+
+\section{The \sys Systems}
+\label{subsec:llm_transformations}
+In this section we describe the \sys system, which implements the semantic operator model as an extension of Pandas~\cite{pandas}. We chose a Pandas-like API in our initial system implementation to make it easy for users to integrate \sys with popular AI libraries in Python. However, semantic operators could also be added to a variety of other data processing APIs and query languages, such as SQL. 
+\sys leverages vLLM~\cite{kwon_efficient_2023} to perform efficient batched inference, and uses FAISS~\cite{douze_faiss_2024, johnson_billion-scale_2017} to support efficient vector search for \sys' semantic search, similarity join and cluster operations, with indices stored and maintained locally on disk, by default.
+
+
+
+
+\subsection{Datatypes} 
+
+\sys' data model consists of tables with structured and unstructured fields (e.g., text or images). \sys' semantic operators can take both of these data-types as parameters to a langex.
+Additionally, \sys supports \emph{semantic indices} over natural-language text columns to provide optimized query processing. These indices leverage semantic embeddings over each document in the column and capture semantic similarity using embedding distance metrics. Semantic indices can be created off-line with \verb|sem_index| and a specified retriever model, and then loaded from disk using \verb|load_sem_index|. 
+
+
+
+\subsection{Semantic Operators in \sys}
+We now overview the semantic operators supported in the \sys API, which includes the core set of operators described in Section~\ref{sec:operators}, as well as several additional variants provided for convenience.
+Each operator takes optional parameters to specify a target accuracy and error probability, which the optimizer will use to transparently perform optimizations.
+
+\heading{Sem\_filter, Sem\_join, \& Sem\_sim\_join.} The \sys API supports \verb|sem_filter| and \verb|sem_join|, both of which take a langex predicate, as described in Section~\ref{sec:operators}. In addition, \sys provides a join variant, \verb|sem_sim_join|, where tuples are matched according to their \emph{semantic similarity}, rather than an arbitrary natural-language predicate. Akin to an equi-join in standard relational algebra, the semantic similarity join is a specialized semantic join, which indicates additional optimization opportunities to the query engine by leveraging vector similarity search. Figure~\ref{fig:example_llmjoin} provides an example of the \verb|sem_join| compared to the \verb|sem_sim_join|, where the user specifies the left and right table join keys, and a parameter $K$.  
+The operator performs a left join such that for each row in the left table, the output table will contain $K$ matching rows from the right table with the highest semantically similarity scores. 
+\begin{figure}[h]
+    \vspace{-.2cm}
+    \centering
+    \begin{lstlisting}[language=Python]
+papers_df.sem_join(papers_df, "The paper {abstract:left} contradicts the claims in {abstract:right}.")
+papers_df.sem_sim_join(papers_df, left_on="abstract", right_on="abstract",  K=10)
+\end{lstlisting}
+    \vspace{-.5cm}
+    \caption{\small Example usage of sem\_join and sem\_sim\_join.}
+    \label{fig:example_llmjoin}
+    \vspace{-.5cm}
+\end{figure}
+
+
+
+
+
+\heading{Sem\_topk \& Sem\_search}. \sys supports a semantic top-k, which takes the langex ranking criteria, as described in Section~\ref{sec:operators}. Programmers can optionally specify a group-by parameter to indicate a subset of columns to group over during ranking, as shown in Figure~\ref{fig:example_semtopk_groupby}. The groupings are defined using standard equality matches over the group-by columns. Additionally, as the figure shows, \sys also provides a top-k variant, \verb|sem_search|, which assumes a semantic similarity-based ranking criteria relative to a natural language query. \sys also exposes advanced relevance-based re-ranking functionality for search, allowing users to specify the \verb|n_rerank| parameter during the semantic search. The semantic search in this case will first find the top-$K$ most relevant documents and then re-rank the top-$K$ found documents to return the top \verb|n_rerank|.
+
+\begin{figure}[h]
+    \vspace{-.2cm}
+    \centering
+    \begin{lstlisting}[language=Python]
+papers_df.sem_topk("the {abstract} makes the most outrageous claim", K=10, group_by=[arxiv_domain])
+papers_df.sem_search(col="abstract", query="vector databases", K=10)
+\end{lstlisting}
+    \vspace{-.5cm}
+    \caption{\small Example usage of sem\_topk and sem\_search.}
+    \label{fig:example_semtopk_groupby}
+    \vspace{-.5cm}
+\end{figure}
+
+
+
+
+
+\heading{Sem\_agg} performs an aggregation over the input relation, with a langex signature that provides a commutative and associative aggregation function, as shown by Figure~\ref{fig:example_code}. Similar to \verb|sem_topk|, \sys allows users to specify a group-by parameter. 
+
+
+
+
+\heading{Sem\_group\_by} creates groups over the input dataframe according to the langex grouping criteria and target number of groups. By default, the operator discovers suitable group labels, but the user can also optionally specify target labels. This operator is useful both for unsupervised discovery of semantic groups, and for semantic classification tasks.
+
+
+
+
+
+
+
+\heading{Sem\_map \& Sem\_extract} both perform a natural language projection over an existing column. While \verb|sem_map| projects to an arbitrary text attribute, \verb|sem_extract| projects each tuple to a list of sub-strings from the source text. This is useful for applications, such as entity extraction, where finding snippets or verified quotes may be preferable to synthesized answers.
+
+
+
+

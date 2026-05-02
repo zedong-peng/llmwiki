@@ -1,0 +1,48 @@
+\begin{table*}[t!]
+    \small
+    \resizebox{\textwidth}{!}{\begin{tabular}{ l | l | l | c | c | c | c  c | c c }
+        \toprule
+         \multicolumn{1}{l}{\textbf{Split} ($\rightarrow$)} &
+         \multicolumn{3}{c}{} & 
+         \multicolumn{1}{c}{\textbf{Train}}    &
+         \multicolumn{1}{c}{\textbf{Dev}}    &
+         \multicolumn{2}{c}{\textbf{Test}}   &
+         \multicolumn{2}{c}{\textbf{Avg.~\#Words}} \\
+         \cmidrule(lr){5-5}
+         \cmidrule(lr){6-6}
+         \cmidrule(lr){7-8}
+         \cmidrule(lr){9-10}
+           \textbf{Task ($\downarrow$)} &\textbf{Domain ($\downarrow$)} & \textbf{Dataset ($\downarrow$)} & \textbf{\#MCR} & \textbf{\#Pairs} & \textbf{\#Query} & \textbf{\#Query} & \textbf{\#Corpus$\clubsuit$}& \textbf{Query} & \textbf{Document} \\
+         \midrule
+    Commonsense &  General & $\alpha$NLI \citep{bhagavatula2019abductive} &  2 & 169654 & 0 ($\spadesuit$) & 1532 &  241347 & 19.35 & 8.30 \\ 
+    Commonsense &  General & HellaSwag \citep{zellers2019hellaswag} & 2 & 39905 & 0 ($\spadesuit$) & 10042 & 199162 & 40.12 & 24.71  \\ 
+    Commonsense & Physical & PIQA \citep{bisk2020piqa} & 2  & 16113 & 0 ($\spadesuit$)  &1838 & 35542 & 7.08 & 18.90\\
+    Commonsense & Social & SIQA \citep{sap2019social} &  3 & 33410 & 0 ($\spadesuit$) & 1954 &  71276 & 22.28  & 4.39  \\
+    Commonsense & Multiple & Quail \citep{rogers2020getting}  & 4 & 10246 & 0 ($\dagger$) & 2720 & 32787 & 345.32 & 4.98 \\
+    Commonsense & Scientific & ARC-C \citep{clark2018think}  & 4 & 1119 &  299 & 1172 & 9350 & 22.65 & 5.29\\
+    Commonsense & General & WinoGrande \citep{sakaguchi2021winogrande}  &  2 & 40398 & 0 ($\spadesuit$)  & 1267  & 5095 & 20.11& 1.22 \\
+    Commonsense & General & c-STS \citep{deshpande2023csts}  & 2 &       &   &     & ---$\bigstar$ & &    \\
+    \midrule[0.05pt] \midrule[0.05pt]   
+   
+    Temporal & General & TempReason \citep{tan2023towards}  & ---  &  &  &    & &  &    \\
+    Temporal & General & \quad - TR1  & ---  & 400000 & 4000 & 4000 & 12504 & 11.56 & 2.00   \\
+    Temporal & General & \quad - TR2  & ---  & 16017 & 5521 & 5397 & 15787 & \hspace{0.3em}10.47$\ddagger$ &2.91\\ 
+    Temporal & General & \quad - TR3 & ---  & 13014 &  4437 & 4426 & 15664 & \hspace{0.3em}12.20$\ddagger$ &  2.91  \\ \midrule
+    Spatial & General & SpartQA \citep{mirzaee2021spartqa}  &  3 & 22749 & 3579 & 3594 & 1592 & 125.67 & 10.09 \\
+    \midrule
+    Numerical & Math  & + MATH \citep{hendrycks2021measuring} & ---  & 7500 & 0 &  + 5000 & + 5000 & 31.65 & 84.83 \\
+    Numerical & Math & + GSM8K \citep{cobbe2021training}  &  --- & 7473  & 0 & + 1319 & +1319 & 47.25 & 52.78\\ 
+    Numerical & Math & + MetaMathQA \citep{yu2023metamath} $\star$  &  --- &---&---  &  ---  & + 383057 & --- &  102.39   \\ 
+    Numerical & Math & = math-pooled  &  --- &14973 & 0 & = 6319& = 389376     & 34.91 & 101.99 \\ 
+    \midrule
+    Symbolic  & Code & + HumanevalPack \citep{muennighoff2023octopack}    &  --- & 0  &  0 & + 984 & + 984 & --- & --- \\ 
+    Symbolic  & Code & + MBPP \citep{austin2021program}   &  --- &  0 &  0 & + 500  & + 500 & --- & --- \\ 
+    Symbolic  & Code & + CodeSearchNet \citep{husain2019codesearchnet} $\star$  &  --- &  --- &  --- & ---  & + 200000 $\star$& --- & --- \\ 
+    Symbolic  & Code & + TinyCode $\star$  &  --- &  --- & --- & ---  & + 100000 $\star$ & --- & --- \\ 
+    Symbolic  & Code & = Code-pooled    &  --- &  0 & 0 & = 1484  & = 301484 & --- & --- \\ 
+    \bottomrule
+    \end{tabular}}
+    \vspace{-2mm} 
+    \caption{\textbf{Statistics of datasets} of RAR-b. $\spadesuit$: We use the original dev set as the test set, and add the original test set candidates to the corpus if available, as the original test set labels of these datasets are not designed to be publicly available. $\dagger$: We concatenate the validation and "challenge" set as the test set, leaving no dev set. $\clubsuit$: We pool the unique set of candidates across all splits as the corpus where available, i.e., corpus is shared across train, dev, and test set. $\bigstar$: c-STS is not suitable for full-dataset retrieval setting, which is because of the effect of sparse annotation problem if doing so. $\ddagger$: For TR2 and TR3, we construct Pure, Fact, and Context Setting, where the average query lengths are \{10.47, 145.14, 1901.19\}, \{12.20, 157.07, 2132.85\}. Notably, most open-source models are not able to process the context setting at once without loss of information. $\star$: The original MetaMathQA was actually a training set generated from the training set of MATH and GSM8K, but we only use its unique answer set as the corpus, so we do not include non-used statistics here. The same goes to CodeSearchNet and TinyCode in code retrieval, where we respectively sample 200k and 100K to enlarge the code corpus.}
+    \label{tab:dataset_stats}
+\end{table*}

@@ -1,0 +1,19 @@
+\begin{Verbatim}[commandchars=\\\{\},codes={\catcode`\$=3\catcode`\^=7\catcode`\_=8\relax}]
+\PYG{k+kn}{import} \PYG{n+nn}{palimpzest} \PYG{k}{as} \PYG{n+nn}{pz}
+
+\PYG{k}{class} \PYG{n+nc}{Email}\PYG{p}{(}\PYG{esc}{\textcolor{blue}{pz.TextFile}}\PYG{p}{)}\PYG{p}{:}
+  \PYG{l+s+sd}{\PYGZdq{}\PYGZdq{}\PYGZdq{}Represents an email, which can subclass a text file\PYGZdq{}\PYGZdq{}\PYGZdq{}}
+  \PYG{n}{sender} \PYG{o}{=} \PYG{esc}{\textcolor{blue}{pz.StringField}}\PYG{p}{(}\PYG{n}{desc}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{The email address of the sender}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{,} \PYG{n}{required}\PYG{o}{=}\PYG{k+kc}{True}\PYG{p}{)}
+  \PYG{n}{subject} \PYG{o}{=} \PYG{esc}{\textcolor{blue}{pz.StringField}}\PYG{p}{(}\PYG{n}{desc}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{The subject of the email}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{,} \PYG{n}{required}\PYG{o}{=}\PYG{k+kc}{True}\PYG{p}{)}
+
+\PYG{c+c1}{\PYGZsh{} define logical plan}
+\PYG{n}{emails} \PYG{o}{=} \PYG{esc}{\textcolor{blue}{pz.Dataset}}\PYG{p}{(}\PYG{n}{source}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{enron\PYGZhy{}emails}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{,} \PYG{n}{schema}\PYG{o}{=}\PYG{esc}{\textcolor{blue}{Email}}\PYG{p}{)} \PYG{c+c1}{\PYGZsh{} invokes a convert operation}
+\PYG{n}{emails} \PYG{o}{=} \PYG{n}{emails}\PYG{o}{.}\PYG{n}{filter}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{The email is not quoting from a news article or an article ...}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+\PYG{n}{emails} \PYG{o}{=} \PYG{n}{emails}\PYG{o}{.}\PYG{n}{filter}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{The email refers to a fraudulent scheme (i.e., }\PYG{l+s+se}{\PYGZbs{}\PYGZdq{}}\PYG{l+s+s2}{Raptor}\PYG{l+s+se}{\PYGZbs{}\PYGZdq{}}\PYG{l+s+s2}{, ...}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+
+\PYG{c+c1}{\PYGZsh{} user specified policy}
+\PYG{n}{policy} \PYG{o}{=} \PYG{esc}{\textcolor{blue}{pz.MinimizeCostAtFixedQuality}}\PYG{p}{(}\PYG{n}{min\PYGZus{}quality}\PYG{o}{=}\PYG{l+m+mf}{0.8}\PYG{p}{)}
+
+\PYG{c+c1}{\PYGZsh{} execute plan}
+\PYG{n}{results} \PYG{o}{=} \PYG{esc}{\textcolor{blue}{pz.Execute}}\PYG{p}{(}\PYG{n}{emails}\PYG{p}{,} \PYG{n}{policy}\PYG{o}{=}\PYG{n}{policy}\PYG{p}{)}
+\end{Verbatim}

@@ -1,0 +1,244 @@
+\section{TEMPR: Retain and Recall}
+\label{sec:tempr}
+
+As described earlier, TEMPR (Temporal Entity Memory Priming Retrieval) implements \our's retain and recall operations. It is responsible for turning raw conversational transcripts into a structured, temporal, entity-aware memory graph, and for retrieving variable amounts of relevant information for downstream reasoning. 
+%In contrast to traditional search systems optimized for human users with fixed top-$k$ ranking, TEMPR is designed specifically for AI agents by exposing an agent-optimized interface, operating over the four networks introduced in Section~\ref{sec:hindsight-overview}, and combining multiple retrieval strategies into a unified pipeline that respects LLM context budgets.
+%
+We first describe how TEMPR \emph{retains} information by organizing memories, extracting narrative facts, and constructing an entity-aware graph. We then describe how it \emph{recalls} information using a four-way parallel retrieval architecture with fusion and neural re-ranking. The neural components used in this pipeline, including the embedding model for semantic retrieval, the cross encoder reranker, and the downstream LLM, can all be treated as configurable modules rather than fixed backbones.
+
+\subsection{Retain: Building a Temporal Entity Memory Graph}
+\label{sec:tempr-retain}
+
+\subsubsection{Memory Organization}
+\label{sec:memory-organization}
+
+As introduced in Section~\ref{sec:hindsight-overview}, \our organizes memories into four networks to separate objective information, subjective beliefs, and synthesized summaries. TEMPR instantiates this design by storing each extracted fact in exactly one network and attaching it to the shared memory graph. Each fact $f$ is assigned a type $\ell(f) \in \{\text{world}, \text{experience}, \text{opinion}, \text{observation}\}$ that determines its target network.
+
+%The world network contains facts with $\ell(f) = \text{world}$, representing objective information about the external world. The experience network contains facts with $\ell(f) = \text{experience}$, representing biographical information about the agent itself written in the first person. The opinion network contains facts with $\ell(f) = \text{opinion}$, representing subjective beliefs formed by the agent and stored with confidence scores. The observation network contains facts with $\ell(f) = \text{observation}$, representing preference-neutral summaries of entities synthesized from multiple underlying facts.
+
+%TEMPR treats all four networks uniformly at the storage and graph level. Narrative facts are extracted, embedded, timestamped, and linked (entity, temporal, semantic, causal) regardless of network. Later components, particularly CARA, interpret these networks differently. For example, CARA operates over world facts and experiences when forming new opinions, and uses observations as compact profiles for entities.
+
+%\subsubsection{Memory Unit Structure}
+
+Each memory is stored as a self-contained node that combines natural language, vector representations, and temporal metadata. Formally, a memory unit is a tuple:
+\begin{equation}
+f = (u, b, t, v, \tau_s, \tau_e, \tau_m, \ell, c, x)
+\end{equation}
+where $u$ is a unique identifier, $b$ is the bank identifier, $t$ is the narrative text, $v \in \mathbb{R}^d$ is the embedding vector, $\tau_s$ and $\tau_e$ define the occurrence interval, $\tau_m$ is the mention timestamp, $\ell$ is the fact type, $c \in [0,1]$ is an optional confidence score (for opinions), and $x$ contains auxiliary metadata such as context, access count, and full-text search vectors.
+
+These fields allow TEMPR to treat each memory as a single unit for storage, graph construction, and retrieval, while supporting both semantic and lexical search as well as temporal and opinion-aware reasoning.
+
+\subsubsection{LLM-Based Narrative Fact Extraction}
+
+TEMPR uses an open-source LLM to convert conversational transcripts into narrative facts and associated metadata. Compared to rule-based or sentence-level pipelines, this approach lets us extract self-contained facts that preserve cross-turn context and reasoning.
+
+\paragraph{Chunking Strategy.}
+We use coarse-grained chunking, extracting 2--5 comprehensive facts per conversation. Each fact is intended to cover an entire exchange rather than a single utterance, be narrative and self-contained, include all relevant participants, and preserve the pragmatic flow of the interaction.
+Fig.~\ref{fig:chunking-strategy} illustrates this approach. Instead of storing five fragmented facts, we store a single narrative fact that makes downstream retrieval and reasoning less sensitive to local segmentation decisions.
+
+
+\begin{figure}[t]
+\centering
+\begin{tcolorbox}[
+    colback=teal!5!white,
+    colframe=teal!60!black,
+    title=Fragmented Extraction (Avoided),
+    fonttitle=\bfseries,
+    coltitle=white,
+    colbacktitle=teal!60!black,
+    boxrule=0.8pt,
+    arc=1mm,
+    enhanced,
+    width=0.95\linewidth
+]
+\textbf{Five separate facts:}
+\begin{itemize}
+\item ``Bob suggested Summer Vibes''
+\item ``Alice wanted something unique''
+\item ``They considered Sunset Sessions''
+\item ``Alice likes Beach Beats''
+\item ``They chose Beach Beats''
+\end{itemize}
+\end{tcolorbox}
+
+\vspace{0.3cm}
+
+\begin{tcolorbox}[
+    colback=teal!5!white,
+    colframe=teal!60!black,
+    title=Narrative Extraction (Used),
+    fonttitle=\bfseries,
+    coltitle=white,
+    colbacktitle=teal!60!black,
+    boxrule=0.8pt,
+    arc=1mm,
+    enhanced,
+    width=0.95\linewidth
+]
+\textbf{Single narrative fact:}
+
+Alice and Bob discussed naming their summer party playlist. Bob suggested ``Summer Vibes'' because it is catchy and seasonal, but Alice wanted something more unique. Bob then proposed ``Sunset Sessions'' and ``Beach Beats,'' with Alice favoring ``Beach Beats'' for its playful and fun tone. They ultimately decided on ``Beach Beats'' as the final name.
+\end{tcolorbox}
+
+\caption{Comparison of fragmented versus narrative fact extraction. TEMPR uses narrative extraction to create comprehensive, self-contained facts that preserve context and reasoning across multiple conversational turns.}
+\label{fig:chunking-strategy}
+\end{figure}
+
+
+\paragraph{Extraction Pipeline.}
+The extraction model is prompted to produce structured output containing the narrative text of each fact, normalized temporal information (including ranges), participants and their roles, a fact type indicating the target network, and a set of mentioned entities (see Appendix~\ref{sec:appendix-fact-extraction} for the complete prompt template and Appendix~\ref{sec:appendix-schemas} for the structured output schema). Internally, we decompose this into the following steps: \textbf{\textit{1)}} coreference resolution over the conversation to identify entity mentions and their referents; \textbf{\textit{2)}} temporal expression normalization and range extraction to convert relative time references (``last week'', ``in March'') into absolute timestamps $(\tau_s, \tau_e)$; \textbf{\textit{3)}} participant attribution to determine who did or said what in the conversation; \textbf{\textit{4)}} preservation of explicit reasoning or justifications when present in the dialogue; \textbf{\textit{5)}} fact type classification to assign $\ell(f) \in \{\text{world}, \text{experience}, \text{opinion}, \text{observation}\}$ based on the nature of the statement; and \textbf{\textit{6)}} entity extraction to identify PERSON, ORGANIZATION, LOCATION, PRODUCT, CONCEPT, and OTHER entity types.
+Before embedding, we augment each fact with a human-readable time reference derived from the normalized timestamps, which improves temporal awareness during retrieval and reranking.
+
+\subsubsection{Entity Resolution and Linking}
+
+Entity resolution links memories that refer to the same underlying entity, enabling multi-hop reasoning over the memory graph.
+
+\paragraph{Recognition and Disambiguation}
+
+The LLM used for fact extraction (described above) also identifies entity mentions during fact extraction. We then map mentions to canonical entities using a combination of string and name similarity (e.g., Levenshtein distance), co-occurrence patterns with other entities, and temporal proximity of mentions. Let $M$ be the set of all entity mentions and $E$ be the set of canonical entities. The resolution function $\rho: M \rightarrow E$ maps each mention $m \in M$ to a canonical entity $e \in E$ by maximizing a similarity score:
+\begin{equation}
+\rho(m) = \argmax_{e \in E} \left[ \alpha \cdot \text{sim}_{\text{str}}(m, e) + \beta \cdot \text{sim}_{\text{co}}(m, e) + \gamma \cdot \text{sim}_{\text{temp}}(m, e) \right]
+\end{equation}
+where $\text{sim}_{\text{str}}$, $\text{sim}_{\text{co}}$, and $\text{sim}_{\text{temp}}$ are string similarity, co-occurrence similarity, and temporal proximity scores respectively, and $\alpha, \beta, \gamma$ are weighting coefficients.
+
+\paragraph{Entity Link Structure}
+
+Each canonical entity $e \in E$ induces edges of type $\text{entity}$ between all memories that mention it. Formally, for any two memory units $f_i$ and $f_j$ that both mention entity $e$, we create a bidirectional link:
+\begin{equation}
+e_{ij} = (f_i, f_j, w=1.0, \ell=\text{entity}, e)
+\end{equation}
+These entity links enable graph traversal to surface indirectly related facts. For example, conversations about the same person across distant time spans that would be difficult to retrieve with vector or keyword search alone can be discovered through entity links.
+
+\subsubsection{Link Types and Graph Structure}
+
+In addition to entity links, the memory graph $\mathcal{G} = (V, E)$ contains three other edge types. Let $V$ be the set of all memory units and $E$ be the set of directed edges. Each edge $e \in E$ is a tuple $(f_i, f_j, w, \ell)$ where $f_i, f_j \in V$ are memory units, $w \in [0,1]$ is a weight, and $\ell$ is the link type.
+
+\textbf{\textit{1) Temporal Links.}} For any two memories $f_i$ and $f_j$ with temporal metadata, we create a temporal link if they are close in time. The weight decays as temporal distance increases:
+\begin{equation}
+w_{ij}^{\text{temp}} = \exp\left(-\frac{\Delta t_{ij}}{\sigma_t}\right)
+\end{equation}
+where $\Delta t_{ij}$ is the time difference between $f_i$ and $f_j$, and $\sigma_t$ is a decay parameter.
+
+\textbf{\textit{2) Semantic Links.}} For any two memories $f_i$ and $f_j$ with embeddings $v_i, v_j \in \mathbb{R}^d$, we create a semantic link if their cosine similarity exceeds a threshold $\theta_s$:
+\begin{equation}
+w_{ij}^{\text{sem}} = \begin{cases}
+\frac{v_i \cdot v_j}{\|v_i\| \|v_j\|} & \text{if } \frac{v_i \cdot v_j}{\|v_i\| \|v_j\|} \geq \theta_s \\
+0 & \text{otherwise}
+\end{cases}
+\end{equation}
+
+\textbf{\textit{3) Causal Links.}} Causal relationships are extracted by the LLM and represent cause-effect relationships. These links are upweighted during traversal to favor explanatory connections. Let $\mathcal{C} \subseteq V \times V$ be the set of causal relationships identified by the LLM. For $(f_i, f_j) \in \mathcal{C}$, we create a causal link with weight $w_{ij}^{\text{causal}} = 1.0$ and type $\ell \in \{\text{causes}, \text{caused\_by}, \text{enables}, \text{prevents}\}$.
+
+Together, entity, temporal, semantic, and causal links support multi-hop discovery across the memory graph, allowing TEMPR to surface information that is related by identity, time, meaning, or explanation rather than by surface form alone.
+
+\subsubsection{The Observation Paradigm}
+
+Observations provide structured, objective summaries of entities that sit on top of raw narrative facts.
+
+\paragraph{Motivation and Design.}
+
+For simple entity-centric queries (e.g., ``Tell me about Alice''), retrieving all underlying facts can be inefficient and redundant. Instead, we maintain synthesized profiles (observations) that summarize salient properties of each entity and can be referenced directly in responses (see Appendix~\ref{sec:appendix-observation-generation} for the complete observation generation prompt). Let $F_e \subset V$ be the set of all facts that mention entity $e$. An observation $o_e$ is generated by applying an LLM-based summarization function:
+\begin{equation}
+o_e = \text{Summarize}_{\text{LLM}}(F_e)
+\end{equation}
+where the LLM is instructed to produce a concise, preference-neutral summary.
+
+\paragraph{Observations vs.\ Opinions.}
+
+Observations and opinions differ along several dimensions that matter for reasoning. Observations are generated without behavioral profile influence, whereas opinions are explicitly shaped by the bank's disposition behavioral parameters (skepticism, literalism, empathy). Observations provide objective summaries of entities (e.g., roles, attributes), while opinions capture subjective evaluations and judgments. Observations do not carry confidence scores, but opinions include a confidence score $c \in [0,1]$ representing belief strength. Observations are produced via background synthesis and regenerated when underlying facts change, whereas opinions are formed during reflection and updated via reinforcement.
+
+\paragraph{Background Processing.}
+
+Observation generation and regeneration run asynchronously to maintain low-latency writes while gradually improving the quality of entity-centric summaries. When new facts mentioning entity $e$ are retained, a background task is triggered to recompute $o_e$ based on the updated set $F_e$.
+
+\subsection{Recall: Agent-Optimized Retrieval Architecture}
+\label{sec:tempr-recall}
+
+Given the memory graph described above, TEMPR must retrieve variable amounts of relevant context for a query while respecting the downstream LLM's context window. Unlike conventional search systems that expose a fixed top-$k$ interface, our setting requires an \emph{agent-optimized} retrieval layer. The caller can trade off latency and coverage, and the system must exploit both the graph structure and temporal metadata of memories.
+
+To accomplish the above objective, TEMPR combines several complementary retrieval strategies into a single pipeline with Reciprocal Rank Fusion and neural reranking. The result is a recall mechanism that can surface both directly and indirectly related memories (via entities, time, and causal links), and present them in a form that fits within a specified token budget.
+
+\subsubsection{Agent-Optimized Retrieval Interface}
+
+Rather than exposing a fixed top-$k$ interface, TEMPR lets the caller specify how much context to retrieve and how much effort to spend finding it. Formally, the retrieval function is:
+\begin{equation}
+\text{Recall}(B, Q, k) \rightarrow \{f_1, \ldots, f_n\}
+\end{equation}
+where $B$ is the memory bank, $Q$ is the query, and $k$ is a token budget aligned with the downstream LLM's context window. An optional cost or latency budget may also be specified to cap how aggressively to expand search. The returned set satisfies:
+\begin{equation}
+\sum_{i=1}^n |f_i| \leq k
+\end{equation}
+where $|f_i|$ denotes the token count of fact $f_i$. This allows agents to request ``just enough'' memory for simple questions, or to spend more budget on broader, multi-hop recall when the task is complex.
+
+\subsubsection{Four-Way Parallel Retrieval}
+
+To populate the candidate set for a query, TEMPR runs four retrieval channels in parallel, each capturing a different notion of relevance. Let $Q$ be the query with embedding $v_Q \in \mathbb{R}^d$ and text $t_Q$.
+
+\paragraph{Semantic Retrieval (Vector Similarity)}
+
+The semantic retrieval channel performs vector similarity search using cosine similarity between the query embedding $v_Q$ and memory embeddings. Let $V$ be the set of all memory units in the target network. The semantic score for each memory $f$ with embedding $v_f$ is:
+\begin{equation}
+s_{\text{sem}}(Q, f) = \frac{v_Q \cdot v_f}{\|v_Q\| \|v_f\|}
+\end{equation}
+We use an HNSW-based pgvector index to efficiently retrieve the top-$k$ memories by semantic score:
+\begin{equation}
+R_{\text{sem}} = \argmax_{S \subseteq V, |S|=k} \sum_{f \in S} s_{\text{sem}}(Q, f)
+\end{equation}
+This channel is responsible for capturing conceptual similarity and paraphrases, and typically provides high recall on meaning-level matches even when surface forms differ.
+
+\paragraph{Keyword Retrieval (BM25)}
+
+In parallel, we run a lexical channel using a full-text search with BM25 ranking over a GIN index on the memory text. Let $\text{BM25}(t_Q, f)$ denote the BM25 score for query text $t_Q$ and memory $f$. The top-$k$ keyword matches are:
+\begin{equation}
+R_{\text{bm25}} = \argmax_{S \subseteq V, |S|=k} \sum_{f \in S} \text{BM25}(t_Q, f)
+\end{equation}
+This channel excels at precise matching of proper nouns and technical terms (e.g., specific API names or dataset identifiers) and complements the semantic channel by recovering items that might be underrepresented or ambiguous in the embedding space.
+
+\paragraph{Graph Retrieval (Spreading Activation)}
+
+The third channel exploits the memory graph $\mathcal{G} = (V, E)$ via spreading activation. Beginning with the top semantic hits as entry points, we perform breadth-first search with activation propagation. Let $A(f, t)$ denote the activation of memory $f$ at step $t$. Initially, $A(f, 0) = s_{\text{sem}}(Q, f)$ for entry points and $A(f, 0) = 0$ otherwise. At each step, activation propagates along edges:
+\begin{equation}
+A(f_j, t+1) = \max_{(f_i, f_j, w, \ell) \in E} \left[ A(f_i, t) \cdot w \cdot \delta \cdot \mu(\ell) \right]
+\end{equation}
+where $\delta \in (0,1)$ is a decay factor and $\mu(\ell)$ is a link-type multiplier. Causal and entity edges have $\mu(\ell) > 1$, while weak semantic or long-range temporal edges have $\mu(\ell) \leq 1$. This process surfaces memories that are not obviously similar to the query text but are connected through shared entities, nearby events, or causal chains.
+
+\paragraph{Temporal Graph Retrieval}
+
+When a temporal constraint is detected in the query, we invoke a temporal graph retrieval channel backed by a hybrid temporal parser. We first run a rule-based analyzer that uses two off-the-shelf date parsing libraries with multilingual support to normalize explicit and relative expressions (for example, ``yesterday'', ``last weekend'', or ``June 2024'') into a date range. This heuristic path handles the majority of queries at low latency. For queries that cannot be resolved heuristically, we fall back to a lightweight sequence-to-sequence model (here, we use google/flan-t5-small), which converts the remaining temporal expressions into a concrete date range $[\tau_{\text{start}}, \tau_{\text{end}}]$. We then match against the occurrence intervals of memories:
+\begin{equation}
+R_{\text{temp}} = \{f \in V : [\tau_s^f, \tau_e^f] \cap [\tau_{\text{start}}, \tau_{\text{end}}] \neq \emptyset\}
+\end{equation}
+Graph traversal is restricted to memories in $R_{\text{temp}}$, prioritizing events that actually occurred in the requested period. Each memory is scored by temporal proximity to the query range:
+\begin{equation}
+s_{\text{temp}}(Q, f) = 1 - \frac{|\tau_{\text{mid}}^f - \tau_{\text{mid}}^Q|}{\Delta \tau / 2}
+\end{equation}
+where $\tau_{\text{mid}}^f$ and $\tau_{\text{mid}}^Q$ are the midpoints of the fact's occurrence interval and the query range, and $\Delta \tau = \tau_{\text{end}} - \tau_{\text{start}}$ is the query range duration.
+
+
+Running these four channels in parallel yields a diverse set of candidates: semantically similar memories, exact lexical matches, graph-neighbor memories connected via entities and causal links, and time-constrained events aligned with the query's temporal intent.
+
+\subsubsection{Reciprocal Rank Fusion (RRF)}
+
+After parallel retrieval, TEMPR merges the four ranked lists using Reciprocal Rank Fusion. Let $R_1, R_2, R_3, R_4$ denote the ranked lists from the four channels. For each candidate memory $f$, let $r_i(f)$ denote its rank in list $R_i$ (with $r_i(f) = \infty$ if $f \notin R_i$). The fused score is:
+\begin{equation}
+\text{RRF}(f) = \sum_{i=1}^{4} \frac{1}{k + r_i(f)}
+\end{equation}
+where $k$ is a small constant (e.g., $k = 60$). Intuitively, each strategy contributes a larger amount when it places $f$ near the top of its list, and items that appear high in multiple lists accumulate more evidence.
+
+RRF has several advantages over score-based fusion in this setting. Because it is rank-based, it does not rely on raw scores being calibrated across systems. It is also robust to missing items. If a candidate does not appear in a particular list, that strategy simply contributes nothing rather than penalizing it. Finally, memories that are consistently retrieved across different channels naturally rise to the top, reflecting multi-evidence support.
+
+\subsubsection{Neural Cross-Encoder Reranking}
+
+After RRF fusion, TEMPR applies a neural cross-encoder reranker to refine precision on the top candidates. We use cross-encoder/ms-marco-MiniLM-L-6-v2, which jointly encodes the query and each candidate memory and outputs a relevance score. Let $\text{CE}(Q, f)$ denote the cross-encoder score. The final ranking is:
+\begin{equation}
+R_{\text{final}} = \text{argsort}_{f \in R_{\text{RRF}}} \text{CE}(Q, f)
+\end{equation}
+Compared to purely embedding-based similarity, the cross-encoder can model rich query-document interactions learned from supervised passage-ranking data, rather than relying on independent vector representations. In our setting, we also include formatted temporal information in the input text, allowing the reranker to incorporate simple temporal cues when deciding which memories are most relevant.
+
+\subsubsection{Token Budget Filtering}
+
+In the final stage, TEMPR enforces the caller's token budget so that the selected memories fit within the downstream LLM's context window. Starting from the reranked list $R_{\text{final}}$, we iterate over candidates in order and include each memory's text until the cumulative token count reaches the specified $k$:
+\begin{equation}
+R_{\text{output}} = \{f_1, \ldots, f_n : \sum_{i=1}^n |f_i| \leq k \text{ and } \sum_{i=1}^{n+1} |f_i| > k\}
+\end{equation}
+where $f_i \in R_{\text{final}}$ are ordered by relevance. This simple packing step ensures that the model receives as much relevant information as possible without exceeding its context capacity.

@@ -1,0 +1,325 @@
+\newpage
+\tableofcontents
+\section{Experiment Details}
+\label{app:experiment_details}
+\input{texts/appendices/models_instructions}
+\subsection{Computing Resources}
+\label{app:machines}
+We run all experiments on NVIDIA V100, A100, or H100 GPUs. 
+The amount of time that it takes to complete one round of experiments is dependent on the model.
+For the sparse model, BM25, the evaluation takes less than $1$ hour on CPU-only machines.
+For the open-sourced dense models ($<1B$), the evaluation requires about $8$ hours on one H100 GPU.
+For the open-sourced dense models ($>1B$), the evaluation takes up to $36$ hours on one H100 GPU.
+We leverage FlashAttention \citep{dao2022flashattention,dao2023flashattention2} for speedup when evaluating the dense models.
+For the proprietary models, the evaluation speed is dependent on the API bandwidth, but we found that one round of experiments can be completed within $2$ days.
+
+% One round of experiments to evaluate \ours datasets is estimated to take 24 hours on 8*A100 GPUs. \mz{This is a bit vague, can we provide task-specific time? and what model do we use to estimate the running time? Can we get a runtime for different models?}
+\input{texts/appendices/train_grit}
+
+
+% \input{tables/reason}
+
+% Google & 22.0 & 30.1 & 35.4 & 19.4 & 39.3 & 22.8 & 22.7 & 9.3 & & & & 25.1\\
+\footnotetext{Specifically, we use the LuceneBM25Model from \href{https://pypi.org/project/gensim/}{gensim} and the text analyzer from  \href{https://pypi.org/project/pyserini/}{pyserini}}
+
+
+
+\section{Dataset Construction}
+\subsection{StackExchange}
+\label{app:stackexchange}
+\paragraph{Passage split.} To split web pages or long documents into smaller pieces of passages, we employ simple heuristics with separators like two new line symbols, "\#" in markdown files without additional assumptions on file structures.
+Although this split may not be optimal for every document, it simulates the realistic setting where long documents are automatically processed without human or expert intervention.
+
+\paragraph{False positive and false negative.} We discuss the rationale for avoiding false positives and false negatives in the data collection process.
+In StackExchange, the positive relevance between queries and documents is manually verified by annotators, with detailed reasoning traces to illustrate their thinking process.
+To avoid false negatives, the annotators only select a StackExchange post that clearly distinguishes from previously annotated examples in the same domain, e.g., different entities and semantic meanings in both posts and answers, etc.
+This ensures that no pair of examples share the same positive documents.
+
+\subsection{STEM question and solution corpus for TheoremQA and AoPS}
+\label{app:data:stem_corpus}
+In this subsection, we describe the construction of the STEM question and solution corpus, which is used for both \theorem Questions and \aops. 
+We source the documents (pairs of problem statements and solutions) $D_i = (Q_i, A_i)$ from existing datasets---GSM8K \citep{cobbe2021training}, GSM8K-RFT \citep{yuan2023scaling}, MATH \citep{hendrycks2021measuring}, AQuA-RAT \citep{ling-etal-2017-program}, TheoremQA \citep{chen-etal-2023-theoremqa}, and CAMEL-Math \citep{li2023camel}.
+To reduce the likelihood of false negatives among the STEM corpus, we leverage the metadata from the original datasets to exclude specific documents from the corpus for each test query.
+For example, CAMEL-Math contains problem-solution pairs labeled with the category ``Calculus'', which covers different questions that involve derivatives and integrals.
+Therefore, for queries in TheoremQA that uses ``derivative chain rule'' or ``integral rules'', we excluded CAMEL-Math pairs in the category ``Calculus'' to reduce possible false negatives.
+Thus, for each test query in \theorem-Q and \aops, we manually decide which labels in the other datasets to exclude based on the metadata.
+We do not exclude any problem-solution pairs from GS8K, GSM8K-RFT, or AQuA-RAT due to the relative elementary difficulty (mostly basic algebra questions) in comparison to our test queries, which leverages more advanced theorems and techniques.
+The mapping from the test query category to the excluded problem-solution categories can be found in Table \ref{tab:camel_topics}, \ref{tab:theoremqa}, and \ref{tab:aops_camel}.
+
+An alternative approach to excluding false negatives from the corpus for each test query is to inspect every problem-solution pair and annotate if they are relevant to test query.
+Although this would yield harder negatives and additional positives, we opt to not to use this approach due to its expensive cost to conduct annotation between every test query and possible candidates.
+
+
+
+\subsection{\theorem: Rephrasing questions into specific scenarios}
+\label{app:data:theoremqa}
+TheoremQA is a dataset consisting of theorem-driven questions in mathematics, physics, finance, and computer science and electrical engineering \citep{chen-etal-2023-theoremqa}. 
+For each question in TheoremQA, we refer it to MathInstruct dataset\footnote{\url{https://huggingface.co/datasets/TIGER-Lab/MathInstruct}} \citep{yue2023mammoth}, as each question in this dataset is annotated with the reasoning steps and final answers. 
+
+From preliminary analysis, we found that TheoremQA questions are often written in a way such that the theorem used to solve the problem is explicitly mentioned in the question.
+As a result, questions that use the same theorem can have high keyword overlap, which means retrievers can easily retrieve the correct document by matching the keywords.
+Thus, we rewrite the questions in TheoremQA by grounding them in real-world scenarios or applications, which makes the reasoning steps less explicit and provides more diverse questions.
+We leverage GPT-4 with manually written instructions and in-context demonstrations to rewrite the queries $Q$.
+We provide the prompt used to rewrite \theorem questions and an example in Table~\ref{tab:ex_rewrite}.
+After rewriting the question, the authors manually inspect each rewritten question to ensure that the question is solvable and consistent with the original question (i.e., the reasoning steps and final answer still hold).
+When applicable, we manually edit the rewritten question to improve the fluency and coherence of the question, and discard the query if the rewritten question is not solvable or consistent with the original question.
+Consequently, we obtain $206$ rewritten questions in TheoremQA from the original set of $800$ questions.
+
+\input{tables/data_examples/theoremqa_rewrite.tex}
+
+\input{tables/data_examples/camel_topics.tex}
+
+\input{tables/data_examples/theoremqa_topics.tex}
+
+\input{tables/data_examples/aops_camel.tex}
+
+\subsection{\theorem: Annotating relevant theorems}
+\label{app:theoremqa_theorems}
+
+For \theorem-Theorems, we use the test queries from \theorem-Questions and annotate them with useful theorem proofs and definitions.
+We source mathematical theorem proofs and definitions from ProofWiki, which is community-driven effort with more than 20K formal definitions and proofs of mathematical theorems.
+ProofWiki is preprocessed and provided by MathPile \citep{wang2023generativeaimathi}.
+We opt to map the original theorem names to the documents in ProofWiki so that the gold documents have consistent forms with other documents in the corpus.
+
+For each test query, we first construct a candidate set of useful documents from ProofWiki using the theorem name and definition provided by the original \theorem dataset.
+Specifically, we construct the candidate set with the following steps: 
+\begin{enumerate}
+    \item Find documents where the theorem name exists as a substring. We discard this set if there are more than 100 such documents, which typically means that the theorem name is too common.
+    \item Using the theorem name and definition from the original dataset as the query, we use BM25 to retrieve the top $k=10$ documents from ProofWiki.
+\end{enumerate}
+
+Then, we prompt GPT-4 (\texttt{gpt-4-0125-preview}) to check if each document's described theorem are used in the problem solutions, which labels each candidate as either a positive or negative document.
+The prompt for this step can be found in Table \ref{tab:theorem_check}.
+The authors manually annotated 50 instances and found a substantial agreement of Cohen's $\kappa = 0.62$ with the model judgments.
+Finally, we keep test queries with at least one positive document.
+
+\input{tables/data_examples/theorem_check.tex}
+
+\subsection{\aops: Connecting AoPS problems to the MATH dataset}
+\label{app:aops}
+\aops Wiki is a community-driven platform where users can post problems and solutions to math competition problems.
+These math competitions include, but are not limited to the American Mathematics Competitions (AMC), the American Invitational Mathematics Examination (AIME), and the International Mathematical Olympiad (IMO).
+In addition to problems, the \aops Wiki also contains articles on various topics in mathematics, such as Fermat's Little Theorem and Ball and Urns.
+These articles not only describe the theorem or technique but also link to problems that can be solved by them.
+We browse the \aops Wiki and collect the topics and the linked problems.
+The topics are listed in Table~\ref{tab:aops_topics}.
+
+Although math competition problems are used in previous datasets, such as MATH \citep{hendrycks2021measuring}, they lack the necessary annotations on the problem-solving skills to construct positive documents.
+Thus, we opt to collect these annotations from \aops Wiki instead.
+
+Furthermore, since MATH examples are used in the STEM corpus, we deduplicate them by matching the collected problems with the MATH instances.
+Specifically, for each question $Q$ we collected from \aops, we find the closest problem statement in MATH using n-gram overlap, and manually check if they are the same problem. 
+If the same problems are found, we merge them into one instance, otherwise, we create a new instance and insert it into the corpus.
+
+\input{tables/data_examples/aops_topics.tex}
+
+
+\subsection{LeetCode}
+\label{app:data:leetcode}
+ We first obtain the publicly available LeetCode\footnote{\url{https://leetcode.com/}} questions from HuggingFace\footnote{\url{https://huggingface.co/datasets/greengerong/leetcode}}. Our retrieval pool is sourced from a combination of LeetCode and CodeSearchNet, including a problem description and a solution in each example. In the following sections, we outline the process for constructing positive examples and performing additional checks to minimize the likelihood of false negatives while ensuring the use of a large retrieval pool.
+ 
+\textbf{Using similar questions as positive examples.}
+For each question, we obtain the gold pair annotations from the ``Similar Questions'' field, which contains links to other LeetCode questions that are similar to the problem.
+While the website does not explicitly describe the guidelines behind how this field is populated, our qualitative analysis showed that these questions have a high overlap in terms of the data structure, algorithms, and/or logical reasoning used to solve the problem.
+
+\textbf{Select problems based on real-world scenarios to avoid false negatives from CodeSearchNet.} From a preliminary qualitative analysis, we discovered that some questions in LeetCode are frequently found in CodeSearchNet due to the popularity of certain algorithms and the simplicity of their problem statements. Examples include implementing sorting algorithms or merging two linked lists, which could unexpectedly introduce false positives into this retrieval setup. Thus, we use an additional filtering step---we only keep questions that are grounded in real-world concepts that are not as commonly used in the context of coding problems. 
+The intuition behind this is similar to the TheoremQA annotations process: the reasoning steps (i.e., the algorithms and data structures used to solve the problem) cannot be as easily deciphered as if the problem statement clearly describes the algorithm and data structure used.
+To this end, we first manually write instructions with six-shot in-context learning demonstrations, and use GPT-4 (\ttt{gpt-4-0125-preview}) to classify all LeetCode questions.
+Then, we validate the GPT-4 judgment with 80 annotations by the authors.
+Authors' and GPT-4's annotations have a Cohen's kappa of $0.73$, which suggests substantial agreement.
+The prompt used in this step and examples can be found in Table \ref{tab:leetcode_check}. GPT-4 judged a total of $291$ samples of being grounded in real-world concepts, and we randomly sample $142$ questions from this set to construct our test set.
+
+\textbf{Remove examples with high topic overlap from the pool to avoid false negatives in LeetCode.} To avoid potential false negatives that are not annotated by the LeetCode website, we leverage the ``Topics'' field from the website, which contains information about the algorithms and data structure used in the problem, such as ``stack'' and ``breath first search''.
+% For each question $q$, we exclude any LeetCode question that is not a similar question by first calculating the 
+For each question $Q$, we collect its topics $T(Q) = \{t_q^1, \ldots, t_q^m\}$ from the LeetCode website, where $t_q$ denotes the $m \geq 1$ different topics assigned to the question by the website.
+Since each question may have multiple tags, we exclude other questions that have a high overlap with test questions from the corpus for that specific question.
+Specifically, we exclude question $Q'$ from the corpus for test query $Q$ if $\frac{|T(Q) \cap T({Q'})|}{|T(Q)|} \geq 0.5$, because more than half of the topics used in $Q'$ are also used in $Q$. 
+This means that the two questions can be highly related in reasoning steps.
+Overlap smaller than the $0.5$ threshold means that $Q'$ is unlikely to be related, and thus a false negative, to the test question $Q$. Finally, we construct the rest of the corpus from CodeSearchNet \citep{husain2019codesearchnet}\footnote{\url{https://huggingface.co/datasets/code_search_net}}.
+We only consider the Python functions as the solutions to the LeetCode questions are all in Python.
+
+\input{tables/data_examples/leetcode_check.tex}
+\section{Data Examples}
+\label{app:data_examples}
+In Table~\ref{tab:biology_example}, \ref{tab:earth_science_example}, \ref{tab:economic_example}, \ref{tab:psychology_example}, \ref{tab:robotics_example}, \ref{tab:stackoverflow_example}, \ref{tab:example_sustainable_living}, \ref{tab:example_leetcode}, \ref{tab:pony_example}, \ref{tab:example_math}, \ref{tab:example_theoremqa}, and \ref{tab:example_theoremqa_theorems}, we show more examples in \ours.
+\input{texts/appendices/reasoning}
+\input{tables/data_examples/biology}
+\input{tables/data_examples/earth_science}
+\input{tables/data_examples/economics}
+\input{tables/data_examples/psychology}
+\input{tables/data_examples/robotics}
+\input{tables/data_examples/stackoverflow}
+\input{tables/data_examples/sustainable_living}
+
+\input{tables/data_examples/leetcode.tex}
+\input{tables/data_examples/pony}
+\input{tables/data_examples/math.tex}
+
+\input{tables/data_examples/theoremqa.tex}
+\input{tables/data_examples/theoremqa_theorems.tex}
+
+\input{tables/data_examples/sustainable_living_llm_reason}
+\input{tables/data_examples/sustainable_living_llm_reason1}
+
+
+
+\input{tables/reasoning/grit}
+\input{tables/reasoning/gemini}
+\input{tables/reasoning/llama3}
+\input{tables/reasoning/claude}
+\input{tables/reasoning/gpt4}
+
+\input{tables/long_context_details}
+
+
+\input{tables/statistics/long}
+
+\input{tables/rerank/bm25}
+% \input{tables/rerank/qwen}
+\input{tables/rerank/google}
+
+\input{tables/rerank/prompt}
+
+% \input{texts/appendices/case_study}
+
+\input{tables/mteb}
+
+\input{tables/qa_prompt}
+% \input{tables/qa_gpt4}
+\input{tables/qa_math}
+
+\input{tables/main_results_precision10}
+\input{tables/main_results_recall10}
+% \begin{table}[ht]
+% \caption{Stackoverflow example}
+% \centering
+% % \resizebox{\textwidth}{!}{
+% \begin{tabular}{p{13cm}}
+% \toprule
+% \hspace{5.5cm} Stackoverflow \\
+% \midrule
+% \textit{\textbf{Query}} \\
+% \midrule
+% ... \\
+% \midrule
+% \textit{\textbf{Reasoning steps}} \\
+% \midrule
+% ... \\
+% \midrule
+% \textit{\textbf{Example positive document}} \\
+% \midrule
+% ... \\
+% \midrule
+% \textit{\textbf{Example negative document}} \\
+% ... \\
+% \bottomrule
+% \end{tabular}
+% % }
+% \label{tab:stackoverflow_example}
+% \end{table}
+
+\section{Downstream performance}
+\label{app:downstream}
+In this work, we evaluated the effect of retrieval on downstream tasks.
+In this subsection, we continue the investigation into the downstream performance on the theorem-based tasks---TheoremQA Questions, TheoremQA Theorems, and AoPS---by evaluating \texttt{gpt-4o-2024-08-06} on these tasks.
+We run with with three types of documents in context: none (closed-book), random (randomly sampled document from the corpus), and oracle (the annotated corpus).
+We use a temperature of 0.2 and top-p of 0.9, and average the results across 5 different random seeds.
+We show the results in \ref{tab:qa_math}, and find that the oracle document can consistently improve the performance across all datasets.
+This improvement is statistically significant in TheoremQA Questions and TheoremQA Theorems, suggesting the benefits of using strong retrieval results.
+
+\section{Annotator instructions}
+\label{app:annotator_instruction}
+In this section, we describe the instructions for annotators to collect data in \ours.
+\subsection{StackExchange}
+\begin{enumerate}
+  \item Browse posts from the newest to the oldest.
+  \item Discard posts without an answer accepted by the user or obtains more than 5 votes
+  \item Discard answers of posts without URL links.
+  \item For each link in the answer, write down the answers to: (1). why are the document and the post relevant; (2). what is the reasoning required to understand the relevance between the post and the document. If these are not possible, discard the link.
+  \item Check whether the linked documents provide critical information to understand the post or address the questions. The relevance could include explaining critical concepts or details or providing theorems, lemmas or code pieces that would contribute to solving the problems. Refer to examples for a better understanding on the relevance (Examples in Table \ref{tab:biology_example} to \ref{tab:example_sustainable_living})
+  \item Use LLMs (e.g., ChatGPT, Claude, etc.) to generate post keywords, or use the post title to search for web pages with large keyword or semantic overlap in Google. Search for at most 5 negative web pages per query. Ensure that hard negatives are totally unhelpful in addressing the post. Common hard negatives include descriptions or documentation of similar contexts but different problems, or code pieces that share the same variable names but are unrelated to the post. 
+  \item Check all the other negative passages, which include positive and negative documents in previously annotated examples in the same dataset. Ensure that all those documents and current problems focus on different sub-topics, and thus totally irrelevant.
+  \item Split every web page into small passages either by two newline symbols, "\#" in markdown files or fixed-length tokens, and fine-grain positive ones following criteria in step 4 and 5.
+\end{enumerate}
+
+\subsection{\theorem}
+In \theorem, the main task for the annotator is to check if the GPT-4 rewritten questions are valid.
+The specific instructions are as follows:
+\begin{enumerate}
+    \item Read the rewritten question and determine if it is solvable.
+    \item If it is solvable, read the original question and solution, and determine if the rewritten question is consistent with the original question. That is, the same reasoning steps and the final answer should hold.
+    \item If it is also consistent, mark the question as valid, and make any minor edits to the problem statement (e.g., to improve grammar or fluency) as you see fit. 
+    \item If it is not solvable or not consistent, read the original question and solution, and correct the rewritten question if possible. If not, then discard the problem.
+\end{enumerate}
+
+\subsection{\aops}
+In \aops, annotators are tasked to find questions from the \aops Wiki and record the problems:
+\begin{enumerate}
+    \item Browse through the \aops Wiki and find topic/category pages (\href{https://artofproblemsolving.com/wiki/index.php/Category:Theorems}{example 1}, \href{https://artofproblemsolving.com/wiki/index.php/Inequality}{example 2}).
+    \item Look through each page and find pages specific theorems or techniques that can be used to solve problems. The page should link to at least two competition problems (\href{https://artofproblemsolving.com/wiki/index.php/Newton%27s_Sums}{example 1}, \href{https://artofproblemsolving.com/wiki/index.php/Vieta%27s_formulas}{example 2}). 
+    \item Record the links of both the theorem/technique as well as the problem pages. 
+\end{enumerate}
+The annotators are assigned a category to look for theorems in to avoid overlaps, and the categories are $\{\texttt{algebra}, \texttt{geometry}, \texttt{calculus}, \texttt{probability}, \texttt{number theory}, \texttt{other}\}$.
+After all links are collected, we use a web scraper to collect the problem statement and solutions, and we manually check the quality of the scraped data.
+
+\subsection{\leetcode}
+In \leetcode, annotators determine whether a question is grounded in real-world concepts.
+We give a similar instruction to the annotator as to GPT-4:
+\begin{enumerate}
+    \item Read the problem statement carefully.
+    \item Categorize the question into one of three categories:
+    \begin{itemize}
+        \item 0: The question is not grounded in any real-world concepts. The description only uses coding-specific terms, such as "linked list", "binary search", "palindrome", "sorting", etc..
+        \item 1: The question is not grounded in any real-world concepts or real-world concepts that are commonly used in the context of coding, such as needle in a haystack, strings/words, or a spiral matrix.
+        \item 2: The question is grounded in real-world concepts that are not commonly used in the context of coding, such as building height, planting trees, or games. It may still use some code-specific terms to specify the data structure involved.
+    \end{itemize}
+\end{enumerate}
+
+\input{texts/appendices/annotation}
+
+\section{Limitations and Future Work}
+\label{app:limitation}
+One limitation of this work is that the judgment about relevance between queries and documents is subjective.
+Even if the StackExchange answers are accepted by the users or obtain high votes, it is not guaranteed that everyone will agree the referenced documents are relevant.
+We may not expect human retrieval results to be exactly the same as our annotation.
+However, we mitigate this issues by using multiple annotators and only retain the queries in which all annotators, including domain experts, agree on the relevance.
+Therefore, we believe that the relevance judgment in \ours is reliable and consistent.
+
+% \paragraph{Other reasoning-intensive embedding benchmarks} Could also do it for Clustering - e.g. I suspect that many Clustering ds in MTEB also suffer from high keyword overlap
+Aside from retrieval, other embedding tasks such as clustering may also require reasoning. We have not addressed multi-modal settings in this paper, but they represent intriguing avenues for future exploration.
+
+\section{Potential social impacts}
+\label{app:social_impact}
+This paper presents a new retrieval benchmark that features relevance beyond lexical and semantic similarity and requires intensive reasoning to solve. 
+There are
+many potential societal consequences of our work, e.g., improving search algorithms, fostering better information access, developing more advanced retrieval models, etc. 
+It could also promote collaboration among researchers and facilitate the development of more effective search engines, ultimately benefiting society by enhancing the way people find and access information.
+
+\section{Comparison to RAR-b}
+\label{app:rar-b}
+While both the \textit{Reasoning as Retrieval Benchmark} (RAR-b) and \textit{BRIGHT} evaluate retrieval systems on their reasoning abilities, they differ significantly in their approach and objectives:
+
+\begin{itemize}
+    \item \textbf{Dataset Construction:}
+    \begin{itemize}
+        \item \textit{RAR-b}: Adapts existing multiple-choice benchmarks into a retrieval format, where the queries are original questions and the corpus consists of unique options from all the questions.
+        \item \textit{BRIGHT}: Purposefully built as a retrieval benchmark which uses queries and documents in realistic retrieval scenarios.
+    \end{itemize}
+    
+    \item \textbf{Document Characteristics:}
+    \begin{itemize}
+        \item \textit{RAR-b}: Often uses very short sequences ($<$10 words) derived from multiple-choice options.
+        \item \textit{BRIGHT}: Focuses on substantially longer documents ($>$100 tokens), more closely mirroring practical retrieval scenarios.
+    \end{itemize}
+    
+    \item \textbf{Practical Relevance:}
+    \begin{itemize}
+        \item \textit{RAR-b}: It's more conceptual than practical, as real-world retrieval typically involves retrieving documents instead of answers, making this test more about abstract reasoning abilities.
+        \item \textit{BRIGHT}: Designed to reflect real-world information seeking behaviors and needs.
+    \end{itemize}
+\end{itemize}
+
+We believe both datasets effectively assess retrievers' capabilities in handling reasoning-intensive queries, and we'll be adding clearer comparisons of RAR-b in our revision.
+
+
+% \input{texts/appendices/misc}

@@ -1,0 +1,220 @@
+\input{tables/tasks}
+\section{Task (Re)formulation}
+\label{sec:task_unify}
+Tasks solved by LLM-integrated search are inherited from both the ``LLM’’ side (human language tasks) and the ``search’’ side (structured tasks): 
+1) language reasoning: LLMs are naturally applied to reasoning tasks in language \citep{wei2022chain}.
+2) structured tasks: On the other hand, search algorithms are more conventionally utilized for structured tasks, such as web navigation, robotic navigation, gaming, and graph traversal \citep{russell2010artificial,sutton2018reinforcement}.
+The convergent nature is that all of them belongs to sequential decision-making, e.g., reasoning often involves generating and evaluating sequences of logical steps or decisions to arrive at a conclusion.
+
+\paragraph{A MDP-Like Formulation}
+To enable a clear comparison across different frameworks, this section formulates the tasks in Markov Decision Processes (MDPs) $\langle S, A, \mathcal{T}, R\rangle$. In addition, observations $O$ are often considered in Partially Observable Markov Decision Processes (POMDPs) \citep{li2022pretrained,zhao2023large,hu2024treeplanner}:
+\begin{itemize}
+    \item \textbf{A set of states $S$}, including the goal state $s_g$;
+    
+    \item \textbf{A set of observations $O$}, where $o_t$ is the partial observations of the state $s_t$ at time step $t$; 
+    
+    \item \textbf{A set of actions $A$}, where $a_t \in A$ is the action on $s_t$;
+    
+    \item \textbf{Transitions $\mathcal{T}\left(s_{t+1} \mid s_t, a_t\right)$}, which define the dynamics from one state to another after executing an action;
+    
+    \item \textbf{Rewards $R$}: A rewards evaluate the ``quality'' of a state or a trajectory towards the desired outcomes or goals. They can be delivered in two ways: \textbf{outcome rewards} are provided at the end of an episode to assess the overall quality of the final state, whereas \textbf{process rewards} are given throughout the episode to reflect the quality of the agent’s behavior as it progresses.
+\end{itemize}
+Before introducing concrete tasks in the subsections, some necessary highlights can facilitate the understanding:
+\begin{itemize}
+
+    \item \textbf{Tasks (this section) vs. search agents (The following sections)}: This section only discuss task elements that are external to agents and exist independently of how agents operate or learn. We will see in the next section how the POMDP setting fits in LMPRs and agent definitions, where the Markovian assumption is broke.
+
+    \item \red{\textbf{MDPs for both concrete and abstract domains}:}
+    \red{MDP settings are purely conceptual. They do not need to mirror real-world states such as sensor readings, a robot's position, or a digital image snapshot. They also do not have to replicate actual actions like a robot arm lifting an object, a self-driving car navigating intersections, or selecting a digital advertisement. Similarly, the feedback mechanisms for reward shaping can differ from those in the real world, such as a thermometer’s continuous reading or a binary success/failure indicator. Therefore, we can categorize the tasks into concrete and abstract domains:}
+    \begin{itemize}
+        \item \red{Concrete domains:} In tasks like recycling robot, gridworld, and chess, actions and states are always naturally defined. They are always modeled as MDPs in the study of Reinforcement Learning (RL) \citep{sutton2018reinforcement}, intelligent agents, and control theory. Commonly, a physical environment or a rule set defines a discrete and finite action space. And states are commonly finite and can be enumerated, e.g., all the possible configurations of chess board or the grid areas robot can travel. 
+        % In many tasks, the ‘steps’ over which to search over are fairly obvious
+
+        \item \red{Abstract domains:}
+        However, others, e.g., graph traversal and reasoning tasks, are not commonly formalized as MDPs until the emergent of LLM-based agents. In particular, the MDP elements in graph traversal and reasoning tasks are not explicit.
+        The rest of this section mainly discusses how the these tasks fit the following MDP notations, as summarized in Table~\ref{tab:task_unification}.
+    \end{itemize}
+    \red{We highlight this to prevent readers from unnecessary confusion because some task settings seem counterintuitive.}
+\end{itemize}
+
+\subsection{\red{Embodied Tasks in Text}} 
+\label{sec:embodied}
+\red{Embodied tasks involve simulating physical interactions and spatial relationships analogous to those in the real world. In these tasks, agents must navigate through environments, manipulate objects, and perform other complex physical activities that result in observable changes. The simulated environments can range from realistic household settings (e.g., AlfWorld \citep{shridhar2021alfworld}, VirtualHome \citep{puig2018virtualhome}) to realms inspired by Interactive Fiction (IF) games (e.g., Minecraft \citep{fan2022minedojo}, Jericho \citep{hausknecht2020game}).}
+
+\begin{itemize} 
+    \item \red{\textbf{States}: A state captures the current physical configuration of the environment, detailing the positions and conditions of both objects and the agent.  }
+
+    \item \red{\textbf{Actions}: The action space is dynamic and varies based on the current state of the environment. While identifying valid actions can be part of the agent's job, existing benchmarks often provide a predefined set of valid actions for each state.  }
+
+    \item \red{\textbf{Transitions}: State transitions $\mathcal{T}$ represent the physical changes occurring in the environment, which are typically discernible through common sense in a single-player setting.}
+
+    \item \red{\textbf{Default Rewards}: Rewards are typically assigned when the agent reaches a goal state $g$. The default reward function $R_{\text{default}}(s)$ follows a binary scheme: $R(s) = 1$ if $s \in G$ (i.e., $s$ is a goal state), and $R(s) = 0$ otherwise.  }
+\end{itemize}  
+
+\subsection{\red{Combinatorial Tasks in Text}} \label{sec:combinatorial} \red{Combinatorial tasks focus on strategic reasoning and decision-making within abstract, rule-governed environments. In these tasks, agents must explore discrete state spaces, evaluate possible moves, and plan sequences of actions to achieve a desired outcome. The environments are defined by clear, deterministic rules and often involve well-known games or puzzles, such as chess and the game of 24.}
+
+\begin{itemize} 
+    \item \red{\textbf{States}: A state encapsulates the current configuration of the game or puzzle. For example, in chess, the state is defined by the positions of all the pieces on the board, while in the game of 24, it represents the current arrangement of numbers and operations available. }
+    
+    \item \red{\textbf{Actions}: Actions are the discrete moves or operations that alter the state. In chess, these are the legal moves of the pieces, and in the game of 24, they are the mathematical operations (addition, subtraction, multiplication, division) used to combine numbers. }
+
+    \item \red{\textbf{Transitions}: Transitions describe the evolution of the state following an action, adhering strictly to the game’s rules. These transitions are deterministic, meaning that the same action in a given state will always yield the same new state, as seen in the systematic progressions in chess or the arithmetic rules in the game of 24. }
+
+    \item \red{\textbf{Default Rewards}: Rewards are typically associated with achieving specific goals, such as winning a game or solving the puzzle. For instance, in chess, a reward might be assigned upon checkmate, whereas in the game of 24, the reward is granted when the target number is correctly reached. }
+\end{itemize}
+
+\subsection{Web Navigation}
+\label{sec:web}
+Another type of tasks is to  navigate on websites for shopping and retrieving information \citep{zhou2024webarena} 
+\begin{itemize}
+    \item \textbf{States/observations}: A state/observation is normally a web page. For example, the beginning state can be the homepage. The transition is governed by a deterministic transition function.
+    The state is not always accessible to the agent. For example, ``$s_t$ may include private information such as database entries of the site'' \citep{koh2024tree}).
+
+    \item \textbf{Transitions}: Transitions occur when the agent interacts with webpage elements—such as clicking links, filling forms, or selecting menu options—to move from one page (state) to another. These transitions are governed by a deterministic function, meaning that a specific action reliably leads to the same subsequent state, although dynamic content or session-specific data might occasionally influence the exact presentation of the resulting page.
+    
+    \item \textbf{Reward}: A default reward function, $R_\text{default}$, is frequently employed; for example, a goal state might be defined as successfully ordering a desired product on a website.
+\end{itemize}
+
+\subsection{Graph Traversal in MDPs}
+\label{sec:graph}
+A graph traversal problem, e.g., robotic navigation, is represented as a graph $G=(V, E)$, where $V$ is a set of vertices (or nodes), and $E \subseteq V \times V$ represents the transitions between them.
+However, this definition is the common task settings for uninformed and informed search. However, these algorithms integrated with LLMs can be generalized beyond this definition. This is why recent work \citep{yao2023tree} that uses these search algorithms along with LLM often uses MDP terminology, but does not include formal unification. 
+Hence, we propose a conceptual framework that views graph traversal as a simplified, deterministic form of an MDP, where actions and transitions are predefined by the graph structure.
+This framework can be described as follows: 
+\begin{itemize}
+    \item \textbf{States}: Each node $v \in V$ is a state.
+    
+    \item \textbf{Actions}: Actions are represented by edges $E$. The action space is generally considered homogeneous because the type of action is uniform, such as ``MOVE[arg]'', where ``[arg]'' represents parameters like direction or target node.
+    \item Transitions: Following an edge from a node $s$ via an action (edge) $(s, s') \in E$ always leads to the same node $s'$. Hence, the transitions $\mathcal{T}$ are deterministic.
+    
+    \item \textbf{Rewards}: Besides the default one,
+    an estimated cost-to-go from node $s$ to a goal node $g \in G$ can be defined for process rewards in the MDP formulation. This is explicitly defined in A* as a heuristic guiding the search
+\end{itemize}
+As best as we know, this conceptualization is not explicitly stated in any peer-reviewed literature.
+ 
+\subsection{Language Reasoning in MDP}
+\label{sec:reasoning}
+The formulations of language reasoning tasks are more diverse and creative. Although not exhaustive, the following paragraphs summarize forms that are particularly used in the current study of LLM-integrated search.
+
+\paragraph{Reasoning ($\mathcal{T}$ via Concatenation)}
+A reasoning process can be concretized as a Chain of Thoughts (CoT) $T_1, T_2, \ldots$ \citep{wei2022chain}, each expressed as a sequence of tokens via LLM generation.
+\red{Reasoning steps can evolve naturally, ranging from a single word to a full sentence \citep{zhang2024restmcts}. However, ensuring clear semantics for each step remains a challenge. Alternatively, these steps can be explicitly defined. For instance, in creative writing, the first step can be specified as planning, and the second step is to generate according to the plan \citep{yao2023react}.}
+Following previous work \citep{li2024survey,wang2024q}, the MDP formulation includes:
+\begin{itemize}
+    \item \textbf{Actions}:  An action is a thought consisting of several tokens, i.e.,  $a_1=T_1$.
+    
+    \item \textbf{States}: The initial state $s_1$ is defined by the task information, e.g., a user query, a problem description or the goal. The following states are defined as the concatenation of the following thoughts:
+    \begin{equation}
+        s_t=\left(s_{t-1}, a_{t-1} \right) = \left(s_1, a_1 , \ldots, a_{t-1}\right) % follow Q* paper
+        \label{eq:state_by_action_concat}
+    \end{equation}
+    Apparently, directly concatnenating open actions leads to the open state space.
+    When the reasoning is naturally evolved, the final state $s_g$ comes when the final thought $T_g$ or the entire chain expresses a valid response. It can be known in which step $s_g$ is reached for deliberate reasoning steps.
+   
+    \item \textbf{Transition}: The deterministic state transition is defined for reasoning tasks. The next state $s_{t+1}$ is equal to the concatenation of $s_t$ and $a_t$. 
+
+    \item \textbf{Rewards}: An outcome reward is given when the final answer matches the ground truth and fits in human preference. 
+\end{itemize}
+
+\paragraph{Reasoning via QAs} 
+% ($\mathcal{T}$ via LLMs)
+Some other works deliberately formulate an action space.
+% Proposing a subtask as the action:
+A given task is decomposed into sequentially dependent subtasks (actions) requiring an $\text{Execute}$ function, which relies on LLMs to solve. In other words, LLMs can be considered as transitions.
+% or external tools. 
+Recent work on LLM search formulates a subtask as a question and use LLMs to answer the question. These subtasks (i.e., actions) can be generated all at once \citep{zhou2023leasttomost} or in sequential order \citep{hao-etal-2023-reasoning}, each can be defined as an action $a_t$.  
+$s_t$ is the concatenation of the task information $s_0$ and all the questions already answered with their answers: $\text{question}_1, \text{answer}_1, \ldots, \text{question}_{t}, \text{answer}_{t}$.
+
+\paragraph{Reasoning ($\mathcal{T}$ via Concatenation and Tool Invocations)}
+Once tool definitions are given to LLMs. During reasoning, LLMs can generate specific tokens to invoke tools. This integration of tool invocation into reasoning is firstly proposed by ReAct \citet{yao2023react} and recently adapted to the LIS framework \citep{zhou2024language}.
+Based on the definitions for \emph{Reasoning ($\mathcal{T}$ via Concatenation)}, the following things are added:
+\begin{itemize}
+    \item \textbf{Actions}: Tool-related actions are commonly discrete and constrained. For example, when Wikipedia is used, the possible actions include search[arg], lookup[arg]. Although not always, most works on LLM tool use only include the reading-only actions, the actions are reversible.
+    
+    \item \textbf{Transitions}: Due to the change of the action space, the transitions can be either dynamic or deterministic, depending on the tools.
+    
+    \item \textbf{States}: a state now concatenates not only the LLM generation but also tool responses. Moreover, LLM generation is not only about the direct thoughts for tasks but also the actions for tool invocations.
+        \begin{equation}
+        s_t=\left(s_1, a_1, o_1, \ldots, a_{t-1}, o_{t-1}\right) % follow Q* paper
+        \label{eq:state_by_action_concat2}
+    \end{equation}
+\end{itemize}
+
+\paragraph{\red{Reasoning Over Knowledge Graph}}
+\red{Before defining reasoning over a knowledge graph, we clarify why this task is distinct from both graph traversal and reasoning under tool invocations.}
+\begin{itemize}
+    \item \red{\textbf{Not a Tool Invocation:}  
+    In reasoning under tool invocations, LLMs autonomously decide whether to use external tools. In contrast, a knowledge graph is an integral part of the task environment on which the LLM agent operates.}
+
+    \item \red{\textbf{Different from Graph Traversal:}  
+    In typical graph traversal tasks, the graph directly models a visible or observable world. A knowledge graph, however, is a carefully designed structure that captures heterogeneous semantic relationships between entities or concepts.}
+\end{itemize}
+
+\red{We now define the task of reasoning over a knowledge graph:}
+\begin{itemize}
+    \item \red{\textbf{States}: 
+    In graph traversal, each node \(v \in V\) represents a state. In this context, the state is composed of all explored nodes (entities) and their interrelationships, which collectively inform subsequent decisions and the final outcome. Additionally, any relevant LLM-generated knowledge that contributes to these decisions is incorporated into the state.}
+    
+    \item \red{\textbf{Actions}:
+    The action space consists of exploring new relations and entities within the knowledge graph, as well as generating new knowledge through LLM outputs.}
+    
+    \item \red{\textbf{Transitions}:
+    A transition deterministically concatenates the new information (e.g., a discovered relation or entity) with the existing state, reflecting the edge \((s, s') \in E\) between the current state and the new information.}
+    
+    \item \red{\textbf{Rewards}: $R_{\text{default}}$ is used by default.}
+\end{itemize}
+% Although this section focuses on tasks, it can be helpful to compare the three kinds of tasks by considering LIS frameworks. Intuitively, the frameworks under reasoning over knowledge graph are more like to use LLMs to augment knowledge-graph-based methods. Under graph traversal tasks, the frameworks use LLMs to solve graphs, while the frameworks under reasoing via concatena-tions and tool invocation take tools (which can include knowledge graph) to augment LLM-based methods.
+
+\subsection{\red{Tool-Based Tasks in MDP}}
+\red{Unlike language reasoning under tool invocations, where tools are optionally provided and agents autonomously decide whether to use them, this kind of tasks inherently requires tool invocation. For example, an agent may need to clean a room using APIs designed for a robotic arm or send an email using an email API.} 
+\begin{itemize}
+    \item \red{\textbf{Actions}: An action is formalized using predicates and arguments, e.g., \textit{Pick\_Up[Apple]}. Since predicates can have various definitions, the action space is both discrete and heterogeneous.}
+
+    \item \red{\textbf{States} and \textbf{Transitions}: The definitions of state and transition remain the same as in language reasoning (\(\mathcal{T}\) via concatenation), while the properties of actions are different,. Specifically, the initial state \(s_1\) is the given task description, and subsequent states are obtained by concatenating \(s_1\) with actions from previous steps, as expressed in Equation~\ref{eq:state_by_action_concat}.}
+    
+    \item \red{\textbf{Rewards}: $R_{\text{default}}$ is normally used by default.}
+\end{itemize}
+
+\subsection{Code Generation in MDP}
+\label{sec:code_gen}
+This is similar to language reasoning under Deterministic $\mathcal{T}$ via Concatenation.
+The only difference is that an action is a token in the vocabulary set of the LLM (rather than a thought consisting of several tokens). Such definition is originally proposed by \citet{zhang2023planning}.
+Under their definition, ``the reward of state $s$ is the pass rate of the program on the public test cases. The reward of a partial program is always 0.''
+
+\subsection{Goal-Oriented Dialog in MDP}
+\label{sec:dialog}
+Previous work \citep{wang-etal-2020-task} frames goal-oriented dialog as MDP.
+\citet{yu2023promptbased} begin using such formulation for LLM-integrated search. The formulation is demonstrated below.
+\begin{itemize}
+    \item \textbf{Actions}: An action $a \in A$ indicates the intent, which is predefined. For example, the intent to convince the Persuadee using reasoning and factual evidence is defined as ``Logical Appeal''.
+    This is commonly termed ``dialog act'' \citep{wang-etal-2020-task}.
+    
+    \item \textbf{States}: $s_t$ is defined as the dialogue history of previous $t$ turns, containing dialog act and agent/user utterances
+    \begin{equation}
+            h=\left(a_0^{\text {agent }}, \mathrm{u}_1^{\text {agent }}, \mathrm{u}_1^{\mathrm{usr}}, \ldots, a_{t-1}^{\text {agent }}, \mathrm{u}_t^{\text {agent }}, \mathrm{u}_t^{\mathrm{usr}}\right)
+    \end{equation},
+    where $\mathrm{u}_i^{\text {agent }}, \mathrm{u}_i^{\mathrm{usr}}$ are the utterances of the agent and user, respectively at the $i-$th turn.
+
+    \item \textbf{Transitions}: The state is updated according to stochastic responses from the user $\mathrm{u}_i^{\mathrm{usr}}$ \citep{wang-etal-2020-task}
+
+    \item \textbf{Rewards}: it represents the immediate feedback of a desired conversational outcome, such as in-process, success, or failure of persuading a user to donate to a charity 
+\end{itemize}
+
+    
+\subsection{Discussion}
+\paragraph{Accessibility of Action-State Transition}
+In environments under deterministic transitions (e.g., dialog, code generation), the next state $s'$ can be directly derived based on the selected action. 
+In a dynamic environment, $s'$ can be either sampled over the probability distribution or generated from $\text{lmpr}_{\text{transition}}$. Section \ref{sec:procedures} will demonstrate how this property affects search procedures.
+
+\paragraph{Overhead of Using MDP Definition}
+Although the comprehensive definition provides a unified interface to discuss LIS frameworks, it increases the overhead when applied to graph traversal tasks, since several defining characteristics of an MDP are not necessary, e.g., state transitions and explicit definitions of actions.
+
+\paragraph{Why Is There No Previous Work Defining Reasoning Tasks as MDPs? }
+Typical MDPs are often defined for decision-making models which can only handle the tasks whose action space is constrained and finite. However, general-purpose models like LLMs naturally deal with infinite or/and hard-to-define action space, since LLMs can infer plausible actions with world knowledge and commonsense. 
+
+\paragraph{Do Tasks Enable Action Undoing and State Back-Up?}
+Some environments allow going back up to an earlier step after executing a sequence of actions (e.g., reasoning tasks), while other tasks may not (such as robotic tasks). 
+This property is particularly important to discuss the applicability of LLM-integrated search methods.
+For environments under such property, the LIS agent can feel free to simulate future states for planning without worrying that the change of environments is irreversible.
+Details will be discussed in \S~\ref{sec:search}). 
+

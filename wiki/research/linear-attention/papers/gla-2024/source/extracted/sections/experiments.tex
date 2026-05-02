@@ -1,0 +1,99 @@
+
+
+
+\vspace{-2mm}
+\section{Empirical Study}
+\vspace{-2mm}
+\label{sec:experiments}
+
+\subsection{Experimental Setup}
+\vspace{-2mm}
+Our main experiments are on language modeling, where we study whether  GLA  can perform competitively against a (i) strong Transformer baseline with modern architectural recipes and (ii) recent linear-time models. We use the SlimPajama dataset~\citep{cerebras2023slimpajama} and tokenize it using the Mistral tokenizer~\citep{jiang2023mistral}. The original dataset contains 627B tokens; we use a 100B subset.
+
+
+
+
+
+\vspace{-2mm}
+\paragraph{Baselines.} We evaluate  GLA  against three baselines: Transformer++ \citep{touvron2023llama}, RetNet \citep{sun2023retentive}, and Mamba \citep{Gu2023MambaLS}. 
+Transformer++ is the LLaMA  architecture with Rotary Positional Embeddings~\citep{rope}, SWiGLU \citep{shazeer2020glu}, and RMSNorm~\citep{rmsnorm}; we also use SwiGLU in the RetNet to replace its original FFN for fair comparison. For Mamba, we use the open source code. All our baselines are trained for the exact same number of tokens on the same dataset for fair comparison.
+
+\vspace{-2mm}
+\paragraph{Training details.} We train all models from scratch at two scales: 340M and 1.3B.  All models are trained with AdamW~\citep{loshchilov2018fixing} using a maximum learning rate of 3e-4. The 340M models are trained on 15B tokens with a batch size of 0.5M tokens, while the 1.3B models are trained on 100B tokens with a batch size of 2M tokens. We use a cosine learning rate schedule with a warmup of 0.5B/1B tokens for the 340M/1.3B settings, respectively. The initial and final learning rates are 3e-5. We use a weight decay of 0.01, and gradient clipping of 1.0.
+
+
+
+\vspace{-2mm}
+\subsection{Main Results}
+\vspace{-2mm}
+
+In addition to perplexity (ppl) on Wikitext (Wiki.), we consider a wide range of downstream tasks covering common-sense reasoning and question-answering as was used in \citet{Gu2023MambaLS}: LAMBADA~\citep[LMB.; ][]{paperno2016lambada}, PiQA~\citep{bisk2020piqa}, HellaSwag~\citep[Hella.; ][]{zellers2019hellaswag}, WinoGrande~\citep[Wino.;][]{sakaguchi2021winogrande}, ARC-easy (ARC-e) and ARC-challenge (Arc-c) \citep{arc-ce}.
+In Appendix~\ref{app:d}, we also include results on additional tasks: Copa~\citep{copa}, SciQA~\citep{SciQA2023}, OpenbookQA~\citep{openbookqa}, BoolQA~\citep{clark2019boolq}. We report perplexity (ppl) on WikiText and LAMBADA, accuracy normalized by length on
+HellaSwag, ARC-challenge and OpenbookQA, and accuracy on the other tasks. All evaluations are performed using the LM evaluation harness~\citep{eval-harness}.
+
+
+\input{figures/mqar}
+\input{figures/length}
+
+
+Our main results are shown in Table~\ref{tab:main_results}. Compared to RetNet which uses a data-independent decay rate, the GLA Transformer with data-dependent gates shows improved results on all tasks. Both GLA Transformer and Mamba show comparable performance to Transformer++. 
+\vspace{-2mm}
+
+
+\paragraph{Recall-intensive tasks.} While subquadratic models can achieve competitive language modeling performance to Transformers, \citet{Arora2024SimpleLA} show that they  lag behind softmax attention in recall-intensive tasks. We next  evaluate GLA on real and synthetic tasks that focus on recall. 
+
+The synthetic MQAR task \cite{zoology} is a more challenging multi-query version of the induction head task \cite{h3} in which a model has to recall the token following a query token multiple times.   We follow 
+\citet{zoology}'s experimental setting and compare GLA against recent subquadractic models, including RetNet \cite{sun2023retentive}, Mamba \cite{Gu2023MambaLS}, Hyena \cite{hyena} and  RWKV-4 \cite{rwkv}. For RetNet and GLA the number of heads is set to 2; for other models we follow the default settings in \citet{zoology}. The results are shown in Figure~\ref{fig:mqar}. Standard quadratic attention achieves perfect scores in all settings and is thus omitted. We find that models with matrix-valued hidden states (i.e., Mamba/RetNet/GLA) outperform Hyena/RWKV, and our GLA outperforms RetNet, confirming the benefits of using data-dependent gates.
+
+
+Following \citet{Arora2024SimpleLA}, we also test our models on three real recall-intensive tasks: FDA \cite{arora_language_2023}, SWDE \cite{lockard_openceres_2019}, and SQUAD \cite{rajpurkar_know_2018}. These tasks focus on information extraction or reading comprehension. As illustrated in Table~\ref{tab:recall-intensive}, subquadratic models significantly underperform Transformers on the FDA and SWDE, both of which are information extraction tasks. However, GLA outperforms other subquadractic models, likely due to its larger recurrent state (compared to Mamba) and selection mechanism (compared to RetNet).
+
+
+\input{tables/recall} 
+
+%
+%
+
+%
+%
+%
+
+
+%
+
+
+%
+
+\vspace{-2mm}
+\paragraph{Long sequence training and length extrapolation.} 
+One advantage of linear attention models is that they allow for efficient long sequence training in linear time.
+To showcase this feature, we consider two training settings: (i) direct training on 8K-length contexts, (ii) training on 24K-length contexts through {truncated backpropagation through time} (TBPP) over 2K-length segments.\footnote{We split a 24K input sequence into 12 segments. The final state of the previous segment is used as the initial state for the current segment.} In the latter case the gradients are not back-propagated across segments, and hence this approach has minimal overhead comparable to the standard 2K-length training strategy (where the initial hidden state is always set to zero). We pretrain 1.3B Mamba, RetNet, and GLA models on SlimPajama for 100B tokens on these settings and test them on both SlimPajama test set and PG19 \citep{pg19} test set. 
+
+Figure \ref{fig:length_extrapolate} shows the perplexities of the tokens calculated in different position groups.  For models trained on 2K-length contexts, GLA extrapolates better than Mamba/RetNet in most position buckets on the PG19 test set; Mamba struggles to extrapolate beyond 4K, while GLA/RetNet can generalize to 18K on the Slimpajama test set.
+%
+Transformers cannot extrapolate beyond training length, which is a known failure mode.\footnote
+{Although there are positional encoding schemes that enable better length extrapolation, these methods still have difficulty generalizing significantly beyond context lengths seen during training~\citep{alibi2021,xpos,fire2024}.} Pretraining in a long sequence consistently improves perplexities for all three models. We found marginal perplexity difference in the two settings for GLA, indicating that TBPTT might be a more economic approach to long-sequence training. Mamba benefits significantly from 8K-length training, and it performs similarly as GLA in the same training setting.
+%
+\vspace{-2mm}
+\paragraph{Ablations.}
+We conduct a small-scale ablation study by training the 340M GLA variants for 7B tokens. We investigate (i) the importance of having both \emph{fine-grained} and \emph{data-dependent} gating  and (ii) the influence of head dimension size. The results are shown in Table~\ref{tab:ablation}. For (i), we find that while data dependent scalar gates substantially improve upon RetNet, a finer-grained gating mechanism is still necessary. For (ii) we tune the number of heads to vary head dimensions, where by default GLA uses 4 heads. Increasing it to 8 (\text{i.e., smaller head dimension}) leads to relatively large perplexity degradation; reducing it to 1 (i.e., larger head dimension) actually performs best, but results in only marginal improvement while requiring much higher GPU memory. We thus choose 4 heads for our experiments.
+\input{tables/ablation}
+
+\vspace{-2mm}
+\subsection{Training Efficiency}
+\vspace{-2mm}
+
+Fig.~\ref{fig:tps} shows the throughput and memory usage as a function of the sequence length and batch size for the different 1.3B models on a single H100 GPU.\footnote{We use the official implementation for Mamba, the fused version of SwiGLU  for Transformer++ and GLA, and FlashAttention-2 for Transformer++.} Here GLA adopts the materialization version of \textsc{FlashLinearAttention} with recomputation of hidden state (\S\ref{sec:fla}). All models have linear space complexity, and the total GPU footprint difference among them is minimal. In terms of training throughput, Mamba  lags behind Transformer++ and GLA, with GLA shows greater advantages in training lengths beyond 4096.
+%
+
+%
+%
+%
+%
+
+\vspace{-2mm}
+\subsection{Limitations \& Future Work}
+\vspace{-2mm}
+While our experiments with the GLA Transformer were on a respectable scale, we were unable to perform larger-scale experiments due to limited compute resources.
+Although it is unclear at this point how GLA would scale to even larger models/datasets, we anticipate that training efficiency of GLA become even more favorable compared to Mamba at larger scales. Specifically, when scaled to larger sizes (e.g., $>7$B), GLA can be more efficient than Mamba because of better use of tensor cores and GLA's compatibility with tensor parallelism.\footnote{In particular, since Mamba is not a  multi-head model it is not as amenable to tensor parallelism.} Insofar as we are interested in leveraging the efficiency of linear attention, it would be interesting to apply GLA to other modalities (especially modalities with long-range dependencies), in line with recent work on applying state-of-the-art state-space models to other types of data \citep[][\textit{inter alia}]{Yan2023DiffusionMW, zhu2024vision,ma2024u,liu2024vmamba,xing2024segmamba,wang2024graph,wang2024mambabyte,yang2024vivim}.
+

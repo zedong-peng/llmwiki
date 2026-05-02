@@ -1,0 +1,134 @@
+\section{PIM Design Principles}
+\label{sec:principles}
+%
+Since state update operations are memory-bound, PIM appears to be a
+promising solution for acceleration.
+%
+While prior works have already explored PIM acceleration for
+transformer-based LLM serving~\cite{heo2024neupims,
+hyun2024pathfinding, newton, hbm_pim}, we observe that SU-LLMs have
+significantly different performance characteristics, necessitating
+distinct design decisions.
+%
+In this section, we share our empirical insights and the
+corresponding principles that govern our accelerator design.
+
+\subsection{Principle 1: Maximizing Hardware Resource Sharing for
+Area Efficiency}
+\label{subsec:area_throughput}
+%
+There are two primary approaches to design PIM for state update
+acceleration: (1) time-multiplexed PIM and (2) pipelined PIM.
+%
+The time-multiplexed design only implements basic multiplication and
+addition units to reduce area overhead, similar to HBM-PIM~\cite{hbm_pim}.
+%
+The pipelined design maximizes throughput, by implementing the entire
+sequence of operations in a pipelined manner.
+%
+
+%
+\niparagraph{Tradeoff between area and throughput.}
+%
+Figure~\ref{fig:challenges_pim} shows the normalized throughput of
+state update operations of SU-LLMs on an A100 GPU and the two PIM
+designs during the generation phase at batch size 128.
+%
+It also presents the respective area overhead of the two PIM designs.
+%
+We adopt a per-bank PIM design (each bank equipped with its own
+processing unit) for both PIM architectures, matching the channel
+bandwidth to that of the A100.
+%
+Detailed PIM configurations and simulator/RTL implementation are
+provided in Section~\ref{sec:method}.
+%
+While the time-multiplexed design offers a modest 2.8$\times$
+throughput improvement over the GPU, the pipelined design achieves a
+more significant 4.3$\times$ improvement.
+%
+Meanwhile, the time-multiplexed design has only 17.8\% area overhead,
+whereas the pipelined design incurs a much larger area overhead of
+32.4\% (>25\%), posing practical deployment challenges.
+%
+Neither design offers both high throughput and low area overhead.
+%
+
+%
+\niparagraph{Achieving both high throughput and area efficiency.}
+%
+We argue that even if the number of processing units in the per-bank
+pipelined design is halved, the same throughput can still be
+maintained, thereby achieving both high throughput and area efficiency.
+%
+Even per-bank pipelined designs cannot fully utilize each processing
+unit because state updates require both read and write, and row
+buffers cannot perform both simultaneously.
+%
+During writes, no input is supplied to the processing unit.
+%
+With judicious dataflow design, two banks can share a single
+processing unit, allowing continuous input from both banks without
+throughput loss.
+%
+We call this technique \emph{access interleaving} and detail it in
+Section~\ref{subsec:access_interleaved_iteration_parallelism}.
+
+%
+
+\subsection{Principle 2: Achieving Both Accuracy and Efficiency from
+Low-Precision Arithmetic}
+\label{subsec:area_accuracy}
+%
+As discussed in Section~\ref{subsec:challenges_quantization},
+quantizing the state is another promising approach to alleviate the
+pressure on memory bandwidth during state update operations.
+%
+To leverage quantization in PIM, we conduct experiments to evaluate
+the tradeoff between area and accuracy aiming to achieve the best of both.
+%
+
+%
+\niparagraph{Tradeoff between area and accuracy.}
+%
+Figure~\ref{fig:quantization_pareto} illustrates the area-accuracy
+tradeoff space for various low-precision formats, evaluated using the
+Mamba-2 on the Wikitext-2~\cite{merity2016pointer} dataset with a
+per-bank pipelined PIM design.
+%
+Detailed RTL implementation methodology is provided in Section~\ref{sec:method}.
+%
+As described in Section~\ref{subsec:challenges_quantization},
+\texttt{fp8} formats suffer from a significant increase in
+perplexity, while \texttt{int8} and \texttt{MX8} achieve perplexity
+levels comparable to \texttt{fp16}.
+%
+
+%
+However, our analysis suggests that \texttt{int8} incurs substantial
+area overhead, while \texttt{MX8} is significantly more area-efficient.
+%
+The high area overhead of \texttt{int8} stems from the need for
+element-wise addition during state updates, which the scaling-based
+integer format cannot directly handle.
+%
+This necessitates dequantization (multiplying each integer element by
+the scaling factor) and re-quantization (normalizing elements based
+on the max value), requiring additional arithmetic units and comparison logic.
+%
+Conversely, \texttt{MX} simplifies operand alignment for addition by
+sharing the exponent bit within a group, enabling direct operations
+through simple shifting without dequantization, the details of which
+will be discussed in Section~\ref{subsec:microarchitecture}.
+%
+
+Additionally, the results show that stochastic rounding imposes
+minimal area overhead.
+%
+It requires a Linear Feedback Shift Register (LFSR) for random number
+generation and a simple addition unit to add these numbers to the
+mantissa, both of which are area-efficient~\cite{9773221}.
+%
+We conclude that among the quantized formats, \texttt{MX8} with
+stochastic rounding emerges as a Pareto-optimal choice, offering
+superior area efficiency while maintaining high accuracy.

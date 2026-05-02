@@ -1,0 +1,316 @@
+\input{tables/lmpe_eval_comb}
+
+\section{Search Procedures}
+\label{sec:procedures}
+This section presents the reusable search procedures applied across various frameworks, including both non-LMPR-specific and LMPR-based procedures. Unlike Section~\ref{sec:lmprs}, which focused on configuring LMPRs, here we demonstrate how these LMPRs are integrated into the operational processes. However, some content may overlap slightly for coherence.
+Table~\ref{tab:search_procedures} summarizes the dependencies between these search procedures and the LMPR components.
+
+\input{tables/procedure_dependency}
+
+\paragraph{Search Nodes: Integrating States, Action, and Rewards}
+In this section, we shift our focus to search and clarify how the fundamental search ``node'' is defined with respect to states and actions. Some methods (e.g., ToT \citep{yao2023tree}) treat a node as a particular state in a search tree, with transitions determined by the actions taken. To ensure generality, we unify states, actions, and even their estimated values (or rewards) in a single node structure (e.g., RAP \citep{hao-etal-2023-reasoning}), facilitating partial expansions or multi-step lookahead. To align with object-oriented design, we represent a node as $n$ with attributes $n.\text{action}$, $n.\text{state}$, $n.\text{parent}$, and $n.\text{val}$ , representing the action, state, parent node, and value, respectively.
+
+\subsection{First-Order Procedures}
+First-order procedures operate independently, without relying on other procedures. They serve as the foundational components upon which more complex procedures are built, ensuring a modular and scalable framework for LLM-based search operations.
+The first three are based on LLM-Profiled Policy (LMPP), evaluator (LMPE), and transition model (LMPT), respectively, while others not necessarily depend on LMPRs.
+
+% LMPR-Based Procedures
+\paragraph{LMPP Sampling}
+The sampling procedure involves generating multiple actions (assuming $N$ actions) for a given state $s_t$. Generally, there are two approaches to sampling actions: one based on generating actions sequentially using the single-action policy ($\text{lmpp}$), and another based on generating all actions simultaneously using the batch policy ($\text{lmpp}_\text{batch}$). These approaches are detailed in Procedures~\ref{alg:lmpp_sampling_one} and~\ref{alg:lmpp_sampling_batch}, respectively.
+
+\begin{procedure}[h!]
+\caption{LMPP Sampling: Sample Actions One at a Time}
+\label{alg:lmpp_sampling_one}
+\small
+\noindent
+\begin{algorithmic}[1]
+    \Procedure{Sample\_LMPP\_One\_At\_A\_Pass}{$s_t, N$} 
+        \State $\mathbf{a}_t \gets \{\}$ 
+        \For{$i \in \{1, \ldots, N\}$}
+            \State $a_i \sim \text{lmpp}\left(a \mid s_t\right)$
+            \State $\mathbf{a}_t \gets \mathbf{a}_t \cup \{a_i\}$
+        \EndFor
+        \State \textbf{return} $\mathbf{a}_t$
+    \EndProcedure
+\end{algorithmic}
+\end{procedure}
+
+\begin{procedure}[h!]
+\caption{LMPP Sampling: Sample All Actions at Once}
+\label{alg:lmpp_sampling_batch}
+\small
+\noindent
+\begin{algorithmic}[1]
+    \Procedure{Sample\_LMPP\_All\_At\_Once}{$s_t, N$} 
+        \State $\mathbf{a}_t \sim \text{lmpp}_\text{batch} \left(a \mid s_t, N \right)$
+        \State \textbf{return} $\mathbf{a}_t$
+    \EndProcedure
+\end{algorithmic}
+\end{procedure}
+
+\paragraph{LMPE+ Evaluation}
+LMPEs can be used to estimate the value (or reward) of a state. The evaluator’s output—whether in textual or numerical form—can then be combined with rule-based heuristics to refine the overall assessment. For instance, Table~\ref{tab:lmpe_eval_comb} illustrates how numeric outputs from LMPEs are incorporated into a heuristic that balances both LLM-based scoring and domain-specific constraints. Such integrated approaches are particularly relevant when neither pure heuristic nor pure LLM-based evaluation alone is sufficient for robust decision-making. 
+Based on the input, the procedure can be defined as \textsc{V\_Eval} for taking a state as input and \textsc{Q\_Eval} for taking both a state and an action as input.
+% The specific use of estimated numbers as rewards and values is demonstrated in \S~\ref{sec:search}
+
+\paragraph{\red{Multi-Choice LMPE Selection}}
+\red{$\text{lmpe5}$ (an LLM profiled for multiple-choice tasks) can be leveraged for top-k selection to directly select K nodes.}
+\begin{procedure}[h!]
+\caption{\red{TopK Selection via $\text{lmpe5}$}}
+\label{proc:topk_selection2}
+\small 
+\begin{algorithmic}[1]
+   \Procedure{\red{TopK\_Select\_lmpe}}{\red{$N, k$}}
+       \State \red{$A \gets \{ n.\text{action} \mid n \in N \} $}
+          \red{\Comment{Extract actions from each node in \(N\)}}
+          
+        \State \red{$A^* \leftarrow \text{lmpe5}(A, k)$}
+         \red{\Comment{Select the top \( k \) actions from \(A\)}}
+         
+        \State \red{$N^* \gets \{ n \in N \mid n.\text{action} \in A^* \} $}
+          \red{\Comment{Return nodes corresponding to the selected actions}}
+        \State \red{\textbf{return} $N^*$}
+    \EndProcedure
+\end{algorithmic}
+\end{procedure}
+
+\paragraph{Single-Step UCT Selection}
+The objective of Upper Confidence Tree (UCT) selection is to choose an action that balances exploitation and exploration. This is captured by the UCT formula:
+\begin{equation} \label{eq:uct}
+    \operatorname{UCT}\left(s, a\right) = Q(s, a)+c \sqrt{\frac{\ln N(s)}{N(c(s, a))}},
+\end{equation}
+where \(c\) is a constant controlling exploration,
+\(N(s)\) is the number of times state \(s\) has been visited, % the number of trials (roll-outs) state \(s\) has been visited
+and \(N(s,a)\) is the number of times action \(a\) has been selected under \(s\).
+% PUCT
+A related variant, Predictor Upper Confidence Tree (PUCT), incorporates the prior probability \(P(s,a)\) into the exploration term to further guide the action selection. \red{$P(s,a)$ can be implemented by a stochastic LMPP.}
+\begin{equation}
+\operatorname{PUCT}\left(s, a\right)=Q\left(s, a\right)+\mathrm{c} P(s, a) \frac{\sqrt{ N\left(s\right)}}{1+N\left(s, a\right)}
+    \label{eq:puct}
+\end{equation}
+$P(s, a)$ is normally a domain-specific predictor.
+Based on the two estimates, the procedure is just to iterate over the given actions $A$, along with their values $Q$, and extract the one with the highest value, as summarized in Procedure~\ref{alg:uct_puct}.
+\begin{procedure}[h!]
+\caption{Single-Step UCT Selection} 
+\label{alg:uct_puct}
+\small
+\noindent
+\begin{algorithmic}[1]
+       \Procedure{UCT\_Select}{$s, A$}
+        \State $a^*=\arg \max _{a \in A}\left[\operatorname{UCT}(s, a)  \right]$
+    \EndProcedure
+    \Procedure{PUCT\_Select}{$s, A$}
+        \State $a^*=\arg \max _{a \in A}\left[\operatorname{PUCT}(s, a)\right]$
+    \EndProcedure
+\end{algorithmic}
+\end{procedure}
+
+\paragraph{LMPT Simulation}
+This procedure is straightforward: given the current state $s_t$ and an action $a_t$, the LMPT directly outputs the next state $s_{t+1}$. Unlike LMPP sampling (which may loop through multiple actions) or LMPE+ Evaluation (which may incorporate additional heuristics), no further processing or components are involved. 
+
+\paragraph{Exhaustive Action Retrieval}  
+When the action space is small and well-defined (e.g., in BlockWorld), all possible actions can be retrieved exhaustively. This procedure is primarily used to facilitate the subsequent expansion or simulation steps.
+
+\subsection{Higher-Order Procedures}
+% Non-LMPR-Specific Procedures
+\paragraph{Value-Based Selection} % Single-Step 
+The first type is top-k selection.
+The top $k$ states or actions are picked from a large pool of candidates based on their estimated values. A state-value function $V(s')$ or an action-value function $Q(s,a)$ is used to generate values. Commonly, they are implemented by LMPE+ evaluation. The detail is illustrated in Procedures~\ref{proc:topk_selection}. 
+% Here, the elements $s'$, $s$, and $a$ are encapsulated within a node object as $\text{state}$, $\textbf{parent}$, and $.\text{action}$, respectively. This design allows the procedures to directly accept nodes as input, as
+\begin{procedure}[h!]
+\caption{Value-Based TopK Selection}
+\label{proc:topk_selection}
+\small 
+\begin{algorithmic}[1]
+    \Procedure{TopK\_Select}{$N, k, \text{ValueFunc}=\text{NA}$}
+    % \Comment{Selecting $k$ states from candidate pool $S'$}
+        \For{each node $n' \in N'$}
+            \If{$\text{ValueFunc}\neq\text{NA} \text{ and } n'.\text{val}$ \textbf{is uninitialized}}
+                \State $n'.\text{val} \gets \text{ValueFunc}(n'.\text{state})$
+            \EndIf
+        \EndFor
+        \State $N^* \leftarrow   \arg\operatorname{top}_k\bigl\{n'.\text{val}  \mid n' \in N'\bigr\}$
+        \State \textbf{return} $N^*$
+    \EndProcedure
+\end{algorithmic}
+\end{procedure}
+
+Once $k=1$, the $\arg\operatorname{top}_k\bigl\{n'.\text{val}  \mid n' \in N'\bigr\}$ reduces to
+$\arg\max_{n' \in N'} n'.\text{val}.$ 
+Note that the \textbf{if} statement for value assignment also allows specialized ways to assign values without necessarily relying on \(n'.\text{state}\). 
+\red{This is particularly prepared for Monte-Carlo Tree Search (MCTS), where Q values are accumulated during backpropagation.}
+
+Another type is \text{threshold-based selection}.
+Here, the procedure repeatedly samples one action from the current node’s state, simulates the new state, and evaluates its value. If the value surpasses a threshold $\theta$, the procedure returns the newly created node; otherwise, it continues sampling.
+
+\begin{procedure}[h!]
+\caption{Value-Based Threshold Selection}
+\label{proc:threshold_val_selection}
+\small
+\begin{algorithmic}[1]
+    \Procedure{ThresholdSelect}{$n, \theta$}
+        \While{true}
+            \State $a \gets \text{Sample\_Action}(n.\text{state})$
+            \State $s' \gets \text{Simulate}(n.\text{state}, a)$
+            \State $v \gets \text{ValueFunc}(s')$
+            \If{$v \ge \theta$}
+                \Comment{Value exceeds threshold; accept this node}
+                \State Instantiate a new node $n'$
+                \State $n'.\text{state} \gets s'$
+                \State $n'.\text{action} \gets a$
+                \State $n'.\text{val} \gets v$
+                \State \textbf{return} $n'$
+            \EndIf
+            \Comment{Otherwise, continue sampling another action}
+        \EndWhile
+    \EndProcedure
+\end{algorithmic}
+\end{procedure}
+
+\paragraph{LMPP Expansion}  
+This expansion procedure adds one or more child nodes under the given leaf node(s), typically visualized at the next depth level in a tree search. The procedure is based on the following components:
+\begin{enumerate}
+    \item \textbf{LMPP Sampling}:  
+    This step provides the $n.\text{action}$ attribute for each node, while leaving $n.\text{state}$ and $n.\text{val}$ uninitialized.
+    
+    \item \textbf{Simulating States Based on Sampled Actions}:  
+    To enable further expansion, the node’s state ($n.\text{state}$) must be generated. This can be accomplished via simulators (e.g., using LMPT simulation), direct action execution, or even hard-coded methods (e.g., simply concatenating actions).
+    
+    \item \textbf{(Optional) Expanding Multiple Nodes Simultaneously}:  
+    In many search strategies (such as beam search with a beam size greater than 1 or breadth-first search), multiple leaf nodes are expanded concurrently.
+\end{enumerate}
+
+A general form of the expansion procedure is specified in Procedure~\ref{alg:expansion}.
+
+\begin{procedure}[h!]
+\caption{Expansion} 
+\label{alg:expansion}
+\small
+\noindent
+\begin{algorithmic}[1]
+    \Procedure{Expand\_LMPP}{$N_t$} 
+        \State $N_{t+1} \gets \{\}$ 
+        \For{each node $n_t \in N_t$}
+            \State $A_t \gets \text{\textsc{Sample\_LMPP}}(n_t.\text{state}, k)$ 
+            \For{each action $a_t \in A_t$}
+                \State Instantiate a new node $n_{t+1}$ with $n_{t+1}.\text{action} \gets a_t$
+                \State $n_{t+1}.\text{state} \gets \text{\textsc{Simulate}}(n_t.\text{state}, a_t)$
+                \State $N_{t+1} \gets N_{t+1} \cup n$
+            \EndFor
+        \EndFor
+        \State \textbf{return} $N_{t+1}$
+        \EndProcedure
+\end{algorithmic}
+\end{procedure}
+Here, \textsc{Sample\_LMPP} refers to Procedure~\ref{alg:lmpp_sampling_one} or Procedure~\ref{alg:lmpp_sampling_batch}. The total number of $N_{t+1}$ equals the product of the number of nodes in $N_t$ and the number of actions $k$ sampled per node.
+% A general form of expansion can be expressed as:
+% \begin{equation}
+%     S_{\text{sample}}^{t+1} \leftarrow\left\{\text{\textsc{Simulate}}(s, a_t) \mid s \in S_t, a_t \in \text{\textsc{LMPP\_Sampling}}(s, N)\right\}
+% \end{equation}
+
+% Option 1: sample action 
+% -> evaluate & select optimal action 
+% -> simulate for optimal action
+
+% Option 2: sample state  
+% -> evaluate & select optimal state
+
+% Option 3: sample action 
+% -> simulate for actions 
+% -> evaluate & select optimal state
+% As traditional Monte-Carlo method, instances (or decisions) are randomly sampled to evaluate the desired value. Specifically, 
+\paragraph{Path Simulation}
+\label{sec:simulation}
+\begin{itemize}
+    \item \textbf{Sampling}:  
+    At each step, actions \(A_{\text{candidate}}\) are sampled from the current state using either LMPP sampling or a random sampling method or a uniform sampling \citep{shi2025monte}. We denote by \(M\) the size of \(A_{\text{candidate}}\) in this paragraph. \red{After sampling, there are different scenarios:
+    In the standard MCTS framework \citep{sutton2018reinforcement}, a basic policy is used to select an action at random during each simulation step. Additionally, a LMPP can be employed to roll out a path until either a goal state or a terminal state is encountered. We refer to these two approaches as \textbf{Greedy-Random} and \textbf{Greedy-LMPP}, respectively, noting that more sophisticated implementations exist.    
+    \textbf{Evaluate-Select-Transit (EST)} or \textbf{Transit-Evaluate-Select (TES)}. The former requires \(M\) evaluations and 1 transition, while the latter requires \(M\) transitions and \(M\) evaluations.}
+
+    \item \red{\textbf{Evaluate-Select-Transit (EST)}: 
+        \textbf{1) Evaluate}: A reward model (RM) is instantiated by LMPE+ evaluation to evaluate \(M\) pairs \((s_t, a)\) where \(a \in A_{\text{candidate}}\). The generated reward is denoted as \(r\). Afterwards, a function named \texttt{createNode} initializes \(M\) nodes with each \(s_t\), \(a\), and \(r\) for node attributes: .state, .action, amd .val.\\[1mm]
+        \textbf{2) Select}: \textsc{TopK\_Select} is then applied with only the highest-valued node preserved (i.e., \(k=1\)).\\[1mm]
+        \textbf{3) Transit}: Finally, the next state \(s_{t+1}\) is generated by a Transition Model (TM).
+        This model can be implemented in one of three ways: through LMPT simulation, by using domain-specific simulators, or by directly executing the selected action in the environment to obtain the following state (or observation). For brevity, we refer to these implementations as TM-LMPT, TM-Sim, and TM-Env, respectively.
+    } 
+    
+    \item \red{\textbf{Transit-Evaluate-Select (TES)}: 
+        \textbf{1) Transit}: The Transition Model (TM) is applied to \(a \in A_{\text{candidate}}\).\\[1mm]
+        \textbf{2) Evaluate}: The reward model (RM) is instantiated to evaluate each \(s_{t+1}\), generating reward \(r\). The function \texttt{createNode} can be applied with \(s_t\), \(s_{t+1}\), \(a\), and \(r\) corresponding to node attributes: .state, .parent, .action, .val. \\[1mm]
+        \textbf{3) Select}: \textsc{TopK\_Select} is then applied with only the highest-valued node preserved (i.e., \(k=1\)).
+    }
+\end{itemize}
+Procedure~\ref{proc:path_simulation} demonstrates a general path simulation process.
+\begin{procedure}[h!]
+\caption{Path Simulation} 
+\label{proc:path_simulation}
+\small
+\noindent
+\begin{algorithmic}[1]
+     \Procedure{Simulate}{$n_t, \text{RM}, \text{heuristic}=\text{NA}$} 
+     % \For{$i \in \{0, \ldots, N-1 \}$}
+     %    \State $s_{t+1}^{(i)} \sim \text{Simulator}\left(s_{t+1} \mid s_t, a_t^{(i)}\right)$
+     \State path $\gets$ \{\}
+     \While{$n_t.\text{state}$ is not terminal}
+        \State $s_t=n_t.\text{state}$
+        
+        \State $A \gets \text{\textsc{Sample\_Action}}(n_t.\text{state})$
+        
+        \If{$\text{heuristic}==\text{NA}$} \Comment{Random action sampling (M=1)}
+            \State $s^{*}_{t+1} \gets \text{\textsc{TM}}(s_t, A)$
+        \EndIf
+        
+        \If{$\text{heuristic}==\text{eval\_first}$}
+        \Comment{Evaluate-Select-Transit}
+            \State $N_{\text{new}} \leftarrow \{ \text{createNode}(s_t, a, \text{RM}(s_t, a)) \mid a \in A_{\text{candidate}} \}$
+        
+            \State  $n^* \gets \text{\textsc{TopK\_Select}}(N_{\text{new}}, k=1)$ 
+        
+            \State $s^{*}_{t+1} \gets \text{\textsc{TM}}(s_t, n^*.\text{action})$)
+        \EndIf
+
+        \If{$\text{heuristic}==\text{transit\_first}$}
+        \Comment{Transit-Evaluate-Select}
+            \State $N_{\text{new}} \leftarrow \{ \text{createNode}( s_t, a, \text{RM}(s_t, a), \text{\textsc{TM}}(s_t, a) ) \mid a \in A_{\text{candidate}} \}$
+            \State  $n^* \gets \text{\textsc{TopK\_Select}}(N_{\text{new}}, k=1)$ 
+        \EndIf
+        
+        \State path $\gets \text{path} \cup s^{*}_{t+1}$
+        \State $n_t.\text{state}=s^{*}_{t+1}$
+    \EndWhile
+    \State \textbf{return} path 
+\EndProcedure
+\end{algorithmic}
+\end{procedure}
+
+
+\paragraph{MCTS Selection}
+However, during MCTS for planning, before going to the expansion phase, Procedure~\ref{alg:uct_puct} (One-step UCT Selection) should be used multiple times to traverse from $s_0$ to a leaf node $s_\text{leaf}$.
+
+\paragraph{MCTS Backpropagation - Value Update}
+After each simulation returns a reward $r$, update the Q value as:
+\begin{equation}
+    % Q_{\text {new }}=Q_{\text {old }}+\frac{r-Q_{\text {old }}}{N_{\text {old }}}
+    Q_{\text {new }}=\frac{r+Q_{\text {old }}  \cdot \text{Count}_{\text {new }}}{\text{Count}_{\text {new }}}, 
+    % \quad
+    % V_{\text{new}} = \frac{r + V_{\text{old}} \cdot \text{Count}_{\text{new}}}{\text{Count}_{\text{new}}},
+\end{equation}
+\begin{itemize}
+    \item $r$, depending on the task, can be a reward at the terminal state. In some cases,it can be an aggregated one, if each simulation step yields a reward. Specifically, if rewards \(r_t\) are discounted by \(\gamma\), then the final sample reward \(r\) for backpropagation is:
+    \[
+    r = G = \sum_{t=0}^{T-1} \gamma^t r_t.
+    \]
+    In many implementations (e.g., RAP \citep{hao-etal-2023-reasoning}), the step-wise rewards are obtained via LMPE+ or a heuristic evaluation during path simulation. These rewards from simulated nodes are then employed to update the Q values for non-simulated nodes, including the leaf nodes and those above.
+    \item \( Q_{\text{old}} \) are the previous \( Q \)-value.
+    \item \( \text{Count}_{\text{new}} \) is the total visit count after the current update.
+\end{itemize}
+During some implementations \citep{hao-etal-2023-reasoning}, each reward $r \in R_\text{cum}$ propagating from the terminal node can be stored in a list $R_\text{cum}$ , and average them when used.
+The procedure of value estimate, as summarized in Table~\ref{tab:lmpe_eval_comb}, provides the initialized values for new actions or resulting states.  
+
+\paragraph{MCTS Backpropagation - Visit Update}
+Except for the estimated value $Q(s, a)$, the backpropagation also updates the visit count for every state on the path from the root to the leaf and each edge $(s, a)$ along that path, denoted as $\text{Count}\left(s_t\right)$ and $\text{Count}\left(s_t, a_{t+1}\right)$, respectively.
+The increase in $\text{Count}(s, a)$ (the action-level visit count) reduces the exploration bonus for $a$ in future selections, thus making ( $\mathbf{s}, \mathbf{a}$ ) slightly less likely to be chosen purely for exploration next time, assuming the same or lower estimated value.
+% N\left(s_t, a_{t+1}\right) -> N\left(s_{t+1}\right)
+Assuming $\text{Count}\left(s_t, a_{t+1}\right) -> \text{Count}\left(s_{t+1}\right)$ in some deterministic environments, only $\text{Count}\left(s_{t+1}\right)$ is tracked. 
+For the same reason, $Q$ values can be attached as an attribute of the state node.
+An example is the implementation of RAP \citep{hao-etal-2023-reasoning} \footnote{\url{https://github.com/maitrix-org/llm-reasoners/blob/main/reasoners/algorithm/mcts.py}}.

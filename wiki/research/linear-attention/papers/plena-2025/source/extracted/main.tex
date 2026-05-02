@@ -1,0 +1,137 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+%Template version as of 6/27/2024
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{cleveref}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{pifont}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{mathtools}
+\usepackage{soul}
+\usepackage{placeins}
+\usepackage{enumitem}
+\usepackage{xspace}
+\usepackage{booktabs}
+\usepackage{array}
+
+\usepackage[hyphens]{url}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+% Ensure letter paper
+\pdfpagewidth=8.5in
+\pdfpageheight=11in
+
+% Fix subfigure references in the text
+\captionsetup[subfigure]{labelformat=simple}
+\renewcommand\thesubfigure{(\alph{subfigure})}
+\crefname{figure}{figure}{figures}
+
+%%%%%%%%%%%---SETME-----%%%%%%%%%%%%%
+\newcommand{\cmark}{\textcolor{green!60!black}{\ding{51}}}
+\newcommand{\xmark}{\textcolor{red}{\ding{55}}}
+\newcommand{\gmark}{\textcolor{gray}{\raisebox{0.5ex}{\rule{1.2ex}{0.25ex}}}}
+\definecolor{jcred}{HTML}{e31a1c}
+\definecolor{jcgreen}{HTML}{33a02c}
+\definecolor{jcblue}{HTML}{1f78b4}
+\definecolor{jcorange}{HTML}{ff7f00}
+\definecolor{jcpurple}{HTML}{6a3d9a}
+\definecolor{jcbrown}{HTML}{b15928}
+\newcommand{\best}[1]{\textcolor{jcgreen}{\bf #1}}
+
+\newcommand{\llama}{\textsc{Llama-}\scalebox{0.95}{2}\xspace}
+\newcommand{\llamaIII}{\textsc{Llama-}\scalebox{0.95}{3}\xspace}
+\newcommand{\llamaIIISmall}{\textsc{Llama-}\scalebox{0.9}{3-8B}\xspace}
+\newcommand{\llamaIIIBig}{\textsc{Llama-}\scalebox{0.9}{3-70B}\xspace}
+\newcommand{\llamaIVMVK}{\textsc{Llama-}\scalebox{0.9}{4-Maverick}\xspace}
+\newcommand{\llamaSmall}{\textsc{Llama-}\scalebox{0.9}{2-7B}\xspace}
+\newcommand{\llamaMedium}{\textsc{Llama-}\scalebox{0.9}{2-13B}\xspace}
+\newcommand{\llamaIIIOneSMALL}{\textsc{Llama-}\scalebox{0.9}{3.1-8B}\xspace}
+\newcommand{\llamaIIIPLUSBIG}{\textsc{Llama-}\scalebox{0.9}{3.3-70B}\xspace}
+\newcommand{\llamaBig}{\textsc{Llama-}\scalebox{0.9}{2-70B}\xspace}
+\newcommand{\llamaTiny}{\textsc{Llama\scalebox{0.9}{3.2-1B}} }
+\newcommand{\llamafamily}{\textsc{Llama}\xspace}
+\newcommand{\wiki}{WikiText-2\xspace}
+\definecolor{darkblue}{RGB}{0, 70, 140}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\pagenumbering{arabic}
+
+%%%%%%%%%%%---SETME-----%%%%%%%%%%%%%
+\title{Combating the Memory Walls: Optimization Pathways for Long-Context Agentic LLM Inference}
+\author{
+\IEEEauthorblockN{
+Haoran Wu\textsuperscript{1},
+Can Xiao\textsuperscript{2},
+Jiayi Nie\textsuperscript{1},
+Xuan Guo\textsuperscript{2},
+Binglei Lou\textsuperscript{2},
+Jeffrey T.H. Wong\textsuperscript{2},
+Zhiwen Mo\textsuperscript{2},\\
+Cheng Zhang\textsuperscript{2},
+Przemyslaw Forys\textsuperscript{2},
+Chengyang Ai\textsuperscript{3},
+Timi Adeniran\textsuperscript{1},
+Wayne Luk\textsuperscript{2},
+Hongxiang Fan\textsuperscript{2},\\
+Jianyi Cheng\textsuperscript{3},
+Timothy M. Jones\textsuperscript{1},
+Rika Antonova\textsuperscript{1},
+Robert Mullins\textsuperscript{1},
+Aaron Zhao\textsuperscript{2}
+}
+\IEEEauthorblockA{
+\textsuperscript{1}University of Cambridge \quad
+\textsuperscript{2}Imperial College London \quad
+\textsuperscript{3}University of Edinburgh
+}
+}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\maketitle
+\thispagestyle{plain}
+\pagestyle{plain}
+
+
+
+%%%%%% -- PAPER CONTENT STARTS-- %%%%%%%%
+
+\begin{abstract}
+
+LLMs now form the backbone of AI agents for a diverse array of applications, including tool use, command-line interfaces, and web or computer interaction. These agentic LLM inference tasks are fundamentally different from chatbot-focused inference
+--- they often have much larger context lengths to capture complex, prolonged inputs, such as an entire webpage DOM or complicated tool call trajectories. 
+This, in turn, generates significant off-chip memory traffic for hardware at the inference stage and causes the workload to be constrained by the two memory walls, namely the \textit{bandwidth} and \textit{capacity} walls, preventing the compute units from achieving high utilization.
+
+In this paper, we introduce PLENA, a hardware–software co-designed system that applies three core optimization pathways. PLENA features a novel flattened systolic-array architecture (\textit{Pathway 1}) and efficient compute and memory units that support an asymmetric quantization scheme (\textit{Pathway 2}). It also provides native support for FlashAttention (\textit{Pathway 3}). In addition, PLENA is developed with a complete software–hardware stack, including a custom ISA, a compiler, a transaction-level simulator, and an automated design-space exploration flow. Experimental results show that PLENA delivers up to 2.23$\times$ and 4.70$\times$ higher throughput than the A100 GPU and TPU v6e, respectively, under identical multiplier counts and memory configurations during LLaMA agentic inference. PLENA also achieves up to 4.04$\times$ higher energy efficiency than A100 GPU. The full PLENA system—including its simulator, compiler, ISA, and RTL implementation—will be open-sourced to the research community.
+
+\end{abstract}
+
+\input{subpages/intro}
+\input{subpages/background}
+\input{subpages/accelerator}
+\input{subpages/quantization}
+\input{subpages/experiment}
+\input{subpages/conclusion}
+
+
+%%%%%%% -- PAPER CONTENT ENDS -- %%%%%%%%
+
+
+%%%%%%%%% -- BIB STYLE AND FILE -- %%%%%%%%
+\bibliographystyle{IEEEtranS}
+\bibliography{refs}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\end{document}

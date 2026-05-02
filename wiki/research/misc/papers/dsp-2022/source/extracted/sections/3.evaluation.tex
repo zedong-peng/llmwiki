@@ -1,0 +1,154 @@
+\section{Evaluation}
+\label{sec:eval}
+
+We now consider how to implement DSP programs for three diverse knowledge-intensive NLP tasks: open-domain question answering (QA), multi-hop QA, and conversational QA. All of these tasks are ``open-domain'', in the sense that systems are given a short question or participate in a multi-turn conversation without being granted access to context that answers these questions.
+
+We build and evaluate intuitive compositions of the functions explored in \secref{section:dsp} for each task. We show that, despite low development effort, the resulting \DSP programs exhibit strong quality and deliver considerable empirical gains over vanilla in-context learning and a standard retrieve-then-read pipeline with in-context learning.
+
+
+
+
+
+\subsection{Evaluation Methodology}
+
+In this report, we consider one \textit{development dataset} for each of the tasks we consider, namely, the open-domain version of SQuAD~\cite{rajpurkar2016squad,lee2019latent}, the multi-hop HotPotQA~\cite{yang2018hotpotqa} dataset in the open-domain ``fullwiki'' setting, and the conversational question answering QReCC~\cite{anantha2020open,vakulenko-etal-2022-scai} dataset, which we used for developing the \DSP abstractions. We report the validation set accuracy on all three datasets and discuss them in detail \secref{sec:eval:datasets}.
+
+Unless otherwise stated, systems are given access to 16-shot training examples, that is, each DSP program can use (up to) 16 questions---or conversations, where applicable---randomly sampled from the respective training set. We subsample the validation and test sets to 1000 questions (or 400 conversations, where applicable) and report average quality across five seeds where each seed fixes a single $k$-shot training set of examples. To control the language model API spending budget, each seed processes one fifth of the evaluation examples (e.g., 200 questions per seed, for a total of 1000 unique questions).
+
+We also dedicate held-out \textit{test datasets} (e.g., Open-NaturalQuestions; \citealt{kwiatkowski2019natural}) and \textit{test tasks} (e.g., claim verification, as in FEVER; \citealt{thorne2018fever}) that we only use for evaluating pre-defined DSP programs rather than development. We will include these results in a future version of this report.
+
+
+
+
+\subsection{Pretrained Modules}
+
+\paragraph{\RM{}} We use ColBERTv2~\cite{santhanam-etal-2022-colbertv2}, a state-of-the-art retriever based on late interaction~\cite{khattab2020colbert}. We choose ColBERTv2 for its highly effective zero-shot search quality and efficient search~\cite{santhanam2022plaid}. %
+However, our \DSP{} programs are agnostic to how the retriever represents examples or scores passages, so essentially any retriever can be used.
+
+In addition, by making retrieval a first-class construct, \DSP allows us to change or update the search index over time. We simulate this in our experiments by aligning each of our datasets with the nearest Wikipedia corpus among the Dec 2016 Wikipedia dump from~\citealt{chen2017reading}, the Nov 2017 Wikipedia ``abstracts'' dump from ~\citealt{yang2018hotpotqa}, and the Dec 2018 Wikipedia dump from~\citealt{karpukhin2020dense}.
+
+
+
+\paragraph{\LM{}} We use the GPT-3.5 (\texttt{text-davinci-002}; \citealt{brown2020language}; \citealt{ouyang2022training}) language model. Unless otherwise stated, we use greedy decoding when generating $n=1$ prediction. We sample with temperature $t=0.7$ when $n>1$, like related work~\cite{wang2022self}. %
+
+
+
+
+
+
+\subsection{Baselines}
+\label{sec:eval:baselines}
+
+\paragraph{Vanilla LM} The vanilla LM baselines represent the few-shot in-context learning paradigm used by \citet{brown2020language}. The open-domain QA and multi-hop QA baselines randomly sample 16 demonstrations (i.e., all of the examples available to each program in our evaluation) from the training set and do not augment these demonstrations with evidence. Similarly, the conversational QA baseline samples four conversations. The vanilla baselines do not  search for passages relevant to the input query.
+
+\begin{lstlisting}[numbers=left,language=Python,breaklines=true]
+def vanilla_LM_QA(question: str) -> str:
+    demos = sample(train, k=16)
+    x = Example(question=question, demos=demos)
+    return generate(qa_template)(x).pred
+\end{lstlisting}
+
+\paragraph{Retrieve-then-Read} The ``retrieve-then-read'' baselines use the \RM{} to support each example with a potentially relevant passage before submitting the prompt to the \LM{}. This emulates the pipelines used by state-of-the-art open-domain question answering systems~\cite{khattab2021relevance,izacard2020leveraging,hofstatter2022fid}. In conversational QA, we concatenate the first turn and the final question, an approach that we found to perform much better than simply using the final turn. For multi-hop QA, we retrieve and concatenate two passages per question.
+
+\begin{lstlisting}[numbers=left,language=Python,breaklines=true]
+def retrieve_then_read_QA(question: str) -> str:
+    demos = sample(train, k=16)
+    passages = retrieve(question, k=1)
+    x = Example(question=question,
+                passages=passages,
+                demos=demos)
+    return generate(qa_template)(x).pred
+\end{lstlisting}
+
+
+\paragraph{Self-ask} We also compare against self-ask~\cite{press2022measuring}, a contemporaneous pipeline that can be thought of as a specific instantiation of \DSP's \search stage followed by a simple \predict step. For direct comparison with our methods, we modify the self-ask control flow to query the same ColBERTv2 index used in our \DSP experiments instead of Google Search. We evaluate two configurations of self-ask. The first uses the original self-ask prompt template, which contains four hand-written demonstrations. In the second configuration, we modify the prompt template to apply a number of changes that we find are empirically useful for HotPotQA.\footnote{In particular: \textbf{(i)} use ColBERTv2-style passages in the hand-crafted demonstrations of self-ask (i.e., instead of the original Google-style snippets), \textbf{(ii)} concatenate 16-shot training examples from the task (i.e., question--answer pairs) as a prefix of the prompt, \textbf{(iii)} ask the model to generate a short intermediate answer per retrieval step, and \textbf{(iv)} explicitly ask the model to generate a follow-up ``search query'' at each step. We found the final item to be important because self-ask's default prompt often produces follow-up questions that are not self-contained (e.g., ``what is the name of the national park?'', which is not an informative search query). We also fix the casing in the prompt to be consistent.}
+
+
+
+\input{tables/results.tex}
+
+
+\subsection{Proposed DSP Programs}
+
+We build on transformations presented in~\secref{sec:dsp}. Our programs for all three tasks have the following structure, illustrated for open-domain QA.
+
+\vspace{3mm}
+\begin{lstlisting}[numbers=left,language=Python,breaklines=true]
+def openqa_program(question: str) -> str:
+   x = Example(question=question, train=train)
+   x = openqa_demonstrate(x)
+   x = openqa_search(x)
+   x = openqa_predict(x)
+   return x.answer
+\end{lstlisting}
+
+The exception is that the conversational QA program, \texttt{convqa\_program}, accepts \texttt{turns} (i.e., a list of strings, representing the conversational history) instead of a single \texttt{question}. Unless otherwise stated, our programs default to greedy decoding during the \demonstrate stage. %
+
+For \search, our open-domain QA program uses the question directly for retrieving $k=7$ passages and concatenates these passages into our QA prompt with CoT. For \predict, it generates $n=20$ reasoning chains and uses self-consistency (SC; \citealt{wang2022self}) to select its final prediction. For \demonstrate, our open-domain QA program uses the following approach, slightly simplified for presentation. In it, the parameter $k=3$ passed to \texttt{annotate} requests annotating only three demonstrations, which will then be used in the prompts.
+
+\begin{lstlisting}[numbers=left,language=Python,breaklines=true]
+def openqa_demonstrate(x: Example) -> Example:
+    demos = sample(x.train, k=16)
+
+    def openqa_attempt(d: Example) -> Example:
+        d.demos = all_but(demos, d)  # all (raw) examples different from d
+        
+        d = openqa_search(d, k=2)
+        if not passage_match(d): return None  # skip examples where search fails
+        
+        d = openqa_predict(d, sc=False)
+        if not answer_match(d): return None  # skip examples where predict fails
+        
+        return d
+
+    x.demos = annotate(demos, openqa_attempt, k=3)
+    return x
+\end{lstlisting}
+
+
+
+Our multi-hop program adopts a very similar approach for \demonstrate and \predict. For \search, it uses the approach described in~\secref{sec:dsp:search}, with the following adjustments. It uses result fusion across $n=10$ queries per hop and, among the $n$ predictions, uses the summary corresponding to the largest average log-probability. It uses a fixed number of hops for HotPotQA, i.e., two hops. In each prompt (i.e., each hop and QA), it concatenates the summaries of all previous hops (i.e., hop 1 onwards) and a total of $k=5$ passages divided between the hops (i.e., five passages from the first hop or two passages from the first and three from the second).
+
+For conversational QA, we use a simple \predict which generates a response with greedy decoding, conditioned on all of the previous turns of the conversation and five retrieved passages. For \search, our conversational QA pipeline generates $n=10$ re-written queries (and also uses the simple query as the retrieve-and-read baseline; \secref{sec:eval:baselines}) and fuses them as in~\secref{sec:dsp:search}. We implement \demonstrate similar to \texttt{openqa\_demonstrate}, but sample only four examples (i.e., four conversational turns; instead of 16 questions as in open-domain QA) for demonstrating the task for the higher-order transformation \texttt{convqa\_attempt}, which is passed to \texttt{annotate} (not shown for brevity).
+
+\begin{lstlisting}[numbers=left,language=Python,breaklines=true]
+def convqa_attempt(d: Example) -> Example:
+    d.demos = all_but(demos, d)  # all (raw) examples that don't intersect with the conversation of d
+
+    d = convqa_search(d, k=2)
+    if max(precision(d.answer, p) for p in d.passages) < .8: return None  # skip examples where search fails
+
+    d = convqa_predict(d, n=20)
+    if max(F1(c.pred, d.answer) for c in d.candidates) < .75: return None  # skip examples where predict fails out of n=20 attempts
+
+    return d
+\end{lstlisting}
+
+
+\subsection{Development Datasets \& Results}
+\label{sec:eval:datasets}
+
+
+\paragraph{Open-SQuAD} We conduct the open-domain version of SQuAD over the Wikipedia 2016 corpus from \citet{chen2017reading}, as processed by \citet{khattab2021relevance}. We use the same train/validation/test splits as in \citet{karpukhin2020dense} and \citet{khattab2021relevance}.
+
+Table~\ref{table:dev-results} reports the answer EM and F1. The task-aware \DSP program achieves 36.6\% EM, outperforming the vanilla LM baseline by 126\% EM relative gains. This indicates the importance of grounding the \LM{}'s predictions in retrieval, and it shows that state-of-the-art retrievers like ColBERTv2 have the capacity to do so off-the-shelf. The proposed \DSP program also achieves relative gains of 8\% in EM and 6\% in F1 over the retrieve-then-read pipeline, highlighting that non-trivial gains are possible by aggregating information across several retrieved passages as we do with self-consistency.
+
+These in-context learning results are competitive with a number of popular fine-tuned systems. For instance, on the Open-SQuAD test set, DPR achieves 29.8\% EM, well below our 16-shot \DSP program. On the Open-SQuAD dev set, the powerful Fusion-in-Decoder~\cite{izacard2020leveraging} ``base'' approach achieves approximately 36\% (i.e., very similar quality to our system) when invoked with five retrieved passages. Nonetheless, with the default setting of reading 100 passages, their system reaches 48\% EM in this evaluation. This may indicate that similar gains are possible for our \DSP program if the \predict stage is made to aggregate information across many more passages.
+
+For comparison, we also evaluate the self-ask pipeline, which achieves 9.3\% EM, suggesting that its fixed pipeline is ineffective outside its default multi-hop setting. Studying a few examples of its errors reveals that it often decomposes questions in tangential ways and answers these questions instead. We refer to this behavior of the \LM as ``self-distraction'', and we believe it adds evidence in favor of our design decisions in \DSP. To illustrate self-distraction, when self-ask is prompted with ``When does The Kidnapping of Edgardo Mortara take place?'', it asks ``What is The Kidnapping of Edgardo Mortara`` and then asks when it was published, a tangential question. Thus, self-ask answers ``1997'', instead of the time The Kidnapping of Edgardo Mortara takes place (1858).
+
+For reference, Table~\ref{table:dev-results} also reports (as No-retrieval LM SoTA) the concurrent in-context learning results from \citet{si2022prompting} using \texttt{code-davinci-002}, who achieve 20.2\% EM without retrieval and 34.0\% EM with retrieval, albeit on a different sample and split of the SQuAD data. Overall, their approaches are very similar to the baselines we implement (vanilla LM and retrieve-then-read), though their retrieval-augmented approach retrieves (and concatenates into the prompt) 10 passages from a Wikipedia dump.
+
+
+
+\paragraph{HotPotQA} We use the open-domain ``fullwiki'' setting of HotPotQA using its official Wikipedia 2017 ``abstracts'' corpus. The HotPotQA test set is hidden, so we reserve the official validation set for our testing. We sub-divide the training set into 90\%/10\% train/validation splits. In the training (and thus validation) split, we keep only examples marked as ``hard'' in the original dataset, which matches the designation of the official validation and test sets.
+
+We report the final answer EM and F1 in Table~\ref{table:dev-results}. On HotPotQA, the task-aware \DSP program outperforms the baselines and existing work by very wide margins, exceeding the vanilla LM, the retrieve-then-read baseline, and the self-ask pipeline by 82\%, 39\%, and 80\%, respectively, in EM. This highlights the effectiveness of building up more sophisticated programs that coordinate the \LM{} and \RM{} for the \search step.
+
+These results may be pegged against the evaluation on HotPotQA in a number of concurrent papers. We first compare with non-retrieval approaches, though our comparisons must be tentative due to variation in evaluation methodologies. \citet{si2022prompting} achieve 25.2\% EM with CoT prompting. With a ``recite-and-answer'' technique for PaLM-62B~\cite{chowdhery2022palm}, \citet{sun2022recitation} achieve 26.5\% EM. \citet{wang2022rationale} achieve 33.8\% EM and 44.6 F1 when applying a self-consistency prompt for PaLM-540B. Next, we compare with a contemporaneous retrieval-based approach: \citet{yao2022react} achieve 35.1\% EM using a system capable of searching using a Wikipedia API. All of these approaches trail our task-aware \DSP program, which achieves 51.4\% EM, by large margins.
+
+\paragraph{QReCC} We use QReCC~\cite{anantha2020open} in an open-domain setting over Wikipedia 2018. QReCC does not have an official development set, so we sub-divide the training set into 90\%/10\% train/validation splits. For the first question in every conversation, we use the rewritten question as the original question often assumes access to a ground-truth document. We also filter low-quality examples from QReCC.\footnote{We remove conversations that have one or more empty ground-truth answers and conversations that have only one or two questions. We also find many conversations that include ``what other interesting facts are in this article?'', which conflict with the open-domain formulation and have no well-defined answer. Hence, we remove any conversation that includes the keywords ``other interesting'' or ``else'', which we found to be markers of low quality.}
+
+
+We conduct the QReCC conversations in an auto-regressive manner. At turn $t > 1$ of a particular conversation, the system sees its own responses (i.e., not the ground truth responses) to previous turns of the conversation. We report the novel-F1 metric (nF1; \citealt{paranjape2021hindsight}), which computes the F1 overlap between the system response and the ground truth while discounting common stopwords and terms present in the question (or earlier questions). The results are shown in Table~\ref{table:dev-results}, and follow the same general pattern as SQuAD and HotPotQA.
+

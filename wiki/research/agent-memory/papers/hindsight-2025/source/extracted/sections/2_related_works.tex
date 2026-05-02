@@ -1,0 +1,45 @@
+\section{Related Work}
+\label{sec:related-work}
+
+Recent work in agent memory spans context management systems that handle LLM window constraints, structured memory architectures built on temporal knowledge graphs, evaluation benchmarks that test these systems, and cognitive frameworks inspired by human memory. We group related work into two categories and discuss how \our differs.
+
+\subsection{Memory Architectures and Systems}
+
+\textbf{Tiered context management systems.} Early systems extended context using tiered architectures. MemGPT \citep{packer2023memgpt} pages information between active prompt and archival storage, treating memory as unstructured text blocks without separating facts from beliefs. LIGHT \citep{tavakoli2025beyond} handles conversations up to 10 million tokens using episodic memory, working memory, and scratchpad buffers, but does not distinguish subjective beliefs from objective observations.
+
+\textbf{Structured memory with knowledge graphs.} Several systems use knowledge graphs for retrieval. Zep \citep{rasmussen2025zep} builds temporal knowledge graphs with bi-temporal modeling that tracks when facts are valid versus when they were recorded, but focuses on objective facts without modeling subjective beliefs or behavioral profiles. A-Mem \citep{xu2025mem} uses the Zettelkasten method to create atomic notes with LLM-generated links that evolve over time, but treats all memory uniformly without separating facts from opinions. Mem0 \citep{chhikara2025mem0} focuses on production efficiency with dense retrieval and graph representations, handling fact conflicts through database updates rather than belief evolution. Memory-R1 \citep{yan2025memory} uses reinforcement learning to train agents on memory operations to maximize QA accuracy, but does not focus on cognitive structure and behavioral profile consistency. MemVerse \citep{liu2025memverse} handles multimodal memory through a dual-path architecture combining retrieval and parametric memory via fine-tuning, which raises editability issues that \our avoids by using only external memory. KARMA \citep{wang2025karma} targets embodied AI with 3D scene graphs for spatial reasoning in robotics, not conversational agents. Table~\ref{tab:memory_systems_comparison} compares these systems across key architectural features.
+
+\begin{table*}[ht]
+\centering
+\small
+\begin{adjustbox}{width=0.95\textwidth,center}
+\begin{tabular}{lccccccccc}
+\toprule
+\textbf{Feature} & \textbf{MemGPT} & \textbf{LIGHT} & \textbf{Zep} & \textbf{A-Mem} & \textbf{Mem0} & \textbf{Memory-R1} & \textbf{MemVerse} & \textbf{KARMA} & \cellcolor{gray!15} \textbf{\makecell{Hindsight\\(Ours)}}\\
+\midrule
+Separates facts/opinions     & \xmark & \xmark & \xmark & \xmark & \xmark & \xmark & \xmark & \xmark & \cellcolor{gray!15} \textbf{\cmark} \\
+Temporal reasoning  & \xmark & \xmark & \cmark & \xmark & \xmark & \xmark & \xmark & \xmark & \cellcolor{gray!15} \textbf{\cmark} \\
+Entity-aware graph & \xmark & \xmark & \cmark & \cmark & \cmark & \xmark & \xmark & \cmark & \cellcolor{gray!15} \textbf{\cmark} \\
+Opinion evolution    & \xmark & \xmark & \xmark & \xmark & \xmark & \xmark & \xmark & \xmark & \cellcolor{gray!15} \textbf{\cmark} \\
+Behavioral parameters     & \xmark & \xmark & \xmark & \xmark & \xmark & \xmark & \xmark & \xmark & \cellcolor{gray!15} \textbf{\cmark} \\
+Confidence scores      & \xmark & \xmark & \xmark & \xmark & \xmark & \xmark & \xmark & \xmark & \cellcolor{gray!15} \textbf{\cmark} \\
+External-only memory     & \cmark & \cmark & \cmark & \cmark & \cmark & \cmark & \xmark & \cmark & \cellcolor{gray!15} \textbf{\cmark} \\
+Multi-strategy retrieval        & \xmark & \xmark & \xmark & \xmark & Partial & \xmark & \cmark & \xmark & \cellcolor{gray!15} \textbf{\cmark} \\
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\caption{\textbf{Comparison of memory architectures. \cmark: feature present; \xmark: absent.} \our separates objective facts from subjective opinions, maintains profile-conditioned reasoning with disposition behavioral parameters, and supports dynamic opinion evolution with confidence scores.}
+\label{tab:memory_systems_comparison}
+\end{table*}
+
+\subsection{Benchmarks and Cognitive Foundations}
+
+\textbf{Evaluation benchmarks.} Recent benchmarks that aim to evaluate long-context reasoning and selective recall have grown
+in prominence.
+LoCoMo~\citep{maharana2024evaluating} features very long dialogues (up to 35 sessions) wherein LLMs and traditional RAG systems struggle with long-range temporal and causal reasoning. LongMemEval~\citep{wu2024longmemeval} tests information extraction, multi-session reasoning, and temporal reasoning across conversations featuring upto 1.5 million tokens. MemoryBench \citep{ai2025memorybench} tests continual learning from feedback and finds that existing systems fail to use feedback effectively without forgetting. These benchmarks show that current systems are unable to maintain consistent behavioral profiles or handle opinion evolution.
+
+\textbf{Cognitive foundations.} Several surveys have attempted to connect agent memory to human memory models. Recent work~\citep{zhang2025survey} categorizes memory by source, form, and operations, noting that most work focuses on task completion over consistency and that parametric memory is hard to interpret. Other work \citep{wu2025human} draws parallels between episodic/semantic memory and RAG/knowledge graphs, pointing out gaps in implicit memory and forgetting. The memory quadruple framework \citep{zhang2025memory} highlights key facets of memory---storage, persistence, access, and controllability---arguing for external memory that supports dynamic updates. Work on cognitive memory~\citep{shan2025cognitive} distinguishes explicit and implicit memory and notes that LLMs struggle with human-like knowledge integration. Recent findings \citep{huang2025llms} show that LLMs lack true working memory and must externalize state into context windows.
+
+While earlier work has focused on storage, retrieval, and scale, recent developments in agent systems blur what agents observe versus what they believe, cannot maintain stable behavioral profiles across long interactions, and have no way to evolve subjective beliefs over time. In the rest of the paper,
+we demonstrate how \our addresses these
+gaps.

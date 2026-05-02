@@ -1,0 +1,179 @@
+\section{Experiments}
+\label{sec:experiments}
+
+We evaluate \our on two long-term conversational memory benchmarks to measure its ability to retain, recall, and reason over extended interactions. Our evaluation focuses on how well the system maintains coherent memory across many sessions and whether TEMPR and CARA together support accurate, preference-conditioned reasoning.
+
+\subsection{Datasets}
+
+We use two benchmarks designed to test long-term memory in conversational agents.
+
+\subsubsection{LongMemEval}
+
+LongMemEval~\cite{wu2024longmemeval} tests chat assistants on conversations that span many sessions and require recalling information from hundreds of thousands of tokens. The benchmark includes 500 questions that evaluate five core abilities:
+
+\begin{itemize}
+    \item \textbf{Information Extraction (IE)}: Retrieving basic facts from past conversations.
+    \item \textbf{Multi-session Reasoning (MR)}: Connecting information across different sessions.
+    \item \textbf{Temporal Reasoning (TR)}: Understanding when events occurred and their temporal relationships.
+    \item \textbf{Knowledge Update (KU)}: Handling updated or contradictory information over time.
+    \item \textbf{Abstention (ABS)}: Recognizing when information is not available rather than guessing.
+\end{itemize}
+
+The benchmark provides two conversation settings: the S setting with around 115,000 tokens spanning roughly 50 sessions, and the M setting with approximately 1.5 million tokens across about 500 sessions. Both settings test the same abilities but at different scales.
+
+\subsubsection{LoCoMo}
+
+LoCoMo~\cite{maharana2024evaluating} evaluates very long-term conversational memory using 50 human-human conversations collected over multiple sessions. Each conversation averages 304.9 turns, 9,209.2 tokens, and 19.3 sessions, with some extending up to 35 sessions. The dataset includes multimodal information such as images shared during conversations, making it more realistic than text-only benchmarks. Questions test whether agents can recall personal details, preferences, past events, and context shared across distant sessions. 
+
+Table~\ref{tab:datasets} summarizes statistics for both benchmarks.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\begin{adjustbox}{max width=\textwidth}
+\begin{tabular}{lcc}
+\hline
+\textbf{Statistic} & \textbf{LongMemEval} & \textbf{LoCoMo} \\
+\hline
+Number of conversations & Varies (S/M) & 50 \\
+Questions & 500 & Varies \\
+Avg. turns per conversation & -- & 304.9 \\
+Avg. tokens per conversation & 115k (S), 1.5M (M) & 9,209.2 \\
+Avg. sessions per conversation & ~50 (S), ~500 (M) & 19.3 \\
+Max sessions & ~500 & 35 \\
+Multimodal & No & Yes (images) \\
+Core abilities tested & 5 (IE, MR, TR, KU, ABS) & Memory recall \\
+\hline
+\end{tabular}
+\end{adjustbox}
+\caption{Statistics for LongMemEval and LoCoMo datasets.}
+\label{tab:datasets}
+\end{table}
+
+\subsection{Evaluation Metrics}
+
+We use an LLM-as-a-judge approach to evaluate response quality (see Appendix~\ref{sec:appendix-judge-prompts} for the complete judge prompt templates). For each test question, \our generates a response using its memory retrieval and reflection pipeline. We then present both the generated response and the ground truth answer to a separate judge LLM, which scores the response on correctness and completeness.
+
+The judge assigns binary correctness scores (0 or 1) for factual accuracy, checking whether the response contains the correct information and does not introduce errors. For questions requiring multi-hop reasoning or temporal awareness, the judge also checks whether the response demonstrates appropriate use of retrieved memories and temporal context. For the abstention ability in LongMemEval, we measure whether \our correctly declines to answer when information is missing, rather than guessing or hallucinating facts.
+
+\subsection{Experimental Setup}
+
+We evaluate \our using \texttt{GPT-OSS-20b} as the underlying LLM for both TEMPR's fact extraction and CARA's reflection operations. All experiments use the same model configuration to isolate the contribution of the memory architecture from model-specific improvements. For evaluation, we use \texttt{GPT-OSS-120b} as the judge LLM with temperature set to 0.0 to ensure consistent and deterministic scoring across all responses.
+
+
+During retention, we process each conversation session through TEMPR's extraction pipeline, which produces narrative facts, builds entity links, and updates the memory graph. For each test question, we retrieve memories using the four-way parallel recall mechanism (semantic, keyword, graph, temporal) with Reciprocal Rank Fusion and neural reranking. Retrieved memories are then passed to CARA's reflection step, which generates the final response conditioned on the bank's behavioral profile.
+
+We configure memory banks with neutral behavioral profiles (disposition parameters skepticism, literalism, and empathy all set to 3) and low bias strength (0.2) for these experiments, since the benchmarks test factual recall rather than preference-conditioned reasoning. This setup allows us to measure the core memory and retrieval capabilities without introducing strong opinion formation. Token budgets for retrieval are set to <add> tokens for LongMemEval and <add> tokens for LoCoMo, balancing coverage and context efficiency. These budgets are well within the context windows of modern LLMs while providing enough retrieved information for multi-hop reasoning.
+
+For the \textbf{Hindsight (OSS-20B)} configuration, both the memory stack (TEMPR and CARA) and the answer generation model are instantiated with \texttt{GPT-OSS-20b}. For the \textbf{Hindsight (OSS-120B)} and \textbf{Hindsight (Gemini-3)} configurations, the Hindsight memory system itself (fact extraction, memory graph construction, and retrieval) is powered by \texttt{GPT-OSS-120b}. The \textbf{Hindsight (Gemini-3)} rows in both benchmarks use Gemini-3 Pro only as the final answer generator over the retrieved memories, while the underlying memory architecture and the LLM-as-a-judge remain based on \texttt{GPT-OSS-120b}.
+
+\paragraph{Baseline results.} We describe next how we benchmark \our against existing approaches.
+
+For LongMemEval (Table \ref{tab:longmemeval_results}), baseline scores for Full-context GPT-4o, Zep (GPT-4o), and the three Supermemory configurations (GPT-4o, GPT-5, Gemini-3 Pro) are taken directly from the Supermemory technical report and use their published GPT-4o LLM-as-a-judge setup. 
+
+For LoCoMo (Table~\ref{tab:locomo_results}), baseline scores for Backboard, Memobase, Zep, Mem0, Mem0-Graph, LangMem, and OpenAI are presented here
+as claimed on the official Backboard
+LoCoMo benchmark results. We treat these numbers as reported reference points rather than
+our independently reproduced baselines.
+
+Our Hindsight results on both benchmarks are evaluated with a GPT-OSS-120B LLM-as-a-judge for all methods to ensure consistent scoring; in the Gemini-3 configuration, Gemini-3 is used only for answer generation, while memory retrieval and judging remain powered by GPT-OSS-120B.
+
+Readers wishing to reproduce our results or re-evaluate \our can download our code and re-run benchmarks as described in
+Section~\ref{sec:code-availability}. We provide access to our Github repository and an interactive results viewer.
+
+
+
+
+\subsection{Results on LongMemEval}
+
+\begin{table*}[!t]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{adjustbox}{max width=\textwidth}
+\begin{tabular}{l|cc|cccc|ccc}
+\hline
+\textbf{Question Type} & 
+\textbf{Full-context} & 
+\textbf{Full-context} & 
+\textbf{Zep} & 
+\textbf{Supermemory} & 
+\textbf{Supermemory} & 
+\textbf{Supermemory} & 
+\textbf{Hindsight} & 
+\textbf{Hindsight} & 
+\textbf{Hindsight} \\
+
+& 
+\textbf{(GPT-4o)} & 
+\textbf{(OSS-20B)} & 
+\textbf{(GPT-4o)} & 
+\textbf{(GPT-4o)} & 
+\textbf{(GPT-5)} & 
+\textbf{(Gemini-3)} & 
+\textbf{(OSS-20B)} & 
+\textbf{(OSS-120B)} & 
+\textbf{(Gemini-3)} \\
+\hline
+\hline
+single-session-user & 81.4 & 38.6 & 92.9 & 97.1 & 97.1 & 98.6 & 95.7 & \textbf{100.0} & 97.1 \\
+single-session-assistant & 94.6 & 80.4 & 80.4 & 96.4 & \textbf{100.0} & 98.2 & 94.6 & 98.2 & 96.4 \\
+single-session-preference & 20.0 & 20.0 & 56.7 & 70.0 & 76.7 & 70.0 & 66.7 & \textbf{86.7} & 80.0 \\
+knowledge-update & 78.2 & 60.3 & 83.3 & 88.5 & 87.2 & 89.7 & 84.6 & 92.3 & \textbf{94.9} \\
+temporal-reasoning & 45.1 & 31.6 & 62.4 & 76.7 & 81.2 & 82.0 & 79.7 & 85.7 & \textbf{91.0} \\
+multi-session & 44.3 & 21.1 & 57.9 & 71.4 & 75.2 & 76.7 & 79.7 & 81.2 & \textbf{87.2} \\
+\hline
+\textbf{Overall} & \textbf{60.2} & \textbf{39.0} & \textbf{71.2} & \textbf{81.6} & \textbf{84.6} & \textbf{85.2} & \textbf{83.6} & \textbf{89.0} & \textbf{91.4} \\
+\hline
+\end{tabular}
+\end{adjustbox}
+\caption{\textbf{Results on LongMemEval benchmark} (S setting, 500 questions). \our with OSS-120B achieves \textbf{89.0\%} overall accuracy, and with Gemini-3 Pro achieves \textbf{91.4\%}, outperforming all baseline systems including Supermemory with frontier models. The Full-context (OSS-20B) baseline shows the performance of the same base model without the \our memory architecture, demonstrating a \textbf{+44.6\% improvement} with OSS-20B. Best result in each row shown in bold. All values shown as percentages.}
+\label{tab:longmemeval_results}
+\end{table*}
+
+Table~\ref{tab:longmemeval_results} compares \our to full-context baselines and prior memory systems on the LongMemEval S setting. The two \emph{Full-context} baselines pass the entire conversation history to the model as raw context without any structured memory, while Zep and Supermemory pair dedicated memory layers with strong frontier models (GPT-4o, GPT-5, Gemini-3). In contrast, our primary configuration uses a smaller open-source 20B model (GPT-OSS-20B) for both retention and reflection, chosen to be deployable on a single high-end consumer GPU rather than only in large datacenter settings. 
+
+Despite this weaker base model, \our with OSS-20B achieves \textbf{83.6\%} overall accuracy, a \textbf{+44.6} point gain over the Full-context OSS-20B baseline (39.0\%), and even surpasses Full-context GPT-4o (60.2\%). Relative to other memory systems, \our+OSS-20B matches or exceeds the performance of Zep+GPT-4o (71.2\%) and Supermemory+GPT-4o (81.6\%), demonstrating that the memory architecture, rather than sheer model size, is carrying much of the performance. The largest gains over the Full-context OSS-20B baseline appear exactly in the long-horizon categories LongMemEval was designed to stress: multi-session questions improve from 21.1\% to 79.7\% and temporal reasoning from 31.6\% to 79.7\%, and preference questions increase from 20.0\% to 66.7\%, indicating that TEMPR’s graph- and time-aware retrieval substantially mitigates context dilution at scale.
+
+Scaling the underlying model further amplifies these gains. With OSS-120B, \our reaches \textbf{89.0\%} overall accuracy, outperforming Supermemory with GPT-4o and GPT-5 (81.6\% and 84.6\%), and with Gemini-3 Pro it attains \textbf{91.4\%}, the best result across all systems and model backbones. Because the Full-context OSS-20B baseline uses the same base model as \our but with no structured memory, the consistent improvements across all question types provide direct evidence that the memory layer drives the observed performance rather than frontier-scale parameters alone.
+
+
+
+\subsection{Results on LoCoMo}
+
+Table~\ref{tab:locomo_results} reports accuracy on LoCoMo. Across all backbone sizes, \our
+consistently outperforms prior open memory systems such as Memobase, Zep, Mem0, and LangMem, raising overall accuracy from 75.78\% (Memobase) to 83.18\% with OSS-20B and 85.67\% with OSS-120B. With Gemini-3 as the answer generator, \our attains 89.61\% overall accuracy and the highest Open Domain score (95.12\%), effectively matching Backboard’s claimed 90.00\% overall performance while doing so with a fully open-source memory stack, released evaluation code, and an interactive results viewer (Section~\ref{sec:code-availability}). These results show that the gains from our memory architecture on LongMemEval transfer to realistic, multi-session human conversations.
+
+\begin{table*}[t]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{adjustbox}{max width=\textwidth}
+\begin{tabular}{l|ccccc}
+\hline
+\textbf{Method} & \textbf{Single-Hop} & \textbf{Multi-Hop} & \textbf{Open Domain} & \textbf{Temporal} & \textbf{Overall} \\
+\hline
+%Backboard                & \textbf{89.36} & \textbf{75.00} & 91.20 & \textbf{91.90} & \textbf{90.00} \\
+Backboard                & 89.36 & 75.00 & 91.20 & 91.90 & 90.00 \\
+Memobase (v0.0.37)       & 70.92 & 46.88 & 77.17 & 85.05 & 75.78 \\
+Zep                      & 74.11 & 66.04 & 67.71 & 79.79 & 75.14 \\
+Mem0-Graph               & 65.71 & 47.19 & 75.71 & 58.13 & 68.44 \\
+Mem0                     & 67.13 & 51.15 & 72.93 & 55.51 & 66.88 \\
+LangMem                  & 62.23 & 47.92 & 71.12 & 23.43 & 58.10 \\
+OpenAI                   & 63.79 & 42.92 & 62.29 & 21.71 & 52.90 \\
+\hline
+Hindsight (OSS-20B)      & 74.11 & 64.58 & 90.96 & 76.32 & 83.18 \\
+Hindsight (OSS-120B)     & 76.79 & 62.50 & 93.68 & 79.44 & 85.67 \\
+Hindsight (Gemini-3)     & 86.17 & 70.83 & \textbf{95.12} & 83.80 & 89.61 \\
+\hline
+\end{tabular}
+\end{adjustbox}
+\caption{\textbf{Results on LoCoMo benchmark.} Accuracy (\%) by question type and overall for prior memory systems and our HINDSIGHT architecture with different backbone models. Backboard numbers are taken from their reported figures and could not be independently reproduced. \our with Gemini-3 Pro attains a very similar overall score and the best Open Domain performance. See Section~\ref{sec:code-availability} for links to our github code repository and an interactive results viewer for all \our runs.}
+
+\label{tab:locomo_results}
+\end{table*}
+
+\section{Code Availability}
+\label{sec:code-availability}
+
+We release our implementation of \our at \url{https://github.com/vectorize-io/hindsight}
+. The repository provides (i) the full memory architecture, including retain/recall/reflect pipelines and the four-network memory representation; (ii) scripts and configuration files to run LongMemEval and LoCoMo with different backbones and judging setups; and (iii) utilities for fact extraction, graph construction, and analysis of retrieved memories. To facilitate inspection and comparison of runs, we also provide the \our Benchmarks Viewer at \url{https://hindsight-benchmarks.vercel.app/}, which hosts per-question results that users can drill into, retrieved memory contexts, model and judge configurations, and aggregate metrics for all \our variants reported in this paper.
+

@@ -1,0 +1,70 @@
+\begin{footnotesize}
+    
+\begin{table*}[!t]
+\newcolumntype{C}[1]{>{\raggedright\arraybackslash}p{#1}}
+\renewcommand{\arraystretch}{1.4} % Adjust the value to increase/decrease row spacing
+\centering
+\caption{\small Summary of Key Semantic Operators. $T$ denotes a relation, $X$ and $Y$ denote arbitrary tuple types. $l$ denotes a parameterized natural language expression (``langex`` for short). Each operator may permit additional optional parameters, including accuracy targets.}
+\vspace{-.3cm}
+\begin{tabular}{C{4.1cm}C{5cm}C{4.1cm}C{4.2cm}}
+% \begin{tabular}{ccccc}
+% \hline
+\toprule
+\textbf{Operator} & \textbf{Description}  & \textbf{Definition} &  \textbf{Gold Algorithm}\\
+% \hline
+\midrule
+$\mathit{sem\_filter}(l\textit{: } X \rightarrow \mathit{Bool})$ 
+& Returns the tuples that pass the langex predicate. 
+% & $l: X\rightarrow Bool$
+& $\{t_i \in T | l_M(t_i) = 1\}$
+& Compute $M(t_i, l) \forall t_i\in T$ \\
+% \hline
+
+
+$\mathit{sem\_join}(t\textit{: } T \comma l\textit{: } (X, Y) \rightarrow \mathit{Bool})$ 
+& Joins a table against a second table $t$ by keeping all tuple pairs that pass the langex predicate. 
+% & $l: X\rightarrow Bool$
+& $\{(t_i, t_j) | l_M(t_i, t_j) = 1, t_i \in T_1, t_j\in T_2 \}$
+& Compute $M(t_i, t_j, l) \forall t_i\in T_1, t_j\in T_2$ \\
+% \hline
+
+
+$\mathit{sem\_agg}(l\textit{: } T[X] \rightarrow \mathit{X})$ 
+& Aggregates input tuples according to the langex reducer function.
+% & $l: Set[X]\rightarrow X$
+& $l_M(t_1, ..., t_n) \forall t_1, .., t_n \in T$
+& Perform a reduce algorithm, recursively computing $a_{i+1, j} = M(a_{i, f(j)}, ..., a_{i, f(j)+n'}, l)$, $a_{0, j} = M(t_{f(j)}, ..., t_{f(j)+n'}, l)$ 
+\\
+% \hline
+
+
+$\mathit{sem\_topk}(l\textit{: } T[X] \rightarrow Seq[X]\comma k\textit{: }int)$ & Returns an ordered list of the $k$ best tuples according to the langex ranking criteria.
+% & $l: T[X]\rightarrow Seq[X]$
+& $\langle t_1, ..., t_k\rangle \textit{ st } \forall (t_i, t_j), i < j \implies  l_M(t_i, t_j) = \langle t_i, t_j\rangle $
+& Perform top-k sorting algorithm using pairwise comparisons, $M(t_i, t_j, l)$\\
+% \hline
+
+
+$\mathit{sem\_group\_by}(l\textit{: } X \rightarrow Y\comma C\textit{: } int)$ & Groups the tuples into $C$ categories based on the langex grouping criteria. 
+% & $l: X \rightarrow Y$
+& $\underset{\{\mu_1, ...\mu_C\}, \mu_i \in V^\mathbb{N}}\argmax\textit{\space} \underset{t_i\in T}\sum \underset{j\in 1\ldots C}\max l_{M}(t_i, \mu_j)$
+& Obtain centers $\mu_1, ...\mu_C$ with a clustering algorithm, and perform pointwise assignments $M(t_i, \mu_1, ..., \mu_C) \forall t_i\in T$\\
+
+$\mathit{sem\_map}(l\textit{: } X \rightarrow Y)$ & Performs the projection specified by the langex. 
+% & $l: X\rightarrow Y$
+& $\{l_M(t_i), \forall t_i \in T\}$
+& Compute $M(t_i, l) \forall t_i\in T$\\
+
+% \hline
+\bottomrule
+\label{tab:operators}
+
+\end{tabular}
+\vspace{-1.0cm}
+
+\end{table*}
+
+\end{footnotesize}
+
+
+

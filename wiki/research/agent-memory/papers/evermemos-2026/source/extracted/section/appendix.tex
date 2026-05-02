@@ -1,0 +1,368 @@
+\section{Evaluation Details}
+\label{sec:appendix_eval}
+
+\subsection{Evaluation Settings and Fair Comparison}
+\label{sec:eval_setting}
+
+\paragraph{LoCoMo backbones.} We report LoCoMo results under two backbones: GPT-4.1-mini (primary, reflecting an up-to-date backbone) and GPT-4o-mini (to facilitate comparison with prior work). Following common practice in LTMOS evaluation, we standardize the backbone used for \emph{final answer generation} to isolate the contribution of memory management from the base model.
+
+\paragraph{Baseline executability.} For EverMemOS and MemoryOS, we execute the full pipeline (memory construction, retrieval, and answering) with the specified backbone. For Mem0, MemU, MemOS, and Zep, we use their official APIs for memory management/retrieval; in this setting, we keep each baseline's official memory configuration and prompting unchanged and apply the unified backbone only at the answering stage.
+
+\paragraph{LongMemEval.} Due to the extreme input length of LongMemEval, we cannot stably run all baseline APIs end-to-end; we therefore report baseline results from the official MemOS leaderboard\footnote{Leaderboard data: \url{https://huggingface.co/datasets/MemTensor/MemOS_eval_result}} and evaluate EverMemOS with GPT-4.1-mini under the same protocol.
+
+\paragraph{Retrieval configuration.} EverMemOS uses a hybrid retriever that fuses dense retrieval (encoder: \texttt{Qwen3-Embedding-4B}~\cite{qwen3embedding}) and sparse retrieval (BM25) via Reciprocal Rank Fusion (RRF), followed by episode re-ranking (\texttt{Qwen3-Reranker-4B}~\cite{qwen3embedding}). Unless otherwise specified, we retrieve the top-10 \textit{MemScenes} and select 10 Episodes for downstream inference.
+
+\paragraph{MemBase statistics and construction hyperparameters.} We report dataset-level MemBase statistics (Table~\ref{tab:membase_stats}) and memory-construction hyperparameters (Table~\ref{tab:membase_hparams}) for LoCoMo and LongMemEval. \textit{MemScenes} are the clustering units produced by Phase~II, and each MemScene contains a small set of \textit{MemCells}. We use the same pipeline across datasets, while adopting dataset-specific clustering hyperparameters to reflect different dialogue structures and time spans. LongMemEval contains 500 dialogue--question pairs (one per conversation). \textbf{Max time gap} is the maximum allowed temporal distance (in days): when assigning a MemCell $A$ to a candidate MemScene, if the closest-in-time MemCell $B$ already in that MemScene is farther than this threshold, $A$ is not clustered into that MemScene.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{1.0}
+\caption{MemBase statistics on LoCoMo and LongMemEval.}
+\label{tab:membase_stats}
+\begin{tabular}{@{}p{0.55\linewidth} r r@{}}
+\toprule
+\textbf{Metric} & \textbf{LoCoMo} & \textbf{LongMemEval} \\
+\midrule
+\multicolumn{3}{l}{\textit{Dataset scale}} \\[-2pt]
+\#Conversations & 10 & 500 \\
+\#Questions & 1{,}540 & 500 \\
+\midrule
+\multicolumn{3}{l}{\textit{MemBase statistics}} \\[-2pt]
+\#Total MemCells & 702 & 54{,}755 \\
+\#Total MemScenes & 286 & 40{,}138 \\
+Avg MemCells/conv. & 70.2 & 109.5 \\
+Avg MemScenes/conv. & 28.6 & 80.3 \\
+Avg MemCells/MemScene & 2.45 & 1.36 \\
+MemCells/conv. (range) & 34--95 & 82--154 \\
+MemScenes/conv. (range) & 13--49 & 60--102 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.0}
+\caption{Memory-construction hyperparameters.}
+\label{tab:membase_hparams}
+\begin{tabular}{@{}l c c@{}}
+\toprule
+\textbf{Hyperparameter} & \textbf{LoCoMo} & \textbf{LongMemEval} \\
+\midrule
+Clustering threshold $\tau$ & 0.70 & 0.50 \\
+Max time gap (days) & 7 & 30 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Multi-round query rewriting frequency.} On LoCoMo (GPT-4.1-mini), the sufficiency checker triggers a second-round query rewriting for 31.0\% of questions.
+
+\paragraph{Default evaluation mode.} Unless otherwise specified, quantitative experiments use \textbf{Memory-Augmented Reasoning} (Episodes-only). We additionally report the effect of the consolidated \textbf{Profile} in Table~\ref{tab:profile_effect}, while \textbf{Foresight} is illustrated in the qualitative \textbf{Case Study} (\textbf{Memory-Augmented Chat}).
+
+\subsection{LLM-as-Judge Reliability}
+\label{sec:judge_reliability}
+We randomly selected 25 non-overlapping Q\&A pairs from LoCoMo and 25 from LongMemEval, and generated model answers for each question. We recruited annotators via Prolific. For each Q\&A pair, five independent human evaluators judged whether the generated answer was correct given the question and the reference answer. All participants provided informed consent via the platform interface and were compensated at approximately \$12.00/hour, consistent with fair-pay guidelines for academic research and above local minimum wage standards. Table~\ref{tab:llm_eval} shows strong agreement between the LLM-as-judge protocol and human annotations: Cohen’s $\kappa$ exceeds 0.89 and accuracy remains above 98\% across benchmarks. Pearson $r$ is 0.891 on LoCoMo and 0.979 on LongMemEval. These results suggest that GPT-4o-mini achieves human-level reliability for answer verification, enabling evaluation that is rigorous, reproducible, and cost-efficient.
+
+\begin{table}[h]
+\centering
+\caption{Reliability matrix for LLM-as-Judge.}
+\label{tab:llm_eval}
+\resizebox{\linewidth}{!}{%
+  \setlength{\tabcolsep}{6pt}%
+  \renewcommand{\arraystretch}{0.9}%
+  \begin{tabular}{l c c c c}
+    \toprule
+    \textbf{Model} & \textbf{Cohen's $\kappa$} & \textbf{95\% CI} & \textbf{Accuracy} & \textbf{Pearson $r$} \\
+    \midrule
+    LoCoMo               & 0.891 & {[0.742, 1.000]} & 0.984 & 0.891 \\
+    LongMemEval          & 0.978 & {[0.936, 1.000]} & 0.992 & 0.979 \\
+    \bottomrule
+  \end{tabular}%
+}
+\end{table}
+
+\subsection{Token Cost Breakdown}
+
+To improve cost transparency, we log \emph{all} LLM API calls during LoCoMo evaluation (1,540 questions) under two backbones (GPT-4.1-mini and GPT-4o-mini) and attribute token usage to stages in our pipeline. Since LoCoMo evaluation uses \textbf{Memory-Augmented Reasoning} (Episodes-only), we do \emph{not} invoke the \textbf{Profile} module; therefore, profile-related tokens are excluded from Table~\ref{tab:token_cost}. Table~\ref{tab:token_cost} maps stages to EverMemOS phases. Phase~I corresponds to memory construction (\texttt{add}). In this Episodes-only setting, Phase~II uses non-LLM computation (clustering/embedding updates) and thus incurs no additional LLM tokens. Phase~III consists of retrieval (\texttt{search}) and answer generation (\texttt{answer}). The \texttt{evaluate} stage reflects LLM-as-judge scoring (three judges per question) and is reported separately. Phase~III consumes 10.27M tokens ($\sim$6.7k/question) with GPT-4.1-mini and 9.31M tokens ($\sim$6.0k/question) with GPT-4o-mini; Phase~I consumes 9.42M and 9.34M tokens, respectively, amortized over memory building.
+
+\begin{table}[!h]
+  \centering
+  \small
+  \setlength{\tabcolsep}{3pt}
+  \renewcommand{\arraystretch}{0.95}
+  \caption{Token-level cost breakdown on LoCoMo (1,540 questions) under two backbones. Tokens are reported in millions (M); Total includes both prompt and completion.}
+  \label{tab:token_cost}
+  \begin{tabular}{l c c c}
+    \toprule
+    \textbf{Stage} & \textbf{\#Calls} & \textbf{Prompt (M)} & \textbf{Total (M)} \\
+    \midrule
+    \multicolumn{4}{l}{\textit{GPT-4.1-mini}} \\[-2pt]
+    add & 7056 & 8.66 & 9.42 \\
+    search & 2017 & 4.12 & 4.45 \\
+    answer & 1540 & 4.63 & 5.82 \\
+    \addlinespace[1pt]
+    \textbf{search+answer} & \textbf{3557} & \textbf{8.75} & \textbf{10.27} \\
+    evaluate & 4620 & 2.35 & 2.38 \\
+    \midrule
+    \multicolumn{4}{l}{\textit{GPT-4o-mini}} \\[-2pt]
+    add & 7250 & 8.60 & 9.34 \\
+    search & 2219 & 4.37 & 4.62 \\
+    answer & 1540 & 3.84 & 4.69 \\
+    \addlinespace[1pt]
+    \textbf{search+answer} & \textbf{3759} & \textbf{8.21} & \textbf{9.31} \\
+    evaluate & 4620 & 2.14 & 2.17 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{PersonaMem v2: Full Comparison Results}
+\label{sec:personamem_full}
+\input{table/personamem}
+
+Table~\ref{tab:personamem_full} reports the full comparison on PersonaMem v2 (32k)~\cite{jiang2025personamem} (2{,}447 questions across 9 scenarios). The \textit{Profile} row indicates whether a memory system provides a profile-like component (not necessarily named ``Profile'') that summarizes stable user information (e.g., MemOS maintains explicit vs.\ implicit preferences). For methods with such a component (\ding{51}), we generate answers using the retrieved memories \emph{plus} the system's profile-like component; for methods without it (\ding{55}), we generate answers using the retrieved memories only. EverMemOS achieves the best overall accuracy (53.25\%), outperforming the strongest baseline (MemOS, 50.72\%) by 2.53 points.
+
+
+\section{Additional Analyses}
+\label{sec:appendix_analysis}
+
+\subsection{Hyperparameter Sensitivity and Efficiency Trade-off}
+\label{sec:sensitivity_details}
+To better understand retrieval budgets, we analyze the MemScene budget \(N\) and episode budget \(K\) under a simplified setting that disables the agentic verification-and-rewriting loop in Phase~III, isolating one-shot retrieval. Figure~\ref{fig:hyperpara} shows that increasing \(N\) improves evidence-session recall and answer accuracy initially but quickly saturates; \(N{=}10\) already yields strong recall. We therefore avoid brute-force expansion of the retrieved scene set for efficiency. We also set \(N{=}10\) to ensure the candidate pool contains at least \(K{=}10\) MemCells even in extreme cases where each retrieved MemScene contains only a single MemCell. We choose \(K{=}10\) episodes because most memory questions can be answered with a compact set of episodes while still covering difficult instances whose annotated evidence spans up to 7--8 recalled episodes. Finally, Figure~\ref{fig:frontier} shows a favorable cost--accuracy frontier: decreasing \(K\) substantially reduces tokens used for downstream reasoning, and at moderate \(K\) values EverMemOS can achieve both lower token usage and higher accuracy than strong baselines.
+
+\subsection{Accuracy Exceeding Recall on LoCoMo}
+\label{sec:acc_vs_recall}
+
+In Figure~\ref{fig:hyperpara}, accuracy can exceed recall at small $K$ on LoCoMo. Table~\ref{tab:acc_recall} quantifies this effect: even when none of the \emph{annotated} evidence sessions are retrieved (``zero recall''), 12--20\% of questions are still answered correctly.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Accuracy vs.\ recall statistics on LoCoMo.}
+\label{tab:acc_recall}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & $K{=}1$ & $K{=}3$ \\
+\midrule
+Recall & 65.06\% & 86.32\% \\
+Accuracy & 71.80\% & 87.81\% \\
+Zero-recall questions & 429 & 125 \\
+\hspace{0.8em}Answered correctly & 52 (12.1\%) & 25 (20.0\%) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This primarily reflects \textbf{information redundancy} and \textbf{non-unique evidence annotations}: salient facts (identity, preferences, goals) recur across sessions, so the annotated evidence is not always the only session that supports the answer. For example, a question about ``Caroline's identity'' is annotated with session~[1], yet sessions~[11--15] also state she is a transgender woman, enabling a correct answer from alternative sessions. In addition, LLMs can sometimes infer the correct response from semantically related retrieved content even when the exact annotated session is missing.
+
+Overall, recall computed against annotated evidence can underestimate retrieval usefulness when evidence is distributed. Increasing $K$ from 1 to 3 reduces zero-recall cases by 71\% (429$\rightarrow$125), narrowing the accuracy--recall gap.
+
+\paragraph{Illustrative Cases.} We provide three representative examples where answers remain correct despite missing the annotated evidence sessions:
+\begin{itemize}
+\item \textbf{Redundant identity facts.} \emph{Q: ``What is Caroline's identity?''} The gold answer is \emph{transgender woman}. Although the evidence is annotated in session~[1], later sessions also explicitly mention this identity; the retriever surfaces those alternatives at small $K$, and the model answers correctly.
+\item \textbf{Distributed activity mentions.} \emph{Q: ``What activities does Melanie partake in?''} The gold answer spans multiple hobbies (e.g., pottery, camping, painting, swimming) with evidence annotated across multiple sessions. Retrieved sessions may miss the annotated ones but still contain sufficient mentions (e.g., pottery/painting) to support a correct response.
+\item \textbf{Inference from related signals.} \emph{Q: ``Would Caroline pursue writing as a career option?''} While the evidence is annotated in session~[7], retrieved content from other sessions describes her career goal (e.g., becoming a counselor), enabling the LLM to infer that writing is unlikely.
+\end{itemize}
+
+\subsection{Profile Extraction Example}
+\label{sec:profile_example}
+\input{table/profile_example}
+\noindent EverMemOS maintains a compact \textbf{User Profile} with two fields: \emph{explicit facts} (verifiable attributes and time-varying measurements) and \emph{implicit traits} (preferences and habits). The profile is updated online from Phase~II scene summaries with recency-aware updates for time-varying fields and conflict tracking when evidence is inconsistent. Table~\ref{tab:profile_example} provides an abridged example.
+
+\section{Reproducibility Artifacts}
+\label{sec:appendix_repro}
+
+\subsection{Prompts for Agentic Retrieval}
+\label{sec:agentic_prompts}
+
+\noindent To make our system behavior transparent and reproducible, we include the core prompt templates used by our agentic retrieval controller.\footnote{Our implementation is open-sourced; we still include prompts here to keep the paper self-contained for review.}
+
+\paragraph{Sufficiency check.} We use an LLM-based sufficiency check to decide whether the currently retrieved documents contain enough evidence to answer the user query. The prompt template (with placeholders) is shown below.
+
+{\footnotesize
+\begin{Verbatim}[breaklines=true,breakanywhere=true]
+You are an expert in information retrieval evaluation. Assess whether the retrieved documents provide sufficient information to answer the user's query.
+
+User Query:
+{query}
+
+Retrieved Documents:
+{retrieved_docs}
+
+### Instructions:
+
+1. **Analyze the Query's Needs**
+   - **Entities**: Who/What is being asked about?
+   - **Attributes**: What specific details (color, time, location, quantity)?
+   - **Time**: Does it ask for a specific time (absolute or relative like "last week")?
+
+2. **Evaluate Document Evidence**
+   - Check **Content**: Do the documents mention the entities and attributes?
+   - Check **Dates**: 
+     - Use the `Date` field of each document.
+     - For relative time queries (e.g., "last week", "yesterday"), verify if document dates fall within that timeframe.
+     - If the query asks "When did X happen?", do you have the specific date or just a vague mention?
+
+3. **Judgment Logic**
+   - **Sufficient**: You can answer the query *completely* and *precisely* using ONLY the provided documents.
+   - **Insufficient**: 
+     - The specific entity is not found.
+     - The entity is found, but the specific attribute (e.g., "price") is missing.
+     - The time reference cannot be resolved (e.g., doc says "yesterday" but has no date, or doc date doesn't match query timeframe).
+     - Conflicting information without resolution.
+
+### Output Format (strict JSON):
+{{
+  "is_sufficient": true or false,
+  "reasoning": "Brief explanation. If insufficient, state WHY (e.g., 'Found X but missing date', 'No mention of Y').",
+  "key_information_found": ["Fact 1 (Source: Doc 1)", "Fact 2 (Source: Doc 2)"],
+  "missing_information": ["Specific gap 1", "Specific gap 2"]
+}}
+
+Now evaluate:
+\end{Verbatim}
+}
+
+\paragraph{Multi-query generation (condensed).} When the current retrieval is deemed insufficient, we generate 2--3 complementary follow-up queries targeted at the missing information. We omit examples and keep only the constraints that affect behavior (inputs, strategy choices, and the strict JSON output schema).
+
+{\footnotesize
+\begin{Verbatim}[breaklines=true,breakanywhere=true]
+You are an expert at query reformulation for conversational memory retrieval.
+Your goal is to generate 2-3 complementary queries to find the MISSING information.
+
+--------------------------
+Original Query:
+{original_query}
+
+Key Information Found:
+{key_info}
+
+Missing Information:
+{missing_info}
+
+Retrieved Documents (Context):
+{retrieved_docs}
+--------------------------
+
+### Strategy Selection (choose based on why info is missing)
+- Pivot / Entity Association: search related entities/categories
+- Temporal Calculation: anchor relative times using document dates
+- Concept Expansion: synonyms / general-specific variants
+- Constraint Relaxation: remove one constraint at a time
+
+### Query Style Requirements (use DIFFERENT styles)
+1) Keyword Combo (2-5 words)
+2) Natural Question (5-10 words)
+3) Hypothetical Statement (HyDE, 5-10 words)
+
+### Output Format (STRICT JSON)
+{
+  "queries": ["Query 1", "Query 2", "Query 3"],
+  "reasoning": "Strategy used for each query (e.g., Q1: Pivot, Q2: Temporal)"
+}
+\end{Verbatim}
+}
+
+\subsection{End-to-End Inference Trace (LoCoMo Multi-Hop Example)}
+\label{sec:inference_trace}
+
+To improve transparency, we provide an end-to-end inference trace for a representative LoCoMo multi-hop question (conversation \texttt{locomo\_6}), including the MemBase hierarchy (\textit{MemScenes} and \textit{MemCells}) and the two-round retrieval process (sufficiency check and query rewriting) that leads to a correct final answer. We denote the retrieved MemScene count as \(N\) and the retrieved MemCell (episode) count as \(K\) (corresponding to \texttt{scene\_top\_k} and \texttt{response\_top\_k} in our implementation).
+
+\paragraph{Trace at a glance.}
+\begin{itemize}
+\item \textbf{Question (multi-hop).} \emph{``Does James live in Connecticut?''} The dialogue never directly states James's residence; the system must infer the answer from related evidence.
+\item \textbf{MemBase hierarchy.} 49 MemScenes / 91 MemCells; retrieval selects top \(N{=}10\) MemScenes (20\%), then reranks/selects \(K{=}10\) MemCells for answering.
+\item \textbf{Round 1 retrieval + sufficiency.} Top \(N{=}10\) MemScenes (31 MemCells) $\rightarrow$ insufficient (\texttt{is\_sufficient=false}); missing an explicit residence mention / confirmation of living in Connecticut.
+\item \textbf{Query rewriting.} The controller generates refined queries targeting residence/location information.
+\item \textbf{Round 2 retrieval.} With 40 additional candidates, the top-ranked MemCell contains the key evidence that James adopted a dog from a shelter in Stamford, enabling an evidence-grounded inference.
+\item \textbf{Inference + evaluation.} Final answer: \emph{Likely yes}; judged correct by 3/3 LLM judges.
+\end{itemize}
+
+\noindent\textbf{Worked example (formatted).} For readability, we summarize the trace in Table~\ref{tab:inference_trace_multihop} (instead of printing raw JSON).
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.05}
+\caption{End-to-end inference trace (LoCoMo multi-hop example), summarized.}
+\label{tab:inference_trace_multihop}
+\begin{tabular}{p{0.20\linewidth} p{0.75\linewidth}}
+\toprule
+\textbf{Stage} & \textbf{Key outputs} \\
+\midrule
+Input & Query: \emph{Does James live in Connecticut?} (Category: multi-hop; Gold: \emph{Likely yes}). \\
+MemBase & 49 MemScenes / 91 MemCells (conversation \texttt{locomo\_6}). \\
+Round 1 & Top \(N{=}10\) MemScenes (31 MemCells) $\rightarrow$ insufficient (\texttt{is\_sufficient=false}); missing an explicit residence mention / confirmation of Connecticut. \\
+Rewrite & Refined queries: (i) \texttt{James residence Connecticut}; (ii) \texttt{Where does James currently live}; (iii) \texttt{James lives near McGee's bar in Connecticut}. \\
+Round 2 & +40 candidates; top result is \emph{James Adopts Shelter Dog Ned... (Apr 12, 2022)} from \texttt{cluster\_004}, mentioning ``Stamford''. \\
+Answer & Output: \emph{Likely yes}; judged correct by 3/3 LLM judges. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Detailed trace.}
+\noindent\textbf{Round 1: initial retrieval and sufficiency check.}
+\begin{itemize}
+\item \textbf{Retrieval mode.} Agentic MemScene-guided reranking (\texttt{agentic\_scene\_rerank}) with \(N{=}10\) and \(K{=}10\).
+\item \textbf{Retrieved candidates.} \(N{=}10\) MemScenes (31 MemCells).
+\item \textbf{Sufficiency verdict.} \texttt{is\_sufficient=false}.
+\item \textbf{Key information found.} ``James and Samantha moved in together near McGee's Bar''; ``James traveled to Nuuk recently''.
+\item \textbf{Missing information.} (i) explicit mention of James's residence location; (ii) confirmation whether James lives in Connecticut.
+\end{itemize}
+
+\noindent\textbf{Verifier rationale (excerpt).}
+{\footnotesize
+\begin{Verbatim}[breaklines=true,breakanywhere=true]
+None of the documents explicitly mention where James currently lives or whether he lives in Connecticut.
+\end{Verbatim}
+}
+
+\noindent\textbf{Query rewriting (Round 2 queries).}
+{\footnotesize
+\begin{Verbatim}[breaklines=true,breakanywhere=true]
+1) James residence Connecticut
+2) Where does James currently live
+3) James lives near McGee's bar in Connecticut
+\end{Verbatim}
+}
+
+\noindent\textbf{Round 2: top retrieved MemCells.} The refined queries retrieve 40 additional candidates; top results are:
+{\small
+\begin{center}
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{1.05}
+\begin{tabular}{@{}c c p{0.58\linewidth}@{}}
+\toprule
+\textbf{Rank} & \textbf{Scene} & \textbf{Subject (summary)} \\
+\midrule
+1 & \texttt{4} & \textbf{James Adopts Shelter Dog Ned and Discusses Gaming Progress with John (Apr 12, 2022)} \\
+2 & \texttt{43} & James Announces Move-In with Samantha Near McGee's Bar (Oct 31, 2022) \\
+3 & \texttt{15} & James Shares Recent Life Challenges and Support System (Jun 16, 2022) \\
+4 & \texttt{44} & James's Family Road Trip Visiting Friends Josh and Mark (Nov 7, 2022) \\
+5 & \texttt{22} & James's Upcoming Summer Trip to Toronto and Vancouver (Jul 9, 2022) \\
+\bottomrule
+\end{tabular}
+\end{center}
+}
+
+\noindent\textbf{Key evidence (dialogue excerpt).}
+{\footnotesize
+\begin{Verbatim}[breaklines=true,breakanywhere=true]
+I adopted a pup from a shelter in Stamford last week and my days have been so much happier with him in the fam.
+\end{Verbatim}
+}
+
+\noindent\textbf{Key evidence (atomic fact).}
+\begin{itemize}
+\item James adopted a pup named Ned from a shelter in Stamford last week (March 28--April 3, 2022).
+\end{itemize}
+
+\noindent\textbf{Answer + evaluation.}
+{\footnotesize
+\begin{Verbatim}[breaklines=true,breakanywhere=true]
+James adopted his dog Ned from a shelter located in Stamford, which is a city in Connecticut, strongly implying he lives near Stamford, Connecticut. Furthermore, when James and Samantha moved in together on October 31, 2022, they rented an apartment near McGee's bar, a location they both favored. Although the exact city of this apartment is not explicitly stated, given no mention of relocation to another state and the previous connection to Stamford, it is highly likely that their residence is still in Connecticut, near Stamford. Therefore, based on these details, James does live in Connecticut with high confidence.
+\end{Verbatim}
+}
+\noindent Result: \texttt{is\_correct=true} (3/3 judges).

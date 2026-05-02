@@ -1,0 +1,321 @@
+\section{LLM-Profiled Roles}
+\label{sec:lmprs}
+Following standard reinforcement learning terminology \citep{sutton2018reinforcement}, an agent designed to solve Markov Decision Processes (MDPs) typically incorporates the following components:
+\begin{itemize}
+    \item \textbf{Policy} $\pi(a_t \mid g, s_t)$: Determines the action $a_t$ to take given the current state $s_t$.
+    
+    \item \textbf{Value Function} $V^\pi(s) \mapsto R$: Estimates the expected return of state $s$ under policy $\pi$.
+    
+    \item \textbf{Transition Model} $\mathcal{T}(s_{t+1} \mid s_t, a_t)$: Represents the dynamics of the environment, predicting the next state $s_{t+1}$ given the current state $s_t$ and action $a_t$.
+\end{itemize}
+These definitions are broadly applicable across different agent designs. In this work, we adapt them to LLM-based search and focus on how to profile LLMs to work as/for these agentic components.
+
+\paragraph{Background of LLM-Profiled Policy, Evaluator and Transition Model}
+This section outlines the implementation of the three core components using three types of LMPRs. These roles are defined by  \citet{li2024survey} as the LLM-profiled policy ($\text{lmpr}_\text{policy}$), evaluator ($\text{lmpr}_\text{eval}$), and transition model ($\text{lmpr}_\text{transition}$). For brevity, these notations are commonly adopted throughout this work. 
+% \citet{li2024survey} introduce them for general LLM-based agents.  In contrast,our work considers comprehensive implementations of each role type within various LLM-based search.
+
+While prior studies such as \citet{spiegel2024informing} and \citet{feng2024naturallanguagereinforcementlearning} explored these LMPRs primarily in theoretical contexts and toy environments for reinforcement learning, this section extends these ideas by presenting detailed implementations in real-world tasks. 
+
+\paragraph{Presentation of Prompting Examples}
+To illustrate how LLMs are configured for different LMPR roles, we provide prompting examples throughout the paper. Model outputs are visually distinguished using shadow boxes for clarity. For example:
+
+\begin{myshadowbox} 
+An output from LMPR 
+\end{myshadowbox}
+
+To maintain brevity, placeholders enclosed in angle brackets (e.g., \texttt{<demos>} for few-shot demonstrations and \texttt{<task desc.>} for task descriptions) are used to represent verbal components within prompts.
+
+\input{tables/lmpp.tex}
+
+\subsection{LLM-Profiled Policy (LMPP)}
+\label{sec:policy}
+This section introduces three types of LMPPs.
+A deterministic policy maps each state directly to a specific action, while a stochastic policy assigns a probability distribution over actions  $ \in  A_{\text{candidate}}$, where $A_{\text{candidate}}$ may be fixed or change based on the current state $s_t$. Lastly, a batch policy produces multiple candidate actions at each time step.
+While various types of information can be provided in the LLM prompt, the verbalized observation $o_t$ is always mandatory.
+  
+\paragraph{Deterministic LMPP} 
+This paragraph introduces three types of deterministic LMPPs:
+\begin{itemize}
+    \item \textbf{Naive LMPP ($\text{lmpp}_\text{naive}$)}: An LLM is directly prompted to generate the next action $a_t$. 
+
+    \item \textbf{Reasoning LMPP  ($\text{lmpp}_\text{reasoning}$)}: To generate $a_t$, the LLM first produces a complete reasoning path that explains or justifies the generation of $a_t$. The reasoning path serves as an explicit intermediate step, enhancing interpretability and illuminating the decision-making process for $a_t$. Finally, $a_t$ is extracted and parsed.
+
+    \item \textbf{ReAct LMPP ($\text{lmpp}_\text{react}$)}: In contrast to $\text{lmpp}_\text{reasoning}$, $\text{lmpp}_\text{react}$ separates the reasoning step and the action-generation step into distinct LLM inference passes. Each pass corresponds to an uninterrupted generation session. The reasoning text may include a planning path (e.g., $\tilde{a}_{t+1}, \ldots, \tilde{a}_{T}$), but only $\tilde{a}_{t}$ is used for search. Another distinguishing feature is the more autonomous behavior of this policy, which does not strictly adhere to a fixed reasoning-then-acting sequence. Instead, it can dynamically alternate between reasoning and acting steps, such as reasoning-acting-acting. For example:
+    \begin{numberedquote}
+        Your task is to: put a cool tomato in microwave. \newline
+        >
+        \begin{myshadowbox}
+        think: To solve the task, I need to find a tomato, then cool it with the fridge, and finally put it in the microwave. 
+        \textit{<more thoughts>}
+        \end{myshadowbox}
+        OK. \newline
+        \begin{myshadowbox}
+        > go to countertop 1 
+        \end{myshadowbox}
+        \textit{<observation>}
+        \begin{myshadowbox}
+        > go to countertop 2 
+        \end{myshadowbox}
+        \label{quote:lmpr_policy2react}
+    \end{numberedquote}
+    The term ``react'' is attributed to the work of ReAct \citep{yao2023react}. However, in their formulation, each thought is not explicitly treated as an action; instead, only tool invocations are considered actions in reasoning tasks. This distinction highlights the broader applicability of $\text{lmpp}_\text{react}$ in our definition.
+\end{itemize}
+
+\paragraph{\red{Stochastic LMPP ($\text{lmpp}^{s}$)}}
+
+\begin{itemize}
+     \item \red{\textbf{Logit-based LMPP ($\text{lmpp}^{s}_\text{logit}$)}: Leveraging model logits to capture uncertainty is a long-established technique in machine learning (e.g., logistic regression). In language models, the logits over the vocabulary can be converted into a probability distribution over a set of verbalized actions.}
+
+    \item \red{\textbf{Verbalized LMPP ($\text{lmpp}^{s}_\text{verbalized}$)}:
+    As shown by \citet{lin2022teaching}, LLMs can ``learn to express uncertainty about its own answers in natural language,'' enabling the probability distribution to be directly generated through prompting.}
+
+    \item \red{\textbf{Self-consistency ($\text{lmpp}^{s}_\text{sc}$)}: This approach involves sampling multiple trajectories from an LLM and computing self-consistency scores \citep{wang2023selfconsistency} by counting the frequency of each outcome, which is then normalized to form a probability distribution.}
+\end{itemize}
+
+\paragraph{Batch LMPP ($\text{lmpp}_\text{batch}$)}
+A batch LMPP generates multiple actions simultaneously. 
+% $\text{lmpp}_\text{batch}$ can sample all actions in one pass. 
+
+\begin{enumerate}
+    \item \textbf{$\text{lmpp}_\text{batch1}$}:  
+    In this variant, one inference generates multiple candidate actions in text form, with candidates separated by a special token for subsequent extraction. As noted by \citet{yao2023tree}, this avoids duplication in constrained action spaces, such as selecting a word in a crossword puzzle. By leveraging a global view of the action space,  $\text{lmpp}_\text{batch1}$ improves efficiency of LLM inference and coherence in tasks.
+    
+    \item \red{\textbf{$\text{lmpp}_\text{batch2}$}: 
+    This variant leverages a stochastic LMPP to generate a probability distribution across a set of candidates. Actions are then sampled directly from this distribution.}
+\end{enumerate}
+
+\subsection{LLM-Profiled Transition Model (LMPT)}
+\label{sec:transition_models}
+\red{Transition models are especially beneficial in dynamic environments, while in deterministic settings, where transitions are predictable or actions easily reversible, their utility is limited.}
+$\text{lmpr}_\text{transition}$ predicts outcomes according to LLMs' internal knowledge. The profiling can be categorized as generating:
+\textbf{1) Full state}: The final goal is to return a full state/observation at the current step, as exemplified in Example~\ref{quote:lmpr_transition_blocksworld} from \citet{hao-etal-2023-reasoning}.
+\begin{numberedquote}
+    <profile information> \newline
+    [STATE 0] I have that, the white block is clear, the cyan block is clear, 
+    <more detail> \newline
+    [ACTION] Pick up the brown block.\newline
+    [CHANGE] \newline
+    \begin{myshadowbox}
+    The hand was empty and is now holding the brown block, the brown block was on the table and is now in the hand, and the brown block is no longer clear.
+    [STATE 1] I have that, the white block is clear, the cyan block is clear, 
+    <more detail>
+    \end{myshadowbox}
+    \label{quote:lmpr_transition_blocksworld}
+\end{numberedquote}
+\textbf{2) Partial observation}: The partial observation would be further processed to form the full state. One obvious task is reasoning via QAs.
+
+\begin{numberedquote}
+    Given a question, please decompose it into sub-questions. For each sub-question, please answer it in a complete sentence, ending with "The answer is". When the original question is answerable, please start the subquestion with "Now we can answer the question: \\
+    <few shot demos> \newline
+    \textbf{Question 1:} James writes a 3-page letter to 2 different friends twice a week. How many pages does he write a year? \\
+    \textbf{Question 1.1:} How many pages does he write every week? 
+    \begin{myshadowbox}
+    \textit{Answer 1.1:} James writes a 3-page letter to 2 different friends twice a week, so he writes 3 * 2 * 2 = 12 pages every week. The answer is 12.
+     \end{myshadowbox}
+     \label{quote:lmpr_transition_qa}
+\end{numberedquote}
+      
+\input{tables/lmpr_eval}
+
+\subsection{LLM-Profiled Evaluator (LMPE)}
+\label{sec:evaluators}
+LLMs can serve as flexible evaluators (\textit{LMPEs}) by leveraging their generative and probabilistic capabilities. We propose categorizing these evaluators along three key dimensions: 
+\begin{itemize} 
+\item \textbf{Task Formulation}: Whether the evaluation is a binary classification, multi-choice QA, or a free-form judgment influences how the LLM’s output or logits can be interpreted. These tasks are always formulated in LLMs' system-level prompts. 
+
+\item \textbf{State vs. Action vs. Episode Evaluation}: This is analogous to state/action-state value functions in reinforcement learning. Depending on whether the evaluator is assessing a static state $s_t$ or a transition $(s_t, a_t)$, the LLM must parse different context inputs to provide a valid judgment. \red{Another evaluation target is the cross-trial episode (i.e., a sequence of actions leading to a terminal state ) \citep{shinn2023reflexion,shi2025monte}.}
+
+\item \textbf{Output Types}: Unlike $\text{lmpp}$ or $\text{lmpt}$, the output of an evaluator $\text{lmpe}$ can produce not only text-based outputs (continuous text or discrete labels or free-form text) but also raw logits and self-consistency scores. This flexibility allows for nuanced scoring and confidence measurement that can be mapped to discrete classes or continuous values. 
+
+\item \textbf{Use of Reasoning}: As LMPPs, some reasoning techniques can be generalized to LMPEs.
+\end{itemize} 
+As summarized in Table~\ref{tab:lmpr_value}, various works have shown that LLMs configured under these dimensions can support diverse evaluation goals. 
+The paragraphs below illustrate the four dimensions through concrete prompts and output examples.
+
+\paragraph{Task Formulations}
+Three types are commonly used for evaluation.
+\textbf{1) Binary/Multi-class Classification}:
+As shown below, a prompt can explicitly request a binary judgment, e.g., yes/no or failure/success:
+\begin{numberedquote}
+    <prompt>
+    \begin{myshadowbox}
+    Status: “failure”
+    \end{myshadowbox}
+\label{quote:lmpr_value1_koh}
+\end{numberedquote}
+In some cases, more fine-grained judgments are required with multiple labels. For example, the “status” tag is defined for LMPE to indicate partial successes in \citet{koh2024tree}:
+\begin{numberedquote}
+    <prompt>
+    \begin{myshadowbox}
+    Status: “failure” \newline
+    On the right track to success: “yes” 
+    \end{myshadowbox}
+\label{quote:lmpr_value1_koh2}
+\end{numberedquote}
+This can be considered as multi-class classification, where ``yes'' yields an intermediate class.
+% Few-shot examples or explicit instructions help ensure consistent format generation. This is important for parsing the response to numerical values.
+A more direct multi-class classification is specified in the example below, where the prompt assesses whether a given set of numbers can reach 24:
+\begin{numberedquote}
+Evaluate if given numbers can reach 24 (sure/likely/impossible)
+    \newline
+    10 14
+    \newline
+    10 + 14 = 24
+    \newline
+    sure
+    \newline \newline
+    1 3 3
+    \begin{myshadowbox}
+    1 * 3 * 3 = 9
+    \newline
+    (1 + 3) * 3 = 12
+    \newline
+    1 3 3 are all too small
+    \newline
+    impossible
+    \end{myshadowbox}
+\label{quote:lmpr_value2tot}
+\end{numberedquote}
+\textbf{2) Multi-choice QA}:
+This is often advantageous when directly scoring an action/state is difficult to compute in contrast to comparing multiple candidates. For example, it is difficult to judge whether a give passage is coherent, while it is easy to judge whether Passage A is more or less coherent than Passage B.  Another way is to implicitly compare different solutions via voting through self-consistency scores of $\text{lmpp}$, which belongs to the next formulation type.
+\red{\textbf{3) Scoring}: A continuous score is given for each candidate option. Example~\ref{quote:lmpr_think_in_graph} demonstrates how to prompt LLMs for scoring in the task of reasoning over a knowledge graph.}
+\begin{numberedquote}
+Please rate thee contribution of the relations on a scale from 0 to 1 (the sum of the scores of the relations is 1)
+    \newline
+    Q: <Query>
+    \newline
+    Topic Entity: <Topic Entity>
+    \newline
+    Relations: <list of relations>
+\label{quote:lmpr_think_in_graph}
+\end{numberedquote}
+\textbf{4) No Explicit Evaluator Definition}:
+Evaluation can be inferred from the $\text{lmpp}$’s generative process itself. In such cases, no separate system-level prompt is required for task formulation.
+Likewise, $\text{lmpt}$ can be used for evaluation. This LLM-based evaluation will be detailed from the perspective of output types.
+
+\paragraph{State vs. State-Action Function}
+\textbf{1) State-Value Evaluator}:
+A state-based evaluator accepts $s_t$ as its input to produce a judgment:
+\begin{equation}
+    \text{discrete judge} = \text{lmpe}(s_{t})
+\end{equation}
+Example~\ref{quote:lmpr_value2tot} is one of the example.
+\textbf{2) State-Action Evaluator}:
+the evaluator assesses whether taking action $a_t$ is appropriate at the current state $s_{t}$:
+\begin{equation}
+    \text{discrete judge} = \text{lmpe}(s_t, a_t)
+\end{equation}
+This setup is exemplified in Example~\ref{quote:lmpr_value1_rap}, where the new sub-question ($a_t$)’s usefulness depends on the prior state ($s_{t}$). Below is another example of BlocksWorld \citep{SLANEY2001119}: 
+\begin{numberedquote}
+    \textbf{[STATE]} \\
+    As initial conditions I have that, the blue block is clear, the orange block is in the hand, the red block is clear, the hand is holding the orange block, the red block is on top of the yellow block, the blue block is on the table, and the yellow block is on the table.
+    My goal is to have have that the red block is on top of the yellow block and the orange block is on top of the blue block. \\
+    \textbf{[ACTION]} \\
+    stack the orange block on top of the red block \\
+    \textbf{[EVALUATION]}
+    \begin{myshadowbox}
+    bad
+    \end{myshadowbox}
+\label{quote:lmpr_value4rap}
+\end{numberedquote}
+The prompting format is adapted from \citet{hao-etal-2023-reasoning}.
+
+\paragraph{Outputs}
+Finally, the outputs of $\text{lmpe}$ can take one of several forms, depending on how we wish to interpret or utilize the evaluator’s opinion:
+
+\begin{enumerate}
+    \item \textbf{Mapping $\text{lmpe}$ generation to discrete values}: 
+    For instance, ``impossible'' or ``Yes'' may be mapped to numeric scores (0 or 1) in Quotes \ref{quote:lmpr_value2tot} and \ref{quote:lmpr_value1_rap}.
+    
+    \item \textbf{Using logits of $\text{lmpe}$}:
+    The probability of generating a specific token (e.g., ``impossible'') can serve as the confidence score.
+
+    \item \textbf{Using logits of given continuations}:
+    Rather than having the LLM generate the evaluation tokens, one can provide the exact sequence to be evaluated (e.g., “good” in Quote~\ref{quote:lmpr_value4rap} or “(A) good”). The log probability of each token is then summed to indicate how well (i.e., how confidently) the model ``accepts'' that evaluation in the given context. 
+    A higher cumulative log-likelihood suggests that the LLM finds the provided evaluation more plausible.
+    Moreover, multiple predefined options (e.g., ``(A) Correct'' vs. ``(B) Incorrect'') can be separately fed in as continuations. The log probabilities of each option can then be compared as self-evaluation scores \citep{xie2023selfevaluation,Kadavath2022selfeval}.
+    
+    \item \textbf{Using logits from $\text{lmpp}$ or $\text{lmpt}$}: 
+    Alternatively, the evaluation can be derived from the policy or transition model’s token probabilities. This method can avoid additional inference steps by reusing existing logits. \red{However, the fundamental flaw is that when multiple plausible answers exist, individual logits can be low even if overall confidence in the correct answer set is high \citep{lin2022teaching}.}
+
+    \item \textbf{Using self-consistency scores based on $\text{lmpp}$ or $\text{lmpt}$}:
+    By sampling multiple trajectories (or states) from an LMPP (or LMPT) via self-consistency \citep{wang2023selfconsistency}, one can gauge confidence via how often a particular action (or state) appears. More frequent outcomes can be assumed more likely (or better). 
+    One challenge is how to distinguish different outcomes.
+    For example, \citet{zhuang2024toolchain} fine-tune a natural language inference (NLI) model to distinguish the generated actions.
+    Note that the logits from the LMPP or the self-consistency scores based on the LMPP ultimately converges to the probability distribution of a stochastic LMPP.
+    
+    \item \textbf{Comparing consistency of $\text{lmpp}$-generated steps and candidate states}:
+    The actions/plan generated by actions can be compared to the candidate for evaluation. This is suitable for tasks with limited successor states.
+
+    \item \textbf{Comparing Consistency of \(\text{lmpp}\)-Generated Steps and Candidate States}:  The actions or plans produced by the policy can be compared against candidate states to assess consistency. This approach is particularly suitable for tasks with a limited number of successor states, e.g., sovling a maze \citep{meng2024llm}.
+
+    \item \textbf{Using a Stronger \(\text{lmpp}\) as a Proxy Optimal Policy to Approximate Q-Values}:  When rewards are only obtained at the terminal state, the Q-value can be approximated by discounting the rewards along the path. This approach assumes that all subsequent actions are optimal, which necessitates the use of a more robust \(\text{lmpp}\) as a proxy for the optimal policy.
+\end{enumerate}
+
+\paragraph{Use of Reasoning}
+Similar to $\text{lmpp}_\text{reasoning}$, a reasoning process can be required before generating the final judgment. This reasoning process provides a logical justification to augment the evaluation. For example:
+\begin{numberedquote}
+    <prompt>
+    \begin{myshadowbox}
+    Thoughts: <your thoughts and reasoning process> \\
+    Status: ``failure''
+    \end{myshadowbox}
+\label{quote:lmpr_value1_koh3}
+\end{numberedquote}
+
+\subsection{Discussion}
+\paragraph{Inference Cost of $\text{lmpp}$}
+In practice, the overall computational cost follows the pattern
+\[
+    \text{lmpp}_\text{react} 
+    \;>\; 
+    \text{lmpp}_\text{reasoning} 
+    \;>\; 
+    \text{lmpp}_\text{naive}.
+\]
+The gap between $\text{lmpp}_\text{reasoning}$ and $\text{lmpp}_\text{naive}$ arises from the additional output tokens produced for reasoning. More importantly, when commercial API is used, $\text{lmpp}_\text{react}$ exhibits an even higher cost because each \emph{separate} reasoning or action-generation pass is effectively stateless with respect to the cached K--V pairs from previous passes, thereby preventing token-reuse optimizations.
+
+\paragraph{Applicability of $\text{lmpp}_\text{react}$.}
+A central requirement for ReAct-style prompting ($\text{lmpp}_\text{react}$) is the availability of step-wise observations after each action. This imposes two prevalent scenarios:
+
+\begin{enumerate}
+    \item \textbf{Tasks relying on simulators}:
+    When direct interaction with the real environment is impractical (e.g., actions on tasks are irreversible), a simulator can be substituted to generate the observation following each action. For instance, an LLM-based simulator ($\text{lmpt}$) might use commonsense knowledge to model environmental responses (e.g., turning on a water tap in a sealed sink). However, such simulators are unsuitable for tasks involving external or private data---like querying proprietary databases or retrieving up-to-date information---since an LLM’s internal knowledge typically cannot replicate these data sources.
+    
+    \item \textbf{Action-reversible tasks.}
+    Certain problems can be retried or backtracked, allowing the agent to iteratively act, observe, and refine its actions, as discussed in Section~\ref{sec:task_unify}. In Section~\ref{sec:search}, for example, LLM-based search frameworks such as LATS \citep{zhou2024language} leverage this property when interacting with real environments across multiple search steps to perform monte-carlo simulation.
+\end{enumerate}
+
+\paragraph{Risk of $\text{lmpe}$}
+Although $\text{lmpe}$ can effectively evaluate state or action quality, two challenges stand out:
+\begin{enumerate}
+    \item \textbf{Mediocre discrimination abilities}: 
+    As shown by \citet{chen-etal-2024-tree}, using logits as dense rewards (e.g., in $\text{lmpr}_\text{policy\&eval}$ or $\text{lmpr}_\text{transition\&eval}$) can reveal that many open-source LLMs struggle to reliably distinguish ``good'' from ``bad'' examples.\footnote{GPT-4 turbo was the most advanced model at the time of evaluation.}
+    
+    \item \textbf{In-Context Reward Hacking (ICRH)}: 
+    According to \citet{pan2024feedback}, an LLM evaluator ($\text{lmpe}$) may attempt to ``explain away'' negative feedback by globally altering its reasoning and actions, potentially violating constraints. 
+    For example, to fix an \textsc{InsufficientBalanceError}, the LLM might suggest unauthorized money transfers from other accounts, thus compromising safety or policy compliance.
+\end{enumerate}
+
+\paragraph{Not All Generation with ``Reasoning'' is Truly Augmented.}
+By design, LLMs generate tokens in an auto-regressive manner, meaning earlier tokens are not influenced by later ungenerated tokens. Hence, although reasoning tokens after actions (or evaluation) can make the model outputs more interpretable, they do not always alter subsequent decisions or evaluations. 
+In \citet{xie2023selfevaluation}, for instance, a chain of thoughts
+\[
+    a_t,\;\tilde{a}_{t+1},\; \ldots,\;\tilde{a}_T
+\]
+is produced, where $\tilde{a}_{t+1}, \ldots, \tilde{a}_T$ are ``unrecorded'' actions. Crucially, $a_t$ is unaffected by any future $\tilde{a}$ tokens, making this effectively a naive policy rather than a true reasoning-augmented approach.
+
+Similarly, consider the evaluator in Example~\ref{quote:lmpr_value1_rap}:
+\begin{numberedquote}
+    Given a question and some sub-questions, determine whether the last sub-question is useful to answer the question. Output 'Yes' or 'No', and a reason. \\
+    \textbf{Question 1:} Four years ago, Kody was only half as old as Mohamed. If Mohamed is currently twice as 30 years old, how old is Kody? \\
+    \textbf{Question 1.1:} How old is Mohamed? \\
+    \textbf{Question 1.2:} How old was Mohamed four years ago? \\
+    \textbf{New question 1.3:} How old was Kody four years ago? \\
+    Is the new question useful? 
+    \begin{myshadowbox}
+    Yes. We need the answer to calculate how old is Kody now. 
+    \end{myshadowbox}
+\label{quote:lmpr_value1_rap}
+\end{numberedquote}
+Although the model's output includes a short ``reason,'' that intermediate reasoning does not necessarily \emph{inform} the generation of `Yes’ or `No’.

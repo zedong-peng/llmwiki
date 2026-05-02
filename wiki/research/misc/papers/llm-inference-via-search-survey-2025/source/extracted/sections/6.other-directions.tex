@@ -1,0 +1,41 @@
+\section{\red{LLM Inference + Search Beyond Sequential Decision Making}}
+\label{sec:others}
+\red{The previous focus is on the work that the search process are coupled with the LLM's decoding process, where downstream tasks are formulated as sequential decision-making problems (as detailed in Section \ref{sec:task_unify}), and LLMs serve as integral components in search procedures.
+This section aims to explore all the other works that include both LLM inference and search methods. However, these approaches either optimize other elements (such as model selection or inference workflows) or do not fit in the MDP formulation or use search and LLMs separately. For example, the plans (commonly in the form of PDDL) are prepared by LLMs to perform local search \citep{valmeekam2023on,guan2023leveraging,valmeekam2023planbench}.}
+
+\red{As a result, the notions of actions and states do not exist, at least during LLM inference. This distinction leads to several fundamental differences. For instance, the roles of LMPP and LMPT are not applicable, which is why LLM sampling, rather than LMPP sampling, is introduced in the frameworks below. Furthermore, state simulation is never required.}
+
+\paragraph{\red{LLM for World Modeling + Search} }
+\red{In this paradigm, LLMs are employed to generate world models that serve as the basis for planning. In contrast, LLMs in the LIS frameworks operate as world models (e.g., LMPEs and LMPTs). The world models can be represented by the Planning Domain Definition Language (PDDL) \citep{planning_competition}, which clearly defines action preconditions and effects, or Python code. For example, \citet{guan2023leveraging,liu2023llm+} utilize LLMs to generate PDDL-based world models and then apply classical search-based planners (e.g., LPG) to solve tasks. In contrast, \citet{dainese2024generating} prompt LLMs to generate Python code for world modeling and then solve tasks via Monte-Carlo Tree Search (MCTS).} 
+
+\paragraph{\red{Meta-Search for LLM-Inference Strategies for Problem Solving} } 
+\red{The frameworks in Section~\ref{sec:search} directly search for (partial) solutions—using search itself as the strategy to reach a solution. In contrast, this paragraph focuses on meta-search methods that identify the strategies to reach a solution. For example, DOTS \citep{yue2025dots} investigate whether LMPE evaluation is necessary for a given problem, while the LIS methods integrate LMPE evaluation into determining whether an action is optimal for achieving the goal.  Strategist \citep{light2025strategist} search for optimal high-level strategies that guide the generation of task solutions.
+Similarly, AFlow \citep{anonymous2025aflow} employs MCTS to search for optimal inference workflows for solving downstream tasks. However, the resulting solutions may not strictly conform to a search-based workflow. Essentially, this approach focuses on the structure and efficiency of the overall inference process. In contrast, the LIS frameworks directly concentrate on constructing search workflows for downstream tasks. Besides, \citet{zheng2025what} conduct a grid search over 6 reasoning strategies and 5 types of instructions. However, their grid search is used solely to evaluate the combinations, rather than as a meta-search strategy for problem solving.}
+
+\paragraph{\red{Equilibrium Search in a Two-Player Game}}
+\red{Generally, a discriminator (a special LMPE) and a generator (a special LMPP) are defined to engage in a game, where a correctness parameter for the generator is selected uniformly at random. Both the discriminator and the generator receive a payoff of 1 when they agree on the correctness parameter. This equilibrium objective is regularized by the prior, i.e., the inital generation of large language models (LLMs), as some equilibrium solutions may not align with commonsense reasoning.
+The final state is reached when the discriminator and the generator reconcile with each other. Unlike single-player games, two-player games involve theoretical frameworks under the umbrella of game theory and equilibrium analysis. While this aspect is beyond the scope of this survey, the fundamental steps of LLM sampling and LMPE evaluation remain essential prerequisites before executing equilibrium computations to achieve a regularized equilibrium.}
+% p(y | x, correct?) vs. p(correct? | x, y)
+\begin{itemize}
+    % \item Evaluated on question answering tasks, and theoretically generalized to any tasks.
+    \item \red{\textbf{LLM Sampling}: An LLM is prompted for sampling in batch. While this is similar to $\text{lmpr}_\text{batch\_policy2}$, the LLM is prompted with the value of the correctness parameter, which is either ``correct'' or ``incorrect''.}
+    
+    \item \red{\textbf{LMPE Evaluation}: Corresponding to the values of the correctness parameter, the LMPE (or discriminator) generates binary predictions (i.e., ``correct'' or ``incorrect''). Specifically, the LMPE is implemented as $\text{lmpr}_\text{eval1}$.}
+\end{itemize}
+
+\paragraph{\red{Evolutionary Search}}
+\red{EvoPrompting \citep{chen2023evoprompting} employs evolutionary search to generate implementation code for neural architectures, while \citet{wang2025efficient} perform evolutionary search over chemical space, particularly for molecular discovery. Both re-define cross-over and mutation operations via LLMs.  However, it is not defined for sequential dicsion making, where the next step is determined by the previous step(s). For example, the complete solution code is not required to be decomposed into smaller components. This traces to the nature of cross-over and mutation operations requring the entire solution as the input. }
+
+\red{The key procedures in their algorithm are:}
+\begin{itemize}
+    \item \red{\textbf{LLM Sampling}: An LLM is used during the cross-mutation phase to generate candidate codes. The generation process is conditioned on randomly selected codes from the population.}
+    \item \red{\textbf{Value-Based Top-K Selection}: This method updates the population by selecting the top $K$ candidates based on a value function. The $\text{ValueFunc}$ is implemented by training a deep learning model with the generated code and evaluating its validation accuracy.}
+\end{itemize}
+
+\paragraph{Search over Solution Sketches for Code Generation}  
+PlanSearch \citep{wang2025planning} searches over solution sketches prior to generating code—that is, it operates on a natural language description of the correct program. Specifically, the model samples ``observations'' (small pieces of ideas or hints) which are then concatenated with the task description to prompt the LLM to generate subsequent observations.
+Each sequence of observations at depth two is then used to prompt the LLM to formulate a comprehensive idea. The LLM is subsequently re-prompted to produce alternative another set of ideas by designating the initial set as incorrect. Finally, each idea is usd to prompt the LLM to generate code. 
+
+This framework is discussed in the final section for two reasons: (1) The search space is not directly related to code generation. However, it can be viewed as a form of language reasoning via concatenation, where each thought constitutes an observation; and (2) the framework does not employ traditional search algorithms (e.g., A* or MCTS).
+% \paragraph{Search over an LLM’s Knowledge Space}
+% \citep{sprueill2024chemreasoner}

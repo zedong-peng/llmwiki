@@ -1,0 +1,644 @@
+% This must be in the first 5 lines to tell arXiv to use pdfLaTeX, which is strongly recommended.
+\pdfoutput=1
+% In particular, the hyperref package requires pdfLaTeX in order to break URLs across lines.
+
+\documentclass[11pt]{article}
+
+% Remove the "review" option to generate the final version.
+\usepackage{EMNLP2023}
+
+% Standard package includes
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage{graphicx}
+\usepackage{subfigure}
+\usepackage{longtable}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{amsthm}
+
+\usepackage{tabularx}
+\usepackage{colortbl}
+\usepackage{caption}
+% \usepackage{subcaption}
+\usepackage{adjustbox}
+\usepackage{multirow}
+\usepackage{soul}
+\usepackage{amsfonts}
+\usepackage{bbding}
+\usepackage{bbm}
+\usepackage{xcolor}
+\usepackage[normalem]{ulem}
+\usepackage{tcolorbox}
+
+% For proper rendering and hyphenation of words containing Latin characters (including in bib files)
+\usepackage[T1]{fontenc}
+% For Vietnamese characters
+% \usepackage[T5]{fontenc}
+% See https://www.latex-project.org/help/documentation/encguide.pdf for other character sets
+
+% This assumes your files are encoded as UTF8
+\usepackage[utf8]{inputenc}
+
+% This is not strictly necessary and may be commented out.
+% However, it will improve the layout of the manuscript,
+% and will typically save some space.
+\usepackage{microtype}
+
+% This is also not strictly necessary and may be commented out.
+% However, it will improve the aesthetics of text in
+% the typewriter font.
+\usepackage{inconsolata}
+
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+
+% If the title and author information does not fit in the area allocated, uncomment the following
+%
+%\setlength\titlebox{<dim>}
+%
+% and set <dim> to something 5cm or larger.
+
+\title{Enhancing Retrieval-Augmented Large Language Models with Iterative Retrieval-Generation Synergy}
+
+% Author information can be set in various styles:
+% For several authors from the same institution:
+% \author{Author 1 \and ... \and Author n \\
+%         Address line \\ ... \\ Address line}
+% if the names do not fit well on one line use
+%         Author 1 \\ {\bf Author 2} \\ ... \\ {\bf Author n} \\
+% For authors from different institutions:
+% \author{Author 1 \\ Address line \\  ... \\ Address line
+%         \And  ... \And
+%         Author n \\ Address line \\ ... \\ Address line}
+% To start a separate ``row'' of authors use \AND, as in
+% \author{Author 1 \\ Address line \\  ... \\ Address line
+%         \AND
+%         Author 2 \\ Address line \\ ... \\ Address line \And
+%         Author 3 \\ Address line \\ ... \\ Address line}
+
+\author{
+    Zhihong Shao\textsuperscript{1}, Yeyun Gong\textsuperscript{2}, yelong shen\textsuperscript{3}, Minlie Huang\textsuperscript{1}\thanks{*Corresponding author: Minlie Huang.}, Nan Duan\textsuperscript{2}, Weizhu Chen\textsuperscript{3}\\
+    \textsuperscript{1} The CoAI Group, DCST, Institute for Artificial Intelligence, \\
+    \textsuperscript{1} State Key Lab of Intelligent Technology and Systems, \\
+    \textsuperscript{1} Beijing National Research Center for Information Science and Technology, \\
+    \textsuperscript{1} Tsinghua University, Beijing 100084, China \\
+    \textsuperscript{2} Microsoft Research Asia \textsuperscript{3} Microsoft Azure AI \\
+    {\tt szh19@mails.tsinghua.edu.cn aihuang@tsinghua.edu.cn}}
+
+
+\begin{document}
+\maketitle
+\begin{abstract}
+% Large language models are powerful text processors and reasoners, but are still subject to limitations including outdated knowledge and hallucinations, which necessitates connecting them to the world.
+% Retrieval-augmented large language models have raised extensive attention for grounding model generation on external knowledge.
+Retrieval-augmented generation has raise extensive attention as it is promising to address the limitations of large language models including outdated knowledge and hallucinations.
+However, retrievers struggle to capture relevance, especially for queries with complex information needs.
+Recent work has proposed to improve relevance modeling by having large language models actively involved in retrieval, i.e., to guide retrieval with generation.
+In this paper, we show that strong performance can be achieved by a method we call I\textsc{ter}-R\textsc{et}G\textsc{en}, which synergizes retrieval and generation in an iterative manner:
+a model's response to a task input shows what might be needed to finish the task, and thus can serve as an informative context for retrieving more relevant knowledge which in turn helps generate a better response in another iteration.
+Compared with recent work which interleaves retrieval with generation when completing a single output, I\textsc{ter}-R\textsc{et}G\textsc{en} processes all retrieved knowledge as a whole and largely preserves the flexibility in generation without structural constraints.
+We evaluate I\textsc{ter}-R\textsc{et}G\textsc{en} on multi-hop question answering, fact verification, and commonsense reasoning, and show that it can flexibly leverage parametric knowledge and non-parametric knowledge, and is superior to or competitive with state-of-the-art retrieval-augmented baselines while causing fewer overheads of retrieval and generation.
+We can further improve performance via generation-augmented retrieval adaptation.
+\end{abstract}
+
+\section{Introduction}
+Generative Large Language Models (LLMs) have powered numerous applications, with well-perceived utility.
+Despite being powerful, LLMs lack knowledge that is under-represented in their training data, and are prone to hallucinations, especially in open-domain settings \cite{DBLP:journals/corr/abs-2303-08774}.
+Retrieval-augmented LLMs, therefore, have raised widespread attention as LLM outputs can be potentially grounded on external knowledge.
+
+Previous retrieval-augmented LMs \cite{DBLP:journals/corr/abs-2208-03299,DBLP:journals/corr/abs-2301-12652} typically adopted one-time retrieval, i.e., to retrieve knowledge using only the task input (e.g., a user question for open-domain question answering).
+One-time retrieval should suffice to fulfill the information needs if they are clearly stated in the original input, which is applicable to factoid question answering \cite{DBLP:journals/tacl/KwiatkowskiPRCP19} and single-hop fact verification \cite{thorne-etal-2018-fever}, but not to tasks with complex information needs, e.g., multi-hop reasoning \cite{DBLP:conf/emnlp/Yang0ZBCSM18} and long-form question answering \cite{DBLP:conf/acl/FanJPGWA19}.
+
+To fulfill complex information needs, recent work proposes to gather required knowledge multiple times throughout the generation process, using partial generation \cite{DBLP:journals/corr/abs-2212-10509,DBLP:journals/corr/abs-2210-03350}) or forward-looking sentence(s) \cite{DBLP:journals/corr/abs-2305-06983} as search queries.
+However, such structured workflows of interleaving retrieval with generation have the following limitations:
+(1) as intermediate generation is conditioned on knowledge retrieved before, with no awareness of knowledge retrieved afterwards, they fail to process all retrieved knowledge as a whole during the generation process;
+(2) they require multi-round retrieval to gather a comprehensive set of knowledge, and may frequently change the prompts by updating newly retrieved knowledge, thus increasing the overheads of both retrieval and generation.
+
+In this paper, we find it simple but effective to enhance retrieval-augmented LLMs through iterative retrieval-generation synergy (I\textsc{ter}-R\textsc{et}G\textsc{en}, Fig \ref{fig:iter_retgen}).
+I\textsc{ter}-R\textsc{et}G\textsc{en} iterates \textit{retrieval-augmented generation} and \textit{generation-augmented retrieval}:
+Retrieval-augmented generation outputs a response to a task input based on all retrieved knowledge (initially using the task input as the query).
+This output shows what might be needed to fulfill the task, and thus can serve as an informative context to retrieve more relevant knowledge, i.e., generation-augmented retrieval.
+The newly retrieved knowledge can benefit another iteration of retrieval-augmented generation.
+% a complete model output provides an informative context to retrieve more relevant knowledge, which in turn helps improve generation in the next iteration.
+We can also leverage model generations to adapt retrieval, by distilling knowledge from a re-ranker with access to model generations to a dense retriever with access to task inputs only, which may be beneficial in scenarios where user inputs can be easily collected, but relevant knowledge or desirable outputs are not annotated.
+
+We evaluate our method on three tasks, including multi-hop question answering, fact verification, and commonsense reasoning.
+Our method prompts an LLM to produce a chain of reasoning steps followed by the final answer under a few-shot setting.
+For in-context demonstrations, we focus on problem-solving and follow \citet{DBLP:journals/corr/abs-2201-11903} to annotate chains of thoughts, without explicitly considering how generation-augmented retrieval might be affected, which makes it conceptually simple and easy to implement.
+Our method achieves up to 8.6\% absolute gains over previous state-of-the-art retrieval-augmented methods on four out of six datasets while being competitive on the remaining two.
+According to our experiments, generation generally benefits from more iterations, with two iterations giving the most performance gains.
+One may customize the performance-cost tradeoffs by choosing an appropriate number of iterations.
+We can further improve performance and also reduce iterations via the aforementioned generation-augmented retrieval adaptation.
+
+We summarize our findings as follows:
+\begin{itemize}
+    \item Automatic metrics such as exact match can significantly underestimate the performance of LLMs in question answering tasks. Moreover, improvements in exact match do not always reflect improvements in generations. Evaluation using LLMs may be more reliable.
+    \item I\textsc{ter}-R\textsc{et}G\textsc{en} is superior to or competitive with state-of-the-art retrieval-augmented methods, while being simpler and causing fewer overheads of retrieval and generation. With generation-augmented retrieval adaptation, we can further improve performance and also reduce overheads (by reducing iterations).
+    \item It is desirable for an LLM to leverage both parametric knowledge and non-parametric knowledge effectively. I\textsc{ter}-R\textsc{et}G\textsc{en} consistently outperforms Self-Ask on question answering tasks, regardless of whether in-context non-parametric knowledge mentions the answers or not.
+\end{itemize}
+
+\section{Related Work}
+In recent months, there has been a surge in LLM-powered applications, such as ChatGPT, Bing Chat, and CoPilot \cite{DBLP:journals/corr/abs-2107-03374}.
+While showing an unprecedented level of performance, LLMs are subject to the following limitations:
+(1) Due to a high demand for compute and data, it remains an open research question to continually update LLMs both efficiently and effectively \cite{DBLP:journals/corr/abs-2205-12393};
+(2) LLMs also tend to hallucinate \cite{DBLP:journals/corr/abs-2303-08774}, i.e., generating plausible but non-factual texts.
+To alleviate these issues, there is a growing trend of augmenting LLMs with tools \cite{DBLP:journals/corr/abs-2302-07842,gou2023critic}, e.g., a code interpreter \cite{DBLP:journals/corr/abs-2211-10435,DBLP:journals/corr/abs-2302-00618} or a search engine \cite{DBLP:journals/corr/abs-2112-09332}, in an attempt to offload sub-tasks to more qualified experts, or to enrich the input context for LLMs by providing more relevant information.
+
+\begin{figure*}[t!]
+    \centering
+    \includegraphics[width=0.94\textwidth]{IRG22.pdf}
+    \caption{
+    I\textsc{ter}-R\textsc{et}G\textsc{en} iterates retrieval and generation.
+    In each iteration, I\textsc{ter}-R\textsc{et}G\textsc{en} leverages the model output from the previous iteration as a specific context to help retrieve more relevant knowledge, which may help improve model generation (e.g., correcting the height of Hesse Hogan in this figure).
+    We only show two iterations in this figure for brevity.
+    Solid arrows connect queries to the retrieved knowledge, and dashed arrows denote retrieval-augmented generation.
+    }
+    \label{fig:iter_retgen}
+\end{figure*}
+
+Retrieval augmentation is a mainstream direction to connect LLMs to the external world. 
+Previous retrieval-augmented LMs \cite{DBLP:conf/eacl/IzacardG21,DBLP:conf/acl/ShaoH22} typically receive retrieved knowledge in a passive way:
+knowledge is retrieved based on the task inputs without LMs' intervention.
+As it is difficult for a retriever to capture relevance, especially in the zero-shot setting, recent work shows a shift towards having LLMs actively involved in retrieval to improve relevance modeling, e.g., to provide a specific context for retrieval with model generations (e.g., generated search queries \cite{DBLP:journals/corr/abs-2112-09332,DBLP:journals/corr/abs-2210-03350,DBLP:journals/corr/abs-2210-03629}, partial generation \cite{DBLP:journals/corr/abs-2212-10509}, or forward-looking sentences \cite{DBLP:journals/corr/abs-2305-06983}).
+\citet{DBLP:journals/corr/abs-2212-14024} proposed a DSP programming framework that supports various retrieval-augmented methods.
+
+Recent work interleaves retrieval with generation when completing a single output.
+Such a structured workflow may reduce the flexibility in generation \cite{DBLP:journals/corr/abs-2210-03629}.
+I\textsc{ter}-R\textsc{et}G\textsc{en} avoids interrupting generation with retrieval, but iterates retrieval and generation, i.e., to leverage the complete generation from the previous iteration to retrieve more relevant information which helps improve generation in the next iteration.
+I\textsc{ter}-R\textsc{et}G\textsc{en} also has the advantage of processing all retrieved knowledge as a whole during the generation process, and is conceptually simpler and easier-to-implement, while being empirically strong in multi-hop question answering, fact verification, and commonsense reasoning.
+
+A closely related work called G\textsc{ar} \cite{DBLP:conf/acl/MaoHLSG0C20} augments queries with generated background information.
+HyDE \cite{DBLP:journals/corr/abs-2212-10496} also shares a similar spirit, but focuses on zero-shot information retrieval, and proposes to first prompt an LLM to produce ``hypothetical'' paragraphs that cover the information needed to answer a given question, and then use the generated paragraphs to retrieve the real ones.
+RepoCoder \cite{DBLP:journals/corr/abs-2303-12570} focuses on repository-level code completion, and proposes a 2-iteration retrieval-generation paradigm where the second iteration leverages the intermediate code completion for retrieval.
+By contrast, we propose to synergize retrieval and generation with I\textsc{ter}-R\textsc{et}G\textsc{en} on various natural language tasks, and explore how we can further adapt retrieval with model generations.
+
+\section{Iterative Retrieval-Generation Synergy}
+
+\subsection{Overview}
+
+Given a question $q$ and a retrieval corpus $\mathcal{D} = \{d\}$ where $d$ is a paragraph, I\textsc{ter}-R\textsc{et}G\textsc{en} repeats retrieval-generation for $T$ iterations;
+in iteration $t$, we
+(1) leverage the generation $y_{t - 1}$ from the previous iteration, concatenated with $q$, to retrieve top-$k$ paragraphs,
+and then (2) prompt an LLM $\mathcal{M}$ to produce an output $y_t$, with both the retrieved paragraphs (denoted as $\mathcal{D}_{y_{t - 1} || q}$) and $q$ integrated into the prompt.
+Therefore, each iteration can be formulated as follows:
+\begin{equation}
+\small
+    y_t = \mathcal{M}(y_t | \text{\texttt{prompt}}(\mathcal{D}_{y_{t - 1} || q}, q)),\ \ \forall 1 \le t \le T
+\end{equation}
+The last output $y_T$ will be produced as the final response.
+
+\subsection{Generation-Augmented Retrieval}
+
+There are many natural language tasks with complex information needs.
+For example, in open-domain multi-hop question answering, specific information needs may manifest themselves only after correctly answering some prerequisite sub-questions.
+In other words, there may exist semantic gaps between the original question $q$ and its supporting knowledge, which can not be effectively addressed by a retriever with a representation bottleneck.
+In the first iteration, we can retrieve knowledge with only the question $q$.
+In later iterations, the LLM output from the previous iteration, though having no guarantee of correctness, shows what might be needed to answer the question, and thus can be leveraged to bridge the semantic gaps;
+with improved retrieval, an LLM can potentially produce a better output.
+
+\subsection{Retrieval-Augmented Generation}
+
+In each iteration, we generate an output using Chain-of-Thought prompting except that we also prepend retrieved knowledge to the question $q$.
+% Fig *** shows an example prompt.
+Though there may exist more advanced prompting variants, e.g., incorporating previous generations into the prompt to enable direct refinements, we leave the explorations for future work, and focus on investigating the synergy between retrieval and generation in a straightforward manner.
+
+\subsection{Generation-Augmented Retrieval Adaptation}
+\label{sec:retrieval_adaptation}
+
+Model generations not only provide specific contexts for retrieval, but can also be leveraged to optimize the retriever, so that information needs in a question can be better captured by the retriever.
+
+\paragraph{Dense Retriever}
+We adopted dense retrieval in our experiments.
+Given a dense retriever parametrized by $\mathbf{\theta} = \{\mathbf{\theta}_q, \mathbf{\theta}_d\}$ where $\mathbf{\theta}_q$ and $\mathbf{\theta}_d$ denote parameters of the query encoder and the paragraph encoder, respectively, the similarity score between a query and a paragraph is calculated as the inner product of their encoded vectors:
+\begin{equation}
+\small
+    s_{\mathbf{\theta}}(q, d) = \langle \mathbf{E}(q;\mathbf{\theta}_q), \mathbf{E}(d; \mathbf{\theta}_d) \rangle
+\end{equation}
+
+\paragraph{Re-ranker}
+A re-ranker, parametrized by $\mathbf{\phi}$, outputs the probability of a paragraph being relevant to a query; we denote the probability as $s_\mathbf{\phi}(q, d)$.
+
+\paragraph{Distillation}
+A re-ranker is typically better at capturing relevance between a query and a paragraph than a retriever.
+Therefore, we distill knowledge from a re-ranker to a retriever.
+To help the retriever better address the semantic gaps between a question and its supporting knowledge, we allow access to $y_1$ for the re-ranker (where $y_1$ is the LLM output from the first iteration).
+We optimize only the query encoder of the retriever using the following training objective:
+\begin{equation}
+    \small
+    \begin{split}
+        \mathbf{\theta}_q^* &= arg \min_{\mathbf{\theta}_q}\ \text{KL}(P_\mathbf{\phi}(\cdot | y_1, q), P_\mathbf{\theta}(\cdot | q)) \\
+        P_\mathbf{\phi}(d|y_1, q) &= \frac{\exp (s_\mathbf{\phi}(y_1 || q, d) / \tau)}{\sum_{d^\prime \in \mathcal{D}_{y_1 || q}} \exp(s_\mathbf{\phi}(y_1 || q, d^\prime) / \tau)} \\
+        P_\mathbf{\theta}(d|q) &= \frac{\exp(s_\mathbf{\theta}(q, d) / \tau)}{\sum_{d^\prime \in \mathcal{D}_{y_1 || q}} \exp(s_\mathbf{\theta}(q, d^\prime) / \tau)} \\
+    \end{split} \label{eq:obj}
+\end{equation}
+where $\text{KL}(\cdot, \cdot)$ denotes the KL divergence between two probabilistic distributions.
+
+\section{Experiments}
+
+\subsection{Datasets}
+
+We experimented on six datasets of three reasoning tasks:
+(1) \textbf{Multi-hop question answering}, including HotPotQA \cite{DBLP:conf/emnlp/Yang0ZBCSM18}, 2WikiMultiHopQA \cite{DBLP:conf/coling/HoNSA20}, MuSiQue \cite{DBLP:journals/tacl/TrivediBKS22}, and Bamboogle \cite{DBLP:journals/corr/abs-2210-03350}.
+On MuSiQue, we followed \citet{DBLP:journals/corr/abs-2210-03350} to use only 2-hop questions;
+(2) \textbf{Fact Verification}, including Feverous \cite{DBLP:conf/nips/AlyGST00CM21};
+(3) \textbf{Commonsense reasoning}, including StrategyQA \cite{DBLP:journals/tacl/GevaKSKRB21}.
+Examples are presented in Table \ref{tab:dataset_samples}.
+
+We used the October 2017 \cite{DBLP:conf/emnlp/Yang0ZBCSM18} and the December 2018 \cite{DBLP:conf/emnlp/KarpukhinOMLWEC20} Wikipedia dump as the retrieval corpus for HotPotQA and 2WikiMultiHopQA, respectively, and used the December 2021 Wikipedia dump \cite{DBLP:journals/corr/abs-2208-03299} for the other datasets.
+
+\begingroup
+\setlength{\tabcolsep}{3pt} % Default value: 6pt
+\renewcommand{\arraystretch}{1} % Default value: 1
+\begin{table*}[htb]
+    \centering
+    \adjustbox{max width=\textwidth}{
+    \begin{tabular}{p{0.2\textwidth}p{0.8\textwidth}}
+        \toprule
+        Datasets & Example \\
+        \midrule
+        HotPotQA & What is the name of this American musician, singer, actor, comedian, and songwriter, who worked with Modern Records and born in December 5, 1932? \\
+        \midrule
+        2WikiMultiHopQA & Which film came out first, Blind Shaft or The Mask Of Fu Manchu? \\
+        \midrule
+        MuSiQue & In which year did the publisher of In Cold Blood form? \\
+        \midrule
+        Bamboogle & When did the first prime minister of the Russian Empire come into office? \\
+        \midrule
+        Feverous & Is it true that Based on the same platform as the Chevrolet Sail, the Baojun 310 was launched on 2017 Beijing Auto Show where the price ranges from 36.800 yuan to 60.800 yuan? \\
+        \midrule
+        StrategyQA & Is it common to see frost during some college commencements? \\
+	\bottomrule
+    \end{tabular}
+    }
+    \caption{
+    Example questions from six datasets.
+    }
+    \label{tab:dataset_samples}
+\end{table*}
+\endgroup
+
+\subsection{Evaluation Settings}
+
+We conducted evaluations on all 125 questions from Bamboogle, the first 500 questions from the train set of StrategyQA, and the first 500 questions from the development sets of the other datasets.
+All methods are evaluated under the 3-shot setting, sharing the same questions in demonstrations.
+
+Evaluation metrics are exact match (EM) and F1 for multi-hop question answering datasets, and accuracy for both fact verification and commonsense reasoning datasets.
+For more robust evaluation, we also evaluate the correctness of model outputs using \texttt{text-davinci-003}, the resulting metric denoted as \texttt{Acc\textsuperscript{\dag}}.
+The prompt used for evaluation is as follows, where \texttt{\{question\}}, \texttt{\{model output\}}, and \texttt{\{answer\}} are placeholders.
+\begin{tcolorbox}[colback=black!1!white,colframe=black!57!white,title=Prompt for Evaluating the Correctness of a Model Output]
+% This is a \textbf{tcolorbox}.
+% \tcblower
+In the following task, you are given a Question, a model Prediction for the Question, and a Ground-truth Answer to the Question. You should decide whether the model Prediction implies the Ground-truth Answer.\\
+\\
+Question\\
+\{question\}\\
+\\
+Prediction\\
+\{model output\}\\
+\\
+Ground-truth Answer\\
+\{answer\}\\
+\\
+Does the Prediction imply the Ground-truth Answer? Output Yes or No:
+\end{tcolorbox}
+
+\subsection{Baselines}
+
+\noindent
+\textbf{Direct Prompting} \cite{DBLP:journals/corr/abs-2005-14165} prompts an LLM to directly generate the final answer without an explanation.
+When augmenting Direct prompting with retrieval, we used the question to retrieve knowledge which will be placed before the question in the prompt.
+
+\noindent
+\textbf{CoT Prompting} \cite{DBLP:journals/corr/abs-2201-11903} prompts an LLM to generate natural language reasoning steps followed by the final answer.
+
+\noindent
+\textbf{ReAct} \cite{DBLP:journals/corr/abs-2210-03629} interleaves reasoning, action, and observation steps, until reaching the action of finalizing an answer.
+An action can be either generating a query to search for information or finalizing an answer.
+An observation is the concatenation of retrieved paragraphs.
+
+\noindent
+\textbf{Self-Ask} \cite{DBLP:journals/corr/abs-2210-03350} interleaves (i) follow-up question generation, (ii) retrieval using the follow-up, and (iii) answering the follow-up conditioned on the retrieved knowledge, until no more follow-up questions are generated and the LLM gives an answer to the original question.
+We followed \cite{DBLP:journals/corr/abs-2304-13007} to prepend newly retrieved paragraphs to the original question.
+On our evaluated tasks, Self-Ask is conceptually similar to ReAct, with the main difference being that Self-Ask accumulates retrieved knowledge before the original question in the prompt, while ReAct places retrieved knowledge right after its query.
+Self-Ask and IRCoT \cite{DBLP:journals/corr/abs-2212-10509} also share the spirit of synergizing reasoning and retrieval.
+
+\noindent
+\textbf{DSP} \cite{DBLP:journals/corr/abs-2212-14024} comprises a multi-hop retrieval stage and an answer prediction stage.
+For each hop within the retrieval stage, the model is prompted to generate search queries and to summarize retrieve knowledge for subsequent use.
+In the prediction stage, DSP generates the answer using CoT based on the summarized knowledge and retrieved documents.
+
+\subsection{Implementation Details}
+
+We used \texttt{text-davinci-003} version of InstructGPT \cite{DBLP:conf/nips/Ouyang0JAWMZASR22} as the backend LLM.
+We also present experiments using the open-source Llama-2 models \cite{DBLP:journals/corr/abs-2307-09288} in Appendix \ref{sec:llama}.
+All experiments used greedy decoding.
+Contriever-MSMARCO \cite{DBLP:journals/tmlr/IzacardCHRBJG22} was used for retrieval.
+We retrieved top-5 paragraphs for each query.
+We allowed at most 5 interactions with retrieval for ReAct and Self-Ask.
+We adapted the implementation of DSP \footnote{https://github.com/stanfordnlp/dspy/issues/85} to use the same generation model and retrieval systems as the other methods.
+
+Note that the first iteration of I\textsc{ter}-R\textsc{et}G\textsc{en} is CoT prompting with retrieval augmentation.
+Therefore, I\textsc{ter}-R\textsc{et}G\textsc{en} and CoT prompting share the same annotated in-context demonstrations.
+All prompts are presented in the Appendix.
+
+\subsection{Main Results}
+
+\begingroup
+\setlength{\tabcolsep}{3pt} % Default value: 6pt
+\renewcommand{\arraystretch}{1} % Default value: 1
+\begin{table*}[t!]
+    \centering
+    \adjustbox{max width=\textwidth}{
+\begin{tabular}{ccccccccccccccccc}
+\toprule
+\multirow{2}{*}{Method} & \multicolumn{3}{c}{HotPotQA} & \multicolumn{3}{c}{2WikiMultiHopQA} & \multicolumn{3}{c}{MuSiQue} & \multicolumn{3}{c}{Bamboogle} & \multicolumn{2}{c}{Feverous} & \multicolumn{2}{c}{StrategyQA} \\ \cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(lr){8-10} \cmidrule(lr){11-13} \cmidrule(lr){14-15} \cmidrule(lr){16-17}
+                        & EM      & F1     & Acc\textsuperscript{\dag}   & EM       & F1       & Acc\textsuperscript{\dag}       & EM     & F1    & Acc\textsuperscript{\dag}    & EM     & F1     & Acc\textsuperscript{\dag}     & Acc         & Acc\textsuperscript{\dag}        & Acc          & Acc\textsuperscript{\dag}         \\\midrule
+\multicolumn{17}{c}{Without Retrieval}\\\midrule
+Direct  & 21.9 & 36.8 & 44.8 & 21.3 & 29.2 & 33.9 & 7.0 & 18.7 & 15.8 & 11.2 & 24.4 & 28.0 & 60.1 & 60.1 & 66.5 & 66.7\\
+CoT  & 30.0 & 44.1 & 50.0 & 30.0 & 39.6 & 44.0 & 19.4 & 30.9 & 28.6 & \textbf{43.2} & \textbf{51.1} & 60.0 & 59.8 & 59.8 & 71.0 & 71.0\\
+\midrule\multicolumn{17}{c}{With Retrieval}\\\midrule
+Direct  & 31.6 & 44.7 & 53.3 & 27.3 & 35.4 & 43.6 & 13.9 & 28.2 & 26.5 & 17.6 & 31.8 & 43.2 & 69.8 & 69.8 & 65.6 & 65.6\\
+ReAct  & 24.9 & 44.7 & 61.1 & 28.0 & 38.5 & 45.9 & 23.4 & 37.0 & 37.9 & 21.8 & 31.0 & 40.3 & 66.4 & 66.4 & 66.9 & 66.9\\
+Self-Ask  & 36.8 & 55.2 & 64.8 & \textbf{37.3} & \textbf{48.8} & 55.9 & \textbf{27.6} & 41.5 & \textbf{42.9} & 31.5 & 41.2 & 54.8 & 70.7 & 70.7 & 70.2 & 70.2\\
+DSP & 43.8 & 55.0 & 60.8 & - & - & - & - & - & - & - & - & - & - & - & - & - \\
+\midrule I\textsc{ter}-R\textsc{et}G\textsc{en} 1 & \underline{39.2} & 53.9 & \underline{65.5} & 33.7 & 45.2 & 55.4 & 24.2 & 38.6 & 38.1 & \underline{36.8} & \underline{47.7} & \underline{57.6} & 67.0 & 67.0 & \underline{72.0} & \underline{72.0}\\
+I\textsc{ter}-R\textsc{et}G\textsc{en} 2  & \underline{44.1} & \underline{58.6} & \underline{71.2} & 34.9 & 47.0 & \underline{58.1} & 26.4 & 41.1 & 41.0 & \underline{38.4} & \underline{48.7} & \underline{59.2} & 68.8 & 68.8 & \underline{73.0} & \underline{73.0}\\
+I\textsc{ter}-R\textsc{et}G\textsc{en} 3  & \underline{45.2} & \underline{59.9} & \underline{71.4} & 34.8 & 47.8 & \underline{58.3} & 25.7 & 41.4 & 40.8 & \underline{37.6} & \underline{47.0} & \underline{59.2} & 69.0 & 69.0 & \underline{72.3} & \underline{72.3}\\
+I\textsc{ter}-R\textsc{et}G\textsc{en} 4  & \underline{45.8} & \underline{\textbf{61.1}} & \underline{\textbf{73.4}} & 36.0 & 47.4 & \underline{58.5} & 26.7 & \underline{41.8} & 40.8 & \underline{38.4} & \underline{49.6} & \underline{60.0} & \underline{\textbf{71.5}} & \underline{\textbf{71.5}} & \underline{73.8} & \underline{73.8}\\
+I\textsc{ter}-R\textsc{et}G\textsc{en} 5  & \underline{45.2} & \underline{60.3} & \underline{72.8} & 35.5 & 47.5 & \underline{58.8} & 25.7 & 40.7 & 39.6 & \underline{39.2} & \underline{49.7} & \underline{\textbf{60.8}} & 70.3 & 70.3 & \underline{73.2} & \underline{73.2}\\
+I\textsc{ter}-R\textsc{et}G\textsc{en} 6  & \underline{\textbf{45.9}} & \underline{61.0} & \underline{73.3} & 35.5 & 48.1 & \underline{\textbf{59.4}} & 25.9 & 40.5 & 39.8 & \underline{40.0} & \underline{50.0} & \underline{59.2} & \underline{70.9} & \underline{70.9} & \underline{72.4} & \underline{72.4}\\
+I\textsc{ter}-R\textsc{et}G\textsc{en} 7  & \underline{45.1} & \underline{60.4} & \underline{72.9} & 35.5 & 47.4 & \underline{58.4} & 26.1 & \underline{\textbf{42.0}} & 41.0 & \underline{40.0} & \underline{50.7} & \underline{\textbf{60.8}} & 70.5 & 70.5 & \underline{\textbf{74.1}} & \underline{\textbf{74.1}}\\
+\bottomrule
+\end{tabular}
+}
+    \caption{
+    Evaluation results on multi-hop question answering, fact verification, and commonsense reasoning datasets.
+    \texttt{Acc\textsuperscript{\dag}} is the accuracy of model outputs evaluated with \texttt{text-davinci-003}.
+    For I\textsc{ter}-R\textsc{et}G\textsc{en}, we evaluated LLM outputs in different iterations (up to 7 iterations).
+    Underlined metric values are higher than those of Self-Ask.
+    }
+    \label{tab:main_results}
+\end{table*}
+\endgroup
+
+\begingroup
+\setlength{\tabcolsep}{3pt} % Default value: 6pt
+\renewcommand{\arraystretch}{1} % Default value: 1
+\begin{table*}[t!]
+    \centering
+    \adjustbox{max width=0.85\textwidth}{
+\begin{tabular}{ccccccccccccc}
+\toprule
+\multirow{2}{*}{Method} & \multicolumn{2}{c}{HotPotQA} & \multicolumn{2}{c}{2WikiMultiHopQA} & \multicolumn{2}{c}{MuSiQue} & \multicolumn{2}{c}{Bamboogle} & \multicolumn{2}{c}{Feverous} & \multicolumn{2}{c}{StrategyQA} \\ \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11} \cmidrule(lr){12-13}
+                        & \# API        & \# Doc       & \# API           & \# Doc           & \# API       & \# Doc       & \# API        & \# Doc        & \# API        & \# Doc       & \# API         & \# Doc        \\
+\midrule
+ReAct & 2.9 & 14.3 & 3.0 & 15.0 & 2.9 & 14.4 & 2.8 & 14.1 & 2.1 & 10.6 & 2.8 & 14.2 \\
+Self-Ask & 3.2 & 16.0 & 3.2 & 15.9 & 3.0 & 14.8 & 3.0 & 14.9 & 2.3 & 11.3 & 3.0 & 15.1 \\
+\bottomrule
+\end{tabular}
+}
+    \caption{
+    Average numbers of API calls to \texttt{text-davinci-003} and retrieved paragraphs for ReAct and Self-Ask.
+    Note that I\textsc{ter}-R\textsc{et}G\textsc{en} ($T=2$) achieves significantly higher or competitive \texttt{Acc\textsuperscript{\dag}} with fewer API calls (i.e., 2) and fewer retrieved paragraphs (5 per iteration, 10 in total).
+    }
+    \label{tab:api_docs}
+\end{table*}
+\endgroup
+
+As shown by Table \ref{tab:main_results}, I\textsc{ter}-R\textsc{et}G\textsc{en} ($T \ge 2$) achieve significantly higher \texttt{Acc\textsuperscript{\dag}} than retrieval-augmented baselines on HotPotQA, 2WikiMultiHopQA, Bamboogle, and StrategyQA, while being competitive with the best method (i.e., Self-Ask) on MuSiQue and Feverous.
+
+When increasing the number of iterations for I\textsc{ter}-R\textsc{et}G\textsc{en}, performance generally improves, with the second iteration giving the greatest boost.
+It is worth noting that, as shown by Table \ref{tab:api_docs}, I\textsc{ter}-R\textsc{et}G\textsc{en} ($T=2$) is superior to or competitive with ReAct and Self-Ask using fewer API calls to the LLM (i.e., 2) and fewer retrieved paragraphs (i.e., 5 per iteration, 10 in total).
+I\textsc{ter}-R\textsc{et}G\textsc{en} is also conceptually simple, which is to iterate retrieval-augmented CoT, without complex processing.
+
+We also compared I\textsc{ter}-R\textsc{et}G\textsc{en} with DSP which also generates the answer using CoT based on retrieved knowledge but differs in information collection and processing.
+In each iteration, I\textsc{ter}-R\textsc{et}G\textsc{en} retrieves knowledge based on (1) the question and (2) the previous model output which shows what may be needed to answer the question.
+With the number of iterations increasing, we tend to obtain a more comprehensive and relevant set of knowledge.
+Besides, unlike DSP, we do not summarize the retrieved documents for answer generation, and thus will not introduce summarization errors.
+As shown in Table \ref{tab:main_results}, I\textsc{ter}-R\textsc{et}G\textsc{en} outperforms DSP significantly.
+We manually investigate 10 random questions where DSP fails but I\textsc{ter}-R\textsc{et}G\textsc{en} provides correct answers.
+On 40\% of them, DSP fails to retrieve documents that cover the correct answers, while on 50\% of them, the summarized knowledge is misleading, e.g., for the question \texttt{``What occupation do Chris Menges and Aram Avakian share?''}, DSP generates a wrong summary \texttt{``Chris Menges and Aram Avakian are both members of the American and British Societies of Cinematographers.''}, while the retrieved documents mention that Aram Avakian is a film editor and director, and only Chris Menges is with the American and British Societies of Cinematographers.
+
+\begingroup
+\setlength{\tabcolsep}{3pt} % Default value: 6pt
+\renewcommand{\arraystretch}{1} % Default value: 1
+\begin{table*}[t!]
+    \centering
+    \adjustbox{max width=0.85\textwidth}{
+\begin{tabular}{ccccccc}
+\toprule
+Dataset                                                                                     & \multicolumn{3}{c}{HotPotQA}                        & \multicolumn{3}{c}{Feverous}                        \\ \cmidrule(lr){2-4} \cmidrule(lr){5-7}
+Retriever                                                                                   & Original & Distilled w/o $y_1$ & Distilled w/ $y_1$ & Original & Distilled w/o $y_1$ & Distilled w/ $y_1$ \\ \midrule
+I\textsc{ter}-R\textsc{et}G\textsc{en} 1  & 65.5 & 67.1 & \textbf{67.7} & 67.0 & 67.3 & \textbf{70.7}\\
+I\textsc{ter}-R\textsc{et}G\textsc{en} 2  & 71.2 & 75.2 & \textbf{75.7} & 68.8 & 68.1 & \textbf{69.5}\\
+\bottomrule
+\end{tabular}
+}
+    \caption{
+    Effect of using LLM generation $y_1$ on optimizing a dense retriever.
+    We evaluated I\textsc{ter}-R\textsc{et}G\textsc{en} on HotPotQA and Feverous in terms of \texttt{Acc\textsuperscript{\dag}}.
+    }
+    \label{tab:retriever_adapt}
+\end{table*}
+\endgroup
+
+\begingroup
+\setlength{\tabcolsep}{3pt} % Default value: 6pt
+\renewcommand{\arraystretch}{1} % Default value: 1
+\begin{table*}[t!]
+    \centering
+    \adjustbox{max width=\textwidth}{
+\begin{tabular}{ccccccccc}
+\toprule
+Subset & \multicolumn{2}{c}{CoT \checkmark} & \multicolumn{2}{c}{CoT \XSolidBrush} & \multicolumn{2}{c}{w/ Answer Retrieved} & \multicolumn{2}{c}{w/o Answer Retrieved} \\ \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9}
+Method & Self-Ask & I\textsc{ter}-R\textsc{et}G\textsc{en} 2             & Self-Ask & I\textsc{ter}-R\textsc{et}G\textsc{en} 2           & Self-Ask & I\textsc{ter}-R\textsc{et}G\textsc{en} 2               & Self-Ask & I\textsc{ter}-R\textsc{et}G\textsc{en} 2               \\ \midrule
+HotPotQA & 77.5 & \textbf{88.0} & 52.0 & \textbf{54.4} & 78.1 & \textbf{86.9} & 29.9 & \textbf{40.8} \\
+2WikiMultiHopQA & 68.8 & \textbf{78.2} & \textbf{46.2} & 42.0 & 73.1 & \textbf{77.2} & 30.1 & \textbf{42.3} \\
+MuSiQue & \textbf{68.5} & 66.9 & \textbf{32.6} & 30.7 & 72.9 & \textbf{78.9} & 12.2 & \textbf{22.9} \\
+Bamboogle & 73.0 & \textbf{77.3} & 28.0 & \textbf{32.0} & 76.2 & \textbf{82.2} & 32.8 & \textbf{46.2} \\
+\bottomrule
+\end{tabular}
+}
+    \caption{
+    Comparisons between Self-Ask and I\textsc{ter}-R\textsc{et}G\textsc{en} ($T=2$) on different subsets, in terms of \texttt{Acc\textsuperscript{\dag}}.
+    \texttt{CoT \checkmark} is the subset of questions which CoT answers correctly without retrieval; \texttt{CoT \XSolidBrush} is the complement.
+    \texttt{w/ Answer Retrieved} is the subset of questions for which a method (Self-Ask or I\textsc{ter}-R\textsc{et}G\textsc{en}) successfully retrieves paragraphs that mention the answers; \texttt{w/o Answer Retrieved} is the complement.
+    I\textsc{ter}-R\textsc{et}G\textsc{en} tends to be much better at preserving the LLM's performance on questions that can be solved using CoT without retrieval, and is consistently more accurate regardless of whether retrieved knowledge mentions the answers or not.
+    }
+    \label{tab:ablation}
+\end{table*}
+\endgroup
+
+\paragraph{\texttt{Acc\textsuperscript{\dag}} is a Reliable Metric}
+To investigate how reliable \texttt{Acc\textsuperscript{\dag}} is, we focused on model outputs where EM and \texttt{Acc\textsuperscript{\dag}} disagree, and manually checked which metric gives more correct labels.
+On each of the four multi-hop question answering datasets, we randomly sampled 20 model outputs from the second iteration of I\textsc{ter}-R\textsc{et}G\textsc{en}, resulting in 80 samples in total.
+For 98.75\% of samples, EM is 0 and \texttt{Acc\textsuperscript{\dag}} is 1,
+while \texttt{Acc\textsuperscript{\dag}} gives the correct labels 97.5\% of the time, indicating that EM severely underestimates model performance.
+We also carried out the same evaluation for Self-Ask, and \texttt{Acc\textsuperscript{\dag}} gives the correct labels 98.75\% of the time when it is inconsistent with EM.
+
+\texttt{Acc\textsuperscript{\dag}} offers the advantage of identifying model outputs that are semantically correct, even if their surface forms differ from the annotated answers.
+As an illustration, for the question \texttt{``Which country Jan Baptist Van Rensselaer's father is from?''}, the annotated answer is \texttt{Dutch}, while the model prediction is \texttt{Netherlands}, which is correct in terms of \texttt{Acc\textsuperscript{\dag}} but is penalized by EM.
+
+Notably, I\textsc{ter}-R\textsc{et}G\textsc{en} ($T \ge 2$) consistently demonstrate lower EM but higher \texttt{Acc\textsuperscript{\dag}} than Self-Ask on 2WikiMultiHopQA, suggesting that enhancements in EM do not necessarily reflect improvements in the quality of generated answers.
+
+\begingroup
+\setlength{\tabcolsep}{3pt} % Default value: 6pt
+\renewcommand{\arraystretch}{1} % Default value: 1
+\begin{table}[htb]
+    \centering
+    \adjustbox{max width=0.49\textwidth}{
+\begin{tabular}{cccccccc}
+\toprule
+Iteration & 1 & 2 & 3 & 4 & 5 & 6 & 7 \\
+\midrule
+HotPotQA & 49.5 & 66.1 & 65.7 & 66.5 & 66.7 & 66.7 & 67.1 \\
+2WikiMultiHopQA & 29.0 & 45.2 & 46.2 & 46.7 & 45.8 & 45.8 & 46.5 \\
+MuSiQue & 18.6 & 32.3 & 32.3 & 33.7 & 32.7 & 33.5 & 32.9 \\
+Bamboogle & 20.8 & 36.0 & 36.8 & 36.0 & 35.2 & 36.0 & 36.0 \\
+\bottomrule
+\end{tabular}
+}
+    \caption{Answer recall of retrieved paragraphs in different iterations for I\textsc{ter}-R\textsc{et}G\textsc{en}.}
+    \label{tab:answer_recall}
+\end{table}
+\endgroup
+
+\begingroup
+\setlength{\tabcolsep}{3pt} % Default value: 6pt
+\renewcommand{\arraystretch}{1} % Default value: 1
+\begin{table*}[t!]
+    \small
+    \centering
+    \adjustbox{max width=0.99\textwidth}{
+    \begin{tabular}{p{\textwidth}}
+        \toprule
+        \multicolumn{1}{c}{\textbf{HotPotQA}} \\
+        \midrule
+        \textbf{Question:} The arena where the Lewiston Maineiacs played their home games can seat how many people? \\
+        \textbf{Answer:} 3,677 seated \\
+        \multicolumn{1}{c}{\textbf{Iteration 1}} \\
+        \textbf{Retrieved Knowledge} \\
+        (1) Title: Lewiston Maineiacs Context: The Lewiston Maineiacs were a junior ice hockey team ... \textcolor{violet}{The team played its home games at the Androscoggin Bank Colisée} ... \\
+        (2) Title: Bangor Auditorium Context: ... a 5,948 seat multi-purpose arena located in Bangor, Maine ... \\
+        \textbf{Generation} \\
+        The Lewiston Maineiacs were a junior ice hockey team of the Quebec Major Junior Hockey League based in Lewiston, Maine. \textcolor{violet}{The team played its home games at the Androscoggin Bank Colisée.} \underline{\textcolor{red}{The Androscoggin Bank Colisée can seat up to 5,948 people.}} So the answer is 5,948 \\
+        \multicolumn{1}{c}{\textbf{Iteration 2}} \\
+        \textbf{Retrieved Knowledge} \\
+        (1) Title: Lewiston Maineiacs Context: The Lewiston Maineiacs were a junior ice hockey team ... The team played its home games at the Androscoggin Bank Colisée ... \\
+        (2) Title: Androscoggin Bank Colisée Context: \textcolor{violet}{The Androscoggin Bank Colisée (formerly Central Maine Civic Center and Lewiston Colisee) is a 4,000 capacity (3,677 seated) multi-purpose arena} ... \\
+        \textbf{Generation} \\
+        The Lewiston Maineiacs were a junior ice hockey team of the Quebec Major Junior Hockey League based in Lewiston, Maine. They played their home games at the Androscoggin Bank Colisée. \textcolor{violet}{The Androscoggin Bank Colisée has a capacity of 4,000 (3,677 seated).} So the answer is 3,677 \\
+        \midrule
+        \multicolumn{1}{c}{\textbf{StrategyQA}} \\
+        \midrule
+        \textbf{Question:} Can you get Raclette in YMCA headquarters city?\\
+        \textbf{Answer:} Yes\\
+        \multicolumn{1}{c}{\textbf{Iteration 1}} \\
+        \textbf{Retrieved Knowledge} \\
+        (1) Title: YMCA Building (Racine, Wisconsin) Context: ... Since the 50's, \textcolor{violet}{headquarters of the publishing house and the bookstore are located in 11 rue de la Montagne Sainte-Geneviève 75005 Paris} ... \\
+        \textbf{Generation}\\
+        \textcolor{violet}{The YMCA headquarters is located in Paris, France.} \underline{Raclette is a traditional Swiss dish, made with melted cheese} served with potatoes, pickles, and other accompaniments. It is not a traditional French dish, so \textcolor{red}{it is unlikely to be found in Paris.} So the answer is No\\
+        \multicolumn{1}{c}{\textbf{Iteration 2}} \\
+        \textbf{Retrieved Knowledge} \\
+        (1) Title: Raclette Context: \textcolor{violet}{Raclette is a Swiss dish, also popular in France}, based on heating cheese and scraping off the melted part ... \\
+        (2) Title: YMCA Building (Racine, Wisconsin) Context: ... Since the 50's, headquarters of the publishing house and the bookstore are located in 11 rue de la Montagne Sainte-Geneviève 75005 Paris ... \\
+        \textbf{Generation}\\
+        YMCA headquarters is located in Paris, France. Raclette is a dish native to parts of Switzerland, but \textcolor{violet}{it is also popular in France.} So it is likely that Raclette can be found in Paris. So the answer is Yes \\
+        \bottomrule
+    \end{tabular}
+    }
+    \caption{
+    Two examples demonstrating retrieval-generation synergy.
+    We underline \underline{generated phrases that help} \underline{retrieve relevant knowledge} which successfully corrects \textcolor{red}{factual errors (in red)} in the second iteration.
+    Irrelevant retrieved paragraphs are not shown in the table for brevity.
+    }
+    \label{tab:case}
+\end{table*}
+\endgroup
+
+\paragraph{Generation Benefits Retrieval Adaptation}
+To investigate how LLM outputs can be leveraged for retrieval adaptation, we experimented on HotPotQA and Feverous.
+Specifically, on each dataset, we sampled 9,000 random questions from the train set for training, and 1,000 for validation.
+We applied I\textsc{ter}-R\textsc{et}G\textsc{en} for one iteration, and used the model outputs $y_1$ for retrieval adaptation as in Section \ref{sec:retrieval_adaptation}.
+We used TART \cite{DBLP:journals/corr/abs-2211-09260} as the re-ranker, and distilled knowledge from TART to the dense retriever for no more than 1,000 steps.
+Batch size was 32 and learning rate was 1e-5.
+We used the retriever checkpoint with the lowest distillation loss.
+
+As shown by Table \ref{tab:retriever_adapt}, retrieval adaptation enables I\textsc{ter}-R\textsc{et}G\textsc{en} to achieve significantly higher \texttt{Acc\textsuperscript{\dag}} with fewer iterations.
+We also demonstrated the benefits of using $y_1$ for adaptation by showing its improvements over a variant
+% that disallows access to $y_1$ for the re-ranker.
+which only differs in that the re-ranker has no access to $y_1$;
+the training objective of this variant can be obtained by removing all $y_1$ notations in Eq. \ref{eq:obj}.
+
+\subsection{Ablation Study}
+
+\subsubsection{Generation Augments Retrieval}
+
+Table \ref{tab:answer_recall} shows the answer recall of retrieval in different iterations.
+The first iteration uses only the questions for retrieval and suffers from low answer recall.
+In the second iteration, retrieval, augmented with the LLM output from the first iteration, achieves significantly higher recall, indicating that LLM generations can help bridge the semantic gaps between complex questions and their supporting knowledge.
+However, performance quickly hits a plateau afterwards.
+
+\subsubsection{I\textsc{ter}-R\textsc{et}G\textsc{en} Leverages Parametric and Non-Parametric Knowledge Better}
+
+Ideally, an LLM should flexibly utilize non-parametric knowledge or parametric knowledge depending on whether in-context non-parametric knowledge is relevant or not.
+Table \ref{tab:ablation} presents performance breakdowns on different subsets of questions for investigation.
+We considered the ability of CoT to answer a question correctly without retrieval as a proxy for assessing an LLM's capability to answer the question using its parametric knowledge.
+Compared with Self-Ask, I\textsc{ter}-R\textsc{et}G\textsc{en} tends to be significantly better at preserving the LLM's performance on questions that the LLM can solve using CoT without retrieval, while being competitive on the complementary subset.
+% This may be because the structural constraints from Self-Ask and its inability to process retrieved non-parametric knowledge as a whole reduce the LLM's capability of solving a question flexibly.
+This may be because the structural constraints from Self-Ask makes an LLM over-sensitive to the precision and comprehensiveness of follow-up question generation and answering, and Self-Ask is also incapable of processing all retrieved knowledge as a whole, thus reducing the LLM's flexibility in solving a question.
+Moreover, I\textsc{ter}-R\textsc{et}G\textsc{en} consistently outperforms Self-Ask by a large margin, regardless of whether the in-context non-parametric knowledge mentions the answers or not.
+% These results indicate that:
+% (1) I\textsc{ter}-R\textsc{et}G\textsc{en} effectively leverages relevant non-parametric knowledge as a whole;
+% (2) When the in-context non-parametric knowledge is irrelevant or incomplete, I\textsc{ter}-R\textsc{et}G\textsc{en} exploits parametric knowledge better than Self-Ask, possibly because the structured workflow of Self-Ask reduces the flexibility in generation.
+This indicates that when the in-context non-parametric knowledge is irrelevant or incomplete, I\textsc{ter}-R\textsc{et}G\textsc{en} exploits parametric knowledge better than Self-Ask.
+
+\subsection{Error Analysis}
+On HotPotQA, we manually analyzed 20 random cases where I\textsc{ter}-R\textsc{et}G\textsc{en} ($T=2$) fails.
+25\% of predictions are false negatives.
+On 10\% of cases, I\textsc{ter}-R\textsc{et}G\textsc{en} retrieves all necessary information but fails to perform correct reasoning.
+The remaining 65\% of error cases are related with retrieval, on 76.9\% of which, retrieval is misled by completely wrong reasoning from the first iteration, while on the other cases, reasoning in the first iteration is partially correct, but the retriever fails to retrieve the missing pieces in the second iteration.
+We also observed that, in the first iteration, reasoning can be negatively affected by noisy and possibly distractive knowledge retrieved using only the questions as the queries.
+
+\section{Case Study}
+Table \ref{tab:case} demonstrates retrieval-generation synergy with two examples from HotPotQA and StrategyQA, respectively.
+In the first iteration, as both questions need multi-hop reasoning, the retriever fails to retrieve all supporting knowledge using only the questions.
+Despite being affected by distractive retrieved knowledge (\textit{the capacity of a different arena} in the example from HotPotQA) and showing imperfect parametric knowledge (the generated statement that \textit{Raclette is unlikely to be found in Paris} in the example from StrategyQA) in the first iteration, the LLM generates phrases that help retrieve relevant knowledge in the second iteration, and successfully corrects its outputs.
+
+\section{Conclusion}
+We demonstrate the effectiveness of I\textsc{ter}-R\textsc{et}G\textsc{en} in answering questions with complex information needs.
+Despite simple, I\textsc{ter}-R\textsc{et}G\textsc{en} outperforms retrieval-augmented methods that have a more complex workflow, which we believe could serve as a strong baseline for future research on retrieval-augmented generation.
+We also show that generation-augmented retrieval adaptation can further improve the performance of I\textsc{ter}-R\textsc{et}G\textsc{en} while also reducing overheads.
+
+\section*{Limitations}
+In this work, we propose to enhance retrieval-augmented large language models with I\textsc{ter}-R\textsc{et}G\textsc{en} which synergizes retrieval and generation in an iterative manner, and demonstrates strong performance compared to more structured prompting techniques such as Self-Ask.
+However, it's worth noting that our experiments utilized a fixed black-box large language model, which may not have been equally optimized for various forms of prompting.
+It would be intriguing to investigate the potential of prompting-specific (gradient-based) optimization in pushing the limits further.
+This could involve enabling a large language model to leverage parametric and non-parametric knowledge more flexibly and effectively. 
+By exploring this avenue, we may uncover new insights and advancements in the field.
+Furthermore, our experiments did not cover long-form generation which would probably benefit from more fine-grained retrieval than I\textsc{ter}-R\textsc{et}G\textsc{en} does in this work.
+We acknowledge that this area warrants further exploration, and we leave it for future work.
+
+% \section*{Ethics Statement}
+
+\section*{Acknowledgements}
+Zhihong Shao and Minlie Huang were supported by the National Science Foundation for Distinguished Young Scholars (with No. 62125604) and the NSFC projects (Key project with No. 61936010).
+They were also supported by the Guoqiang Institute of Tsinghua University, with Grant No. 2020GQG0005.
+
+\newpage
+
+% Entries for the entire Anthology, followed by custom entries
+\bibliography{prompting,retrieval,reranking,retrieval_augmented_lms,datasets,others,LLMs}
+\bibliographystyle{acl_natbib}
+
+\newpage
+
+\appendix
+
+\include{appendix.tex}
+
+\end{document}

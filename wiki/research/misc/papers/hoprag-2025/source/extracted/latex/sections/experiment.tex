@@ -1,0 +1,192 @@
+\section{Experiments}
+
+
+\begin{table*}[htb]
+    \centering
+\resizebox{0.7\textwidth}{!}{
+      \begin{tabular}{ccccccccc}
+        \toprule
+        & \multicolumn{2}{c}{MuSiQue}& \multicolumn{2}{c}{2Wiki}& \multicolumn{2}{c}{HotpotQA}& \multicolumn{2}{c}{Average}\\
+        
+        Method& EM & F1  & EM & F1  & EM & F1   & EM &F1   \\
+        \midrule
+        BM25
+& 5.80 & 11.00 
+ & 27.00 & 31.55  & 33.40 & 44.30 
+  & 22.07 &28.95  \\
+        BGE
+& 11.80 & 18.60  & 27.90 & 30.80  & 38.40 & 50.56   & 26.03 &33.32  \\
+ \thead{Query \\ Decomposition}& 21.50 & 31.40 & 43.90& 47.06& 43.60 & 58.94 & 31.10 &40.01 \\
+ Reranking& 24.50 & 34.53 & 46.70& 50.89& 47.70 & 62.95 & 34.67 &43.60 \\
+ HippoRAG
+& 32.60 & 43.78  & \textbf{66.40}& \textbf{74.01}& 59.90 &74.29 
+  & 52.97 &64.03 
+ \\
+ RAPTOR
+& 35.30 & 47.47  & 54.90 & 61.20  & 58.10 &72.48 
+  & 49.43 &60.38 
+ \\
+ SiReRAG& \underline{38.90}& \underline{52.08} & 60.40 & 68.20  & \textbf{62.50}&\underline{77.36}  & \underline{53.93}&\underline{65.88} \\ 
+        \midrule
+        HopRAG&  \textbf{39.10}&  \textbf{53.00} &  \underline{61.60}&  \underline{68.93}&  \underline{61.30}&  \textbf{78.34}  & \textbf{54.00}&\textbf{66.76} \\
+        \bottomrule
+    \end{tabular}
+}
+    \caption{We test our HopRAG against a series of baselines on multiple datasets using GPT-4o and GPT-3.5-turbo as the inference model with top 20 passages. We report the QA performance metrics EM and F1 score with GPT-3.5-turbo here and GPT-4o in Table \ref{tab:QA-performance-4o}, where the best score is in \textbf{bold} and the second best is \underline{underlined}.}
+    \label{tab:QA-performance-3.5}
+\end{table*}
+
+\begin{table*}[htb]
+    \centering
+    \resizebox{0.7\textwidth}{!}{
+    \begin{tabular}{ccccccccc}
+        \toprule
+        & \multicolumn{2}{c}{MuSiQue} & \multicolumn{2}{c}{2Wiki} & \multicolumn{2}{c}{HotpotQA} & \multicolumn{2}{c}{Average}\\
+        
+        Method& EM & F1 & EM & F1 & EM & F1  & EM &F1  \\
+        \midrule
+        BM25& 13.80 & 21.50 
+& 40.30 & 44.83 
+& 41.20 & 53.23 
+ & 31.77 &39.85 \\
+        BGE& 20.80 & 30.10 & 40.10 & 44.96 & 47.60 & 60.36  & 36.17 &45.14 \\
+ \thead{Query \\ Decomposition}& 29.00& 38.50& 55.70& 60.57& 52.80& 68.67& 47.46&55.91\\
+ Reranking& 32.00 & 40.29 & 53.70 & 58.44 & 55.40 & 70.03 & 48.61 &56.25 \\
+ GraphRAG & 12.10 & 20.22 & 22.50 & 27.49 & 31.70 &42.74 
+ & 22.10 &30.15 
+\\
+ RAPTOR & 36.40 & 49.09 & 53.80 & 61.45 & 58.00 &73.08  & 49.40 &61.21 
+\\
+ SiReRAG& \underline{40.50}& \underline{53.08}& \underline{59.60}& \underline{67.94}& \underline{61.70}&\textbf{76.48} & \underline{53.93}&\underline{65.83}\\ 
+        \midrule
+        HopRAG&  \textbf{42.20}&  \textbf{54.90}&  \textbf{61.10}&  \textbf{68.26}&  \textbf{62.00}&  \underline{76.06} & \textbf{55.10}&\textbf{66.40}\\
+        \bottomrule
+    \end{tabular}
+    }
+    \caption{We report the QA performance metrics EM and F1 score with GPT-4o and top 20 passages here,  where the best score is in \textbf{bold} and the second best is \underline{underlined}.}
+    \label{tab:QA-performance-4o}
+\end{table*}
+
+
+\label{sec:experiment}
+\subsection{Experimental Setups}
+\paragraph{Datasets}
+We collect several multi-hop QA datasets to evaluate the performance of HopRAG. We use HotpotQA dataset \citep{yang2018hotpotqadatasetdiverseexplainable}, 2WikiMultiHopQA dataset \citep{ho2020constructingmultihopqadataset} and MuSiQue dataset  \citep{trivedi2022musiquemultihopquestionssinglehop}. Following the same procedure as \citep{zhang2024sireragindexingsimilarrelated}, we obtain 1000 questions from each validation set of these three datasets. See Appendix \ref{dataset} for details.
+\paragraph{Baselines}
+We compare HopRAG with a variety of baselines: (1) unstructured RAG - sparse retriever BM25 \citep{robertson_probabilistic_2009} 
+ (2) unstructured RAG - dense retriever BGE \citep{BGE,karpukhin2020densepassageretrievalopendomain} (3) unstructured RAG - dense retriever BGE with query decomposition \citep{min-etal-2019-multi} (4) unstructured RAG - dense retriever BGE with reranking \citep{nogueira2020passagererankingbert} (5) tree-structured RAG - RAPTOR \citep{sarthi_raptor_2024} (6) tree-structured RAG - SiReRAG \citep{zhang2024sireragindexingsimilarrelated} (7) graph-structured RAG - GraphRAG \citep{edge_local_2024} with the local search function (8) graph-structured RAG - HippoRAG \citep{gutiérrez2025hipporagneurobiologicallyinspiredlongterm}. For structured RAG baselines, we follow the same setting as previous work \citep{zhang2024sireragindexingsimilarrelated}. 
+
+\paragraph{Metrics}
+To measure the answer quality of different methods, we adopt exact match (EM) and F1 score which focus on the accuracy between a generated answer and the corresponding ground truth. We also use retrieval metrics to compare graph-based methods. Since tree-based methods like SiReRAG \citep{zhang2024sireragindexingsimilarrelated} and RAPTOR \citep{sarthi_raptor_2024} create new candidates (e.g., summary nodes) in the retrieval pool, it would be unfair to use retrieval metrics to compare them with others. We report both the answer and retrieval metrics in the ablations and discussion on HopRAG. See Appendix \ref{metric} for more metric details.
+\paragraph{Settings}
+We use BGE embedding model for semantic vectors at 768 dimensions. To avoid the loss of semantic information caused by chunking at a fixed size, we adopt the same chunking methods utilized in the original datasets respectively. 
+GPT-4o-mini serves as both the model generating in-coming and out-coming questions when constructing the graph index, and the reasoning model for graph traversal. We use two reader models GPT-4o and GPT-3.5-turbo to generate the response given the context with 20 retrieval candidates and $n_{hop}=4$. See Appendix \ref{setup} for more setting details. 
+\subsection{Main Results}
+\begin{table*}[htb]
+\centering
+\setlength{\tabcolsep}{3pt}
+\resizebox{0.9\textwidth}{!}{
+      \begin{tabular}{ccccccccccccc}
+    \toprule
+ & \multicolumn{3}{c}{MuSiQue}& \multicolumn{3}{c}{2Wiki}& \multicolumn{3}{c}{HotpotQA} & \multicolumn{3}{c}{Average}\\
+ & \multicolumn{2}{c}{Answer}&Retrieval& \multicolumn{2}{c}{Answer}&Retrieval& \multicolumn{2}{c}{Answer}&Retrieval & \multicolumn{2}{c}{Answer}&Retrieval \\
+        
+        $top_k$& EM& F1 & F1 & EM& F1 & F1 
+& EM& F1 &F1 
+ & EM& F1 &F1 
+\\
+        \midrule
+        2& 32.50 & 46.31 & \textbf{37.83}&  47.80& 53.91 & \textbf{36.77}& 52.00& 67.78 &\textbf{50.23} 
+ &  44.10& 56.00 &\textbf{41.61}\\
+        4& 36.50 & 49.53 & \underline{35.02}& 54.50& 59.35 & \underline{33.22}& 55.60& 71.10 &\underline{46.45} 
+ & 48.87& 59.99 &\underline{38.23}\\
+ 8& \underline{38.50}& 50.81 & 26.36 
+& 56.10& 61.81 & 23.90 & 58.20& 75.05 &34.14  
+ & 50.93 & 62.56 &28.13 \\
+ 12& 37.50 & \underline{51.47}& 
+20.38 
+& 57.70& 64.33 & 18.54 & \underline{59.50}& 75.54 &26.34 
+ & 51.57& 63.78 &21.75 \\
+ 16& 37.50 & 51.44 & 16.47 
+&  
+\underline{60.00}& \underline{67.52}& 15.02 &  
+\underline{59.50}& \underline{76.45}&21.75 
+ & \underline{52.33}& \underline{65.14}&17.75 \\ 
+        20&  \textbf{39.10}&  \textbf{53.00}&  13.89 & \textbf{61.60}& \textbf{68.93}& 12.51 & \textbf{61.30}& \textbf{78.34}&18.48   & \textbf{54.00}& \textbf{66.76}&14.96 \\
+        \bottomrule
+    \end{tabular}
+}
+    \caption{We test the robustness w.r.t hyperparameter $top_k$ on HopRAG using GPT-3.5-turbo on multiple datasets. We vary $top_k$ from 2 to 20 and report both the answer and retrieval metrics, where the best score is in \textbf{bold} and the second best is \underline{underlined}.}
+    \label{tab:Ablation-3.5}
+\end{table*}
+
+\begin{table*}[htb]
+\setlength{\tabcolsep}{2pt}
+\centering
+\resizebox{0.9\textwidth}{!}{
+      \begin{tabular}{ccccccccc}
+    \toprule
+ &\multicolumn{2}{c}{MuSiQue}&\multicolumn{2}{c}{2Wiki}&\multicolumn{2}{c}{HotpotQA}&\multicolumn{2}{c}{Average}\\
+        
+        $n_{hop}$& Retrieval F1&LLM Cost& Retrieval F1&LLM Cost&Retrieval F1&LLM Cost&Retrieval F1&LLM Cost\\
+        \midrule
+        1&  8.78 &\textbf{20.00}&  8.68 &\textbf{19.86}& 6.78 &\textbf{19.91}& 8.08 &\textbf{19.92}\\
+        2&  11.86 &\underline{30.32}&  11.42 &\underline{31.52}& 15.13 &\underline{29.39}& 12.80 &\underline{30.41}\\
+ 3&  \underline{12.67}&37.28 &  \underline{11.97}&37.15 
+& \underline{16.76}&33.35& \underline{13.80}&35.93 
+\\ 
+        4&  \textbf{13.89}&40.32 & \textbf{12.51}&40.12 &\textbf{18.48}&35.14&\textbf{14.96}&38.53 \\
+        \bottomrule
+    \end{tabular}
+    }
+    \caption{We test the effect of hyperparameter $n_{hop}$ on HopRAG using GPT-3.5-turbo on multiple datasets with top 20 passages. We vary $n_{hop}$ from 1 to 4 and report both the answer and retrieval metrics in Table \ref{tab:nhopall}, and report the retrieval metrics here. For retrieval metrics, we calculate the retrieval F1 score and also the average number of calling LLM during traversal to measure the cost (the lower, the better). The best score is in \textbf{bold} and the second best is \underline{underlined}.}
+    \label{tab:Ablation-3.5-hop}
+\end{table*}
+
+The main results are presented in Table \ref{tab:QA-performance-3.5} and \ref{tab:QA-performance-4o}. We observe that almost in all the settings HopRAG gives the best performance, with exceptions on HotpotQA when compared against SiReRAG and 2WikiMultiHopQA against HippoRAG. Overall, HopRAG achieves approximately 76.78\% higher than dense retriever (BGE), 48.62\% higher than query decomposition, 36.25\% higher than reranking (BGE), 9.94\% higher than RAPTOR,  3.08\% higher than HippoRAG,  1.11\% higher than SiReRAG. This illustrates the strengths of HopRAG in capturing both textual similarity and logical relations for handling multi-hop QA. 
+
+Specifically, BM25, BGE and BGE with query decomposition yield unsatisfactory results since they rely solely on similarity, and BGE with reranking cannot capture logical relevance among candidates. Since GraphRAG considers relevance among entities instead of similarity for graph search, and RAPTOR focuses on the hierarchical logical relations among passages but cannot capture other kinds of relevance, both of them are more suitable for query-focused summarization but not the most competitive method for multi-hop QA tasks, as also reported in \citep{zhang2024sireragindexingsimilarrelated}.
+
+\begin{table*}[htb]
+\setlength{\tabcolsep}{3pt}
+\centering
+\resizebox{0.9\textwidth}{!}{
+      \begin{tabular}{ccccccccccccc}
+    \toprule
+ & \multicolumn{3}{c}{MuSiQue}& \multicolumn{3}{c}{2Wiki}& \multicolumn{3}{c}{HotpotQA} & \multicolumn{3}{c}{Average}\\
+ & \multicolumn{2}{c}{Answer}&Retrieval& \multicolumn{2}{c}{Answer}&Retrieval& \multicolumn{2}{c}{Answer}&Retrieval & \multicolumn{2}{c}{Answer}&Retrieval \\
+        
+        \thead{Method (Traversal Model)}& EM& F1 & F1 & EM& F1 & F1 
+& EM& F1 &F1 
+ & EM& F1 &F1 
+\\
+        \midrule
+        BM25& 5.80& 11.00 
+& 5.79& 27.00 & 31.55 & 9.25& 33.40& 44.30&8.75&  22.07 & 28.95 &7.93 \\
+        BGE& 
+11.80& 18.60& 8.76& 27.90 & 30.80 & 7.60 & 38.40& 50.56&11.10& 26.03 & 33.32 &9.16 \\
+ \thead{HopRAG (non-LLM)}& 
+19.00& 27.68& 8.27& 42.20& 46.72& 8.09 & 46.90& 61.17&11.73& 36.04& 45.19&9.36\\
+ \thead{HopRAG (Qwen2.5-1.5B-Instruct)}& \underline{38.00}& \underline{46.73}& \underline{11.91}& \underline{58.40}& \underline{64.78}& \underline{11.82}& \underline{58.20}& \underline{74.74}& \underline{18.22}& \underline{51.53}& \underline{62.08}&\underline{13.98}\\ 
+        \thead{HopRAG (GPT-4o-mini)}&    \textbf{39.10}&  \textbf{53.00}&  \textbf{13.89}& \textbf{61.60}& \textbf{68.93}& \textbf{12.51}& \textbf{61.30}& \textbf{78.34}&\textbf{18.48}& \textbf{54.00}& \textbf{66.76}&\textbf{14.96 }\\
+        \bottomrule
+    \end{tabular}
+}
+    \caption{We conduct an ablation study on the reasoning model during traversal with GPT-3.5-turbo as the inference model and top 20 passages. We compare 5 scenarios including sparse retriever (BM25), dense retriever (BGE), HopRAG (non-LLM), HopRAG (Qwen2.5-1.5B-Instruct) and HopRAG (GPT-4o-mini) and report both the answer and the retrieval metrics, where the best score is in \textbf{bold} and the second best is \underline{underlined}.}
+    \label{tab:nonllm}
+\end{table*}
+
+
+In terms of HippoRAG, it prioritizes relevance signals such as vertices with the most edges and does not explicitly model similarity while our design HopRAG directly integrates similarity with logical relations when constructing edges. Although HopRAG only outperforms SiReRAG by a small margin in the scenario with top 20 candidate passages, our general graph structure does not introduce additional summary and proposition aggregate nodes and can facilitate efficient graph traversal for faster retrieval compared with SiReRAG. In the discussion, we will show that HopRAG can achieve competitive results with a smaller context length. Besides quantitative scores, we also demonstrate a case study in Appendix \ref{case study} comparing HopRAG and GraphRAG.
+\subsection{Ablations and Discussion}
+\label{ablation}
+To confirm the robustness of HopRAG and provide more insights, we vary $top_k$, $n_{hop}$ and conduct ablation studies on traversal model. 
+\paragraph{Effects of $top_k$} To show our efficiency in faster hop from indirectly relevant passages to truly relevant ones, we test the robustness by evaluating both the QA and retrieval performance on GPT-3.5-turbo with smaller $top_k$, as is shown in Table \ref{tab:Ablation-3.5}. From the results, we find that even with top 12 candidates, the QA performance of HopRAG is still comparable to that of HippoRAG or RAPTOR with 20 candidates, which highlights the effectiveness of our graph traversal design in efficiently retrieving more information within a limited context length. 
+Meanwhile, we also observe that as $top_k$ increases, the retrieval F1 score gradually decreases due to the inclusion of excessive redundant information. Conversely, the answer quality generally improves, attributed to GPT-3.5-turbo's strong capability in processing and reasoning over extended contexts, with only one exception in the MuSiQue dataset.
+
+\paragraph{Effects of $n_{hop}$} To assess the effects of the hyperparameter $n_{hop}$ on reasoning-augmented graph traversal, we vary $n_{hop}$ from 1 to 4 and evaluate the corresponding retrieval performance and cost, which is measured by the total number of LLM calls during graph traversal. The results shown in Table \ref{tab:Ablation-3.5-hop} indicate that as $n_{hop}$ increases, retrieval performance tends to improve, as more vertices are visited during traversal for reasoning and pruning. However, the expense and latency from calling LLM also increase with $n_{hop}$, creating a trade-off between performance and cost. We notice that as $n_{hop}$ increases, the number of new vertices in $C_{queue}$ requiring LLM reasoning decays rapidly. Since different vertices may hop to the same important vertex, the actual queue length in each round of hop is less than $top_k$. Specifically, the average queue length is 2.60 in the fourth round and 1.23 in the fifth round, suggesting that for the three datasets, the local area in the graph structure can be largely explored within four rounds of hop, eliminating the need for an additional hop. We set $n_{hop}$ as 4 in Table \ref{tab:QA-performance-3.5} and \ref{tab:QA-performance-4o}. We also evaluate the answer performances as $n_{hop}$ varies and show the overall results in Appendix \ref{nhop_ablation}.
+
+\paragraph{Ablation on Traversal Model} 
+
+In order to generalize HopRAG to scenarios with less computational overhead during retrieval, we supplement results from (1) HopRAG with traversal model Qwen2.5-1.5B-Instruct (2) HopRAG with non-LLM graph traversal that replaces the reasoning phase in Algorithm \ref{ragt} with similarity matching. Table \ref{tab:nonllm} shows that even without using the reasoning ability of LLM in the graph traversal, HopRAG can achieve 45.84\% higher than BM25 and 25.43\% higher than dense retriever (BGE), which proves the effectiveness of HopRAG in capturing textual similarity and logical relations for logic-aware retrieval.  The introduction of reasoning ability from LLM (GPT-4o-mini) can achieve about 45.78\% higher average score than the non-LLM version, and Qwen2.5-1.5B-Instruct as traversal model produces comparable results with less cost and higher efficiency. We analyze the retrieval efficiency in Appendix \ref{retrieval efficiency}.
+

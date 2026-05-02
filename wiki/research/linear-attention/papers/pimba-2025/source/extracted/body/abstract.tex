@@ -1,0 +1,53 @@
+\begin{abstract}
+  %
+  Transformers are the driving force behind today's Large Language
+  Models (LLMs), serving as the foundation for their performance and
+  versatility.
+  %
+  Yet, their compute and memory costs grow with sequence length,
+  posing scalability challenges for long-context inferencing.
+  %
+  In response, the algorithm community is exploring alternative
+  architectures—such as state space models (SSMs) (e.g., Mamba-2),
+  linear attention, and recurrent neural networks (RNNs)—which we
+  refer to as \emph{post-transformers}.
+  %
+  This shift presents a key challenge: building a serving system that
+  efficiently supports not only emerging post-transformer LLMs but
+  also existing transformer models within a unified framework.
+  %
+
+  %
+  To address this challenge, we analyze the performance
+  characteristics of transformer and post-transformer LLMs.
+  %
+  Despite their algorithmic differences, both are largely
+  bounded by memory bandwidth under batched inference—due to
+  attention in transformers and state updates in post-transformers.
+  %
+  Inspired by this finding, we propose \sysname{}, an accelerator
+  solution that aims to address the memory bottleneck by jointly
+  leveraging (1) Processing-in-Memory (PIM) paradigm and (2) LLM quantization.
+  %
+  Further analyses suggest two additional insights: (1) state update
+  operations, unlike attention, incur high hardware cost, making
+  per-bank PIM acceleration inefficient, and (2) different
+  low-precision arithmetic methods offer varying accuracy-area
+  tradeoffs, while we identify Microsoft's MX as a Pareto-optimal choice.
+  %
+  Building on these insights, we design the architecture of
+  \sysname{} as an array of
+  State-update Processing Units (SPUs), each shared between two banks
+  to enable interleaved access.
+  %
+  Each SPU includes a State-update Processing Engine (SPE) that
+  comprises element-wise multipliers and adders using MX-based
+  quantized arithmetic, enabling efficient execution of state update
+  and attention operations.
+  %
+  Our evaluation shows that, compared to LLM-optimized GPU and
+  GPU+PIM systems, \sysname{} achieves up to 4.1$\times$ and
+  2.1$\times$ higher generation throughput, respectively.
+  %
+
+\end{abstract}

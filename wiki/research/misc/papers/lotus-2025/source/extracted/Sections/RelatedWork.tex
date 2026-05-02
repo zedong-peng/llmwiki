@@ -1,0 +1,41 @@
+\section{Related Work}
+
+\heading{Data Systems for Row-wise LLM Operations.}
+Many prior works focus on map-like, \emph{row-wise LLM-based operators}, either with generic AI user-defined functions (UDFs) or specialized operators ~\cite{liu_declarative_2024, lin_towards_2024, arora_language_2023, liu_suql_2024}. 
+AI UDF systems~\cite{motherduck_introducing_nodate, williamdassafmsft_intelligent_2024, noauthor_snow_nodate,  databricks, noauthor_large_nodate, liu_optimizing_2024}  provide a low-level, non-declarative programming interface for row-wise LLM invocations. These systems also integrate vector search, equivalent to our \verb|sem_search| or \verb|sem_sim_join|, and support SQL queries that combine row-wise AI UDFs with non-LLM operations (e.g. average, count).
+Alternatively, several recent works implement optimized row-wise LLM operations for \emph{specialized} tasks, including data cleaning, extract-transform-load (ETL) and conversational agents.
+ZenDB~\cite{lin_towards_2024}, EVAPORATE ~\cite{arora_language_2023} and Palimpzest~\cite{liu_declarative_2024} provide LLM-based functions for extracting semi-structured documents into structured tables, logically similar to our \verb|sem_extract|, and Palimpzest also implements an LLM-powered \verb|filter|, logically similar to our \verb|sem_filter|.
+SUQL~\cite{liu_suql_2024} augments SQL with a two logically row-wise operators, \verb|answer|, for questions-answering over each row, and \verb|summary|, for \emph{row-wise} LLM-based summarization, to serve knowledge-grounded \emph{conversational agents}.
+In contrast to these works, semantic operators are a \emph{general-purpose query model} for semantic transformations over datasets, including both logically row-wise ones and more complex ones (e.g., joins, aggregations and ranking). 
+Our detailed evaluation (Section~\ref{sec:eval}) demonstrates the performance limitations of  row-wise LLM execution models.
+
+
+
+\heading{Best-Effort LLM-Based Analytics Systems.}
+Several recent systems~\cite{anderson_design_2024, dai_uqe_2024, shankar_docetl_2024} go beyond row-wise LLM operators. However, these systems lack a formalism for LLM-based operators, providing no performance guarantees for their execution.
+Following a preprint~\cite{patel_lotus_2024} of this work, DocETL~\cite{shankar_docetl_2024} proposes to use LLM agents as the query optimizer over LLM-powered operators. This is a promising direction for future work; however, our evaluation (Section~\ref{sec:eval}) demonstrates that DocETL's agentic approach leads to high variance in performance, no accuracy guarantees, and requires multiple reruns to achieve comparable accuracy to ours, with approximately 1 in 3 runs failing due to optimizer errors, indicating that more work is needed to make these methods robust.
+UQE~\cite{dai_uqe_2024} also studies optimizations for LLM-powered operators, proposing an embedding-based approximation for LLM-powered filters. In contrast to our methods, which adaptively learn how to leverage a given proxy to meet accuracy targets, UQE's approach provides best-effort performance with no accuracy guarantees. UQE also studies optimizations for non-LLM aggregations (e.g., average, count) combined with LLM-based filter and group-by operators using stratified sampling, which is complementary to this work.
+
+ 
+\heading{General ML-based Query Processing.}
+Prior works study the use of non-LLM machine learning (ML) in databases. In contrast, our work integrates LLMs, which motivates our new formalisms for language-based operators and novel optimizations.
+MADLib~\cite{hellerstein_madlib_2012} extends SQL with abstractions for descriptive statistics and machine learning (e.g., regression and classification). 
+NoScope~\cite{kang_noscope_2017}, TASTI~\cite{kang_task-agnostic_nodate}, SUPG~\cite{kang_approximate_2020}, BlazeIt~\cite{kang_blazeit_2019} and probabilistic predicates~\cite{lu_accelerating_2018} propose methods to optimize queries involving expensive ML-based predicates (e.g., using object detectors) over large datasets, typically in video analytics. 
+Some optimizations proposed in these works, such as model cascades and predicate re-ordering, are also useful for optimizing \sys pipelines with language models.
+
+
+\heading{Table Question Answering.} 
+A large body of work, including  retrieval-augmented generation~\cite{lewis_retrieval-augmented_2021} and Text2SQL~\cite{yu_typesql_2018, yaghmazadeh_sqlizer_2017, zhang_benchmarking_2024, zelle_1996-learning_nodate},  serves natural language interfaces for question-answering over databases. Typically, the LLM system invokes external tools, e.g., search APIs or SQL programs. Interestingly, these agentic workflows can instead invoke semantic operator programs as the underlying API for data processing. Recent work~\cite{biswal_text2sql_2024} demonstrates the promise of this approach to outperform baseline TableQA methods.
+
+
+
+\heading{Adoption of Semantic Operators.} Based on a preprint~\cite{patel_lotus_2024} of this work, Google recently implemented experimental semantic operators in BigQuery Dataframes~\cite{noauthor_python-bigquery-dataframesnotebooksexperimentalsemantic_operatorsipynb_nodate}, including \verb|sem_map|, \verb|sem_filter|, \verb|sem_join|, \verb|sem_agg|, \verb|sem_topk|, \verb|sem_search|, and \verb|sem_sim_join|. 
+
+
+
+
+
+
+
+
+

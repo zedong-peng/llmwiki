@@ -1,0 +1,41 @@
+
+\begin{footnotesize}
+
+\RestyleAlgo{ruled} % Ensure the algorithm is styled with ruled lines
+
+% Define the comment format for algorithms
+\SetKwComment{Comment}{// }{}
+
+\begin{algorithm}[t!] % Algorithm floats at the top of the page
+\caption{SEM-FILTER($T$, $l$, $M(x)$, $A(x)$, $\gamma_R$, $\gamma_P$, $\delta$)}
+\label{alg:approx_sem_filter}
+
+\KwIn{Relation $T$, langex predicate $l$, oracle model $M(x)$, proxy model $A(x)$, recall target $\gamma_R$, precision target $\gamma_P$, error probability $\delta$}
+\KwOut{Filtered relation $T'$}
+
+$s \gets \textit{sample\_size}$\\ 
+$S \gets \texttt{ImportanceSample}(T, A(x), s)$\\
+$M_S \gets \{M(t) : t \in S\}$\\
+$A_D \gets \{A(t) : t \in D\}$\\
+$A_S \gets \{A(t) : t \in S\}$\\
+$\tau_+ \gets \texttt{PT\_threshold\_estimation}(S, l, M_S, A_S, \gamma_P, \delta / 2)$\\
+$\tau_- \gets \texttt{RT\_threshold\_estimation}(S, l, M_S, A_S, \gamma_R, \delta / 2)$\\
+$\tau_+ \gets \max(\tau_+, \tau_-)$\\
+$T' \gets \emptyset$\\
+
+\Comment{Evaluate predicate for each tuple}
+\For{$t \in T$}{
+    \uIf{$A(t) \geq \tau_+$}{
+        $T' \gets T' \cup \{t\}$
+    }
+    \uElseIf{$A(t) \geq \tau_-$}{
+        \uIf{$M(t)$}{
+            $T' \gets T' \cup \{t\}$
+        }
+    }
+}
+\Return{$T'$}
+
+\end{algorithm}
+% \vspace{-.5cm}
+\end{footnotesize}

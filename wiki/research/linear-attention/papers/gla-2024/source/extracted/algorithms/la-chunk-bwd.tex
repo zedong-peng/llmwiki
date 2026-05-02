@@ -1,0 +1,83 @@
+
+\begin{algorithm}[hb]
+\scriptsize
+\caption{\textsc{FlashLinearAttention}: Backward Pass}
+\label{algo:la-chunk-bwd}
+\begin{algorithmic}
+    \Require $\rmQ, \rmK, \rmV, \rmO, \rmdO \in \R^{L \times d}$, chunk size $C \in [L]$,  \texttt{materialize} $\in$ \{\texttt{True,False}\}, $\rmS \in \R^{\frac{L}{C} \times d \times d}$ \Comment{$\rmS$ is available when \texttt{materialize} is True}
+ \State{Initialize $\rmdS = \bm{0} \in \mathbb R^{d\times d} $ on SRAM}
+         \State On chip, construct causal mask $\rmM\in \R^{C\times C}$ %
+             %
+%
+%
+%
+%
+%
+%
+%
+%
+%
+%
+\If{\texttt{materialize}} \Comment{the materialization version}
+\color{black}
+    \For{$n \gets N, 1$}   \Comment{in reverse order}
+        \State Store $\rmdS$ in HBM as $\rmdS_{[n]}$
+    \color{black}
+        \State{Load $\rmQ_{[n]}, \rmdO_{[n]}  \in \R^{C \times d}$ from HBM to SRAM.}
+        \State On chip, compute $\rmdS = \rmdS + \rmQ_{[n]}^\intercal \rmdO_{[n]}$
+        \color{orange}
+       %
+       %
+       %
+       %
+       %
+       %
+       %
+            \color{black}
+      \EndFor
+      %
+    %
+      \ParFor{$n \gets 1, N$}  
+        \State{Load $\rmQ_{[n]}, \rmK_{[n]},\rmV_{[n]}, \rmdO_{[n]} \in \R^{C \times d}$ from HBM to  SRAM.}
+        \State{Load $ \rmS_{[n]}$, $\rmdS_{[n]} \in \R^{d \times d}$ from HBM to SRAM.}
+        %
+        %
+        %
+        %
+        %
+        %
+        %
+        %
+        %
+
+   \State On chip:  $\mathbf{dQ} = \mathbf{dO}_{[n]} \rmS_{[n]}^{\top}  + (\mathbf{dO}_{[n]} \rmV_{[n]}^{\top} \odot \mathbf{M}) \mathbf{K}_{[n]}$.
+   \State On chip:   $\mathbf{dK} =  \mathbf{V}_{[n]} \mathbf{dS}_{[n]}^{\top} +  (\mathbf{V}_{[n]}\mathbf{dO}_{[n]}^{\top} \odot \mathbf{M}^{\top}) \mathbf{Q}_{[n]}$
+   \State On chip: $\mathbf{dV} =  \mathbf{K}_{[n]} \mathbf{dS}_{[n]} + (\rmQ_{[n]}\rmK_{[n]}^{\top} \odot \mathbf{M})^{\top} \mathbf{dO}_{[n]}$
+    \State Write $ \mathbf {dQ}, \mathbf{dK}, \mathbf{dV}$ to HBM as $\mathbf{dQ}_{[n]}, \mathbf{dK}_{[n]}, \mathbf{dV}_{[n]}$
+      \EndParFor
+      %
+      \color{black}
+\Else  \Comment{the non-materialization version}
+\State Initial $\rmS = \bm{0} \in \mathbb R^{d\times d} $ on SRAM
+\For{$n \gets 1, N$}    \Comment{hidden state recomputation}
+\State Load $\rmK_{[n]}, \rmV_{[n]}, \rmdO_{[n]}   \in \R^{C \times d}$ from HBM to SRAM.
+%
+\State On chip: $\rmdQ = \mathbf{dO}_{[n]} \rmS^{\top}  + (\mathbf{dO}_{[n]} \rmV_{[n]}^{\top} \odot \mathbf{M}) \mathbf{K}_{[n]}$ 
+\State On chip: $\rmS = \rmS + \rmK_{[n]}^{\top}\rmV_{[n]}$
+\EndFor
+\color{black}
+    \For{$n \gets N, 1$}   \Comment{in reverse order}
+    \color{black}
+        \State{Load $\rmQ_{[n]},\rmK_{[n]}, \rmV_{[n]}, \rmdO_{[n]}  \in \R^{C \times d}$ from HBM to SRAM.}
+        \State On chip, compute $\rmdS = \rmdS + \rmQ_{[n]}^\intercal \rmdO_{[n]}$
+        %
+       \State On chip:  $\mathbf{dQ} = \mathbf{dO}_{[n]} \rmS_{[n]}^{\top}  + (\mathbf{dO}_{[n]} \rmV_{[n]}^{\top} \odot \mathbf{M}) \mathbf{K}_{[n]}$.
+       \State On chip:   $\mathbf{dK} = \mathbf{V}_{[n]}\mathbf{dS}_{[n]}^{\top}  +  (\mathbf{V}_{[n]}\mathbf{dO}_{[n]}^{\top} \odot \mathbf{M}^{\top}) \mathbf{Q}_{[n]}$
+       \State On chip: $\mathbf{dV} =  \mathbf{K}_{[n]} \mathbf{dS}_{[n]} + (\rmQ_{[n]}\rmK_{[n]}^{\top} \odot \mathbf{M})^{\top} \mathbf{dO}_{[n]}$
+           \State Write $ \mathbf {dQ}, \mathbf{dK}, \mathbf{dV}$ to HBM as $\mathbf{dQ}_{[n]}, \mathbf{dK}_{[n]}, \mathbf{dV}_{[n]}$
+            \color{black}
+      \EndFor
+\EndIf 
+  \State \Return $\rmdQ = \{ \rmdQ_{[1]} \dots \rmdQ_{[N]} \}$, $\rmdK=\{ \rmdK_{[1]} \dots \rmdK_{[N]} \}$, $\rmdV=\{ \rmdV_{[1]} \dots \rmdV_{[N]} \}$.
+\end{algorithmic}
+\end{algorithm}

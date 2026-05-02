@@ -1,0 +1,192 @@
+% iclr2026_conference
+\documentclass{article} % For LaTeX2e
+\usepackage{iclr2026_conference,times}
+\input{math_commands.tex}
+\usepackage{url}
+
+% ---- Mathematical Packages ----
+\usepackage{amsmath}        % For equation, align, and other math environments
+\usepackage{amssymb}        % For mathematical symbols (like \checkmark)
+\usepackage{amsthm}         % For theorem, proof environments
+\usepackage{mathtools}      % Enhanced math commands
+
+% ---- Algorithm Packages ----
+\usepackage{algorithm}      % For algorithm environment
+% \usepackage{algorithmic}    % For algorithmic environment (pseudocode)
+% Alternative: You can use algorithmicx package instead:
+\usepackage{algpseudocode}  % More modern alternative to algorithmic
+
+% ---- Table Packages ----
+\usepackage{booktabs}       % For professional looking tables
+\usepackage{array}          % Enhanced table features
+\usepackage{multirow}       % For multi-row cells in tables
+\usepackage{rotating}
+\usepackage{makecell}
+\usepackage[table]{xcolor}
+\usepackage{minitoc}
+\usepackage{titletoc}
+\renewcommand{\mtctitle}{Contents of the Appendix}
+\usepackage{longtable}
+\usepackage{adjustbox} % Load the adjustbox package
+\usepackage{tabulary}   % For flexible-width tables
+\usepackage{tabularx}
+% Make the "Part I" text invisible
+\renewcommand \thepart{}
+\renewcommand \partname{}
+
+% ---- Symbol Packages ----
+\usepackage{pifont}         % For \ding{51} (checkmark) and \ding{55} (cross)
+% Alternative for checkmark/cross:
+\usepackage{tikz}           % Can create custom symbols
+\definecolor{darkgreen}{RGB}{0,128,0}
+\newcommand{\cmark}{\textcolor{darkgreen}{\ding{51}}}
+\newcommand{\xmark}{\textcolor{red}{\ding{55}}}
+
+% ---- Typography and Formatting ----
+\usepackage[utf8]{inputenc}  % UTF-8 input encoding
+\usepackage[T1]{fontenc}     % Font encoding
+\usepackage{microtype}        % Improved typography
+\usepackage{enumitem}         % Better control over lists
+\usepackage[most]{tcolorbox}
+\definecolor{pycomment}{RGB}{106,153,85}
+\definecolor{pyblue}{RGB}{50,150,250}
+\definecolor{pyred}{RGB}{250,80,80}
+\definecolor{pygreen}{RGB}{100,200,100}
+\tcbuselibrary{listingsutf8}
+
+% ---- References and Links ----
+\usepackage{hyperref}         % Hyperlinks and references
+\usepackage{cleveref}         % Smart references (use \cref instead of \ref)
+
+% ---- Optional but Recommended ----
+\usepackage{graphicx}         % If you want to include figures later
+\usepackage{xcolor}           % For colored text (useful for highlights)
+\usepackage{listings}         % If you want to include code snippets
+\usepackage{subcaption}       % For subfigures
+\usepackage{float}            % Better control over float positioning
+\usepackage{soul}
+\usepackage{xspace}
+\usepackage{wrapfig}
+
+% ==========================================
+% CUSTOM DEFINITIONS (Optional)
+% ==========================================
+
+% Define theorem-like environments if needed
+% \theoremstyle{definition}
+% \newtheorem{definition}{Definition}[section]
+% \newtheorem{theorem}{Theorem}[section]
+% \newtheorem{lemma}[theorem]{Lemma}
+% \newtheorem{corollary}{Corollary}[theorem]
+% \newtheorem{example}{Example}[section]
+
+% Custom commands for frequently used notation
+\newcommand{\bigO}{\mathcal{O}}
+% \newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\newtheorem{example}{Example}
+\newtheorem{remark}{Remark}
+
+\newcommand{\narenc}[1]{\textcolor{red}{#1}}
+
+\newcommand{\our}{\textsc{Hindsight}\xspace}
+\newcommand{\ourbold}{\textbf{\textsc{Hindsight}}\xspace}
+\newcommand{\hindsight}{\textsc{Hindsight}\xspace}
+\newcommand{\tempr}{\textsc{Tempr}\xspace}
+\newcommand{\cara}{\textsc{Cara}\xspace}
+
+\title{Hindsight is 20/20: Building Agent Memory that Retains, Recalls, and Reflects} 
+
+\author{
+\vspace{1em}
+\hspace{-0.5em}
+\textbf{Chris Latimer}$^{\clubsuit}$,
+\textbf{Nicoló Boschi}$^{\clubsuit}$,
+\textbf{Andrew Neeser}$^{\diamondsuit}$,
+\textbf{Chris Bartholomew}$^{\clubsuit}$,\\[-1em]
+\textbf{Gaurav Srivastava}$^{\heartsuit}$,
+\textbf{Xuan Wang}$^{\heartsuit}$,
+\textbf{Naren Ramakrishnan}$^{\heartsuit}$
+\\[0.75em]
+$^{\clubsuit}$Vectorize.io, USA \\
+$^{\diamondsuit}$The Washington Post, USA \\
+$^{\heartsuit}$Virginia Tech, USA
+\\[0.75em]
+}
+
+
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+
+\iclrfinalcopy % Uncomment for camera-ready version, but NOT for submission.
+
+\begin{document}
+
+
+\maketitle
+
+\begin{abstract}
+Agent memory has been touted as a dimension of growth for LLM-based applications, enabling agents that can accumulate experience, adapt across sessions, and move beyond single-shot question answering.
+The current generation of agent memory systems treats memory as an external layer that extracts salient snippets from conversations, stores them in vector or graph-based stores, and retrieves top-$k$ items into the prompt of an otherwise stateless model.
+While these systems improve personalization and context carry-over, they still blur the line between evidence and inference, struggle to organize information over long horizons, and offer limited support for agents that must explain their reasoning.
+We present \hindsight, a memory architecture that treats agent memory as a structured, first-class substrate for reasoning by organizing it into four logical networks that distinguish world facts, agent experiences, synthesized entity summaries, and evolving beliefs.
+This framework supports three core operations---retain, recall, and reflect---that govern how information is added, accessed, and updated.
+Under this abstraction, a temporal, entity-aware memory layer incrementally turns conversational streams into a structured, queryable memory bank, while a reflection layer reasons over this bank to produce answers and to update information in a traceable way.
+On key long-horizon conversational memory benchmarks like LongMemEval and LoCoMo, Hindsight with an open-source 20B model lifts overall accuracy from 39\% to 83.6\% over a full-context baseline with the same backbone and outperforms full-context GPT-4o. Scaling the backbone further pushes Hindsight to 91.4\% on LongMemEval and up to 89.61\% on LoCoMo (vs. 75.78\% for the strongest prior open system), consistently outperforming existing memory architectures on multi-session and open-domain questions.
+%\our combines \textbf{TEMPR} (Temporal Entity Memory Priming Retrieval), which builds a temporal, entity-aware memory graph and retrieves memories via four-way parallel search with fusion and reranking, and \textbf{CARA} (Coherent Adaptive Reasoning Agents), which integrates disposition parameters (skepticism, literalism, empathy) into reasoning and maintains a \textbf{dynamic opinion network} that evolves with new evidence.
+%We demonstrate \our's effectiveness on long-term conversational benchmarks and show that the four-network organization enables \textbf{epistemic clarity, temporal awareness, entity-aware reasoning, and preference consistency}.
+\end{abstract}
+
+\doparttoc % Tell to minitoc to generate a toc for the parts
+\faketableofcontents % Run a fake tableofcontents command for the partocs
+% \part{} % Start the document part
+% \parttoc % Insert the document TOC
+
+
+
+\input{sections/1_introduction}
+
+\input{sections/2_related_works}
+
+\input{sections/3_hindsight_overview}
+
+\input{sections/4_tempr_architecture}
+
+\input{sections/5_cara_architecture}
+
+\input{sections/6_hindsight_architecture}
+
+\input{sections/7_experiments}
+
+\section{Conclusion}
+We have introduced \our, an approach to treat agent memory as a first-class substrate for reasoning, rather than a thin retrieval layer around a stateless model. By organizing an agent’s long-term memory into world, bank, observation, and opinion networks and implementing retain, recall, and reflect as explicit operations, the architecture separates evidence from synthesized summaries and beliefs while remaining compatible with modern LLMs. Our experimental results demonstrate that this structure matters in practice and clearly leads to significant improvements in performance.
+
+Looking ahead, we see several directions for extending this work. On the modeling side, learning to jointly optimize fact extraction, graph construction, and retrieval—--rather than treating them as fixed pipelines—--could further improve robustness and efficiency, especially in noisy, open-domain settings. A reinforcement learning loop would be ideal to explore the interplay between retain, recall, and reflect as done here.
+
+On the application side, we plan to integrate \our with richer tool-use and workflow orchestration, exploring more diverse benchmarks than the conversational setting considered here.
+Finally, extending the opinion and belief layer to support controlled forgetting, time-aware belief revision, and privacy-aware memory management offers a path toward long-lived agents.
+
+%\section*{Acknowledgments}
+%This work was supported in part by ... [To be added]
+
+\bibliography{citations}
+\bibliographystyle{iclr2026_conference}
+
+\clearpage
+
+\input{sections/appendix}
+
+
+
+
+\end{document}

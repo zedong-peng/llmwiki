@@ -1,0 +1,2047 @@
+
+\documentclass{article} % For LaTeX2e
+\usepackage{iclr2026_conference,times}
+
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+\input{math_commands.tex}
+
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{graphicx}
+\usepackage[table]{xcolor}
+\usepackage{booktabs}
+\usepackage{makecell}
+
+% Preamble: Required packages
+\usepackage[T1]{fontenc}
+\usepackage{amsmath, amssymb, amsfonts}
+% \usepackage[margin=1in]{geometry}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage[skip=5pt]{caption}
+\usepackage{tcolorbox}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{multirow}
+\newcommand{\zhaowei}[1]{\textcolor{cyan}{[ZW: #1]}}
+\usepackage[dvipsnames,table]{xcolor}
+\definecolor{TRpink}{HTML}{D6A6BA}
+\definecolor{ESteal}{HTML}{007F7F} % event span 颜色，可按需改HEX
+% 紧凑高亮命令：可调左右/上下内边距
+\newcommand{\trstrut}{\rule[-0.2ex]{0pt}{1.7ex}} % 控制高度
+\DeclareRobustCommand{\timerange}[1]{%
+  {\setlength{\fboxsep}{1pt}% ← 减小到 0–1.5pt 都行
+   \colorbox{TRpink!90}{\color{white}\esstrut #1}}%
+}
+
+% 更窄的行内高亮盒
+\newcommand{\esstrut}{\rule[-0.15ex]{0pt}{1.7ex}} % 控高度
+\DeclareRobustCommand{\eventspan}[1]{%
+  {\setlength{\fboxsep}{1pt}% 内边距(左右/上下)；越小越窄
+   \colorbox{ESteal!85}{\color{white}\esstrut #1}}% 深底配白字更清晰
+}
+% \makeatletter
+% \def\iclrPaperID{0}        % dummy
+% \def\iclrAuthorList{1}     % show author list
+% \def\iclrfinalcopy{}       % prevent "under review" logic without triggering "published as"
+% \makeatother
+\title{Memory-T1: Reinforcement Learning for Temporal Reasoning in Multi-session Agents}
+
+% Authors must not appear in the submitted version. They should be hidden
+% as long as the \iclrfinalcopy macro remains commented out below.
+% Non-anonymous submissions will be rejected without review.
+
+% \author{Antiquus S.~Hippocampus, Natalia Cerebro \& Amelie P. Amygdale \thanks{ Use footnote for providing further information
+% about author (webpage, alternative address)---\emph{not} for acknowledging
+% funding agencies.  Funding acknowledgements go at the end of the paper.} \\
+% Department of Computer Science\\
+% Cranberry-Lemon University\\
+% Pittsburgh, PA 15213, USA \\
+% \texttt{\{hippo,brain,jen\}@cs.cranberry-lemon.edu} \\
+% \And
+% Ji Q. Ren \& Yevgeny LeNet \\
+% Department of Computational Neuroscience \\
+% University of the Witwatersrand \\
+% Joburg, South Africa \\
+% \texttt{\{robot,net\}@wits.ac.za} \\
+% \AND
+% Coauthor \\
+% Affiliation \\
+% Address \\
+% \texttt{email}
+% }
+
+% Yiming Du, Baojun Wang, Yifan Xiang, Zhaowei Wang, Wenyu Huang, Boyang XUE, Bin Liang, Xingshan Zeng, Fei Mi, Haoli Bai, Lifeng Shang, Jeff Z. Pan, Yuxin Jiang, Kam-Fai Wong 
+
+\author{
+\begin{tabular}{c}
+  \textbf{Yiming Du}$^{1}$, \textbf{Baojun Wang}$^{2}$, \textbf{Yifan Xiang}$^{1}$, \textbf{Zhaowei Wang}$^{3}$, \textbf{Wenyu Huang}$^{4}$, \\ 
+  \textbf{Boyang Xue}$^{1}$, \textbf{Bin Liang}$^{1}$, \textbf{Xingshan Zeng}$^{2}$, \textbf{Fei Mi}$^{2}$, \textbf{Haoli Bai}$^{2}$, Lifeng Shang$^{2}$, \\  \textbf{Jeff Z. Pan}$^{4}$, 
+  \textbf{Yuxin Jiang}$^{2}$\thanks{Corresponding authors.} , \textbf{Kam-Fai Wong}$^{1}$\footnotemark[1] \\[1.5ex]
+  \textnormal{$^1$The Chinese University of Hong Kong} \\
+  \textnormal{$^2$Huawei Technologies Co.,Ltd} \textnormal{$^3$HKUST} \\
+  \textnormal{$^4$The University of Edinburgh} \\
+  \textnormal{\{ydu, kfwong\}@se.cuhk.edu.hk, jiang.yuxin2@huawei.com}
+\end{tabular}
+}
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+% Using \And between authors leaves it to \LaTeX{} to determine where to break
+% the lines. Using \AND forces a linebreak at that point. So, if \LaTeX{}
+% puts 3 of 4 authors names on the first line, and the last on the second
+% line, try using \AND instead of \And before the third author name.
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+
+\iclrfinalcopy % Uncomment for camera-ready version, but NOT for submission.
+\begin{document}
+\maketitle
+\begin{abstract}
+% Paragraph 1: 点明背景和temporal的重要性: 讲一下最近memory的进展很快, conversational agents进展很快的话 大概两句就行。在memory的设计当中, temporal关系的理解至关重要, 可以给一些temporal的paper。也可以反着说一下如果模型不能理解temporal, 他会在xxx上fail
+
+% 2. however, exisiting works have shown that temporal reasoning still poses challenges to current models. 然后从你现在写的previous work里面举例分析分析为什么这些model不能work (这些缺点要和我们的method对齐, 你的所有缺点都应该在方法中有个moduel对应, 或者这个可以倒推, 根据method的moduel分析问题)
+
+% 3. 后面就是to bridge those gaps了，然后你提出来的module把上面的问题都一一解决了
+
+% 4. 实验部分验证
+
+Temporal reasoning over long, multi-session dialogues is a critical capability for conversational agents. However, existing works and our pilot study have shown that as dialogue histories grow in length and accumulate noise, current long-context models struggle to accurately identify temporally pertinent information, significantly impairing reasoning performance. To address this, we introduce \textsc{\textbf{Memory-T1}}, a framework that learns a time-aware memory selection policy using reinforcement learning (RL). It employs a coarse-to-fine strategy, first pruning the dialogue history into a candidate set using temporal and relevance filters, followed by an RL agent that selects the precise evidence sessions. The RL training is guided by a multi-level reward function optimizing (i) \textbf{answer accuracy}, (ii) \textbf{evidence grounding}, and (iii) \textbf{temporal consistency}. In particular, the temporal consistency reward provides a dense signal by evaluating alignment with the query time scope at both the session-level (chronological proximity) and the utterance-level (chronological fidelity), enabling the agent to resolve subtle chronological ambiguities. On the Time-Dialog benchmark, Memory-T1 boosts a 7B model to an overall score of 67.0\%, establishing a new state-of-the-art performance for open-source models and outperforming a 14B baseline by 10.2\%. Ablation studies show temporal consistency and evidence grounding rewards jointly contribute to a 15.0\% performance gain. Moreover, Memory-T1 maintains robustness up to 128k tokens, where baseline models collapse, proving effectiveness against noise in extensive dialogue histories. The code and datasets are publicly available at \url{ https://github.com/Elvin-Yiming-Du/Memory-T1/}
+\end{abstract}
+
+% https://github.com/Elvin-Yiming-Du/Memory-T1/
+
+\section{Introduction}
+Recent advances in memory architectures and large language models (LLMs) have substantially improved the capabilities of conversational agents \citep{yu2025memagent, zhong2024memorybank, xu2025mem}. Increasingly, these agents are expected to support long-term multi-session interactions \citep{du2025bridging, ge2025tremu}, where a central challenge is understanding and reasoning about temporal relationships across dialogue histories \citep{wu2025longmemeval, maharana-etal-2024-evaluating}. Without this capability, agents may incorrectly order past events, conflate information from different sessions, and ultimately generate inconsistent or inaccurate answers. For example, as shown in Figure \ref{fig:problem}, correctly resolving a query such as ``What time did Emi mention that some `Suits' characters were together at the Golden Globes?'' requires the agent to locate the relevant mention in the dialogue history, understand the key relative temporal expression (``last night''), and grounding it to the correct session date (``10.01.2024'') to infer the accurate date ``January 9, 2024''. Ultimately, temporal reasoning is essential for factual consistency in long, noisy conversations.
+
+However, existing approaches \citep{yu2025memagent, xu2025mem} remain inadequate for temporal reasoning in conversation. General-purpose long-context models \citep{qwen2.5, guo2025deepseek,wang2025mmlongbench} treat dialogue history as flat text and fail to locate or resolve temporal expressions, leading to steep performance degradation on noisy, extensive conversations \citep{wu2025longmemeval, maharana-etal-2024-evaluating}. Time-aware frameworks such as TReMu \citep{ge2025tremu} handle explicit expressions but struggle with ambiguous ones like “the week before that”, and error accumulation from inferred event summaries undermines robustness. Reinforcement learning (RL) approaches such as Time-R1 \citep{liu2025time} rely heavily on structured metadata, making them ineffective for unstructured multi-session dialogues. Thus, a robust, scalable solution for temporal reasoning in dialogue remains an open challenge.
+
+To bridge this gap, we introduce \textbf{Memory-T1}, a RL-based memory retrieval framework designed for temporal reasoning that combines coarse-to-fine retrieval strategy with a multi-level reward design. In the \textbf{Candidate Generation} phase, the query temporal scope is predicted using an LLM to prune the dialogue history search space, which acts as a hard filter to prune irrelevant sessions. This is followed by a relevance-based retriever to produce a small, high-recall candidate set of sessions. This phase efficiently narrows the vast memory pool to a manageable context, setting the stage for a more precise analysis. In the \textbf{fine-grained selection} phase, an RL agent identifies the precise evidence sessions. Training such an agent is challenging because answer-only supervision provides very sparse signals. To overcome this, we design a dense, multi-level reward function. Beyond answer accuracy ($R_a$) and evidence grounding ($R_g$), we introduce a novel temporal consistency reward ($R_t$) that explicitly evaluates (1) session-level chronological proximity and (2) utterance-level temporal density. By rewarding temporally coherent and contextually concentrated evidence, this structured signal provides richer supervision, enabling the agent to resolve ambiguous temporal expressions and to generalize more robustly to noisy, long-context dialogues.
+
+We validate Memory-T1 on the Time-Dialog \citep{wei2025time} and LoCoMo \citep{maharana-etal-2024-evaluating} benchmarks. Results show that Memory-T1 achieves state-of-the-art temporal reasoning performance, substantially improving robustness on contexts up to 128k tokens. Notably, Memory-T1 enables a 7B model to outperform a 14B baseline, highlighting the effectiveness of temporal-aware retrieval and dense reward optimization. The key contributions are: (1) A coarse-to-fine memory retrieval framework that efficiently narrows dialogue histories into high-quality candidates before fine-grained evidence selection. (2) A novel dense reward design for RL-based retrieval introducing temporal consistency signals at both session and utterance levels, providing insights into training robust temporal-aware retrieval models by overcoming sparse reward limitations. (3) State-of-the-art performance, with Memory-T1 achieving top results and maintaining accuracy under extremely long and noisy conversational contexts.
+\begin{figure}[t!]
+  \centering
+  \includegraphics[width=\textwidth]{figures/problem_new_example.pdf}
+  \caption{Multi-session QA with time-event annotations. \timerange{Time range} marks when an event or query occurs, either a duration or an instantaneous point (start and end coincide). \eventspan{Event span} highlights key evidence in the utterance.}
+  \label{fig:problem}
+\end{figure}
+
+\section{Related Work}
+\paragraph{Temporal Reasoning in LLMs.} Temporal reasoning has become an active area of research for LLMs \citep{song-etal-2025-temporal, wei2025time, liu2025time}. Benchmarks such as TimeBench \citep{chu-etal-2024-timebench} and TIME \citep{wei2025time} reveal that even strong models struggle with temporal relationships, event ordering, factual consistency, and long-range reasoning. To fill these gaps, prior work has aligned knowledge with temporal contexts \citep{zhao-etal-2024-set}, introduced specialized training such as Timo \citep{su2024timo} and TG-LLM \citep{xiong-etal-2024-large}, or applied RL, as in DeepSeek-R1 \citep{guo2025deepseek} and Time-R1 \citep{liu2025time}. However, these methods often depend on explicit supervision or handcrafted structures, limiting their applicability to multi-session dialogue. Furthermore, temporal reasoning has recently become an important problem in the memory of LLMs. TReMu \citep{ge2025tremu} leverages memory via timeline summaries but relies on timestamp accuracy for temporal reasoning. A few memory-related works \citep{mai2025agent,du2025rethinking} also highlight the importance of temporal reasoning in long-term memory modeling. Building on this perspective, our Memory-T1 framework directly learns implicit memory selection and temporal alignment through a multi-level time consistency reward, enabling robust reasoning without external tools.
+
+\paragraph{Reinforcement Learning in Agents:} Reinforcement learning is a core technology driving breakthroughs in LLM reasoning, from early outcome-based optimization algorithms, such as PPO \citep{schulman2017proximal}, to recent variants for agent scenarios, such as GRPO \citep{zheng2025group}, DPO \citep{rafailov2023direct}, and GSPO \citep{zheng2025group}.  RL not only improves training stability but also efficiency, enabling reasoning-centric models like DeepSeek-R1 \citep{guo_deepseek-r1_2025} and Search-R1 \citep{jin2025search}. Beyond isolated reasoning, RL has been applied to agent settings involving tool use \citep{qian2025toolrl}, multi-step planning \citep{jin2025search}, and long-term interaction \citep{yu2025memagent}. Recent studies further extend RL to diverse scenarios, including optimized tool integration \citep{li2025torl}, emergent code execution under large-scale training \citep{mai2025agent}, and generalized frameworks for retrieval and collaboration \citep{luo2025agent}. However, temporal reasoning over multi-session dialogues remains an underexplored area, necessitating robust memory retrieval, chronological alignment of events, and reasoning with ambiguous supervision.
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.9\textwidth]{figures/framework_new.pdf}
+  \caption{An overview of Memory-T1. The framework employs a coarse-to-fine cascade to select time-consistent memories for multi-session temporal reasoning.}
+  \label{fig:framework}
+\end{figure}
+
+\section{Memory-T1}
+Temporal reasoning over extended, multi-session dialogues presents a significant challenge in conversational AI. The task requires agents to navigate vast and noisy memory banks to retrieve temporally accurate and contextually relevant information, a process where existing models often fail. To address this, we propose Memory-T1, a novel framework for temporal-aware memory retrieval. We proceed as follows: Section \ref{sec:problem_formulation} provides a formal problem definition, Section \ref{sec:memory-t1} details the Memory-T1 framework, and Section \ref{sec:reward} describes the reward design used to train the agent.
+
+\subsection{Problem Formulation}
+\label{sec:problem_formulation}
+Temporal reasoning in multi-session scenarios is formulated as a QA task (Figure \ref{fig:problem}): given a user query $q$, the goal is to produce an answer $a$  grounded in the dialogue history. The dialogue history is represented as a memory bank 
+$\mathcal{M} \equiv [(\tau_1,S_1), (\tau_2,S_2), \dots, (\tau_N,S_N)]$, 
+where each session $S_i$ is associated with a timestamp $\tau_i$ and 
+consists of a sequence of utterances paired with referenced events:
+\begin{equation}
+S_i=\{(u_{i1}, \mathcal{E}_{i1}), (u_{i2}, \mathcal{E}_{i2}), \dots, (u_{iL_i}, \mathcal{E}_{iL_i})\},
+\end{equation}
+where $u_{ij}$ denotes the $j$-th utterance in session $i$, and 
+$\mathcal{E}_{ij} = \{ e_{1}, e_{2}, \dots, e_{K} \}$ 
+is the set of events mentioned in that utterance.  
+Each event $e_k$ can be optionally annotate with a semantic descriptor $\kappa_k$ 
+and a temporal span $(t^{\text{start}}_k, t^{\text{end}}_k)$ (see Figure \ref{fig:problem}). These annotations are introduced solely for training-time reward computation and are never accessible during inference. Details of the annotation process are provided in the Appendix \ref{app:dataset_annotation}.  
+
+\subsection{Memory-T1: Temporal-Aware Memory Retrieval}
+\label{sec:memory-t1}
+
+\textsc{Memory-T1} is a temporal-aware memory retrieval framework designed for multi-session dialogue agents. Its architecture follows a coarse-to-fine filtering principle to efficiently identify relevant and temporally consistent memories from a vast and noisy dialogue history. The process is organized into two main phases: Candidate Generation and Fine-grained Selection.
+
+\textbf{Phase 1: Candidate Generation}: 
+This initial phase aims to rapidly prune the large-scale memory repository down to a manageable set of high-recall candidates. It consists of two sequential filtering stages:
+\begin{enumerate}
+\item \textbf{Temporal Filtering:} Given a user query q, an LLM first predicts its target temporal window $(t_{\text{start}}, t_{\text{end}})$. This predicted scope acts as a hard filter to discard all sessions whose timestamps do not overlap with this range, drastically reducing the search space and getting temporally-filtered sessions set $M_\text{temp}$, which is a subset of the given memory bank $M$ ($M_\text{temp} \in M$).
+\item \textbf{Relevance Filtering:} From the temporally-filtered sessions, we then use retriever to rank the remaining sessions by textual relevance to the query. This step further narrows the pool to a manageable size that fits within the agent's context budget, while preserving sessions that are both temporally and textually pertinent. The top-ranked sessions form the candidate pool C, formally defined as:
+\begin{equation}
+\mathcal{C} = \underset{(\tau_i, S_i) \text{ s.t. } t_{\text{start}} \le \tau_i \le t_{\text{end}}}{\text{arg top-}k} \left( \text{Retriever}(q, S_i) \right)
+\end{equation}
+\end{enumerate}
+\paragraph{Phase 2: Fine-grained Selection via Reinforcement Learning.}
+While the candidate set is highly relevant, it may still contain temporally imprecise or misleading information. Reinforcement learning enables the agent to refine its evidence selection policy under reward signals that directly penalize incorrect or temporally inconsistent citations. In this way, RL encourages the model to disambiguate noisy candidates and learn robust mappings between cited evidence and generated answers. Therefore, after identifying the candidate pool $\mathcal{C}$ in Phase 1, we employ an RL-finetuned model to perform the final evidence selection and answer generation in an end-to-end manner.
+
+The agent policy $\pi_\theta$ takes the query q and candidate pool $\mathcal{C}$ as input and generates a single, composite output string. This output is structured to explicitly cite the session IDs used as evidence, followed by the natural language answer. For example, a valid generation would be:
+$\{selected\_memory: \lbrack session\_3, session\_16\rbrack.\ answer: 19\ days.\}$ From this generated string, we can parse both the selected evidence subset \( S \subseteq \mathcal{C} \) (e.g., $[session\_3, session\_16]$) and the final answer \( a \). This integrated action space allows the model to learn the direct link between the evidence it cites and the answer it produces. This agent learns a policy $\pi_\theta(S \mid q, \mathcal{C})$ to select a subset of evidence sessions $S$ from the candidate pool $\mathcal{C}$ given the query $q$.
+
+To train this policy, we employ \textbf{Group Relative Policy Optimization (GRPO)} \citep{zheng2025group}, an effective RL algorithm for LLM fine-tuning that mitigates high reward variance by using a batch-average baseline. Our overall objective is to maximize the following function:
+\begin{equation}
+\begin{split}
+\max_{\theta} J_{\text{GRPO}}(\theta) ={}& \mathbb{E}_{(q,\mathcal{C})\sim\mathcal{D}, \{(\mathcal{S}_j, a_j)\}\sim\pi_{\text{ref}}} \left[ \frac{1}{G}\sum_{j=1}^{G} \min\left(r_j(\theta)\hat{A}_j, \text{clip}(r_j(\theta), 1-\epsilon, 1+\epsilon)\hat{A}_j\right) \right] \\
+& - \beta \mathbb{E}_{(q,\mathcal{C})\sim\mathcal{D}} \left[ D_{\text{KL}}\left(\pi_\theta(\cdot|(q,\mathcal{C})) \,\|\, \pi_{\text{ref}}(\cdot|(q,\mathcal{C}))\right) \right].
+\end{split}
+\label{eq:grpo_objective}
+\end{equation}
+Following a structure similar to PPO \citep{schulman2017proximal}, we first define a probability ratio $r_k(\theta) = \frac{\pi_\theta((\mathcal{S}_j, a_j)) | (q, \mathcal{C}))}{\pi_{\text{ref}}((\mathcal{S}_j, a_j)) | (q, \mathcal{C}))}$, where $\mathcal{S}_j$ and $a_j$ represent the evident session id set and answer in $j$-th generated output. Here, $\epsilon$ is a clipping hyperparameter that restricts the size of policy updates. The advantage estimate $\hat{A}_j$ corresponding to a sampled generation that yields the pair $(S_j,a_j)$ is calculated against the batch-average reward:
+\begin{equation}
+\hat{A}((q,C), (\mathcal{S}_j, a_j)) = R((q,C), (\mathcal{S}_j, a_j)) - \frac{1}{G}\sum_{j=1}^{G}R((q,C), (\mathcal{S}_j, a_j)).
+ \label{eq:advantage}
+\end{equation}
+The reward $R$ is given by a multi-level function in Section~\ref{sec:reward}. The second term in Eq. (\ref{eq:grpo_objective}) is a KL divergence penalty regularizing the current policy $\pi_\theta$ against a frozen reference $\pi_{\text{ref}}$ to ensure training stability. Algorithmic details are in Appendix \ref{app:algorithms}.
+
+\subsection{Reward Design}
+\label{sec:reward}
+In this section, we describe the design of our verifiable rewards. The core motivation of the multi-level reward is to address the limitation of sparse supervision. As shown in Table~\ref{tab:results}, models such as MemAgent \citep{yu2025memagent}, which are trained solely on answer accuracy ($R_a$), fail to develop effective temporal reasoning abilities. Thus, it is necessary to jointly optimize evidence grounding ($R_g$, ensuring the correct sessions are used) and temporal consistency ($R_t$, ensuring temporal alignment with query) to form a dense, structured reward signal. Since all rewards assume that the model output can be successfully parsed into the required format (e.g., $\{selected\_memory: ....\ answer:....\}$), we assign a fixed penalty of $-0.5$ if parsing fails.The overall reward is defined as:
+\begin{equation}
+R =
+\begin{cases}
+w_a R_a + w_g R_g + w_t R_t, & \text{if parsing succeeds},\\[6pt]
+-0.5, & \text{otherwise},
+\end{cases}
+\quad R \in [-1,1].
+\end{equation}
+
+where $w_a, w_g, w_t$ are tunable weights with $w_a + w_g + w_t = 1$. Exact values are in Appendix~\ref{app:hyberparamters}, and sensitivity to different settings is analyzed in Appendix~\ref{sec:sensitive_analysis}.
+
+\paragraph{Accuracy Reward ($R_a$)}
+This reward ensures that the final predicted answer is correct, providing the most direct supervision signal for the agent’s output quality. As tasks require different answer formats, $R_a$ is a multifaceted metric tailored to four main types, each with a specialized evaluation function. For \textbf{Option Answers} (e.g., "A", "A C"), we use a strict Exact Match (EM). For numerical answers involving dates or durations, we employ more flexible metrics: \textbf{Timestamp} answers (e.g., "2024-09-01") are assessed with Unit-aware Accuracy, while \textbf{Time Interval} answers (e.g., "13 days") use $\epsilon$-Exact Match ($\epsilon$-EM). Finally, for sequential answers like \textbf{Event Order}, we use Hamming Accuracy to credit partial correctness. The final reward $R_a$ is normalized to the range $[-1, 1]$, with detailed formulations in Appendix~\ref{reward_extra}.
+
+\paragraph{Evidence Grounding Reward ($R_g$)} 
+This reward encourages the model to retrieve and utilize information from the correct dialogue session(s). Specifically, this reward is calculated by comparing the set of session IDs $\mathcal{C}$ cited by the agent against the gold-standard evidence set, $M^*$, provided in the dataset. The degree of match is quantified using the Jaccard Index, which measures similarity by dividing the size of the intersection of the two sets by the size of their union. This score is then scaled to range $[-1, 1]$  where a perfect match (Jaccard Index of 1) corresponds to a reward of +1, and a complete mismatch (Jaccard Index of 0) results in a reward of -1.
+
+\paragraph{Temporal Consistency Reward ($R_t$):}
+This reward component enforces a fine-grained temporal alignment between the selected sessions and the query. It is composed of two sub-rewards: chronological proximity ($R_s$) and temporal coverage ($R_f$).
+\begin{equation}
+R_t = \alpha R_s + \beta R_f, \quad (\alpha + \beta = 1)
+\end{equation}
+
+\paragraph{\textbf{1.Chronological Proximity ($R_s$, session-level):} }
+This reward measures the temporal distance between the selected session timestamp $U$ and the gold temporal range $I_Q$ of user query. Recognizing that a hard-cutoff penalty is too rigid for the temporal ambiguities in real-world dialogues (e.g., timezone shifts, extended topics), we employ a logistic function to create a soft, differentiable penalty that better handles this imprecision. The reward is formulated as:
+\begin{equation}
+R_s = \frac{c}{1 + \exp(x)} - d, \quad R_s \in (-d,\,c-d],
+\end{equation}
+where the normalized distance $x$ is defined as:
+\begin{equation}
+x := \frac{\mathrm{gap}(U,I_Q) - m}{s}.
+\end{equation}
+
+Here, $\mathrm{gap}(U,I_Q)$ is the minimum temporal distance (in days) between spans $U$ and $I_Q$ (zero if they overlap). The hyperparameters offer fine-grained control: the tolerance margin $m$  sets a penalty-free grace period (e.g., 7 days), the scale factor $s$ controls the penalty curve sharpness, and the parameters $c, d$ scale the final reward magnitude (to a range ($-0.5, 1\rbrack$). This logistic approach ensures that sessions close to $Q$ are highly rewarded while distant sessions are penalized. For detailed settings, please refer to Appendix \ref{app:hyberparamters}.
+
+% \paragraph{\textbf{2. Chronological Fidelity ($R_f$, utterance-level).}}
+% While $R_s$ ensures the selected session is temporally relevant, $R_f$ inspects the fine-grained temporal quality of the \emph{individual utterances} within that session. The goal is to reward sessions that are dense with temporally aligned evidence. To calculate this, we first identify a set of potentially evidential utterances $U_{\text{rel}} \subseteq U$ by filtering for high text similarity to the query (e.g., score $>0.2$). For each individual utterance $u \in U_{\text{rel}}$, we assign a discrete alignment score, $r_u(u, I_Q)$, based on its temporal overlap with time range $I_Q$ of the query q:
+% \begin{equation}
+% r_u(u, I_Q) =
+% \begin{cases}
+% +1, & \text{if utterance } u \text{'s time range is fully within } I_Q,\\[2pt]
+% +0.5, & \text{if utterance } u \text{'s time range partially overlaps with } I_Q,\\[2pt]
+% -1, & \text{if there is no overlap with } I_Q.
+% \end{cases}
+% \end{equation}
+
+% The final chronological fidelity reward for the entire session $U$, denoted as $R_f$, is the average of these individual scores. This aggregation measures the overall temporal quality of the evidence within the session, normalized by the number of relevant utterances:
+% \begin{equation}
+% R_f(U, I_Q) =
+% \begin{cases}
+% \dfrac{1}{|U_{\text{rel}}|}\, \displaystyle\sum_{u \in U_{\text{rel}}} r_u(u, I_Q), & \text{if } |U_{\text{rel}}| > 0,\\[10pt]
+% 0, & \text{otherwise.}
+% \end{cases}
+% \end{equation}
+
+\paragraph{\textbf{2. Chronological Fidelity ($R_f$, utterance-level).}}
+While $R_s$ handles session-level relevance, $R_f$ evaluates the fine-grained quality of \emph{events} within each utterance. It rewards sessions dense with evidence that is temporally aligned with the time range of the query, $I_Q$.
+First, we assign a discrete score $r_e$ to each event $e$ based on its temporal overlap with $I_Q$:
+\begin{equation}
+r_e(e, I_Q) =
+\begin{cases}
++1, & \text{if the time range of event $e$ is fully within } I_Q,\\
++0.5, & \text{if partially overlaps with } I_Q,\\
+-1, & \text{if no overlap with } I_Q.
+\end{cases}
+\end{equation}
+The final fidelity reward $R_f$ is then calculated by first averaging these event scores within each relevant utterance ($u \in U_{\text{rel}}$), and then averaging the resulting utterance scores across the session:
+\begin{equation}
+R_f(U, I_Q) =
+\begin{cases}
+\dfrac{1}{|U_{\text{rel}}|} \displaystyle\sum_{u \in U_{\text{rel}}} \left( \frac{1}{|E_u|} \sum_{e \in E_u} r_e(e, I_Q) \right), & \text{if } |U_{\text{rel}}| > 0, \\[10pt]
+0, & \text{otherwise.}
+\end{cases}
+\end{equation}
+
+This reward structure effectively penalizes a common failure mode: selecting a session from the correct time period but grounding the answer in a textually similar but temporally incorrect utterance from within it. It incentivizes the agent to select sessions that are not just broadly relevant but also \emph{densely packed with chronologically precise evidence}. By combining these three reward signals ($R_a, R_g, R_t$), our multi-level reward structure guides the agent to develop a robust, generalizable temporal reasoning policy that does not overfit to superficial cues.
+
+\section{Experiments}
+\subsection{Datasets}
+\paragraph{Time-Dialog} We use Time-Dialog as the core benchmark, extended from the dialogue portion of the existing Time dataset \citep{wei2025time}, containing 4,716 QA examples corresponding with the multi-session dialogue history as shown in Figure \ref{fig:problem}.o train a robustly time-aware agent, we augment the dataset with fine-grained annotations for supervision, specifically annotating the target time range for each query, utterance-level events with their time spans, and the ground-truth session IDs for ideal evidence retrieval. Further details are shown in Appendix \ref{app:dataset_annotation}.
+Crucially, these fine-grained annotations serve exclusively as a ground-truth signal for computing our multi-level rewards during training. To ensure a fair and realistic evaluation, this enriched information is withheld from all models during inference. The final dataset of 4,716 examples is partitioned into training (4,065), validation (451), and held-out test (200) sets.
+
+\paragraph{LoCoMo}  
+To assess the out-of-domain (OOD) generalization of our trained policy, we employ the LoCoMo benchmark \citep{maharana-etal-2024-evaluating}, an established testbed for multi-session conversational memory. LoCoMo is composed of five distinct subtasks, one of which is specifically designed to evaluate temporal reasoning. This makes it an ideal held-out test set to validate whether our model has learned a generalizable temporal reasoning skill, rather than overfitting to the patterns of the Time-Dialog dataset.
+\subsection{Experiments Setup}
+\paragraph{Baselines}
+Our proposed method, \textsc{Memory-T1}, is built upon \textbf{Qwen2.5-3B} and \textbf{Qwen2.5-7B-Instruct} \citep{qwen2.5}. We compare it against a comprehensive suite of baselines, including standard methods like \textbf{Full Context}, which is evaluated across a wide range of open-source models (\textbf{Qwen2.5}-3B/7B/14B, \textbf{Gemma-4B-it} \citep{gemma_2025}, \textbf{LLaMa-3.1-8B-Instruct} \citep{dubey2024llama}) and the closed-source \textbf{GPT-4} \citep{achiam2023gpt}; standard \textbf{Retrieval-Augmented Generation (RAG)} \citep{lewis2020retrieval}; the agentic \textbf{ReAct} framework using GPT-4 as its backbone \citep{yao2023react}; and a \textbf{Supervised Fine-Tuning (SFT)} model fine-tuned from Qwen2.5-3B \citep{ouyang2022training}. Furthermore, we benchmark against two state-of-the-art specialized agents, \textbf{MemAgent} \citep{yu2025memagent} and \textbf{Time-R1} \citep{liu2025time}, by evaluating their public checkpoints in a zero-shot setting. Finally, to isolate the benefits of our contributions, we include an \textbf{RL (Task Reward Only)} ablation baseline, which uses the same architecture as \textsc{Memory-T1} but is trained only with a task accuracy reward ($R_a$), omitting our proposed temporal consistency ($R_t$) and evidence grounding ($R_g$) rewards.
+
+\paragraph{Implementation} All our experiments build upon Qwen2.5-3B-Instruct and Qwen2.5-7B-Instruct as the main models. We adopt BM25 as retriever model due to the efficiency. We adopt the GRPO training strategy within the VERL framework \citep{sheng2024hybridflow}. We implement our RL training with a batch size of 32, a learning rate of $1 \times 10^{-6}$, K=8 rollout responses per prompt, KL coefficient = 0.1, and a maximum sequence length of 16k tokens.
+
+
+\begin{table*}[t]
+\centering
+\caption{Performance comparison across different models and training strategies on temporal reasoning subtasks. \textbf{Category A}'s metrics include Location (Loc.), Duration Comparison (DC.), Comparison (Comp.), Order Comparison (OC.), and Extraction (Ext.). \textbf{Category B}'s metrics covers ER.=Event Reasoning, OR.=Order Reasoning, RR.=Range Reasoning. \textbf{Category C}'s metrics comprises CTF.=Contextual Temporal Filtering, Co-tmp.=Co-temporality, TL.=Timeline. \textbf{Bold} and \underline{underline} denote column-wise best and second-best \emph{among non-GPT rows}. $^\dagger$Oracle setting using gold test evidence.}
+\begingroup
+\setlength{\tabcolsep}{4.5pt}
+\renewcommand{\arraystretch}{1.1}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccccc}
+\toprule
+\multirow{2}{*}{\textbf{Experiments}} & \multicolumn{5}{c}{\textbf{Category A}} & \multicolumn{3}{c}{\textbf{Category B}} & \multicolumn{3}{c}{\textbf{Category C}} & \multirow{2}{*}{\textbf{Overall}} \\
+\cmidrule(lr){2-6}\cmidrule(lr){7-9}\cmidrule(lr){10-12}
+& \textbf{Loc.} & \textbf{DC.} & \textbf{Comp.} & \textbf{OC.} & \textbf{Ext.} & \textbf{ER.} & \textbf{OR.} & \textbf{RR.} & \textbf{CTF.} & \textbf{Co-tmp.} & \textbf{TL.} & \\
+\midrule
+GPT-4 (Oracle Evidence)$^\dagger$           & 88.9 & 78.3 & 54.9 & 95.0 & 66.7 & 100.0 & 88.9 & 93.8 & 83.3 & 100.0 & 35.4 & 86.2 \\
+GPT-4 (Full Prompt)                         & 61.1 & 87.0 & 46.7 & 85.0 & 22.2 & 64.1 & 55.6 & 81.3 & 50.0 & 77.8 & 27.1 & 64.8 \\
+GPT-4 (ReAct)                                & 66.7 & 43.5 & 39.2 & 75.0 & 32.2 & 67.1 & 72.2 & 70.8 & 68.5 & 84.3 & 29.2 & 62.8 \\      
+\midrule
+Gemma-4B-it                                 & 5.6 & \textbf{60.9} &  \underline{12.7} & 55.0 & 33.3 & 62.2 & 38.9 & 50.0 & 44.4 & 61.1 & 15.3 & 45.0 \\
+Time-R1                 & 11.1 & 47.8 & 13.9 & 65.0 & 55.6 & 76.9 & 27.8 & 44.4 & 55.6 & 66.7 & 25.0 & 49.4 \\
+Qwen2.5-3B (Instruct)                       & 5.6 & \underline{56.5} & 7.2 & \underline{70.0} & 44.4 & 66.7 & 33.3 & 56.3 & 55.6 & 77.8 & 12.5 & 49.4 \\
+Qwen2.5-3B+SFT                 & 22.2 & \underline{56.5} & 7.9 & 65.0 & 44.4 & 66.7 & 33.3 & 56.3 & 55.6 & 77.8 & \underline{16.7} & 50.6 \\
+
+\rowcolor{gray!10}
+\textbf{Memory-T1 (3B)}                             &50.0 & 52.2 & 7.1 & \textbf{75.0} & \underline{55.6} & \underline{82.1} & \underline{66.7} & \textbf{87.5} & \textbf{88.9} & \textbf{94.4} & 12.4 & \underline{66.9} \\
+\midrule
+Llama-3-8B (Instruct)                       & 22.2 & 43.5 & 5.6 & \textbf{75.0} & 33.3 & 79.5 & 27.8 & 56.3 & 72.2 & 27.8 & 14.6 & 48.4 \\
+MemAgent-7B                                 &55.6 & 47.8 & 10.2 & 55.0 & 40.7 & 61.5 & 38.9 & 62.5 & 38.9 & \underline{72.2} & \textbf{27.1} & 49.9 \\
+Qwen2.5-7B (Instruct)                       & \textbf{61.1} & 52.2 & 0.0 & \textbf{75.0} & \underline{55.6} & 63.3 & 38.9 & 54.2 & 50.0 & 72.2 & \underline{16.7} & 53.2 \\
+Qwen2.5-14B (Instruct)                      & 16.7 & 47.8 & 4.4 & \underline{70.0} & 55.6 & \textbf{84.6} & \underline{66.7} & \underline{75.0} & 69.7 & \textbf{94.4} & 20.8 & 60.7 \\
+\rowcolor{gray!10}
+\textbf{MemoryT1 (7B)} & \textbf{61.1} &  52.2 & 8.6 & 65.0 & \textbf{56.7} & 71.8 & \textbf{83.3} & \textbf{87.5} & \textbf{88.9} & \textbf{94.4} & \textbf{27.1} & \textbf{67.0} \\
+\bottomrule
+\end{tabular}%
+}
+\endgroup
+
+\label{tab:results}
+\end{table*}
+
+
+\subsection{Results}
+As shown in Table~\ref{tab:results}, \textsc{Memory-T1} establishes a new state-of-the-art, with our 3B and 7B models achieving top overall scores of 66.9\% and 67.0\%. This performance represents a significant leap over a diverse set of baselines. Compared to specialized SOTA models, our trained agent surpasses the zero-shot performance of both the temporal reasoning model Time-R1 (49.4\%) and the memory-based framework MemAgent (49.9\%) by over 17 absolute points, highlighting the necessity of targeted training for this complex task. Crucially, our approach proves superior to simply increasing model scale. Our 3B model not only consistently outperforms larger models from different families, including Gemma-4B (45.0\%), Llama-3-8B (48.4\%), and even the much larger Qwen2.5-14B (60.7\%), but also performs nearly identically to our 7B variant. This strongly suggests that the performance gains stem primarily from our learned policy rather than the scale of the base model. Notably, \textsc{Memory-T1} also outperforms standard GPT-4 configurations, surpassing both Full Prompt (64.8\%) and ReAct (62.8\%). While a gap remains to the ideal GPT-4 (Oracle) score of 86.2\%, this overall dominance confirms that our learned memory policy is both necessary and effective. This advantage is driven by our model's particularly strong performance on complex reasoning tasks, such as order reasoning (OR) and range reasoning (RR), directly validating the effectiveness of its temporally grounded memory selection policy. 
+
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/top_k_recall_time_filter.pdf}
+    \caption{Performance comparison between Memory-T1 (3B) and Qwen2.5-3B (Instruct) under different top-k values (bar charts represent overall F1 scores; line charts represent evidence session recall rate. Comparison conditions: With/without temporal filtering; Top-k refers to the number of sessions retrieved in the candidate generation phase.) }
+    \label{fig:top_k_time_filter}
+\end{figure}
+
+
+\subsection{Ablation Study}
+
+\paragraph{Ablation Study on reward components.} Our multi-component reward function is crucial for robust performance, as shown in Table~\ref{tab:reward_ablation_study}. Training with only task accuracy ($R_a$) leads to a catastrophic 22.4\% drop in the overall score, with performance on complex reasoning (Category B \& C) collapsing. Removing the evidence grounding reward ($w/o R_g$) significantly harms localization and extraction-based tasks (Category A, -17.4\%), causing a 9.1\% overall performance drop and confirming its role in preventing distraction. The temporal consistency reward ($R_t$), composed of sequence ($R_s$) and fine-grained ($R_f$) components, is vital for structured reasoning. Most revealingly, ablating only the sequence component ($-R_s$) creates a sharp trade-off: simpler tasks (Category A) unexpectedly improve by 23.4\%, while complex reasoning (Category B) collapses by 56.2\%. This highlights a crucial synergy: $R_g$ grounds the model in \emph{what} evidence to use, while $R_t$ teaches it \emph{how} to reason with that evidence temporally. To clarify the non-monotonic effects of $R_t$ components, Category-A duration tasks rely on two complementary mechanisms: global timeline consistency ($R_s$) and content-level temporal relevance ($R_f$). Removing only one leaves the other as a compensatory constraint, improving simpler timestamp- or gap-based reasoning. Full removal of $R_t$ eliminates both regulating factors, preventing correct event selection and temporal alignment, which explains the sharp performance drop.
+
+\begin{figure}[t]
+\centering
+\begin{minipage}[c]{0.48\textwidth}
+    \captionof{table}{Ablation study on the reward function of Memory-T1 (3B). Relative changes compared to the full model are shown in parentheses.}
+    \label{tab:reward_ablation_study}
+    \centering
+    \renewcommand{\arraystretch}{1.3}
+    \resizebox{\textwidth}{!}{
+    \begin{tabular}{lcccc}
+    \toprule
+    \textbf{Model} & \textbf{Category A} & \textbf{Category B} & \textbf{Category C} & \textbf{Overall} \\
+    \midrule
+    \textbf{Memory-T1 (3B)} & 49.5 & 79.5 & 80.3 & 66.9 \\
+    \midrule
+    \quad \textit{w/o $R_t$} & 
+        \makecell{45.6 \\ (\textcolor{red}{-7.9\%})} & 
+        \makecell{75.1 \\ (\textcolor{red}{-5.5\%})} & 
+        \makecell{64.3 \\ (\textcolor{red}{-19.9\%})} & 
+        \makecell{63.5 \\ (\textcolor{red}{-5.1\%})} \\
+    \quad – remove $R_s$ only & 
+        \makecell{61.1 \\ (\textcolor{blue}{+23.4\%})} & 
+        \makecell{34.8 \\ (\textcolor{red}{-56.2\%})} & 
+        \makecell{66.3 \\ (\textcolor{red}{-17.4\%})} & 
+        \makecell{66.3 \\ (\textcolor{red}{-0.9\%})} \\
+    \quad – remove $R_f$ only & 
+        \makecell{50.0 \\ (\textcolor{blue}{+1.0\%})} & 
+        \makecell{56.5 \\ (\textcolor{red}{-28.9\%})} & 
+        \makecell{63.0 \\ (\textcolor{red}{-21.6\%})} & 
+        \makecell{64.8 \\ (\textcolor{red}{-3.1\%})} \\
+    \midrule
+    \quad \textit{w/o $R_g$} & 
+        \makecell{40.9 \\ (\textcolor{red}{-17.4\%})} & 
+        \makecell{75.3 \\ (\textcolor{red}{-4.2\%})} & 
+        \makecell{75.9 \\ (\textcolor{red}{-5.5\%})} & 
+        \makecell{60.8 \\ (\textcolor{red}{-9.1\%})} \\
+    \midrule
+    \quad $R_a$ only & 
+        \makecell{43.6 \\ (\textcolor{red}{-11.9\%})} & 
+        \makecell{57.5 \\ (\textcolor{red}{-27.7\%})} & 
+        \makecell{59.0 \\ (\textcolor{red}{-26.6\%})} & 
+        \makecell{51.9 \\ (\textcolor{red}{-22.4\%})} \\
+    \bottomrule
+\end{tabular}
+}
+\end{minipage}%
+\hfill % 分隔符
+\begin{minipage}[c]{0.48\textwidth}
+  %   \centering
+  %     \includegraphics[width=\textwidth]{figures/sensetive_analysis_new.pdf}
+  %     \caption{Sensitive analysis. Heatmap of level-wise performance. 
+  % $W_1$, $W_2$, $W_3$, $W_4$ correspond to reward weights combination 
+  % $(w_a,w_g,w_t)=$$(0.6,0.2,0.2),$ $\,(0.5,0.25,0.25),$$\,(0.8,0.1,0.1),$$\,(\tfrac{1}{3},\tfrac{1}{3},\tfrac{1}{3})$.}
+  % \label{fig:sensitive_analysis}
+  \paragraph{Ablation Study on candidate generation phase.}  Figure~\ref{fig:top_k_time_filter} validates our coarse-to-fine candidate generation strategy. First, increasing retrieval depth top-k to 10 is essential to achieve high evidence recall (~90\%). Our temporal filter proves highly precise, as the overlapping recall lines show it removes distracting context without sacrificing this crucial evidence. Second, even with the same unfiltered context, our RL-tuned \textsc{Memory-T1} agent outperforms the base model (54.0\% vs. 44.2\%). The synergy of combining broad retrieval for high recall with sharp, evidence-preserving filtering creates an optimal candidate pool that enables the agent to achieve its final 66.9\% score.
+\end{minipage}
+\end{figure}
+
+
+
+
+
+\subsection{Model Analysis}
+
+\begin{table}[t]
+\centering
+\caption{LoCoMo benchmark: Out-of-Domain evaluation of Qwen-2.5-3B-Instruct and Memory-T1 (3B) under RAG and Non-RAG settings. 
+Values are shown as percentages; best results in each column are bolded. $\Delta$Overall shows improvement relative to Qwen-2.5-3B-Instruct (Non-RAG).}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l|l|ccccc|c|c}
+\toprule
+\textbf{Model Family} & \textbf{Setting} & \textbf{Single-Hop} & \textbf{Multi-Hop} & \textbf{Temporal} & \textbf{Open-Domain} & \textbf{Adversarial} & \textbf{Overall} & $\Delta$Overall (\%) \\
+\midrule
+\multirow{2}{*}{Qwen-2.5-3B (Instruct)} 
+ & Non-RAG  & 49.8 & 28.7 & 24.5 & 13.5 & 16.6 & 33.5 & -- \\
+ & RAG      & 46.0 & 22.0 & 27.3 & 11.4 & 19.5 & 31.9 & -1.6\% \\
+\midrule
+\multirow{2}{*}{Memory-T1 (3B)} 
+ & Non-RAG  & \textbf{51.2} & \textbf{30.2} & \textbf{31.5} & \textbf{15.8} & 26.0 & \textbf{37.7} & +4.2\% \\
+ & RAG      & 48.9 & 25.8 & 30.7 & 14.6 & \textbf{29.8} & 36.7 & +3.2\% \\
+\bottomrule
+\end{tabular}}
+\label{tab:locomo_compare}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figures/group_long_context.pdf}
+  \caption{Comparison of Qwen2.5 and Memory-T1 models on the test set, where examples are grouped by the length of each test example (tokens) (0k–8k, 8k–16k, 16k–32k, 32k–64k, 64k–128k) to assess performance variation across lengths, along with overall evaluation.}
+  \label{fig:group_long_context}
+\end{figure}
+
+\paragraph{Out-of-Domain Generalization.} Our model demonstrates strong out-of-domain (OOD) generalization on the LoCoMo benchmark (Table~\ref{tab:locomo_compare}, Table \ref{tab:sup_ood} in Appendix C)). \textsc{Memory-T1} achieves a top score of \textbf{37.7\%}, a significant improvement over the 33.5\% from the base Qwen-2.5-3B model. This advantage is particularly consistent in the Non-RAG setting ($31.9\% \to 36.7\%$), driven by substantial gains in the \textbf{Temporal} and \textbf{Adversarial} subtasks. Intriguingly, \textsc{Memory-T1} yields better performance in the Non-RAG setting compared to the RAG setting, suggesting it has learned a superior internal memory management skill. The \textbf{Adversarial} subset is a notable exception, which focuses on answerability detection (saying “I don’t know” when the information is missing). Without the RAG setting, the Post-filter candidate pool remains lengthy and is prone to “lost in the middle” effects and spurious snippets that encourage hallucination. With RAG, the condensed candidate pool prunes spurious in-dialog segments, preserving a compact set lacking supporting evidence. This makes it easier for the RL policy to learn “unanswerable” behavior more effectively ($26.0 \to 29.8$). It introduces a mild distribution shift and loss of temporally key candidates on standard tasks but benefits adversarial detection by simplifying evidence incompleteness detection.
+
+% improving under RAG ($26.0 \to 29.8$) because retrieval filters spurious in-dialog content, thereby aiding unanswerability detection. This indicates that RAG primarily reshapes the candidate evidence distribution, which benefits unanswerability while introducing mild distribution shifts in standard temporal reasoning tasks.}
+
+
+% Intriguingly, standard RAG harms the baseline's performance, while our model's learned policy is so effective that it performs best \emph{without} RAG, suggesting it has learned a superior internal memory management skill. This is further supported by the substantial performance gains in the \textbf{Temporal} and \textbf{Adversarial} subtasks, validating that our training instills robust, generalizable reasoning capabilities. 
+
+% \textcolor{blue}{While the \textbf{Adversarial} subset improves under the RAG setting because the retrieval step removes spurious in-dialogue content, which helps the model more reliably identify missing evidence and produce appropriate “unknown” responses (26.0 → 29.8). This pattern indicates that RAG primarily reshapes the distribution of candidate evidence rather than enhancing the model’s temporal reasoning, improving unanswerability detection while introducing mild distribution shift on standard temporal tasks.}
+
+\paragraph{Robustness in Long-Context Scenarios.} To assess how models handle increasingly complex dialogues, we partition the test set by context length and evaluate performance on each bracket (Figure~\ref{fig:group_long_context}). As context length increases, the performance of baseline models collapses due to attentional dilution; the Qwen2.5-7B baseline, for instance, drops by over 30 F1 points. In contrast, \textsc{Memory-T1} maintains a high and stable F1 score across all lengths. This creates a performance gap that widens dramatically with context, growing from a +9.8 point advantage to a massive \textbf{+25.0 point} lead for \textsc{Memory-T1} (7B) in the 64k-128k bracket. This resilience stems directly from our learned policy, which effectively filters context and shields the model from distraction, confirming its superiority for long-range reasoning. Further controlled experiments on lost-in-the-middle effects are provided in Appendix \ref{app:control_context_window}.
+
+
+\begin{table}[t!]
+% \color{blue}
+\footnotesize 
+\setlength{\tabcolsep}{5pt}
+\centering
+\caption{Robustness of Memory-T1 under increasing time label noise.}
+\label{tab:performance_sparsity}
+\resizebox{\textwidth}{!}{%
+\footnotesize
+\begin{tabular}{@{}l c c c c c c c c c c c c@{}}
+\toprule
+\multirow{2}{*}{\textbf{Noise Level}} & \multicolumn{5}{c}{\textbf{Category A}} & \multicolumn{3}{c}{\textbf{Category B}} & \multicolumn{3}{c}{\textbf{Category C}} & \multirow{2}{*}{\textbf{Overall}} \\
+\cmidrule(lr){2-6}\cmidrule(lr){7-9}\cmidrule(lr){10-12}
+& \textbf{Loc.} & \textbf{DC.} & \textbf{Comp.} & \textbf{OC.} & \textbf{Ext.} & \textbf{ER.} & \textbf{OR.} & \textbf{RR.} & \textbf{CTF.} & \textbf{Co-tmp.} & \textbf{TL.} & \\
+\midrule
+20\% & 27.8 & 43.5 & 5.0 & 55.0 & 25.9 & 76.9 & 72.2 & 81.2 & 94.4 & 94.4 & 16.7 & 60.0 \\
+10\% & 50.0 & 43.5 & 10.6 & 65.0 & 55.6 & 74.4 & 67.4 & 81.2 & 88.9 & 94.4 & 18.8 & 63.4 \\
+5\% & 50.0 & 60.9 & 5.0 & 60.0 & 55.6 & 82.0 & 77.8 & 87.5 & 94.4 & 88.9 & 16.7 & 67.0 \\
+\bottomrule
+    \end{tabular}}
+    \label{tab:noise_analysis}
+\end{table}
+
+\begin{table}[t]
+\centering
+% \color{blue}
+\caption{Analysis of model performance and Retrieval-Augmented Generation (RAG) Latency (time in seconds)}
+\setlength{\tabcolsep}{5pt} % 将列间距设置为 3pt (默认通常约 6pt)
+\small % 保持字体稍小的设置
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Model} &
+\textbf{Num of Q} &
+\textbf{Total Inf. Time} &
+\textbf{Avg Latency} &
+\textbf{Total Inf. w R} &
+\textbf{Retrieval Time} \\
+\midrule
+Time-R1 & 200 & 248.62 & 1.24 & 256.35 & 0.01 \\
+MemAgent  & 200 & 312.72 & 1.56 & 320.47 & 0.01 \\
+Qwen2.5-3B (Instruct)  & 200 & 271.83 & 1.36 & 279.74 & 0.01 \\
+Memory-T1  & 200 & 252.08 & 1.26 & 259.81 & 0.01 \\
+\bottomrule
+\end{tabular}
+\label{tab:efficiency_analysis}
+\end{table}
+
+\paragraph{Robustness under increasing time label noise.} As shown in Table \ref{tab:noise_analysis}, with 5\% noise (realistic error rate), overall F1 remains 67.0, and key temporal reasoning tasks such as Counterfactual (CTF.), Co-temporality (Co-tmp.), and Relative Reasoning (RR.) stay high at 94.4, 88.9, and 87.5, respectively. Increasing the noise to 10\% and 20\% leads to a gradual but moderate degradation of the overall score to 63.4 and 60.0. Notably, the most temporally demanding tasks remain robust: CTF. and Co-tmp. stay above 88.9 F1 even at 20\% noise. The main decline is concentrated in time-span–related subtasks (such as Localization and Extract). This confirms the Memory-T1 is resilient to realistic label noise, supporting its practical applicability in real-world settings where time labels are imperfect.
+
+\paragraph{Efficiency Analysis.} Memory-T1 incurs negligible additional inference latency (Table \ref{tab:efficiency_analysis}). The average latency (1.26 seconds per query) is highly comparable to baselines such as Time-R1 (1.24 seconds) and Qwen2.5-3B (1.36 seconds). Crucially, the retrieval overhead (0.01 seconds) is insignificant relative to the total LLM generation latency, confirming that the framework achieves its improved performance with minimal computational cost.
+
+
+\paragraph{Qualitative Analysis.} We focused our qualitative analysis on the six subtasks (ER., OR., RR., CTF., Co-tmp., and Loc.) where Memory-T1 exhibits the largest performance gains (Table \ref{tab:qualitative_analysis} in Appendix). A consistent pattern emerges across these subtasks: the base model often relies on semantic similarity rather than temporal correctness, which leads to systematic errors such as neglecting time constraints, confusing event order, overlooking co-temporal relations, and failing to incorporate counterfactual adjustments. Memory-T1 mitigates these issues through explicit time-range filtering and RL-based selection that enforces temporal consistency, yielding more accurate localization, ordering, and co-temporality. These qualitative observations align with and explain the performance improvements observed on the six subtasks.
+
+\section{Conclusion}
+In this work, we introduce \textsc{\textbf{Memory-T1}}, a novel reinforcement learning framework addressing the critical challenge of temporal reasoning over long, multi-session dialogues. The framework employs a coarse-to-fine strategy, guided by a multi-level reward function that incorporates answer accuracy, evidence grounding, and a temporal consistency signal. This design provides the agent with dense supervision to effectively handle temporal ambiguities and noise. Experiments show that \textsc{Memory-T1} achieves state-of-the-art performance on the Time-Dialog benchmark, enabling a 3B model to outperform a 14B baseline and maintaining strong robustness in dialogue histories up to 128k tokens. This work demonstrates that selecting temporally consistent memory evidence is a critical step toward building more reliable and factually consistent long-term conversational agents.
+
+\section*{Reproducibility Statement}
+We are committed to ensuring the transparency and reproducibility of our research. To support this commitment, we will publicly release our annotated dataset and all source code, facilitating future extensions and community research. Comprehensive details of our methodology are provided throughout this paper: the annotation process and prompts are illustrated in Appendix \ref{app:dataset_annotation}, Figures \ref{fig:question-time-range-annotation-prompt}, \ref{fig:event-extraction-prompt}, and \ref{fig:fact-evidence-prompt}; training and evaluation prompts are shown in Figure \ref{fig:memory-aware-prompt} and Figure \ref{fig:evaluation-prompt}, respectively. Furthermore, detailed algorithmic procedures can be found in Appendix \ref{app:algorithms}. We believe that releasing these assets will lower the barrier for replication, enable fair comparisons, and foster further exploration in this line of research.
+
+\section*{Ethics Statement}
+The main artifact of this work is the annotated Time-Dialog dataset. To facilitate the process, we develop a dedicated evidence-annotation website (Figure \ref{fig:website_annotation}) and engage three experienced NLP researchers as annotators. Approximately 200 human hours are devoted to verifying GPT-4–assisted annotations, categorizing error types, and refining the protocol through several iterations. All annotators are properly briefed and held regular discussions to resolve ambiguous cases. Model evaluations are conducted by three trained research assistants, each compensated at \$20/hour, which is above the local average. Prior to release, all data underwent rigorous screening to ensure the exclusion of personally identifiable information and offensive content. Both the dataset and code will be publicly released under an MIT license to encourage transparency and community use.
+
+% \newpage
+% \subsubsection*{Acknowledgments}
+% Use unnumbered third level headings for the acknowledgments. All
+% acknowledgments, including those to funding agencies, go at the end of the paper.
+
+
+\bibliography{iclr2026_conference}
+\bibliographystyle{iclr2026_conference}
+\newpage
+
+\appendix
+
+\section{Dataset and Annotations}
+\label{app:dataset_annotation}
+Our experiments are conducted on the \textbf{Time} dataset, a comprehensive benchmark for temporal reasoning over long-form dialogues. The dataset features complex dialogue histories and is structured into 3 levels of reasoning difficulty and 11 distinct QA subtasks. The distribution of these subtasks in the dataset is detailed in Table~\ref{tab:time_dataset_stats}.
+
+
+\begin{table}[htbp]
+\centering
+\caption{Distribution and characteristics of QA subtasks in the Time dataset, grouped by reasoning level.}
+\label{tab:time_dataset_stats_detailed}
+\begin{tabular}{llcr} % l=left, c=center, r=right
+\toprule
+\textbf{QA Subtask} & \textbf{Format} & \textbf{category} & \textbf{\# Samples} \\
+\midrule
+% --- Level 1 Tasks ---
+Localization & Time Span & A & 381 \\
+Duration\_Compare & Single Choice & A & 385 \\
+Computation & Time Span & A & 390 \\
+Order\_Compare & Single/Multi Choices & A & 380 \\
+Extract & Single/Multi Choices & A & 197 \\
+\midrule
+% --- Level 2 Tasks ---
+Explicit\_Reasoning & Single Choice & B & 363 \\
+Order\_Reasoning & Single Choice & B & 381 \\
+Relative\_Reasoning & Single Choice & B & 393 \\
+\midrule
+% --- Level 3 Tasks ---
+Counterfactual & Single/Multi Choices& C & 398 \\
+Co\_temporality & Single/Multi Choices & C & 397 \\
+Timeline & Event Order & C & 390 \\
+\bottomrule
+\end{tabular}
+\label{tab:time_dataset_stats}
+\end{table}
+
+While the Time dataset provides a strong foundation, it lacks the fine-grained annotations necessary for our reward mechanisms and detailed analysis. To address this, we augmented the dataset with three additional layers of annotations. Our annotation process employed an iterative framework where GPT-4 performed an initial annotation pass, followed by human verification to identify systematic error patterns. These insights were then used to refine the prompts for a final, improved annotation pass, achieving an overall accuracy of over 95\%.
+
+\paragraph{1. Question Temporal Range ($I_Q$).}
+First, for each question, we annotate its \textbf{target temporal range ($I_Q$)}. Many questions implicitly focus on a specific period within the long dialogue history. We prompted GPT-4 to infer and extract this time range. For questions with no discernible temporal focus, we assigned a default range starting from ``unknown'' to our annotation timestamp (e.g., ``2025-07-17T11:46:32''). As this timestamp is later than any event in the dataset, this default range effectively covers the entire dialogue history. The prompt can be found in Figure \ref{fig:question-time-range-annotation-prompt}
+
+\paragraph{2. Evidence Grounding ($\mathcal{M}^*$).}
+Second, we annotate the \textbf{ground-truth evidence sessions ($\mathcal{M}^*$) and utterances} required to answer each question. The original dataset's fact bank could not be reliably mapped to the dialogue text. We therefore used our iterative GPT-4 (Figure \ref{fig:fact-evidence-prompt}) and human-in-the-loop process (Figure \ref{fig:website_annotation}) to perform this grounding. This resulted in a session-level annotation accuracy of over 95\% and an utterance-level accuracy of over 85\%. To avoid introducing potential noise from less accurate annotations into our reinforcement learning process, we use the more reliable \textbf{session-level annotations} for calculating the Evidence Grounding Reward ($R_g$). 
+
+\paragraph{3. Utterance-level Event Times.}
+Finally, to enable a deeper temporal analysis, we performed \textbf{utterance-level event extraction and temporal grounding} for the entire dialogue history (Figure \ref{fig:event-extraction-prompt}). This annotation is crucial because the timestamp of a dialogue turn (when something was said) often differs from the timestamp of the event being discussed (when something happened). This distinction is the primary motivation for our chronological proximity ($R_f$) reward. For each utterance, we prompted GPT-4 to extract key events and resolve their temporal scope based on the dialogue context. For instance, given a dialogue turn on `2025-06-20`, an utterance mentioning ``the meeting last week'' would be grounded to a specific range like `[2025-06-09, 2025-06-13]`. For utterances without explicit temporal markers, we used grammatical tense to infer a broad range (e.g., past tense implies a range from the distant past up to the dialogue time, while future tense implies a range from the dialogue time to the distant future).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figures/web_screen.pdf}
+  \caption{An overview of website for human annotation.}
+  \label{fig:website_annotation}
+\end{figure}
+
+\section{Algorithm}
+\label{app:algorithms}
+The core of the framework is a reinforcement learning agent trained with Group Relative Policy Optimization (GRPO) as shown in Algorithm~\ref{alg:training}. Our overall approach involves a two-phase process: first, an efficient candidate generation stage to prune the search space, followed by a reinforcement learning (RL) fine-tuning stage to train the policy model.
+
+\paragraph{Phase 1: Candidate Generation.}
+Given a query $q$ and the full dialogue memory $\mathcal{M}$, we first generate a small, highly relevant pool of candidate sessions $\mathcal{C}$. This step, detailed in Algorithm~\ref{alg:candidate_gen}, is crucial for making the subsequent selection process tractable and efficient.
+
+\paragraph{Phase 2: RL Fine-tuning.}
+With the candidate set $\mathcal{C}$, we perform an RL update. For each instance in the batch, we sample $G$ distinct outputs from the current policy $\pi_\theta$. Each output contains a selected evidence set $\mathcal{S}_j$ and a generated answer $a_j$. A multi-level reward $R_j$ is then calculated for each of the $G$ samples by comparing it against the ground-truth labels $(\mathcal{M}^*, a^*, I_Q)$. This reward, detailed in Algorithm~\ref{alg:reward_calc}, provides a comprehensive signal reflecting accuracy, evidence grounding, and temporal consistency.
+
+To reduce the variance of the policy gradient estimate, we compute an advantage $\hat{A}_j$ for each sample. Following GRPO, we use a simple yet effective batch-average baseline, where the advantage is the sample's reward minus the average reward across all $G$ samples in the batch ($\hat{A}_j = R_j - \bar{R}$).
+
+Finally, the policy model's parameters $\theta$ are updated using the GRPO objective function. This objective maximizes the advantage-weighted log-probability of the sampled outputs. Crucially, it also includes a Kullback-Leibler (KL) divergence term, $D_{\text{KL}}(\pi_\theta \,\|\, \pi_{\text{ref}})$, weighted by $\lambda$. This term regularizes the policy update, preventing the trained policy $\pi_\theta$ from deviating too drastically from a frozen reference policy $\pi_{\text{ref}}$, which is essential for maintaining training stability.
+
+\subsection{Candidate Generation (Algorithm~\ref{alg:candidate_gen})}
+The candidate generation process is a critical filtering cascade designed to efficiently narrow down the vast memory repository $\mathcal{M}$ to a small set of promising candidates $\mathcal{C}$. This is achieved through a two-stage process:
+
+\paragraph{1. Temporal Filtering.}
+First, we leverage a powerful LLM to perform a zero-shot prediction of the likely temporal window $(t_{\text{start}}, t_{\text{end}})$ relevant to the user query $q$. We then perform an initial broad-phase filtering by retaining only those sessions $(\tau_i, S_i)$ from $\mathcal{M}$ whose timestamps $\tau_i$ overlap with this predicted window. This step effectively prunes the majority of irrelevant sessions based on a strong temporal heuristic.
+
+\paragraph{2. Relevance Filtering.}
+The temporally-filtered subset $\mathcal{M}_{\text{temp}}$ is then passed to a second filtering stage. Here, we use a fast and effective lexical retrieval method, BM25, to rank all sessions in $\mathcal{M}_{\text{temp}}$ based on their textual relevance to the query $q$. The final candidate pool $\mathcal{C}$ is formed by selecting the top-ranked sessions from this list. This cascade approach—using a temporal heuristic followed by lexical matching—allows for an efficient and effective reduction of the search space without relying on expensive semantic models at a large scale.
+
+\subsection{Multi-Level Reward Calculation (Algorithm~\ref{alg:reward_calc})}
+To provide a rich and informative learning signal for our policy, we designed a multi-level reward function that captures three critical aspects of the task. The final reward $R$ is a weighted sum of these components.
+
+\paragraph{1. Task-level Accuracy Reward ($R_a$).}
+This is a sparse, binary reward that directly measures task success. It yields a reward of 1 if the generated answer $a$ is correct with respect to the ground-truth answer $a^*$, and 0 otherwise. This component ensures the model is strongly incentivized to produce factually correct final answers.
+
+\paragraph{2. Evidence Grounding Reward ($R_g$).}
+This component evaluates the quality of the retrieved evidence. We calculate the F1-score between the set of session IDs in the predicted evidence set $\mathcal{S}$ and the ground-truth evidence set $\mathcal{M}^*$. This dense reward encourages the model to select the precise set of sessions required to formulate the answer, promoting better interpretability and faithfulness.
+
+\paragraph{3. Temporal Consistency Reward ($R_t$).}
+This novel reward component assesses the temporal quality of the selected evidence $\mathcal{S}$ with respect to the ground-truth temporal range $I_Q$. It is computed as the average of individual rewards over all selected sessions. For each session $U \in \mathcal{S}$, the reward is a weighted sum of two sub-components:
+\begin{itemize}
+    \item \textbf{Chronological Proximity  ($R_s$):} This measures the temporal distance between the session's timestamp $U$ and the gold range $I_Q$. It uses a logistic function to provide a soft, differentiable penalty, rewarding close proximity and penalizing distant sessions.
+    \item \textbf{Chronological Fidelity ($R_f$):} This provides a more fine-grained signal. Within a given session $U$, it assesses whether the events in the utterances are relevant to the query are themselves temporally aligned with the gold range $I_Q$. It returns a positive reward for relevant utterances inside $I_Q$, a smaller positive reward for those on the boundary, and a negative penalty for those outside.
+\end{itemize}
+The final reward $R$ is the weighted sum $w_a R_a + w_g R_g + w_t R_t$, where the weights allow us to balance the relative importance of task accuracy, evidence quality, and temporal alignment.
+
+\begin{algorithm}[t!]
+\caption{\textsc{Memory-T1} Training Procedure}
+\label{alg:training}
+\begin{algorithmic}[1]
+\Require
+\Statex Full dialogue memory repository $\mathcal{M}$
+\Statex Training dataset $\mathcal{D} = \{(q_i, \mathcal{M}^*_i, a^*_i, I_{Qi})\}_{i=1}^N$, where $\mathcal{M}^*$ is the ground-truth evidence set, $a^*$ is the ground-truth answer, and $I_Q$ is the ground-truth temporal range
+\Statex Policy model to be trained $\pi_\theta$ and a frozen reference policy $\pi_{\text{ref}}$
+\Statex Hyperparameters: KL divergence weight $\lambda$, reward weights $w_a, w_g, w_t$, group size $G$
+\Ensure
+\Statex Optimized policy model $\pi_{\theta'}$
+
+\Function{TrainMemory-T1}{$\mathcal{M}, \mathcal{D}, \pi_\theta, \pi_{\text{ref}}$}
+    \State Initialize policy parameters $\theta$
+    \For{each training iteration}
+        \State Sample a batch $(q, \mathcal{M}^*, a^*, I_Q)$ from $\mathcal{D}$
+        \Statex \textit{\quad $\rhd$ Phase 1: Candidate Generation}
+        \State $\mathcal{C} \leftarrow \text{GenerateCandidates}(q, \mathcal{M})$ \Comment{Call Algorithm \ref{alg:candidate_gen}}
+        \Statex \textit{\quad $\rhd$ Phase 2: RL Fine-tuning}
+        \State SampledOutputs $\leftarrow []$
+        \For{$j=1$ \textbf{to} $G$} \Comment{Sample K outputs from the policy}
+            \State Generate an output string from $\pi_\theta$ conditioned on $(q, \mathcal{C})$
+            \State Parse the selected evidence set $\mathcal{S}_j$ and answer $a_j$ from the string
+            \State Add $(\mathcal{S}_j, a_j)$ to SampledOutputs
+        \EndFor
+        
+        \State Rewards $\leftarrow []$
+        \For{$j=1$ \textbf{to} $G$} \Comment{Calculate reward for each sample}
+            \State $R_k \leftarrow \text{CalculateReward}((\mathcal{S}_j, a_j), (\mathcal{M}^*, a^*, I_Q))$ \Comment{Call Algorithm \ref{alg:reward_calc}}
+            \State Add $R_j$ to Rewards
+        \EndFor
+
+        \For{$j=1$ \textbf{to} $G$} \Comment{Calculate Advantage}
+            \State $\hat{A}_j \leftarrow R_j - \frac{1}{G}\sum_{j=1}^{g}R_j$ \Comment{GRPO's batch-average baseline}
+        \EndFor
+
+        \Statex \textit{\quad $\rhd$ Policy Update}
+        \State Update model parameters $\theta$ using the GRPO objective:
+        \State $\nabla_\theta J(\theta) \approx \sum_{j=1}^G \nabla_\theta \log \pi_\theta((\mathcal{S}_j, a_j) \mid (q, \mathcal{C}) \hat{A}_j - \lambda \nabla_\theta D_{\text{KL}}(\pi_\theta \,\|\, \pi_{\text{ref}})$
+    \EndFor
+    \State \textbf{return} the trained policy model $\pi_{\theta'}$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\newpage
+
+\begin{algorithm}[t!]
+\caption{Candidate Generation}
+\label{alg:candidate_gen}
+\begin{algorithmic}[1]
+\Require
+\Statex User query $q$
+\Statex Full dialogue memory repository $\mathcal{M} = [(\tau_1, S_1), \dots, (\tau_N, S_N)]$
+\Ensure
+\Statex Candidate session pool $\mathcal{C}$
+
+\Function{GenerateCandidates}{$q, \mathcal{M}$}
+    \Statex \textit{\quad $\rhd$ 1. Temporal Filtering}
+    \State Predict target temporal window $(t_{\text{start}}, t_{\text{end}})$ for query $q$ using an LLM
+    \State $\mathcal{M}_{\text{temp}} \leftarrow \emptyset$
+    \For{each session $(\tau_i, S_i)$ in $\mathcal{M}$}
+        \If{timestamp $\tau_i$ overlaps with $(t_{\text{start}}, t_{\text{end}})$}
+            \State $\mathcal{M}_{\text{temp}} \leftarrow \mathcal{M}_{\text{temp}} \cup \{(\tau_i, S_i)\}$
+        \EndIf
+    \EndFor
+    \Statex \textit{\quad $\rhd$ 2. Relevance Filtering}
+    \State Rank all sessions in $\mathcal{M}_{\text{temp}}$ by textual relevance to query $q$ using BM25
+    \State $\mathcal{C} \leftarrow$ Select top-ranked sessions from the sorted list
+    \State \textbf{return} $\mathcal{C}$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[t!]
+\caption{Multi-Level Reward Calculation}
+\label{alg:reward_calc}
+\begin{algorithmic}[1]
+\Require
+\Statex Generated evidence and answer $(\mathcal{S}, a)$
+\Statex Ground-truth evidence, answer, and temporal range $(\mathcal{M}^*, a^*, I_Q)$
+\Statex Reward weights $w_a, w_g, w_t, \alpha, \beta$
+\Ensure
+\Statex Total scalar reward $R$
+
+\Function{CalculateReward}{$(\mathcal{S}, a), (\mathcal{M}^*, a^*, I_Q)$}
+    \Statex \textit{\quad $\rhd$ 1. Task-level Accuracy Reward ($R_a$)}
+    \State $R_a \leftarrow (1 \text{ if } a \text{ is correct w.r.t. } a^* \text{ else } 0)$
+    
+    \Statex \textit{\quad $\rhd$ 2. Evidence Grounding Reward ($R_g$)}
+    \State $R_g \leftarrow \text{F1\_score}(\text{session\_ids}(\mathcal{S}), \text{session\_ids}(\mathcal{M}^*))$
+    
+    \Statex \textit{\quad $\rhd$ 3. Temporal Consistency Reward ($R_t$)}
+    \State $R_{t, \text{total}} \leftarrow 0$
+    \If{$\mathcal{S}$ is not empty}
+        \For{each selected session $U \in \mathcal{S}$}
+            \Statex \textit{\qquad $\rhd$ a. Chronological Proximity ($R_s$)}
+            \State $x \leftarrow (\mathrm{gap}(U, I_Q) - m) / s$
+            \State $R_s \leftarrow c / (1 + \exp(\kappa x)) - d$
+            
+            \Statex \textit{\qquad $\rhd$ b. Chronological Fidelity ($R_f$)}
+            \State $U_{\text{rel}} \leftarrow \{ u \in U \mid \text{text\_similarity}(u, q) > \text{threshold} \}$
+            \If{$|U_{\text{rel}}| > 0$}
+                \State $R_f \leftarrow \frac{1}{|U_{\text{rel}}|} \sum_{u \in U_{\text{rel}}} \left( \frac{1}{|E_u|} \sum_{e \in E_u} r_e(e, I_Q) \right)$
+                \Comment{$r_e$ scores events (+1, +0.5, -1) based on overlap}
+            \Else
+                \State $R_f \leftarrow 0$
+            \EndIf
+            
+            \State $R_t(U, I_Q) \leftarrow \alpha R_s + \beta R_f$
+            \State $R_{t, \text{total}} \leftarrow R_{t, \text{total}} + R_t(U, I_Q)$
+        \EndFor
+        \State $R_t \leftarrow R_{t, \text{total}} / |\mathcal{S}|$ \Comment{Average over all selected sessions}
+    \Else
+        \State $R_t \leftarrow 0$
+    \EndIf
+
+    \Statex \textit{\quad $\rhd$ Combine for final reward}
+    \State $R \leftarrow w_a R_a + w_g R_g + w_t R_t$
+    \State \textbf{return} $R$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\section{Reward Supplementary}
+\label{app:hyperparams}
+
+
+\subsection{Hyberparameter design}
+\label{app:hyberparamters}
+The Temporal Consistency Reward $R_t = \alpha R_s + \beta R_f$ and its component $R_s$ are governed by a set of hyperparameters $(c, d, m, s, \alpha, \beta)$. The function of each parameter group remains the same: \textbf{Tolerance and Leniency ($m, s$)} defines the "softness" of the temporal alignment. The tolerance margin ($m$) sets a grace period, while the scale factor ($s$) control the sharpness of the penalty curve outside this margin. \textbf{Incentive Scaling ($c, d$):} controls the magnitude of the reward and penalty, allowing us to calibrate the strength of the positive and negative incentives. \textbf{Component Weighting ($\alpha, \beta$):} balance the importance of chronological proximity ($R_s$) versus chronological fidelity ($R_f$).
+
+% Add this to your document's preamble if you don't have it already:
+% \usepackage{booktabs}
+
+\begin{table}[htbp]
+\centering
+\caption{Heuristic configuration of hyperparameters for the temporal reward function.}
+\label{tab:hyperparam_config}
+\begin{tabular}{c c p{7.5cm}} % Adjust the width (7.5cm) as needed for your page layout
+\toprule
+\textbf{Parameter(s)} & \textbf{Value} & \textbf{Rationale} \\
+\midrule
+$c, d$ & 1.5, 0.5 & Normalizes the maximum reward ($c-d$) to 1, bounding the reward $R_s$ to the range $(-0.5, 1]$. This provides a strong positive signal for a perfect match and a moderate penalty for distant ones. \\
+\midrule
+$m$ & 7 (days) & Based on the domain knowledge that a one-week window is a reasonable span for contextual relevance in conversational data. \\
+\midrule
+$s$ & 1 & Set to a default value to create a standard and predictable logistic decay curve without excessive sharpness or leniency. \\
+\midrule
+$\alpha, \beta$ & 0.5, 0.5 & Establishes a robust baseline by giving equal importance to the two sub-rewards: chronological proximity ($R_s$) and chronological fidelity ($R_f$). \\
+\midrule
+$w_a, w_g, w_t$ & 0.6, 0.2, 0.2 & Selected based on extensive experiments to balance accuracy, evidence grounding, and temporal consistency. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Sensitive Analysis}
+\label{sec:sensitive_analysis}
+To assess the sensitivity of the model to the composition of the reward function, we evaluate its performance under four different weight configurations for accuracy ($w_a$), evidence grounding ($w_g$), and temporal consistency ($w_t$), with results in Figure~\ref{fig:sensitive_analysis}. We find that optimal performance (67.0\%) is achieved with the configuration $(0.6, 0.2, 0.2)$. This result suggests that while task accuracy is the primary objective, substantial weights for both evidence grounding and temporal consistency are essential to guide the reasoning process of the agent effectively. Deviating from this balance leads to a clear degradation in performance. An accuracy-skewed weighting of $(0.8, 0.1, 0.1)$ diminishes the influence of our guiding rewards, causing the score to drop to 64.0\%. Similarly, a uniform distribution $(\tfrac{1}{3}, \tfrac{1}{3}, \tfrac{1}{3})$ proves suboptimal (62.2\%), likely because it fails to sufficiently prioritize the main task goal. These findings underscore that the reward components are synergistic; peak performance hinges on a careful balance rather than maximizing any single objective in isolation.
+
+
+\begin{figure}[t]
+\centering
+\begin{minipage}[c]{0.48\textwidth}
+\centering
+  \includegraphics[width=\textwidth]{figures/sensetive_analysis_new.pdf}
+  \caption{Sensitive analysis. Heatmap of level-wise performance. 
+$W_1$, $W_2$, $W_3$, $W_4$ correspond to reward weights combination 
+$(w_a,w_g,w_t)=$$(0.6,0.2,0.2),$ $\,(0.5,0.25,0.25),$$\,(0.8,0.1,0.1),$$\,(\tfrac{1}{3},\tfrac{1}{3},\tfrac{1}{3})$.}
+\label{fig:sensitive_analysis}
+\end{minipage}%
+\hfill % 分隔符
+\begin{minipage}[c]{0.48\textwidth}
+    \captionof{table}{PPO vs. GRPO: F1 performance on Memory-T1 models of different sizes.}
+    \centering
+    \renewcommand{\arraystretch}{1.25}
+    \setlength{\tabcolsep}{3pt}
+    \scriptsize
+    \resizebox{\textwidth}{!}{
+    \begin{tabular}{lcccc}
+    \toprule
+    \textbf{Model} & \textbf{Category A} & \textbf{Category B} & \textbf{Category C} & \textbf{Overall} \\
+    \midrule
+    \textbf{3B, GRPO} & 49.5 & 79.5 & 80.3 & 66.9 \\
+    \textbf{3B, PPO} & 
+      \makecell{41.2 \\ (\textcolor{red}{-16.8\%})} &
+      \makecell{61.7 \\ (\textcolor{red}{-22.4\%})} &
+      \makecell{68.7 \\ (\textcolor{red}{-14.4\%})} &
+      \makecell{54.5 \\ (\textcolor{red}{-18.5\%})} \\
+    \midrule
+    \textbf{3B, GRPO} & 49.9 & 78.1 & 82.4 & 67.0 \\
+    \textbf{3B, PPO} & 
+      \makecell{54.5 \\ (\textcolor{blue}{+9.2\%})} &
+      \makecell{55.9 \\ (\textcolor{red}{-28.4\%})} &
+      \makecell{57.2 \\ (\textcolor{red}{-30.6\%})} &
+      \makecell{55.6 \\ (\textcolor{red}{-17.0\%})} \\
+    \bottomrule
+    \end{tabular}
+    }
+    \label{tab:ppo_grpo}
+\end{minipage}
+
+\end{figure}
+
+\subsection{Accuracy Reward ($R_a$) Metrics}
+\label{reward_extra}
+The Accuracy Reward ($R_a$) evaluates the correctness of the final answer, tailored for four main types. Each metric yields a $Score$ in the range $[0, 1]$, which is then normalized to the final reward $R_a \in [-1, 1]$.
+
+\paragraph{Option Answers (Exact Match, EM)}
+For categorical answers (e.g., "A", "A C"), we use a strict Exact Match. The score is defined as $\text{Score}_{\text{EM}} = \mathbb{I}(A_{\text{pred}} = A_{\text{gold}})$, where $\mathbb{I}(\cdot)$ is the indicator function. For instance, if the gold answer $A_{\text{gold}}$ is "B", a prediction of "B" scores 1, while "C" scores 0.
+
+\paragraph{Timestamp Answers (Unit-aware Accuracy)}
+To handle various date/time formats, this metric compares canonical representations. Both prediction and ground truth are normalized via a function $N(\cdot)$ before comparison, making the score robust to format differences:
+\[
+\text{Score}_{\text{UnitAware}}(A_{\text{pred}}, A_{\text{gold}}) = \mathbb{I}(N(A_{\text{pred}}) = N(A_{\text{gold}}))
+\]
+For example, a prediction of "2025-09-24" correctly matches the gold answer "September 24, 2025," as both normalize to the same value, yielding a score of 1.
+
+\paragraph{Time Interval Answers ($\epsilon$-Exact Match, $\epsilon$-EM)}
+For numerical durations, this metric allows a tolerance $\epsilon$ for minor calculation differences. The score is 1 if the absolute difference between the predicted value $V(A_{\text{pred}})$ and the gold value $V(A_{\text{gold}})$ is within this tolerance:
+\[
+\text{Score}_{\epsilon\text{-EM}}(A_{\text{pred}}, A_{\text{gold}}) = \mathbb{I}(|V(A_{\text{pred}}) - V(A_{\text{gold}})| \le \epsilon)
+\]
+For a gold answer of "13 days" and with $\epsilon=1$, predictions from "12" to "14 days" are considered correct.
+
+\paragraph{Sequential Answers (Hamming Accuracy)}
+To award partial credit for ordered lists, we use Hamming Accuracy, which is the fraction of correctly positioned items. For a prediction $A_{\text{pred}}=(p_1, \dots, p_L)$ and gold sequence $A_{\text{gold}}=(g_1, \dots, g_L)$ of length $L$, the score is:
+\[
+\text{Score}_{\text{Hamming}}(A_{\text{pred}}, A_{\text{gold}}) = \frac{1}{L} \sum_{i=1}^{L} \mathbb{I}(p_i = g_i)
+\]
+For example, if $A_{\text{gold}}$ is "(1), (3), (2), (4)" and $A_{\text{pred}}$ is "(2), (3), (1), (4)", the score is $\frac{1}{2}$, as only the second item and fourth item are correct.
+
+\paragraph{Final Reward Normalization}
+The final reward $R_a$ is designed to strongly penalize completely incorrect answers while directly rewarding any degree of correctness. If an answer is entirely wrong ($\text{Score}=0$), it receives a reward of -1. For any partially or fully correct answer ($\text{Score}>0$), the reward is equal to the score itself. This is formulated as:
+\[
+R_a =
+\begin{cases}
+-1 & \text{if } \text{Score} = 0 \\
+\text{Score} & \text{if } \text{Score} > 0
+\end{cases}
+\]
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figures/heatmap_full_prompt_compare.pdf}
+  \caption{The impact of memory context length on temporal reasoning: F1 performance comparison of Qwen2.5 models and Memory-T1 across context windows of 8k, 16k, 32k, 64k and 128k tokens (retaining the nearest context to the query).}
+  \label{fig:context_window}
+\end{figure}
+
+
+\subsection{Comparative Performance of GRPO and PPO}
+Compared with GRPO, PPO generally underperformed across most categories (Figure \ref{tab:ppo_grpo}). For the 3B models, PPO showed substantial declines relative to GRPO, with reductions of -16.8\% in Category A, -22.4\% in Category B, -14.4\% in Category C, and -18.5\% overall. For the 7B models, PPO achieved a modest improvement in Category A (+9.2\%), but suffered marked decreases in Category B (-28.4\%) and Category C (-30.6\%), leading to a -17.0\% drop overall. These results indicate that GRPO provides more stable gains across categories, whereas PPO is less consistent, especially for more challenging tasks (Category B and C).
+
+\subsection{Temporal Reasoning under Controlled Context Windows.} 
+\label{app:control_context_window}
+To investigate how the ``lost-in-the-middle'' problem \citep{liu-etal-2024-lost,wang2025mmlongbench} affects temporal reasoning, we conduct a controlled experiment truncating the input context at various window lengths (Figure~\ref{fig:context_window}). The baseline model peaks at a ``sweet spot'' (e.g., 32k tokens) and then collapses as the context grows longer, a failure caused by attentional dilution. In contrast, our \textsc{Memory-T1} framework is completely resilient to this effect. This resilience stems from our \textbf{coarse-to-fine candidate generation}, which filters the noisy history down to a concise and relevant evidence set. By shielding the final agent from irrelevant context, our framework maintains high and stable performance even when the original context exceeds 128k tokens. With this clean, high-quality context, the specific impact of the RL-tuned agent becomes clear. The fine-tuning is highly targeted: it enables the agent to achieve near-perfect ``mastery'' on specific complex reasoning tasks, with \textsc{Memory-T1}(7B) exceeding 0.9 F1 scores on Order Reasoning (OR), Range Reasoning (RR), and Contextual Temporal Filtering (CTF). Conversely, the near-zero scores on Comparison (Comp) and Timeline (TL) highlight the limitations of the current agent paradigm on tasks requiring deeper compositional logic. Finally, we observe a synergy between model scale and fine-tuning, with the RL policy acting as a more powerful performance multiplier on the more capable 7B base model.
+
+\subsection{Impact on text similarity in reward}
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figures/time_similarity_effect.pdf}
+  \caption{Impact of text similarity filtering component in chronological fidelity reward.}
+  \label{fig:text_similarity_ablation_study}
+\end{figure}
+
+Ablation results, as shown in Figure \ref{fig:text_similarity_ablation_study} clearly demonstrate the pivotal role of the text similarity reward. When this component is present, the model learns to filter out irrelevant dialogue history, thereby anchoring temporal spans more precisely and improving performance on duration-sensitive subtasks. Once the similarity reward is removed, performance on duration computation (DC) and compositional reasoning (Comp.) drops sharply, indicating that the model struggles to maintain accurate temporal spans without explicit guidance to suppress noise. Although slight gains appear in tasks such as Loc. and Ext., these are outweighed by the decline in precision-dependent metrics. This suggests that text similarity primarily functions as a noise-reduction mechanism, ensuring that the reasoning process remains grounded in relevant context, which is especially critical for complex temporal reasoning tasks.
+
+\subsection{Supplementary Experiments: Out-of-Domain Generalization}
+Memory-T1 (3B) demonstrates strong OOD generalization (Table \ref{tab:sup_ood}), achieving 37.7\% (Non-RAG), which is a significant improvement over Time-R1 (29.2\%) and nearly matches the larger MemAgent (7B) (40.2\%). This high performance, particularly in the Non-RAG setting, suggests that Memory-T1's learned policy provides a superior internal memory management and reasoning skill that is highly effective and robustly generalizable across domains, outweighing the benefit of RAG observed in other baselines.
+
+
+\begin{table}[t!]
+\centering
+\caption{MemAgent, Time-R1 model performance comparison: RAG vs. Non-RAG Settings}
+\footnotesize
+\label{tab:rag_nonrag_comparison}
+\begin{tabular}{@{}llcc cc@{}}
+\toprule
+\textbf{Model Family} & \textbf{Params} & \textbf{Setting} & \textbf{F1 Score} & \textbf{Setting} & \textbf{F1 Score} \\
+\midrule
+Time-R1 & 3B & RAG & 31.4 & Non-RAG & 29.2 \\
+MemAgent & 7B & RAG & 37.6 & Non-RAG & 40.2 \\
+\textbf{Memory-T1} & 3B & RAG & 36.7 & Non-RAG & 37.7 \\
+\bottomrule
+\end{tabular}
+\label{tab:sup_ood}
+\end{table}
+
+
+\begin{table}[t!]
+\centering
+% \color{blue}
+\caption{Qualitative analysis of subtasks showing significant improvement (over 10\%) in Memory-T1. (e.g., Qwen2.5-3B Instruct Model: (Loc.): $0.278 \to 0.500$, (ER.): $0.692 \to 0.821$, (OR.): $0.333 \to 0.667$, (RR.): $0.563 \to 0.875$, (CTF.): $0.556 \to 0.889$, (Co-tmp.): $0.778 \to 0.944$)}
+\label{tab:qualitative_analysis}
+\small % 字体稍小
+\setlength{\tabcolsep}{4pt} % 调整列间距
+\begin{tabular}{@{}p{1cm} p{3.0cm} p{5cm} m{2cm} m{1.5cm}@{}}
+\toprule
+\textbf{Subtask} & \textbf{Question} & \textbf{Options} & \textbf{Answer \newline Qwen2.5-3B \newline (Wrong)} & \textbf{Answer \newline Memory-T1 \newline (Correct)} \\
+\midrule
+Loc. & When is Debra Ryan starting her own business? & N/A & 9:32 pm, May 20, 2020 & 8:35 pm, February 21, 2020 \\
+\midrule
+ER. & What notable artistic or outdoor activities did India Brown participate in between April 1, 2020, and April 9, 2020? & A. India Brown attended a street art fest in Brazil. \newline B. India Brown took a photo of a feather and shells on a beach. \newline C. India Brown went hiking and sketching at a nearby national park. \newline D. India Brown received positive feedback on her artwork. & B & C \\
+\midrule
+OR. & What was India Brown's third teaching engagement in 2020? & A. Running a teaching workshop for kids. \newline B. Teaching art at an orphanage in Cambodia. \newline C. Conducting a live demonstration for her college art club.\newline D. Instructing a pottery class at a local studio. & B & A \\
+\midrule
+RR. & What was India Brown's most recent job before 12:00 am, March 09, 2020? & A. India Brown is working on a new series of abstract artworks based on her trip. \newline B. India Brown is working as a travel guide based on her trip experiences. \newline C. India Brown is working on a new painting technique learned at a street art festival. \newline D. India Brown is testing watercolors for her new series of abstract artworks. & B & A \\
+\midrule
+CTF. & What notable artistic or outdoor activities did India Brown participate in between April 1, 2020, and April 9, 2020, if she visited the Louvre in Paris in March 2020? & A. India Brown carved a mini sculpture from a soap bar. \newline B. India Brown took a photo of a feather and shells on a beach. \newline C. India Brown took a photograph in Santorini, Greece. \newline D. India Brown sketched a waterfall during a hike. & C & B \\
+\midrule
+Co-tmp. & At the same time as Debra Ryan is learning to play the guitar, what collection does India Brown have? & A. India Brown has a collection of watercolor paintings. \newline B. India Brown has a collection of watercolor paintings.\newline C. India Brown has a collection of CDs. \newline D. India Brown has a collection of vinyl records. & B & C \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% \begin{table}[h!]
+% \centering
+% \caption{Qualitative analysis of subtasks showing significant improvement in Memory-T1}
+% \label{tab:evaluation_examples}
+% \color{blue}
+% % \resizebox{\textwidth}{!}{
+% \small % 缩小字体，使其适应页面
+% \setlength{\tabcolsep}{3pt} % 缩小列间距
+% \begin{tabular}{@{}p{1.2cm} p{2cm} p{5.0cm} m{1.2cm} m{1.2cm} m{1cm} m{1cm}@{}}
+% \toprule
+% \textbf{Category}  & \textbf{Question} & \textbf{Options} & \textbf{Qwen2.5-3B Answer (Wrong)} & \textbf{Memory-T1 \newline Answer (Gold)} & \textbf{Base Model Overall Score} & \textbf{Memory-T1 \newline Overall Score} \\
+% \midrule
+% A. Loc.  & When is Debra Ryan starting her own business? & N/A & 9:32 pm, May 20, 2020 & 8:35 pm, February 21, 2020 & 0.278 & 0.500 \\
+% \midrule
+% B. ER.  & What notable artistic or outdoor activities did India Brown participate in between April 1, 2020, and April 9, 2020? & A. India Brown attended a street art fest in Brazil. \newline B. India Brown took a photo of a feather and shells on a beach. \newline C. India Brown went hiking and sketching at a nearby national park. \newline D. India Brown received positive feedback on her artwork. & B & C & 0.692 & 0.821 \\
+% \midrule
+% B. OR.  & What was India Brown's third teaching engagement in 2020? & A. Running a teaching workshop for kids. \newline B. Teaching art at an orphanage in Cambodia. \newline C. Conducting a live demonstration for her college art club.\newline D. Instructing a pottery class at a local studio. & B & A & 0.333 & 0.667 \\
+% \midrule
+% B. RR. & What was India Brown's most recent job before 12:00 am, March 09, 2020? & A. India Brown is working on a new series of abstract artworks based on her trip. \newline B. India Brown is working as a travel guide based on her trip experiences. \newline C. India Brown is working on a new painting technique learned at a street art festival. \newline D. India Brown is testing watercolors for her new series of abstract artworks. & B & A & 0.563 & 0.875 \\
+% \midrule
+% C. CTF. & What notable artistic or outdoor activities did India Brown participate in between April 1, 2020, and April 9, 2020, if she visited the Louvre in Paris in March 2020? & A. India Brown carved a mini sculpture from a soap bar. \newline B. India Brown took a photo of a feather and shells on a beach. \newline C. India Brown took a photograph in Santorini, Greece. \newline D. India Brown sketched a waterfall during a hike. & C & B & 0.556 & 0.889 \\
+% \midrule
+% C. Co-tmp. & At the same time as Debra Ryan is learning to play the guitar, what collection does India Brown have? & A. India Brown has a collection of watercolor paintings. \newline B. India Brown has a collection of watercolor paintings.\newline C. India Brown has a collection of CDs. \newline D. India Brown has a collection of vinyl records. & B & C & 0.778 & 0.944 \\
+% \bottomrule
+% \end{tabular}
+% \label{tab:qualitative_analysis}
+% \end{table}
+
+
+
+
+\section{LLM usage}
+We utilized large language models to support both manuscript polishing and data annotation. In particular, the GPT-4o API is employed to assist with the annotation of the Time-Dialog dataset. Further details of this process are provided in Appendix \ref{app:dataset_annotation}.
+
+% ========== 1 Localization ==========
+\begin{figure*}[htbp]
+\begin{tcolorbox}[
+colframe=black!75!white, 
+colback=white, sharp corners, 
+boxrule=0.8pt, width=\textwidth,
+title=Localization
+] 
+\textbf{Type:} Localization \\
+\textbf{Format:} time\_span \\
+\textbf{Level:} level\_1 \\
+\textbf{Question} When is Debra Ryan working on starting her own business? \\
+\textbf{Options:} -- \\
+\textbf{Answer:} 8:35 pm, February 21, 2020
+\end{tcolorbox} 
+\caption{Localization subtask.}
+\label{fig:localization}
+\end{figure*}
+
+% ========== 2 Duration Compare ==========
+\begin{figure*}[htbp]
+\begin{tcolorbox}[
+colframe=black!75!white, 
+colback=white, sharp corners, 
+boxrule=0.8pt, width=\textwidth,
+title=Duration Comparison
+] 
+\textbf{Type:} Duration\_Compare \\
+\textbf{Format:} single\_choice \\
+\textbf{Level:} level\_1 \\
+\textbf{Question} Which of the following two durations is longer? \\
+\textbf{Options:} A. Duration 1 is longer. \\
+B. Duration 2 is longer. \\
+C. The two durations are approximately the same length. \\
+\textbf{Answer:} A
+\end{tcolorbox} 
+\caption{Duration Comparison subtask.}
+\label{fig:duration_comparison}
+\end{figure*}
+
+% ========== 3 Computation ==========
+\begin{figure*}[htbp]
+\begin{tcolorbox}[
+colframe=black!75!white, 
+colback=white, sharp corners, 
+boxrule=0.8pt, width=\textwidth,
+title=Computation
+] 
+\textbf{Type:} Computation \\
+\textbf{Format:} time\_span \\
+\textbf{Level:} level\_1 \\
+\textbf{Question} How long was it between Debra Ryan going skydiving and India Brown attending a street art fest in Brazil? \\
+\textbf{Options:} -- \\
+\textbf{Answer:} 19 days
+\end{tcolorbox} 
+\caption{Computation subtask.}
+\label{fig:computation}
+\end{figure*}
+
+% ========== 4 Order Compare ==========
+\begin{figure*}[htbp]
+\begin{tcolorbox}[
+colframe=black!75!white, 
+colback=white, sharp corners, 
+boxrule=0.8pt, width=\textwidth,
+title=Order Comparison
+] 
+\textbf{Type:} Order\_Compare \\
+\textbf{Format:} single\_choice \\
+\textbf{Level:} level\_1 \\
+\textbf{Question} For Fact1: India Brown became a Queen fan. and Fact2: India Brown found flowers by a lake in the park., which one happened earlier? \\
+\textbf{Options:} A. Fact 1 happened earlier. \\
+B. Fact 2 happened earlier. \\
+C. They happen at almost the same time. \\
+\textbf{Answer:} A
+\end{tcolorbox} 
+\caption{Order Comparison subtask.}
+\label{fig:order_comparison}
+\end{figure*}
+
+% ========== 5 Extract ==========
+\begin{figure*}[htbp]
+\begin{tcolorbox}[
+colframe=black!75!white, 
+colback=white, sharp corners, 
+boxrule=0.8pt, width=\textwidth,
+title=Extract
+] 
+\textbf{Type:} Extract \\
+\textbf{Format:} single\_choice \\
+\textbf{Level:} level\_1 \\
+\textbf{Question} Which of the following are time expressions mentioned in the context? \\
+\textbf{Options:} A. April 17, 2021 \\
+B. 2018 \\
+C. March 16, 2020 \\
+D. March 14, 2019 \\
+\textbf{Answer:} C
+\end{tcolorbox} 
+\caption{Extract subtask.}
+\label{fig:extract}
+\end{figure*}
+
+% ========== 6 Explicit Reasoning ==========
+\begin{figure*}[htbp]
+\begin{tcolorbox}[
+colframe=black!75!white, 
+colback=white, sharp corners, 
+boxrule=0.8pt, width=\textwidth,
+title=Explicit Reasoning
+] 
+\textbf{Type:} Explicit\_Reasoning \\
+\textbf{Format:} single\_choice \\
+\textbf{Level:} level\_2 \\
+\textbf{Question} What notable artistic or outdoor activities did India Brown participate in between April 1, 2020, and April 9, 2020? \\
+\textbf{Options:} A. India Brown attended a street art fest in Brazil. \\
+B. India Brown took a photo of a feather and shells on a beach. \\
+C. India Brown went hiking and sketching at a nearby national park. \\
+D. India Brown received positive feedback on her artwork. \\
+\textbf{Answer:} B
+\end{tcolorbox} 
+\caption{Explicit reasoning subtask.}
+\label{fig:explicit_reasoning}
+\end{figure*}
+
+% ========== 7 Order Reasoning ==========
+\begin{figure*}[htbp]
+\begin{tcolorbox}[
+colframe=black!75!white, 
+colback=white, sharp corners, 
+boxrule=0.8pt, width=\textwidth,
+title=Order Reasoning
+] 
+\textbf{Type:} Order\_Reasoning \\
+\textbf{Format:} single\_choice \\
+\textbf{Level:} level\_2 \\
+\textbf{Question} What was India Brown’s third teaching engagement in 2020? \\
+\textbf{Options:} A. Running a painting workshop for kids. \\
+B. Teaching art at an orphanage in Cambodia. \\
+C. Conducting a live demonstration for her college art club. \\
+D. Instructing a pottery class at a local studio. \\
+\textbf{Answer:} A
+\end{tcolorbox} 
+\caption{Order reasoning subtask.}
+\label{fig:order_reasoning}
+\end{figure*}
+
+% ========== 8 Relative Reasoning ==========
+\begin{figure*}[htbp]
+\begin{tcolorbox}[
+colframe=black!75!white, 
+colback=white, sharp corners, 
+boxrule=0.8pt, width=\textwidth,
+title=Relative Reasoning
+] 
+\textbf{Type:} Relative\_Reasoning \\
+\textbf{Format:} single\_choice \\
+\textbf{Level:} level\_2 \\
+\textbf{Question} What was India Brown’s most recent job before 12:00 am, March 09, 2020? \\
+\textbf{Options:} A. New series of abstract artworks. \\
+B. Travel guide based on her trip experiences. \\
+C. New painting technique from street art festival. \\
+D. Testing watercolors for her new series. \\
+\textbf{Answer:} A
+\end{tcolorbox} 
+\caption{Relative reasoning subtask.}
+\label{fig:relative_reasoning}
+\end{figure*}
+
+% ========== 9 Counterfactual ==========
+\begin{figure*}[htbp]
+\begin{tcolorbox}[
+colframe=black!75!white, 
+colback=white, sharp corners, 
+boxrule=0.8pt, width=\textwidth,
+title=Counterfactual
+] 
+\textbf{Type:} Counterfactual \\
+\textbf{Format:} single\_choice \\
+\textbf{Level:} level\_3 \\
+\textbf{Question} What notable artistic or outdoor activities did India Brown participate in between April 1, 2020, and April 9, 2020, if she visited the Louvre in Paris in March 2020? \\
+\textbf{Options:} A. Mini soap sculpture. \\
+B. Photo of a feather and shells. \\
+C. Photograph in Santorini, Greece. \\
+D. Sketched a waterfall during a hike. \\
+\textbf{Answer:} B
+\end{tcolorbox} 
+\caption{Counterfactual reasoning subtask.}
+\label{fig:counterfactual_reasoning}
+\end{figure*}
+
+% ========== 10 Co-temporality ==========
+\begin{figure*}[htbp]
+\begin{tcolorbox}[
+colframe=black!75!white, 
+colback=white, sharp corners, 
+boxrule=0.8pt, width=\textwidth,
+title=Co-temporality
+] 
+\textbf{Type:} Co\_temporality \\
+\textbf{Format:} single\_choice \\
+\textbf{Level:} level\_3 \\
+\textbf{Question} At the same time as Debra Ryan is learning to play the guitar, what collection does India Brown have? \\
+\textbf{Options:} A. Soap sculptures. \\
+B. Watercolor paintings. \\
+C. CDs. \\
+D. Vinyl records. \\
+\textbf{Answer:} C
+\end{tcolorbox} 
+\caption{Co-temporality subtask.}
+\label{fig:co-temporality}
+\end{figure*}
+
+% ========== 11 Timeline ==========
+\begin{figure*}[htbp]
+\begin{tcolorbox}[
+colframe=black!75!white, 
+colback=white, sharp corners, 
+boxrule=0.8pt, width=\textwidth,
+title=Timeline
+] 
+\textbf{Type:} Timeline \\
+\textbf{Format:} event\_order \\
+\textbf{Level:} level\_3 \\
+\textbf{Question} Below are 8 facts. You need to sort these facts in chronological order. \\
+\textbf{Options:} (1) New painting technique. (2) Shared mural image. (3) First art show. (4) Became a Queen fan. (5) Invited to exhibit. (6) Beach photo. (7) Sketched waterfall. (8) Received feedback. \\
+\textbf{Answer:} (4)(5)(1)(7)(6)(2)(8)(3)
+\end{tcolorbox} 
+\caption{Timeline subtask.}
+\label{fig:timeline}
+\end{figure*}
+
+
+\begin{figure*}[t]
+\begin{tcolorbox}[
+colframe=black!75!white,
+colback=white, sharp corners,
+boxrule=0.8pt, width=\textwidth,
+title=Prompt for Event Extraction and Time Coverage Annotation
+]
+
+You are a precise temporal reasoner that analyzes utterances in a multi-turn dialogue.  
+Your goal is to analyze each \textbf{individual utterance}, based on its content and prior dialogue history, and extract:
+
+\begin{itemize}
+    \item One or more \textbf{events} described in the utterance
+    \item For each event:
+    \begin{itemize}
+        \item A short summary of the \textbf{event} being described 
+        \item The estimated time range of that event  
+        \item The recurring pattern (if applicable) of that event
+    \end{itemize}
+\end{itemize}
+
+\textbf{Input:}
+\begin{itemize}
+    \item Session start time: \{\texttt{session\_start\_time}\}
+    \item Dialogue history: \{\texttt{dialogue\_history}\}
+    \item Current utterance: \{\texttt{target\_utterance}\}
+    \item Current speaker: \{\texttt{speaker}\}
+\end{itemize}
+
+\textbf{Reasoning Rules:}
+\begin{itemize}
+    \item \textbf{Event Time Range Estimation:}
+    \begin{itemize}
+        \item Explicit date (e.g., ``August 14''): use full-day range  
+              $\rightarrow$ start: 00:00:00, end: 23:59:59
+        \item ``yesterday'': the day before the utterance time
+        \item ``last week'': 7 days ending 1 day before the utterance time
+        \item Past tense, no time mentioned: start = ``unknown'', end = utterance time
+        \item Future tense: start = utterance time, end = ``unknown''
+        \item Habitual/ongoing action: start = ``unknown'', end = ``unknown'', mark recurrence
+    \end{itemize}
+    \item \textbf{Recurring Field:} choose from \texttt{none} (default), \texttt{daily}, \texttt{weekly}, \texttt{monthly}, \texttt{yearly}, \texttt{habitual}
+\end{itemize}
+
+\textbf{Output Format (JSON):}
+\begin{verbatim}
+[
+  {
+    "speaker": "Debra Ryan",
+    "utterance": "I took this photo last week.",
+    "event_summary": "Debra took a photo",
+    "event_time":["2020-02-01T00:00:00","2020-02-07T23:59:59"],
+    "recurring": "none"
+  },
+  {
+    "speaker": "Debra Ryan",
+    "utterance":"I met a friend who was visiting 
+    from out of town.",
+    "event_summary": "Debra met a visiting friend",
+    "event_time": ["2020-02-01T00:00:00", 
+    "2020-02-07T23:59:59"],
+    "recurring": "none"
+  }
+]
+\end{verbatim}
+
+Ensure your output is valid JSON. Only output the JSON, no extra text.
+
+\end{tcolorbox}
+\caption{Prompt used for event extraction and temporal coverage annotation.}
+\label{fig:event-extraction-prompt}
+\end{figure*}
+
+
+\begin{figure*}[t]
+\begin{tcolorbox}[
+colframe=black!75!white,
+colback=white, sharp corners,
+boxrule=0.8pt, width=\textwidth,
+title=Prompt for Question-based Event Reasoning
+]
+
+You are a precise temporal reasoner that analyzes user's question.  
+You are \textbf{given the user's question}.
+
+\textbf{Input:}
+\begin{itemize}
+    \item User's question: \{\texttt{user\_question}\}
+\end{itemize}
+
+\textbf{Reasoning Rules:}
+\begin{itemize}
+    \item Event Time Range Estimation:
+    \begin{itemize}
+        \item Explicit date (e.g., ``August 14''): use full-day range  
+              $\rightarrow$ start: 00:00:00, end: 23:59:59
+        \item ``yesterday'': the day before the utterance time
+        \item ``last week'': 7 days ending 1 day before the utterance time
+        \item Past tense, no time mentioned: start = ``unknown'', end = \{\texttt{current\_time\_str}\}
+        \item Future tense: start = \{\texttt{current\_time\_str}\}, end = ``unknown''
+        \item Habitual/ongoing action: start = ``unknown'', end = ``unknown'', mark recurrence
+    \end{itemize}
+    \item Recurring Field: choose from \texttt{none} (default), \texttt{daily}, \texttt{weekly}, \texttt{monthly}, \texttt{yearly}, \texttt{habitual}
+\end{itemize}
+
+\textbf{Output Format (JSON):}
+\begin{verbatim}
+{
+  "question": "What creative or social activities did 
+  India Brown participate in between April 16, 2020, 
+  at 06:22 and April 19, 2020, at 07:22?",
+  "time_range": ["2020-04-16T06:22:00", "2020-04-19T07:22:00"],
+  "recurring": "none"
+}
+\end{verbatim}
+
+Ensure your output is valid JSON. Only output the JSON, no extra text.
+
+\end{tcolorbox}
+\caption{Prompt used for time range annotation over user questions.}
+\label{fig:question-time-range-annotation-prompt}
+\end{figure*}
+
+
+\begin{figure*}[t]
+\begin{tcolorbox}[
+colframe=black!75!white,
+colback=white, sharp corners,
+boxrule=0.8pt, width=\textwidth,
+title=Prompt for Fact–Evidence Alignment
+]
+
+Your task:  
+Determine which utterance contains the most relevant evidence that supports each of the given facts.
+
+\textbf{Input:}
+\begin{itemize}
+  \item Facts: \{\texttt{facts\_list}\}
+  \item Sessions: \{\texttt{sessions\_data}\}
+\end{itemize}
+
+\textbf{Output:}  
+Return the most relevant utterance for each fact using the following format:
+
+\begin{verbatim}
+{
+    "fact_evidence": [
+        {
+            "fact_index": 0,
+            "session_id": "session_id",
+            "utterance_id": "id"
+        },
+        {
+            "fact_index": 1,
+            "session_id": "session_id",
+            "utterance_id": "id"
+        },
+        ...
+    ]
+}
+\end{verbatim}
+
+\textbf{Example:}
+\begin{verbatim}
+{
+    "fact_evidence": [
+        {
+            "fact_index": 0,
+            "session_id": 2,
+            "utterance_id": 3
+        }
+    ]
+}
+\end{verbatim}
+
+\textbf{Constraints:}
+\begin{itemize}
+  \item Only include utterances that clearly support the fact (no hallucination or inference beyond what's stated).
+  \item Select exactly ONE most relevant utterance per fact.
+  \item If no utterance supports a fact, return \texttt{null} for that fact.
+  \item \texttt{fact\_index} corresponds to the index in the facts list (0-based).
+  \item \texttt{session\_id} must be one of the provided session IDs.
+\end{itemize}
+
+\end{tcolorbox}
+\caption{Prompt used for fact–evidence alignment in multi-session dialogues.}
+\label{fig:fact-evidence-prompt}
+\end{figure*}
+
+
+
+\begin{figure*}[t]
+\begin{tcolorbox}[
+colframe=black!75!white,
+colback=white, sharp corners,
+boxrule=0.8pt, width=\textwidth,
+title=Prompt for Memory-T1 Training
+]
+
+You are a memory-aware reasoning assistant.  
+Your task is to answer temporal questions based on multi-turn dialogue history. Carefully analyze the provided context, reason about time and events, and respond strictly in JSON format.
+
+The required JSON structure is:
+
+$\{$
+  $"selected\_memory"$: [$"session\_X"$, $"session\_Y"$],
+  "answer": "X"
+$\}$
+
+Answer Format Rules (by type): \\
+1. Single choice: A, B, ... \\
+2. Multiple choice: A C E (space-separated) \\
+3. Time: "HH:MM:SS am/pm, Month DD, YYYY" \\
+   Example: "02:30:00 pm, March 22, 2024" \\
+4. Sequence: (1)(3)(2)(4)(5)(6)(8)(7) \\
+
+Input format:\\
+
+$<previous\_memory>$$\textcolor{red}{\{dialogue\_sessions\}}$$</previous\_memory>$ \\
+$<question>$ \\
+$Time:$ $\textcolor{red}{\{current\_time\}}$ \\
+$Question:$ $\textcolor{red}{\{question\}} $ \\
+$</question>$
+
+Output example:
+
+$\{$
+  $"selected\_memory": ["session\_1", "session\_7"],$
+  $"answer": "A"$
+$\}$
+
+
+\end{tcolorbox}
+\caption{Prompt used for training Memory-T1.}
+\label{fig:memory-aware-prompt}
+\end{figure*}
+
+
+
+\begin{figure*}[t]
+\begin{tcolorbox}[
+colframe=black!75!white,
+colback=white, sharp corners,
+boxrule=0.8pt, width=\textwidth,
+title=Prompt for Evaluation
+]
+
+You are presented with a \textbf{temporal question} and a \textbf{previous memory}, please answer the question with the correct format.  
+The last line of your response should be of the form: Answer: \$Answer, where \$Answer is the answer to the problem.
+
+Output requirements:\\
+1. Single choice: $A \| B \| ...$ (uppercase) \\
+2. Multiple choice: A B C (space-separated uppercase)\\
+3. Time: HH:MM:SS am/pm, Month DD, YYYY  \\
+   Example: 10:45:41 pm, January 15, 2024
+4. Sequence: (1)(3)(2)(4)(5)(6)(7)(8) \\
+
+Input format:
+
+$<previous\_memory>$$\textcolor{red}{\{dialogue\_sessions\}}$$</previous\_memory>$ \\
+
+$<question>$ \\
+$Time:$ $\textcolor{red}{\{current\_time\}}$ \\
+$Question:$ $\textcolor{red}{\{question\}} $ \\
+$</question>$
+\\
+\\
+Remember to put your answer on its own line after $'$Answer$'$:
+
+\end{tcolorbox}
+\caption{Prompt used for evaluation of temporal reasoning tasks.}
+\label{fig:evaluation-prompt}
+\end{figure*}
+
+
+
+
+
+
+
+\end{document}
+
+
+
+
+% \section{Submission of conference papers to ICLR 2025}
+
+% ICLR requires electronic submissions, processed by
+% \url{https://openreview.net/}. See ICLR's website for more instructions.
+
+% If your paper is ultimately accepted, the statement {\tt
+%   {\textbackslash}iclrfinalcopy} should be inserted to adjust the
+% format to the camera ready requirements.
+
+% The format for the submissions is a variant of the NeurIPS format.
+% Please read carefully the instructions below, and follow them
+% faithfully.
+
+% \subsection{Style}
+
+% Papers to be submitted to ICLR 2025 must be prepared according to the
+% instructions presented here.
+
+% %% Please note that we have introduced automatic line number generation
+% %% into the style file for \LaTeXe. This is to help reviewers
+% %% refer to specific lines of the paper when they make their comments. Please do
+% %% NOT refer to these line numbers in your paper as they will be removed from the
+% %% style file for the final version of accepted papers.
+
+% Authors are required to use the ICLR \LaTeX{} style files obtainable at the
+% ICLR website. Please make sure you use the current files and
+% not previous versions. Tweaking the style files may be grounds for rejection.
+
+% \subsection{Retrieval of style files}
+
+% The style files for ICLR and other conference information are available online at:
+% \begin{center}
+%    \url{http://www.iclr.cc/}
+% \end{center}
+% The file \verb+iclr2025_conference.pdf+ contains these
+% instructions and illustrates the
+% various formatting requirements your ICLR paper must satisfy.
+% Submissions must be made using \LaTeX{} and the style files
+% \verb+iclr2025_conference.sty+ and \verb+iclr2025_conference.bst+ (to be used with \LaTeX{}2e). The file
+% \verb+iclr2025_conference.tex+ may be used as a ``shell'' for writing your paper. All you
+% have to do is replace the author, title, abstract, and text of the paper with
+% your own.
+
+% The formatting instructions contained in these style files are summarized in
+% sections \ref{gen_inst}, \ref{headings}, and \ref{others} below.
+
+% \section{General formatting instructions}
+% \label{gen_inst}
+
+% The text must be confined within a rectangle 5.5~inches (33~picas) wide and
+% 9~inches (54~picas) long. The left margin is 1.5~inch (9~picas).
+% Use 10~point type with a vertical spacing of 11~points. Times New Roman is the
+% preferred typeface throughout. Paragraphs are separated by 1/2~line space,
+% with no indentation.
+
+% Paper title is 17~point, in small caps and left-aligned.
+% All pages should start at 1~inch (6~picas) from the top of the page.
+
+% Authors' names are
+% set in boldface, and each name is placed above its corresponding
+% address. The lead author's name is to be listed first, and
+% the co-authors' names are set to follow. Authors sharing the
+% same address can be on the same line.
+
+% Please pay special attention to the instructions in section \ref{others}
+% regarding figures, tables, acknowledgments, and references.
+
+
+% There will be a strict upper limit of 10 pages for the main text of the initial submission, with unlimited additional pages for citations. 
+
+% \section{Headings: first level}
+% \label{headings}
+
+% First level headings are in small caps,
+% flush left and in point size 12. One line space before the first level
+% heading and 1/2~line space after the first level heading.
+
+% \subsection{Headings: second level}
+
+% Second level headings are in small caps,
+% flush left and in point size 10. One line space before the second level
+% heading and 1/2~line space after the second level heading.
+
+% \subsubsection{Headings: third level}
+
+% Third level headings are in small caps,
+% flush left and in point size 10. One line space before the third level
+% heading and 1/2~line space after the third level heading.
+
+% \section{Citations, figures, tables, references}
+% \label{others}
+
+% These instructions apply to everyone, regardless of the formatter being used.
+
+% \subsection{Citations within the text}
+
+% Citations within the text should be based on the \texttt{natbib} package
+% and include the authors' last names and year (with the ``et~al.'' construct
+% for more than two authors). When the authors or the publication are
+% included in the sentence, the citation should not be in parenthesis using \verb|\citet{}| (as
+% in ``See \citet{Hinton06} for more information.''). Otherwise, the citation
+% should be in parenthesis using \verb|\citep{}| (as in ``Deep learning shows promise to make progress
+% towards AI~\citep{Bengio+chapter2007}.'').
+
+% The corresponding references are to be listed in alphabetical order of
+% authors, in the \textsc{References} section. As to the format of the
+% references themselves, any style is acceptable as long as it is used
+% consistently.
+
+% \subsection{Footnotes}
+
+% Indicate footnotes with a number\footnote{Sample of the first footnote} in the
+% text. Place the footnotes at the bottom of the page on which they appear.
+% Precede the footnote with a horizontal rule of 2~inches
+% (12~picas).\footnote{Sample of the second footnote}
+
+% \subsection{Figures}
+
+% All artwork must be neat, clean, and legible. Lines should be dark
+% enough for purposes of reproduction; art work should not be
+% hand-drawn. The figure number and caption always appear after the
+% figure. Place one line space before the figure caption, and one line
+% space after the figure. The figure caption is lower case (except for
+% first word and proper nouns); figures are numbered consecutively.
+
+% Make sure the figure caption does not get separated from the figure.
+% Leave sufficient space to avoid splitting the figure and figure caption.
+
+% You may use color figures.
+% However, it is best for the
+% figure captions and the paper body to make sense if the paper is printed
+% either in black/white or in color.
+% \begin{figure}[h]
+% \begin{center}
+% %\framebox[4.0in]{$\;$}
+% \fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{4cm}{0cm}}
+% \end{center}
+% \caption{Sample figure caption.}
+% \end{figure}
+
+% \subsection{Tables}
+
+% All tables must be centered, neat, clean and legible. Do not use hand-drawn
+% tables. The table number and title always appear before the table. See
+% Table~\ref{sample-table}.
+
+% Place one line space before the table title, one line space after the table
+% title, and one line space after the table. The table title must be lower case
+% (except for first word and proper nouns); tables are numbered consecutively.
+
+% \begin{table}[t]
+% \caption{Sample table title}
+% \label{sample-table}
+% \begin{center}
+% \begin{tabular}{ll}
+% \multicolumn{1}{c}{\bf PART}  &\multicolumn{1}{c}{\bf DESCRIPTION}
+% \\ \hline \\
+% Dendrite         &Input terminal \\
+% Axon             &Output terminal \\
+% Soma             &Cell body (contains cell nucleus) \\
+% \end{tabular}
+% \end{center}
+% \end{table}
+
+% \section{Default Notation}
+
+% In an attempt to encourage standardized notation, we have included the
+% notation file from the textbook, \textit{Deep Learning}
+% \cite{goodfellow2016deep} available at
+% \url{https://github.com/goodfeli/dlbook_notation/}.  Use of this style
+% is not required and can be disabled by commenting out
+% \texttt{math\_commands.tex}.
+
+
+% \centerline{\bf Numbers and Arrays}
+% \bgroup
+% \def\arraystretch{1.5}
+% \begin{tabular}{p{1in}p{3.25in}}
+% $\displaystyle a$ & A scalar (integer or real)\\
+% $\displaystyle \va$ & A vector\\
+% $\displaystyle \mA$ & A matrix\\
+% $\displaystyle \tA$ & A tensor\\
+% $\displaystyle \mI_n$ & Identity matrix with $n$ rows and $n$ columns\\
+% $\displaystyle \mI$ & Identity matrix with dimensionality implied by context\\
+% $\displaystyle \ve^{(i)}$ & Standard basis vector $[0,\dots,0,1,0,\dots,0]$ with a 1 at position $i$\\
+% $\displaystyle \text{diag}(\va)$ & A square, diagonal matrix with diagonal entries given by $\va$\\
+% $\displaystyle \ra$ & A scalar random variable\\
+% $\displaystyle \rva$ & A vector-valued random variable\\
+% $\displaystyle \rmA$ & A matrix-valued random variable\\
+% \end{tabular}
+% \egroup
+% \vspace{0.25cm}
+
+% \centerline{\bf Sets and Graphs}
+% \bgroup
+% \def\arraystretch{1.5}
+
+% \begin{tabular}{p{1.25in}p{3.25in}}
+% $\displaystyle \sA$ & A set\\
+% $\displaystyle \R$ & The set of real numbers \\
+% $\displaystyle \{0, 1\}$ & The set containing 0 and 1 \\
+% $\displaystyle \{0, 1, \dots, n \}$ & The set of all integers between $0$ and $n$\\
+% $\displaystyle [a, b]$ & The real interval including $a$ and $b$\\
+% $\displaystyle (a, b]$ & The real interval excluding $a$ but including $b$\\
+% $\displaystyle \sA \backslash \sB$ & Set subtraction, i.e., the set containing the elements of $\sA$ that are not in $\sB$\\
+% $\displaystyle \gG$ & A graph\\
+% $\displaystyle \parents_\gG(\ervx_i)$ & The parents of $\ervx_i$ in $\gG$
+% \end{tabular}
+% \vspace{0.25cm}
+
+
+% \centerline{\bf Indexing}
+% \bgroup
+% \def\arraystretch{1.5}
+
+% \begin{tabular}{p{1.25in}p{3.25in}}
+% $\displaystyle \eva_i$ & Element $i$ of vector $\va$, with indexing starting at 1 \\
+% $\displaystyle \eva_{-i}$ & All elements of vector $\va$ except for element $i$ \\
+% $\displaystyle \emA_{i,j}$ & Element $i, j$ of matrix $\mA$ \\
+% $\displaystyle \mA_{i, :}$ & Row $i$ of matrix $\mA$ \\
+% $\displaystyle \mA_{:, i}$ & Column $i$ of matrix $\mA$ \\
+% $\displaystyle \etA_{i, j, k}$ & Element $(i, j, k)$ of a 3-D tensor $\tA$\\
+% $\displaystyle \tA_{:, :, i}$ & 2-D slice of a 3-D tensor\\
+% $\displaystyle \erva_i$ & Element $i$ of the random vector $\rva$ \\
+% \end{tabular}
+% \egroup
+% \vspace{0.25cm}
+
+
+% \centerline{\bf Calculus}
+% \bgroup
+% \def\arraystretch{1.5}
+% \begin{tabular}{p{1.25in}p{3.25in}}
+% % NOTE: the [2ex] on the next line adds extra height to that row of the table.
+% % Without that command, the fraction on the first line is too tall and collides
+% % with the fraction on the second line.
+% $\displaystyle\frac{d y} {d x}$ & Derivative of $y$ with respect to $x$\\ [2ex]
+% $\displaystyle \frac{\partial y} {\partial x} $ & Partial derivative of $y$ with respect to $x$ \\
+% $\displaystyle \nabla_\vx y $ & Gradient of $y$ with respect to $\vx$ \\
+% $\displaystyle \nabla_\mX y $ & Matrix derivatives of $y$ with respect to $\mX$ \\
+% $\displaystyle \nabla_\tX y $ & Tensor containing derivatives of $y$ with respect to $\tX$ \\
+% $\displaystyle \frac{\partial f}{\partial \vx} $ & Jacobian matrix $\mJ \in \R^{m\times n}$ of $f: \R^n \rightarrow \R^m$\\
+% $\displaystyle \nabla_\vx^2 f(\vx)\text{ or }\mH( f)(\vx)$ & The Hessian matrix of $f$ at input point $\vx$\\
+% $\displaystyle \int f(\vx) d\vx $ & Definite integral over the entire domain of $\vx$ \\
+% $\displaystyle \int_\sS f(\vx) d\vx$ & Definite integral with respect to $\vx$ over the set $\sS$ \\
+% \end{tabular}
+% \egroup
+% \vspace{0.25cm}
+
+% \centerline{\bf Probability and Information Theory}
+% \bgroup
+% \def\arraystretch{1.5}
+% \begin{tabular}{p{1.25in}p{3.25in}}
+% $\displaystyle P(\ra)$ & A probability distribution over a discrete variable\\
+% $\displaystyle p(\ra)$ & A probability distribution over a continuous variable, or over
+% a variable whose type has not been specified\\
+% $\displaystyle \ra \sim P$ & Random variable $\ra$ has distribution $P$\\% so thing on left of \sim should always be a random variable, with name beginning with \r
+% $\displaystyle  \E_{\rx\sim P} [ f(x) ]\text{ or } \E f(x)$ & Expectation of $f(x)$ with respect to $P(\rx)$ \\
+% $\displaystyle \Var(f(x)) $ &  Variance of $f(x)$ under $P(\rx)$ \\
+% $\displaystyle \Cov(f(x),g(x)) $ & Covariance of $f(x)$ and $g(x)$ under $P(\rx)$\\
+% $\displaystyle H(\rx) $ & Shannon entropy of the random variable $\rx$\\
+% $\displaystyle \KL ( P \Vert Q ) $ & Kullback-Leibler divergence of P and Q \\
+% $\displaystyle \mathcal{N} ( \vx ; \vmu , \mSigma)$ & Gaussian distribution %
+% over $\vx$ with mean $\vmu$ and covariance $\mSigma$ \\
+% \end{tabular}
+% \egroup
+% \vspace{0.25cm}
+
+% \centerline{\bf Functions}
+% \bgroup
+% \def\arraystretch{1.5}
+% \begin{tabular}{p{1.25in}p{3.25in}}
+% $\displaystyle f: \sA \rightarrow \sB$ & The function $f$ with domain $\sA$ and range $\sB$\\
+% $\displaystyle f \circ g $ & Composition of the functions $f$ and $g$ \\
+%   $\displaystyle f(\vx ; \vtheta) $ & A function of $\vx$ parametrized by $\vtheta$.
+%   (Sometimes we write $f(\vx)$ and omit the argument $\vtheta$ to lighten notation) \\
+% $\displaystyle \log x$ & Natural logarithm of $x$ \\
+% $\displaystyle \sigma(x)$ & Logistic sigmoid, $\displaystyle \frac{1} {1 + \exp(-x)}$ \\
+% $\displaystyle \zeta(x)$ & Softplus, $\log(1 + \exp(x))$ \\
+% $\displaystyle || \vx ||_p $ & $\normlp$ norm of $\vx$ \\
+% $\displaystyle || \vx || $ & $\normltwo$ norm of $\vx$ \\
+% $\displaystyle x^+$ & Positive part of $x$, i.e., $\max(0,x)$\\
+% $\displaystyle \1_\mathrm{condition}$ & is 1 if the condition is true, 0 otherwise\\
+% \end{tabular}
+% \egroup
+% \vspace{0.25cm}
+
+
+
+% \section{Final instructions}
+% Do not change any aspects of the formatting parameters in the style files.
+% In particular, do not modify the width or length of the rectangle the text
+% should fit into, and do not change font sizes (except perhaps in the
+% \textsc{References} section; see below). Please note that pages should be
+% numbered.
+
+% \section{Preparing PostScript or PDF files}
+
+% Please prepare PostScript or PDF files with paper size ``US Letter'', and
+% not, for example, ``A4''. The -t
+% letter option on dvips will produce US Letter files.
+
+% Consider directly generating PDF files using \verb+pdflatex+
+% (especially if you are a MiKTeX user).
+% PDF figures must be substituted for EPS figures, however.
+
+% Otherwise, please generate your PostScript and PDF files with the following commands:
+% \begin{verbatim}
+% dvips mypaper.dvi -t letter -Ppdf -G0 -o mypaper.ps
+% ps2pdf mypaper.ps mypaper.pdf
+% \end{verbatim}
+
+% \subsection{Margins in LaTeX}
+
+% Most of the margin problems come from figures positioned by hand using
+% \verb+\special+ or other commands. We suggest using the command
+% \verb+\includegraphics+
+% from the graphicx package. Always specify the figure width as a multiple of
+% the line width as in the example below using .eps graphics
+% \begin{verbatim}
+%    \usepackage[dvips]{graphicx} ...
+%    \includegraphics[width=0.8\linewidth]{myfile.eps}
+% \end{verbatim}
+% or % Apr 2009 addition
+% \begin{verbatim}
+%    \usepackage[pdftex]{graphicx} ...
+%    \includegraphics[width=0.8\linewidth]{myfile.pdf}
+% \end{verbatim}
+% for .pdf graphics.
+% See section~4.4 in the graphics bundle documentation (\url{http://www.ctan.org/tex-archive/macros/latex/required/graphics/grfguide.ps})
+
+% A number of width problems arise when LaTeX cannot properly hyphenate a
+% line. Please give LaTeX hyphenation hints using the \verb+\-+ command.
+
+% \subsubsection*{Author Contributions}
+% If you'd like to, you may include  a section for author contributions as is done
+% in many journals. This is optional and at the discretion of the authors.
+
+
+
+% Tremu proposes a time-aware memorization framework and summarizes events' order with their inferred dates. Time-R1 propose a time-aware reinforcement learning to improve temporal understanding, reasoning and prediction ability. LongMemEval propose rich benchmarks for long-term memory benchmark and shows the temporal reasoning ability is still at a low ability.
+
+% As the demand for conversational agents \citep{ge2025tremu,yu2025memagent, xu2025mem} to support long-term multi-session interactions grows, where users return after days or weeks to reference past events, cross-session temporal reasoning has become a core prerequisite for their effectiveness. A key challenge in this setting is temporal reasoning: it requires going beyond tracking individual events to inferring their underlying temporal structure. For example, as shown in Figure \ref{fig:problem}, answering a question such as “What time did Emi mention that some `Suits' characters were together at the Golden Globes?” requires the agent to recall events from earlier sessions, align them along a timeline, and filter out irrelevant history.
+% Temporal reasoning in multi-session dialogues presents a profound challenge beyond simple date recognition. 
+
+% Agents must interpret ambiguous and relative expressions (e.g., "the week before that"), correctly order events across a long and noisy history, and synthesize information to infer implicit temporal relationships, encompassing a wide range of abilities cataloged by benchmarks like TIME \citep{wei2025time}. In multi-session dialogue, Neural–symbolic approaches \citep{ge2025tremu} can address explicit temporal references to a limited extent, yet they struggle with ambiguous temporal expressions and often accumulate errors due to over-reliance on timeline summaries. More recently, while RL-based methods like Time-R1 \citep{liu2025time} represent a notable advance in temporal reasoning, their efficacy is inherently contingent upon the structured nature of news articles. This dependency arises because their reward mechanism is predicated on clean, document-level metadata (e.g., publication dates) that is absent in noisy dialogues. Furthermore, their underlying architecture is ill-equipped to manage the long-term, cross-session dependencies inherent in user-agent relationships \citep{wu2025longmemeval, maharana-etal-2024-evaluating, du2025bridging}. Consequently, a robust solution for temporal reasoning within the noisy, interdependent fabric of long-term dialogue remains an open problem.
+
+    % \captionof{table}{Ablation study on the reward function of Memory-T1 (3B). Relative changes compared to the full model are shown in parentheses.}
+    % \label{tab:reward_ablation_study} % 标签可以紧跟标题
+    % \centering
+    % \renewcommand{\arraystretch}{1.5}
+    % \resizebox{\textwidth}{!}{
+    % \begin{tabular}{lcccc}
+    %     \toprule
+    %     \textbf{Model} & \textbf{Level-1} & \textbf{Level-2} & \textbf{Level-3} & \textbf{Overall} \\
+    %     \midrule
+    %     \textbf{Memory-T1 (3B)} & 0.495 & 0.795 & 0.803 & 0.669 \\
+    %     \midrule
+    %     \quad \textit{w/o $R_t$} & \makecell{0.456 \\ (\textcolor{red}{-7.9\%})} & \makecell{0.751 \\ (\textcolor{red}{-5.5\%})} & \makecell{0.643 \\ (\textcolor{red}{-19.9\%})} & \makecell{0.635 \\ (\textcolor{red}{-5.1\%})} \\
+    %     \quad \textit{w/o $R_g$} & \makecell{0.409 \\ (\textcolor{red}{-8.6\%})} & \makecell{0.753 \\ (\textcolor{red}{-4.2\%})} & \makecell{0.759 \\ (\textcolor{red}{-4.4\%})} & \makecell{0.608 \\ (\textcolor{red}{-6.1\%})} \\
+    %     \quad \textit{$R_a$ only} & \makecell{0.436 \\ (\textcolor{red}{-5.9\%})} & \makecell{0.575 \\ (\textcolor{red}{-22.0\%})} & \makecell{0.590 \\ (\textcolor{red}{-21.3\%})} & \makecell{0.519 \\ (\textcolor{red}{-15.0\%})} \\
+    %     \bottomrule
+    % \end{tabular}
+    % }
+
+
+% \begin{table}[t]
+% \caption{Performance comparison across different window size on temporal reasoning subtasks.}
+% \centering
+
+% \renewcommand{\arraystretch}{1.3} % 调整行间距
+% \small
+% \begin{tabular}{lcccccc}
+% \hline
+% \textbf{Model} & \textbf{0k--8k} & \textbf{8k--16k} & \textbf{16k--32k} & \textbf{32k--64k} & \textbf{64k--128k} & \textbf{Overall} \\
+% \hline
+% Qwen2.5-3B-Instruct  & \textbf{0.750} & \underline{0.721} & 0.501 & 0.396 & 0.400 & 0.494 \\
+% Qwen2.5-7B-Instruct  & 0.639 & 0.367 & 0.579 & 0.542 & 0.500 & 0.532 \\
+% Memory-T1(3B)        & \textbf{0.750} & \textbf{0.819} & \underline{0.656} & \underline{0.592} & \underline{0.600} & \underline{0.669} \\
+% Memory-T1(7B)        & \underline{0.742} & 0.660 & \textbf{0.741} & \textbf{0.595} & \textbf{0.650} & \textbf{0.684} \\
+% \hline
+% \end{tabular}
+% \renewcommand{\arraystretch}{1.0} % 恢复默认
+% \label{tab:window_size_results}
+% \end{table}
+
+
+% \begin{figure}[t]
+% \centering
+
+% % --- 左侧 Minipage: 您的表格 ---
+% % 对齐方式改回 [b], 这是因为我们现在要对齐底部的标题
+% \begin{minipage}[t]{0.4\textwidth}
+%     \captionof{table}{Ablation study on the reward function of Memory-T1 (3B). Relative changes compared to the full model are shown in parentheses.}
+
+%     \centering
+%     \renewcommand{\arraystretch}{1.5}
+%     \resizebox{\textwidth}{!}{
+%     \begin{tabular}{lcccc}
+%         \toprule
+%         \textbf{Model} & \textbf{Level-1} & \textbf{Level-2} & \textbf{Level-3} & \textbf{Overall} \\
+%         \midrule
+%         \textbf{Memory-T1 (3B)} & 0.495 & 0.795 & 0.803 & 0.669 \\
+%         \midrule
+%         \quad \textit{w/o $R_t$} & \makecell{0.457 \\ (\textcolor{red}{-3.8\%})} & \makecell{0.781 \\ (\textcolor{red}{-1.4\%})} & \makecell{0.815 \\ (\textcolor{blue}{+1.2\%})} & \makecell{0.650 \\ (\textcolor{red}{-1.9\%})} \\
+%         \quad \textit{w/o $R_g$} & \makecell{0.409 \\ (\textcolor{red}{-8.6\%})} & \makecell{0.753 \\ (\textcolor{red}{-4.2\%})} & \makecell{0.759 \\ (\textcolor{red}{-4.4\%})} & \makecell{0.608 \\ (\textcolor{red}{-6.1\%})} \\
+%         \quad \textit{$R_a$ only} & \makecell{0.436 \\ (\textcolor{red}{-5.9\%})} & \makecell{0.575 \\ (\textcolor{red}{-22.0\%})} & \makecell{0.590 \\ (\textcolor{red}{-21.3\%})} & \makecell{0.519 \\ (\textcolor{red}{-15.0\%})} \\
+%         \bottomrule
+%     \end{tabular}
+%     }
+%     % --- 修改点：将标题和标签从表格上方移动到下方 ---
+    
+%     \label{tab:reward_ablation_study}
+% \end{minipage}
+% \hfill % --- 分隔符 ---
+% % --- 右侧 Minipage: 您的图表 ---
+% % 对齐方式使用 [b]
+% \begin{minipage}[t]{0.53\textwidth}
+%     \centering
+%     \includegraphics[width=\linewidth]{figures/locomo_compare.pdf}
+%     \captionof{figure}{Out-of-Domain evaluation of Memory-T1 and Qwen2.5-3B-Instruct on LoCoMo subtasks under RAG and Non-RAG settings.}
+%     \label{fig:locomo_compare}
+% \end{minipage}
+% \end{figure}
+
+% \begin{table}[t]
+% \centering
+% \renewcommand{\arraystretch}{1.3} % 稍微增加行高以适应换行表头
+% \caption{Ablation study on the reward function of Memory-T1 (3B) training.}
+% \begin{tabular}{lcccc}
+% \toprule
+% % 这里的 & 已被移除
+% \textbf{Model} & \textbf{\makecell{Temporal Und. \\ Retrieval (L1)}} & \textbf{\makecell{Expression \\ Reasoning (L2)}} & \textbf{\makecell{Complex Rel. \\ Reasoning (L3)}} & \textbf{Overall} \\
+% \midrule
+% \textbf{Memory-T1 (3B)} & \textbf{0.495} & \textbf{0.795} & \underline{0.803} & \textbf{0.669} \\
+% \quad \textit{w/o $R_t$} & \underline{0.457} & \underline{0.781} & \textbf{0.815} & \underline{0.650} \\
+% \quad \textit{w/o $R_g$} & 0.409 & 0.753 & 0.759 & 0.608 \\
+% \quad \textit{$R_a$ only} & 0.436 & 0.575 & 0.590 & 0.519 \\
+% \bottomrule
+% \end{tabular}
+% \label{tab:ablation_summary}
+% \end{table}
+
+% \begin{table*}[t]
+% \centering
+% \renewcommand{\arraystretch}{1.2} % 行高
+% \caption{Ablation study on the Memory-T1 (3B) model across all sub-tasks.}
+
+% \resizebox{\textwidth}{!}{
+% \small
+% \begin{tabular}{lcccccccccccc}
+% \toprule
+% \textbf{Model} & \textbf{Loc.} & \textbf{DC.} & \textbf{Comp.} & \textbf{OC.} & \textbf{Ext.} & \textbf{ER.} & \textbf{OR.} & \textbf{RR.} & \textbf{CTF.} & \textbf{Co-tmp.} & \textbf{TL.} & \textbf{Overall} \\
+% \midrule
+% \textbf{Memory-T1 (3B)} & 
+% 0.500 & 0.522 & 0.071 & 0.750 & 0.556 & 0.821 & 0.667 & 0.875 & 0.889 & 0.944 & 0.124 & 0.669 \\
+% \quad \textit{w/o $R_t$} & 
+% \makecell{0.500 \\ (-0.00\%)} & 
+% \makecell{0.522 \\ (-0.00\%)} & 
+% \makecell{0.121 \\ (+5.00\%)} & 
+% \makecell{0.550 \\ (-20.00\%)} & 
+% \makecell{0.556 \\ (-0.00\%)} & 
+% \makecell{0.795 \\ (-2.60\%)} & 
+% \makecell{0.667 \\ (-0.00\%)} & 
+% \makecell{0.875 \\ (-0.00\%)} & 
+% \makecell{0.889 \\ (-0.00\%)} & 
+% \makecell{0.944 \\ (-0.00\%)} & 
+% \makecell{0.208 \\ (+8.40\%)} & 
+% \makecell{0.650 \\ (-1.90\%)} \\
+% \quad \textit{w/o $R_g$} & 
+% \makecell{0.389 \\ (-11.10\%)} & 
+% \makecell{0.478 \\ (-4.40\%)} & 
+% \makecell{0.050 \\ (-2.10\%)} & 
+% \makecell{0.600 \\ (-15.00\%)} &
+% \makecell{0.444 \\ (-11.20\%)} & 
+% \makecell{0.846 \\ (+2.50\%)} & 
+% \makecell{0.556 \\ (-11.10\%)} & 
+% \makecell{0.750 \\ (-12.50\%)} &
+% \makecell{0.833 \\ (-5.60\%)} & 
+% \makecell{0.889 \\ (-5.50\%)} & 
+% \makecell{0.146 \\ (+2.20\%)} & 
+% \makecell{0.608 \\ (-6.10\%)} \\
+% \quad \textit{$R_a$ only (w/o $R_t$ \& $R_f$)} & 
+% \makecell{0.278 \\ (-22.20\%)} & 
+% \makecell{0.565 \\ (+4.30\%)} & 
+% \makecell{0.072 \\ (+0.10\%)} & 
+% \makecell{0.650 \\ (-10.00\%)} & 
+% \makecell{0.556 \\ (-0.00\%)} & 
+% \makecell{0.692 \\ (-12.90\%)} & 
+% \makecell{0.333 \\ (-33.40\%)} & 
+% \makecell{0.563 \\ (-31.20\%)} & 
+% \makecell{0.556 \\ (-33.30\%)} & 
+% \makecell{0.778 \\ (-16.60\%)} & 
+% \makecell{0.125 \\ (+0.10\%)} & 
+% \makecell{0.519 \\ (-15.00\%)} \\
+% \bottomrule
+% \end{tabular}
+% }
+% \label{tab:reward_ablation_study}
+% \end{table*}
+
+% \begin{table}[htbp]
+% \centering
+% \caption{LoCoMo benchmark: Out-of-Domain evaluation of Memory-T1 and Qwen2.5-3B-Instruct under RAG and Non-RAG settings.}
+% \resizebox{\textwidth}{!}{%
+% \begin{tabular}{lcccccc}
+% \toprule
+% \textbf{Model} & \textbf{Single-Hop} & \textbf{Multi-Hop} & \textbf{Temporal} & \textbf{Open-Domain} & \textbf{Adversarial} & \textbf{Overall} \\
+% \midrule
+% Qwen-2.5-3B-instruct & 0.498 & 0.287 & 0.245 & 0.135 & 0.166 & 0.335  \\
+
+% Qwen-2.5-3B-instruct-RAG  & 0.460 & 0.220 & 0.273 & 0.114 & 0.195 & 0.319 \\
+
+% Memory-T1 (3B) & 0.512 & 0.302 & 0.315 & 0.158 & 0.260 & 0.377  \\
+
+% Memory-T1 (3B)-RAG & 0.489 & 0.258 & 0.307 & 0.146 & 0.298 & 0.367  \\
+% \bottomrule
+% \end{tabular}}
+% \end{table}
+
+
+% \begin{figure}[t]
+%   \centering
+%   \includegraphics[width=0.5\textwidth]{figures/sensetive_analysis.pdf}
+%   \caption{.}
+%   \label{fig:sensitive_analysis}
+% \end{figure}
+
+
+
+% \subsubsection{Impact on top-k and time range filtering}
+
+% Figure \ref{fig:top_k_time_filter} report the effect of retrieval depth (top-k) and temporal filtering. Increasing top-k consistently improves both recall and overall performance. In Memory-T1 (3B), the overall score increases from 0.469 at top-1 (recall 29.1\%) to 0.669 at top-10 (recall 90.0\%). Qwen2.5-3B-Instruct exhibits the same trend, nearly doubling its performance from top-1 to top-10. This pattern suggests that broader retrieval substantially improves evidence coverage, while small top-k values ($\leq3$) fail to provide sufficient recall ($<60\%$), leading to degraded reasoning despite fewer distractors.
+
+% Adding a time range filter further enhances performance, especially at large top-k. For Memory-T1 (3B), the overall score at top-10 rises from 0.540 without filtering to 0.669 with filtering, with recall remaining stable around 90\%. Qwen2.5-3B-Instruct shows a similar jump (0.442 increase to  0.525). These improvements indicate that temporal constraints sharpen retrieval precision without sacrificing coverage. At small top-k, however, the effect is minimal since the candidate pool is already too limited. Overall, the best trade-off is achieved by combining top-10 retrieval with temporal filtering, which balances recall and precision to maximize reasoning performance.
+
+
+% Beyond isolated reasoning, RL has been increasingly applied in agentic settings, where challenges extend to tool use \citep{qian2025toolrl}, multi-step planning \citep{jin2025search}, and long-term interaction \citep{yu2025memagent}. Recent works further apply RL to diverse agentic settings, including tool integration \citep{li2025torl}, emergent code execution under large-scale training \citep{mai2025agent}, and generalized frameworks for retrieval and collaboration \citep{luo2025agent}. These advances highlight the promise of RL for developing more capable agents, yet they rarely address temporal reasoning in multi-session dialogue, where agents require relevant memories, align events chronologically, and reason under ambiguous supervision.
+
+% ToRL \citep{li2025torl} directly optimizes tool integration strategies, while scaling studies \citep{mai2025agent} show that spontaneous code execution emerges as training scale grows under outcome-based rewards. Frameworks such as Train-ANY-Agent \citep{luo2025agent} further generalize RL to diverse workflows, from retrieval-augmented generation to multi-agent collaboration.
+
+% The term $L^{\text{CLIP}}(\theta)$ from our main objective is built upon this advantage.$\hat{A}_j$ is the advantage from Eq.(~\ref{eq:advantage}) and 
+
+% The full term $L^{\text{CLIP}}(\theta)$ in Eq.(~\ref{eq:grpo_objective}) is the expected value of $L_j^{\text{CLIP}}(\theta)$ over the batch of samples.
+
+
+% The \textbf{per-sample clipped objective term is} then:
+% \begin{equation}
+% L_j^{\text{CLIP}}(\theta) = \min\left(r_j(\theta)\hat{A}_j, \text{clip}(r_j(\theta), 1-\epsilon, 1+\epsilon)\hat{A}_j\right).
+% \label{eq:clipped_term}
+% \end{equation}
+
+
+% To train this policy, we employ \textbf{Group Relative Policy Optimization (GRPO)} \citep{zheng2025group}, an effective RL algorithm for LLM fine-tuning that mitigates high reward variance by using a batch-average baseline. Our overall objective is to maximize the following function:
+% \begin{equation}
+% \max_{\theta} J_{\text{GRPO}}(\theta) = \mathbb{E}_{(q,\mathcal{C})\sim\mathcal{D}, \{(\mathcal{S}_j, a_j)\}\sim\pi_{\text{ref}}} \left[ \frac{1}{G}\sum_{j=1}^{G} L_j^{\text{CLIP}}(\theta) \right] - \beta \mathbb{E}_{(q,\mathcal{C})\sim\mathcal{D}} \left[ D_{\text{KL}}\left(\pi_\theta(\cdot|(q,\mathcal{C})) \,\|\, \pi_{\text{ref}}(\cdot|(q,\mathcal{C}))\right) \right].
+% \label{eq:grpo_objective}
+% \end{equation}
+% where the advantage estimate for a sampled generation which yields the pair $(S_j,a_j)$ is calculated against the batch-average reward:
+% \begin{equation}
+% \hat{A}((q,C), (\mathcal{S}_j, a_j)) = R((q,C), (\mathcal{S}_j, a_j)) - \frac{1}{G}\sum_{j=1}^{G}R((q,C), (\mathcal{S}_j, a_j)).
+%  \label{eq:advantage}
+% \end{equation}
+% The term $L^{\text{CLIP}}(\theta)$ from our main objective is built upon this advantage. Following a structure similar to PPO \citep{schulman2017proximal}, we first define a probability ratio $r_k(\theta) = \frac{\pi_\theta((\mathcal{S}_j, a_j)) | (q, \mathcal{C}))}{\pi_{\text{ref}}((\mathcal{S}_j, a_j)) | (q, \mathcal{C}))}$, where $\mathcal{S}_j$ and $a_j$ represent the evident session id set and answer in $j$-th generated output. The \textbf{per-sample clipped objective term is} then:
+% \begin{equation}
+% L_j^{\text{CLIP}}(\theta) = \min\left(r_j(\theta)\hat{A}_j, \text{clip}(r_j(\theta), 1-\epsilon, 1+\epsilon)\hat{A}_j\right).
+% \label{eq:clipped_term}
+% \end{equation}
+% Here, $\hat{A}_j$ is the advantage from Eq.(~\ref{eq:advantage}) and $\epsilon$ is a clipping hyperparameter that restricts the size of policy updates. The full term $L^{\text{CLIP}}(\theta)$ in Eq.(~\ref{eq:grpo_objective}) is the expected value of $L_j^{\text{CLIP}}(\theta)$ over the batch of samples.

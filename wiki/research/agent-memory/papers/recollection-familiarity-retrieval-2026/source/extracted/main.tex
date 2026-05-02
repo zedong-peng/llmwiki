@@ -1,0 +1,179 @@
+
+\documentclass{article} % For LaTeX2e
+\usepackage{iclr2026_conference,times}
+\iclrfinalcopy
+
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+\input{math_commands.tex}
+
+% \usepackage{hyperref}
+\usepackage{url}
+\usepackage{tikz}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{makecell}
+\usepackage{color, xspace}
+\usepackage{pifont}
+\usepackage{booktabs}
+\usepackage{placeins}
+\usepackage[table]{xcolor}
+\usepackage{makecell}
+\usepackage{array}
+\usepackage[most]{tcolorbox}
+\usepackage{etoc}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{amsmath}
+\usepackage{placeins}
+\usepackage[dvipsnames]{xcolor}
+
+\usepackage[colorinlistoftodos]{todonotes} % [colorinlistoftodos] 让列表中的待办项也有颜色
+
+
+\definecolor{mydarkred}{rgb}{0.6,0,0}
+\definecolor{myblue}{HTML}{268BD2}
+\usepackage[colorlinks, linkcolor=mydarkred, citecolor=myblue]{hyperref}
+
+\newcolumntype{M}[1]{>{\centering\arraybackslash}m{#1}}
+
+
+\newcommand{\zxy}[1]{{\color{blue} [#1 – Xy]}}
+\newcommand{\zc}[0]{{\color{blue} [cite]}\xspace}
+
+\newcommand{\yc}[1]{{\color{purple} [yichao: #1]}}
+
+\newcommand{\junyi}[1]{{\color{red} [#1-Junyi]}}
+\newcommand{\jpy}[1]{{\color{orange} [#1-Pengyue]}}
+\newcommand{\yy}[1]{{\color{black} #1}}
+\newcommand{\wl}[1]{{\color{red} [wenlin: #1]}}
+
+
+\newcommand{\revise}[1]{{\color{black} #1}}
+
+
+\title{Evoking User Memory: Personalizing LLM via Recollection-Familiarity Adaptive Retrieval}
+% Authors must not appear in the submitted version. They should be hidden
+% as long as the \iclrfinalcopy macro remains commented out below.
+% Non-anonymous submissions will be rejected without review.
+\author{Yingyi Zhang\textsuperscript{\rm{1,2,}}\thanks{Equal contribution.} , 
+    Junyi  Li\textsuperscript{\rm {2,}}\footnotemark[1] , 
+    Wenlin Zhang\textsuperscript{\rm{2}}, 
+    Penyue Jia\textsuperscript{\rm{2}}, 
+    Xianneng Li\textsuperscript{\rm{1,}}\thanks{Corresponding author.} , 
+    Yichao Wang\textsuperscript{\rm{3,}}\footnotemark[2] ,\\
+    \textbf{Derong Xu}\textsuperscript{\rm {2,4}}, 
+    \textbf{Yi Wen}\textsuperscript{\rm {2}}, 
+    \textbf{Huifeng Guo}\textsuperscript{\rm 3}, 
+    \textbf{Yong Liu}\textsuperscript{\rm 3}, 
+    \textbf{Xiangyu Zhao}\textsuperscript{\rm {2,}}\footnotemark[2]\\
+    \textsuperscript{\rm 1}Dalian University of Technology,
+    \textsuperscript{\rm 2}City University of Hong Kong, \\
+    \textsuperscript{\rm 3}Huawei Technologies Ltd.,
+    \textsuperscript{\rm 4}University of Science and Technology of China\\
+    \texttt{xianneng@dlut.edu.cn,wangyichao5@huawei.com,xianzhao@cityu.edu.hk}
+}
+
+% \author{Derong Xu$^{1,2}$, Yi Wen$^{2}$, Pengyue Jia$^2$, Yingyi Zhang$^2$, Wenlin Zhang$^{2}$, \textbf{Yichao Wang}$^3$,\\ 
+%       \textbf{Huifeng Guo}$^3$, \textbf{Ruiming Tang}$^3$, \textbf{Xiangyu Zhao}$^2$, \textbf{Enhong Chen}$^1$, \textbf{Tong Xu}$^1$\\
+%     $^1$University of Science and Technology of China,\\
+%     $^2$City University of Hong Kong, $^3$Huawei Noah’s Ark Lab\\
+%     \texttt{derongxu@mail.ustc.edu.cn}
+% }
+% \author{
+%     Antiquus S.~Hippocampus, Natalia Cerebro \& Amelie P. Amygdale \thanks{ Use footnote for providing further information
+%     about author (webpage, alternative address)---\emph{not} for acknowledging
+%     funding agencies.  Funding acknowledgements go at the end of the paper.} \\
+%     Department of Computer Science\\
+%     Cranberry-Lemon University\\
+%     Pittsburgh, PA 15213, USA \\
+%     \texttt{\{hippo,brain,jen\}@cs.cranberry-lemon.edu} \\
+%     \And
+%     Ji Q. Ren \& Yevgeny LeNet \\
+%     Department of Computational Neuroscience \\
+%     University of the Witwatersrand \\
+%     Joburg, South Africa \\
+%     \texttt{\{robot,net\}@wits.ac.za} \\
+%     \AND
+%     Coauthor \\
+%     Affiliation \\
+%     Address \\
+%     \texttt{email}
+% }
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to \LaTeX{} to determine where to break
+% the lines. Using \AND forces a linebreak at that point. So, if \LaTeX{}
+% puts 3 of 4 authors names on the first line, and the last on the second
+% line, try using \AND instead of \And before the third author name.
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+
+%\iclrfinalcopy % Uncomment for camera-ready version, but NOT for submission.
+\begin{document}
+
+
+\maketitle
+
+\begin{abstract}
+Personalized large language models (LLMs) rely on memory retrieval to incorporate user-specific histories, preferences, and contexts. Existing approaches either overload the LLM by feeding all the user's past memory into the prompt, which is costly and unscalable, or simplify retrieval into a one-shot similarity search, which captures only surface matches. Cognitive science, however, shows that human memory operates through a dual process: \emph{Familiarity}, offering fast but coarse recognition, and \emph{Recollection}, enabling deliberate, chain-like reconstruction for deeply recovering episodic content. 
+Current systems lack both the ability to perform recollection retrieval and mechanisms to adaptively switch between the dual retrieval paths, leading to either insufficient recall or the inclusion of noise.
+To address this, we propose \textbf{RF-Mem} (\textbf{R}ecollection–\textbf{F}amiliarity \textbf{Mem}ory Retrieval), a familiarity uncertainty-guided dual-path memory retriever. 
+RF-Mem measures the familiarity signal through the mean score and entropy. High familiarity leads to the direct top-$K$ \emph{Familiarity} retrieval path, while low familiarity activates the \emph{Recollection} path. In the \emph{Recollection} path, the system clusters candidate memories and applies $\alpha$-mix with the query to iteratively expand evidence in embedding space, simulating deliberate contextual reconstruction.
+This design embeds human-like dual-process recognition into the retriever, avoiding full-context overhead and enabling scalable, adaptive personalization. Experiments across three benchmarks and corpus scales demonstrate that RF-Mem consistently outperforms both one-shot retrieval and full-context reasoning under fixed budget and latency constraints. Our code can be found in the~\nameref{sec:Rreproduct}.
+% Current systems lack both structured recollection and mechanisms to adaptively switch between these modes.
+% \yy{Current systems lack both the ability to perform recollection retrieval and mechanisms to adaptively switch between the dual retrieval paths.} 
+% \yc{refers to what aspects, recollection and mechanism?}
+% To address this, we propose \textbf{RF-Mem}, a familiarity uncertainty-guided dual-path memory retriever. \yc{belongs to measures xxx? or start another sentence?} 
+% RF-Mem measures the familiarity signal through mean score and entropy: high familiarity leads to direct top-$K$ retrieval, while low familiarity activates recollection, clustering candidates, and $\alpha$-mixing centroids with the query for iterative evidence expansion in embedding space. 
+% \yy{RF-Mem measures the familiarity signal through mean score and entropy. High familiarity leads to the direct top-$K$ \emph{Familiarity} retrieval path, while low familiarity activates the \emph{Recollection} path. In the \emph{Recollection} path, the system clusters candidate memories and applies $\alpha$ mix with the query to iteratively expand evidence in embedding space, simulating deliberate contextual reconstruction.}
+% This design embeds human-like dual-process recognition into the retriever, avoiding full-context overhead and enabling scalable, adaptive personalization. Experiments across benchmarks and corpus scales demonstrate that RF-Mem consistently outperforms both one-shot retrieval and full-context reasoning under fixed budget and latency constraints. Our code can be found in the Supplementary Materials.
+% \yc{why append the code now?}
+\end{abstract}
+
+% \begin{abstract}
+
+% Personalized large language models (LLMs) rely on memory retrieval to incorporate user-specific histories, preferences, and contexts. Existing approaches either overload the LLM by feeding all the user's past memory into the prompt, which is costly and unscalable, or simplify retrieval into a one-shot similarity search, which captures only surface matches. Cognitive science, however, shows that human memory operates through a dual process: \emph{Familiarity}, offering fast but coarse recognition, and \emph{Recollection}, enabling deliberate, chain-like reconstruction for deeply recovering episodic content. Current systems lack both structured recollection and mechanisms to adaptively switch between these modes. To address this, we propose \textbf{RF-Mem}, a familiarity uncertainty-guided dual-path memory retriever. RF-Mem quantifies uncertainty via list entropy: low entropy activates the Familiarity channel for direct top-$k$ retrieval, while high entropy triggers the Recollection channel, which clusters candidates and refines queries in the retrievaler's hidden state to expand contextual evidence. This design embeds dual-process regulation directly into the retriever, avoiding full-context overhead and enabling scalable, adaptive personalization. Experiments across benchmarks and corpus scales demonstrate that RF-Mem consistently outperforms both one-shot retrieval and full-context reasoning under fixed budget and latency constraints. Our code can be found in the Supplementary Materials.
+% \end{abstract}
+%  加一句 可以加入到现在各种以LLM为主的memory系统里。
+
+% Personalized large language models (LLMs) rely on memory retrieval to incorporate user-specific histories, preferences, and contexts. Unlike fact-oriented RAG systems, which target objective knowledge, memory retrieval must capture autobiographical and situational fragments tailored to ``this user, at this moment, for this task.'' However, existing approaches either simplify retrieval into a one-shot similarity search---corresponding to the \emph{Familiarity} process---or rely on costly generator-driven expansions as a proxy for \emph{Recollection}. Both directions fail to provide chain-like evidence reconstruction and lack mechanisms to adaptively switch between fast and slow retrieval. Motivated by the Recollection–Familiarity dual-process theory from cognitive science, we propose \textbf{RF-Mem}, an uncertainty-guided dual-process memory retrieval framework. RF-Mem first conducts a probe search and computes list entropy to quantify uncertainty. Low entropy triggers the Familiarity channel, returning results directly; high entropy triggers the Recollection channel, where clustering and query–center mixing iteratively expand evidence chains. This design embeds structured recollection and adaptive regulation into the retriever itself, avoiding heavy generator overhead. Experiments across multiple domains and memory scales demonstrate that RF-Mem consistently outperforms both one-shot top-$k$ retrieval and generator-based expansions under fixed budget and latency constraints.
+
+
+\input{chapter/1intro}
+\input{chapter/2preliminary}
+\input{chapter/3method}
+\input{chapter/4expr}
+\input{chapter/5rela}
+\input{chapter/6conclu}
+
+% \subsubsection*{Author Contributions}
+% If you'd like to, you may include  a section for author contributions as is done
+% in many journals. This is optional and at the discretion of the authors.
+
+% \subsubsection*{Acknowledgments}
+% Use unnumbered third level headings for the acknowledgments. All
+% acknowledgments, including those to funding agencies, go at the end of the paper.
+
+\section*{Ethics Statement}
+This work focuses on improving personalized memory retrieval for large language models. Our study relies solely on simulated and publicly available benchmark datasets (PersonaMem, PersonaBench, LongMemEval), which do not contain personally identifiable information or sensitive data. We do not collect or release any private user data. While the proposed framework is designed to enhance efficiency and robustness in memory retrieval, potential misuse could arise if deployed without safeguards in sensitive applications such as healthcare or personal decision-making. We therefore emphasize that future deployment should follow strict data governance, privacy preservation, and fairness guidelines, and we encourage the research community to consider ethical implications when extending this work to real-world user data. \revise{We acknowledge that real-world deployments of preference-based systems may inadvertently over-amplify user traits or reinforce behavioral biases. Additionally, improper handling of user histories could expose sensitive information or lead to unintended profiling effects, underscoring the need for careful governance.}
+
+\section*{Reproducibility Statement}
+\label{sec:Rreproduct}
+We make every effort to ensure reproducibility. All datasets used in this study are publicly available, and we provide detailed references to their sources in the main text. Model architectures, hyperparameter choices ($B$, $F$, $\alpha$, $\tau$, and thresholds $\theta_{\text{high}}$, $\theta_{\text{low}}$) are explicitly documented in Appendix~\ref{app:imple}. We also describe hyperparameter sensitivity analyses in Appendix~\ref{app:add_exp} to illustrate robustness under different configurations. To further facilitate replication, we release code and scripts for reproducing all reported results in the supplementary materials. Our code repository is available at \url{https://github.com/Applied-Machine-Learning-Lab/ICLR2026_RF-Mem}.
+
+
+\section*{Acknowledgement}
+This research was supported by the National Natural Science Foundation of China (NSFC) under Grants 72071029, 72231010, 62502404, and the Graduate Research Fund of the School of Economics and Management of Dalian University of Technology (No. DUTSEMDRFKO1).  This research was partially supported by Hong Kong Research Grants Council (Research Impact Fund No.R1015-23, Collaborative Research Fund No.C1043-24GF, General Research Fund No.11218325), Institute of Digital Medicine of City University of Hong Kong (No.9229503), Huawei (Huawei Innovation Research Program).
+
+\nocite{*}
+
+\bibliography{chapter/ref}
+\bibliographystyle{iclr2026_conference}
+
+\input{chapter/7append}
+
+
+\end{document}

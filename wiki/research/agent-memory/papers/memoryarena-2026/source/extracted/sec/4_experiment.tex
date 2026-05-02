@@ -1,0 +1,240 @@
+\section{Experiments}
+
+% Please add the following required packages to your document preamble:
+% \usepackage{booktabs}
+% \usepackage{multirow}
+% \usepackage{graphicx}
+% Please add the following required packages to your document preamble:
+% \usepackage{booktabs}
+% \usepackage{multirow}
+% \usepackage{graphicx}
+
+\input{tables/main}
+\begin{figure}[t]
+    \centering
+    \begin{subfigure}{0.47\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/webshop_at_k_all_subset.pdf}
+        \caption{Bundled Web Shopping@k}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.47\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/travel_c_all_subset.pdf}
+        \caption{Group Travel Plan@k}
+    \end{subfigure}
+\hfill
+    % \vspace{0.5em}
+
+    \begin{subfigure}{0.47\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/search_atqueryK_subset.pdf}
+        \caption{Progressive Web Search@k}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.47\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/formal_all_subset.pdf}
+        \caption{Formal Reasoning@k}
+    \end{subfigure}
+    \begin{subfigure}{\linewidth}
+        \centering
+        \includegraphics[width=0.8\linewidth]{figs/legends.png}
+    \end{subfigure}
+    \caption{Success Rate at subtask epth $k$. The decay trend indicates agents cannot sustain execution as dependencies span more sessions.}
+    \label{fig:all_at_k}
+    \vspace{-15pt}
+\end{figure}
+
+\subsection{Experimentation Setup}
+
+%Following the evaluation setups in ~\citep{wulongmemeval, hu2025evaluating}, \ours supports evaluating three representative memory paradigms: (i) \textit{long-context agent}, which treats memory as verbatim history appended as context before subtask instructions, (ii) explicit \textit{memory agents} that are well-learnt or curated systems with information abstraction, consolidation, and retrieval; and (iii) \textit{retrieval-augmented generation (RAG) systems} that organize past information via document indexing and access through retrieval. 
+% In addition, we introduce a naive memory baseline where only ground truth semantic memory is provided in each subtask, it provides the agent with all task-relevant ground-truth results from its previous sessions. This setting removes noise and redundancy in retrieved memory but contains information that is required in the current session, therefore serving as an upper bound on memory quality.
+
+
+%Inspired by \citet{hu2025memory}, we categorize these long-history management methods into 3 categories: (1) 0D if only raw history is stored in this base, as no knowledge consolidation or abstraction, such as verbatim context in long-context agents, BM25 and Text-Embedding-based RAG. (2) 1D if a system is equipped with learned data organizing functions to consolidate knowledge or distill experience, but the database structure is a flat layer, such as Latta, Mem0, and ReasoningBank, and memoRAG in RAG systems. (3) 2D if a system equipped with knowledge management has structural layers such as trees or graphs. This categories includes the graph vesion of Mem0 (Mem0-g) and GraphRAG. 
+
+Following prior setups \citep{wulongmemeval, hu2025evaluating}, agents equipped with $\mathcal{M}$ has three representative paradigms in \ours:
+\textbf{Agents with Long-context buffers (Long-Context Agent)} which append verbatim interaction history directly before the prompt before each subtask without explicit abstraction or consolidation, working as an in-context memory. We include GPT-5.1-mini, GPT-4.1-mini, and Gemini-3-flash, Claude-Sonnet-4.5. 
+\textbf{Agents with External Memory}, where the agents maintain an external memory with learned or curated mechanisms for information abstraction, consolidation, and retrieval. We include four mainstream agents with external memory: MemGPT~\citep{packer2023memgpt}, Mem0 and its graph version Mem0-g~\citep{mem0}, 
+% Mirix ~\citep{wang2025mirix}, 
+and ReasoningBank~\citep{ouyang2025reasoningbank}.
+\textbf{Agents with Retrieval-augmented generation (RAG) systems}, which use an indexed document store to store past information and then access it via retrieval. We consider different retrieval methods, including BM25, an embedding-based RAG method that retrieves based on semantic similarity (using OpenAI \texttt{text-embedding-3-small}), and two structured RAG approaches, MemoRAG~\citep{qian2025memorag} and GraphRAG~\citep{edge2024local}, in our evaluation. 
+% These paradigms differ not only in how memory is accessed, but also in how past information is organized and transformed over time.
+
+
+Inspired by \citet{hu2025memory}, we further characterize above methods by the structure and  complexity of its memory design, to guide our experiment analysis. 
+\textbf{0D} memory method stores raw history without abstraction or consolidation. This includes verbatim context used by long-context agents and flat RAG methods such as BM25 and embedding-based RAG. 
+\textbf{1D} memory method introduces learned or heuristic mechanisms for consolidating and distilling information, while maintaining a flat memory structure. Examples include MemGPT~\citep{packer2023memgpt}, Mem0~\citep{mem0}, ReasoningBank~\citep{ouyang2025reasoningbank}, and memoRAG~\citep{qian2025memorag}.
+\textbf{2D} memory methods incorporate structured memory, including components like or tree/graph-based relational representations (e.g., MemGPT~\citep{packer2023memgpt}, GraphRAG~\citep{edge2024local}).
+%This taxonomy allows \ours to systematically evaluate memory mechanisms ranging from unstructured history replay to structured, multi-level knowledge management under a unified multi-session agentic setting. 
+
+All evaluation results are reported with GPT-5.1-mini as the task agent equipped with different memory systems (long-context, RAG systems or memory systems). 
+
+\subsection{Evaluation Metrics}
+% Our data design enforces that there is only a single ground truth answer in each subtask, therefore each task only has one valid combination of answers. 
+% a task is therefore considered successful only if all subtasks are completed correctly (binary pass or fail). 
+\label{sec:eval_metric}
+
+
+% only one unique product will be counted 
+
+% We also define a task-level metric that captures to what extend the multi-session task is correctly solved. 
+
+We define the Task \textbf{Progress Score} (PS) to measure how many subtasks are completed within a task. PS captures the fraction of subtasks that are correctly completed within a task, providing a fine-grained signal of partial progress even when full task success is not achieved. Formally, consider a test set of $N$ tasks ($\{S_1, S_2, \cdots, S_N\})$ where each task consists of $|S_i|$ ordered substask ($S_i = [s_1, s_2, \cdots, s_{|S_i|}]$). Let $|s_i^\text{pass}|$ denote the number of passed subtasks in $S_i$, the overall Progress Score is computed as the aggregated task-level Progress Score: 
+
+% \begin{align}
+%     \textsc{PS}_{S_i}=  \frac{\sum_j^{|S_i|} r_{s_j}}{|S_i|}, \quad\textsc{r-M} = \frac{\sum_i^N \textsc{r-M}_{S_i}}{N}
+% \end{align}
+
+\begin{align}
+    \text{PS}_{S_i}=  \frac{{|s_i^\text{pass}|}}{|S_i|}, \quad\text{PS} = \frac{1}{N}\sum_i^N \textsc{PS}_{S_i}
+\end{align}
+
+We also report the Task Success Rate (SR), which measures the percentage of tasks that are fully solved. In Bundled Web Shopping and Group Travel Planning, a task is successful if the final bundle or plan satisfies all group members. In Progressive Web Search and Formal Reasoning, success is determined by the correctness of the final subtask, which is the concluding search query or the major math or physics problems.
+
+% For Bundled Web Shopping, we use the similarity-based reward as the $r_{s_j}=\text{Reward}_\text{WebShop}$ for each single item shopping, following~\citet{yao2022webshop}.
+% For Group Travel Planning, we define a constraint-level reward for each individual traveler as $r_{s_j}$. Suppose subtask $s_j$ requires tavel planner to make an itinerary with a preference set $C_j$, we define single-session reward as the average traveler constraint pass ratio as     $r_{s_j} = \frac{|C_j^{\text{pass}}|}{|C_j|}$. Then, the metric $\textsc{r-M}$ reflects the average degree to which a planning agent satisfies individual user preferences in a group travel. 
+% For Compositional Web Search, Formal Mathematical Reasoning, and Formal Physics Reasoning, we define $r_{s_j}$ as the binary correctness score: $$r_{s_j}= \mathrm{1}\cdot (\text{ if } s_j \text{ is correctly solved.})$$
+
+% we report \textit{the average reward} by measuring the attribute similarity between the bought item of the agent and the ground truth item, following \citep{yao2022webshop}. For Compositional Web Search, we also report the average \textit{Recall} of each method. 
+
+
+%For Group Travel Planning, we define a new metric called Constraint-level Group Pass Rate (C-GPR) as the group average of constraint pass ratio of each traveler:
+%\begin{equation}
+%     r_{g,u} = \frac{|\mathcal{C}^{pass}_{g,u}|}{\mathcal{C}_{g,u}} \quad \textsc{C-GPR}_g = \frac{1}{|\mu_g|}{\sum_{u\in \mu_g} r_{g,u}} \quad \textsc{C-PR}=\frac{1}{G}\sum_{g=1}^G \textsc{C-GPR}_g
+%     \nonumber
+% \end{equation}
+%where the data consists of $G$ groups of travelers, for $g$-th group in $G$, $ \mu_g$ denotes the set of travelers in the group, and $\mathcal{C}_{g,u}$  denotes the set of constraints specified by traveler $u \in \mu$. This metric reflects the average degree to which a planning agent satisfies individual user preferences in a group travel. 
+
+
+
+
+\subsection{Main Results}
+\label{sec:main_analysis}
+\paragraph{Overall Results and Task Difficulty.}
+\cref{tab:main_result} reports the Task Success Rate (SR) and Task Progress Score (PS) across environments. Overall, all methods achieve low SR and PS, with two environments exhibiting near-zero SR, indicating that \ours poses a challenging evaluation setting. Examining the gap between SR and PS, we find that most methods have much higher PS than SR (except in Group Travel Planning with both near zero). This pattern suggests that while agents can make some progress on individual subtasks, they fail to integrate these partial successes into globally consistent solutions dramatically.
+
+% \cref{tab:main_result} reports the Task Success Rate (SR) and Task Progress Score (PS) across environments. Overall, all methods achieve low SR, indicating that fully solving multi-session tasks remains challenging. However, PS is much higher than SR in most environments (except for Group Travel Planning), showing that agents are often able to complete individual subtasks even when they fail to solve the entire task. This gap between PS and SR suggests that current agents possess limited local subtask competence but struggle to integrate these partial successes into globally coherent solutions.
+
+
+Group Travel Planning remains the most challenging environment in \ours, with both SR and PS near zero across all methods. Here each subtask requires planning a 30-slot itinerary, where every slot is governed by constraints such as joining a group activity, coordinating an activity with one or more participants, or selecting an individual activity that depends on earlier decisions. Successfully completing the itinerary demands accurate recall of previously specified preferences and long-horizon reasoning over interdependent constraint chains across slots, placing strong requirements on both memorization and long-chain reasoning that remain beyond the capabilities of current agents.
+
+To enable informative comparison in Group Travel Planning (as hard SR and PS are zero for all methods), we additionally report a soft Progress Score (sPS), where each subtask receives partial credit based on the fraction of constraints it satisfies. Task-level soft progress is computed by averaging subtask sPS, with overall sPS averaged across tasks. We use sPS when discussing Group Travel Planning in later analysis. 
+
+% we also report the soft version of the task Progress Score where each subtask has a partial pass criteria measured by the fraction of constraints passed with in this subtask. Then the average subtask progress forms the task progress, and overall PS still averagaes task PS across tasks. 
+
+\vspace{-5pt}
+\paragraph{External Memory and RAG Systems Are Not Universally Beneficial.}
+We find that augmenting GPT-5-mini with external memory or RAG does not consistently outperform using the model’s full long-context history alone. We attribute this outcome to two forms of mismatch. First, a \emph{representation mismatch}: long-context agents reason over a self-consistent, verbatim interaction history, whereas external memory systems typically return compressed, segmented, or reordered information that may not align well with in-context learning over raw context. Second, a \emph{training mismatch}: external memory systems are not jointly optimized with the task agent, leaving the agent suboptimal at formulating effective queries and integrating retrieved information into its reasoning process. Consequently, pairing strong long-context agents with external memory does not reliably produce a “$1+1>2$” effect.
+
+
+\paragraph{When External Memory Helps.}
+As shown in~\cref{tab:main_result}, external memory yields consistent performance gains in Progressive Web Search and Formal Reasoning. In Progressive Web Search, individual subtask traces can exceed 120k tokens, while in Formal Reasoning, subtasks require highly complex and domain-specific reasoning. Both settings push the agent beyond its effective reasoning capacity when conditioned on long contexts alone. In such regimes, long-context prompts are susceptible to attention saturation and error accumulation, as early mistakes persist in the context and propagate to later decisions. External memory mitigates these failure modes by selectively abstracting, distilling, and retaining task-relevant information, thereby reducing noise and alleviating attention saturation.
+
+
+
+% \paragraph{Which Types of Memory Helps.} 
+% Human memory has multiple partitions based on its functions, such as sematic memory and procedual memory. Such intuition is usually implmented in contemparary memory system designs. \ours offer an oppotunity to access the correlation bewteen types of memory with task intrinic categories. From ~\cref{tab:main_result}, we procedual memory, such as reusable workflow experience between sessions, usually provides positive help in 
+
+
+\subsection{Results on Interdependent Subtasks}  
+We analyze agent performance under increasing subtask interdependency using SR at subtask depth $k$ (@$k$), defined as the fraction of task instances that are correctly completed at the $k$-th subtask. This metric characterizes how well agents sustain execution as dependencies span more sessions. 
+
+As shown in ~\cref{fig:all_at_k}, all evaluated methods exhibit a decay with no method maintaining a consistent flat region across environments. This observation suggests that neither long-context models nor existing external memory or retrieval mechanisms are sufficient to reliably support agent long-horizon execution over deeply interdependent subtasks.
+
+The rate of decay, however, varies across task settings. In Progressive Web Search, where each session induces substantially longer reasoning traces, ($>122k$) long-context agents degrade more rapidly as $k$ increases, as context can go beyond effective context window more easily.
+%reflecting limitations in effective context utilization. 
+In contrast, agents augmented with external memory or retrieval exhibit slower decay, as these systems re-surface relevant information from earlier subtasks when the accumulated trace becomes not accessible directly.
+In tasks that require precise reuse of earlier subtask information, such as recalling intermediate results in formal reasoning or referencing exact activities and time slots in group travel planning, retrieval-based approaches are consistently more robust than agents with external memory that rely on heavier information consolidation and abstraction. In these cases,agents with RAG systems exhibit slower decay in SR@$k$ than that with external memory.
+
+
+
+
+% \begin{figure}[t]
+%     \centering
+%     \begin{subfigure}{0.45\linewidth}
+%         \centering
+%         \includegraphics[width=\linewidth]{figs/webshop_avg.pdf}
+%         \caption{Bundled Webshop@k}
+%     \end{subfigure}
+%     \hfill
+%     \begin{subfigure}{0.45\linewidth}
+%         \centering
+%         \includegraphics[width=\linewidth]{figs/travel_cc_avg.pdf}
+%         \caption{Travel@k}
+%     \end{subfigure}
+
+%     \vspace{0.5em}
+
+%     \begin{subfigure}{0.45\linewidth}
+%         \centering
+%         \includegraphics[width=\linewidth]{figs/search_avg_tillqueryK.pdf}
+%         \caption{Search@k}
+%     \end{subfigure}
+%     \hfill
+%     % \begin{subfigure}{0.45\linewidth}
+%     %     \centering
+%     %     \includegraphics[width=\linewidth]{figs/a.pdf}
+%     %     \caption{Formal reasoning@k}
+%     % \end{subfigure}
+
+%     \caption{Overall figure caption describing all four subfigures.}
+%     \label{fig:avg_at-k}
+% \end{figure}
+
+
+
+\subsection{Latency Evaluations}
+\input{tables/latency}
+In~\cref{tab:latency}, we additionally report subtask completion time as a diagnostic measure of end-to-end execution latency for agents equipped with different memory mechanisms (additional statistics are provided in Appendix~\ref{appendix:latency}). Overall, agents with external memory always incur the highest latency, with retrieval-based systems falling in between, while long-context agents consistently exhibit the lowest latency across environments. Notably, long-context agents achieve this efficiency while remaining competitive in task performance in several settings (see~\cref{sec:main_analysis}).
+
+Across both agents with external memory and agents with RAG systems, we do not observe a systematic relationship between memory operation complexity and execution latency. More complex memory mechanisms (e.g.,2D) do not necessarily incur higher task execution time, nor do simpler designs (e.g., 0D) consistently yield better efficiency. Substantial latency variation also exists among methods with similar memory architectures, indicating that operational complexity alone is not a reliable predictor of end-to-end latency.
+
+These findings suggest that, beyond jointly optimizing memory mechanisms and task agents for functional integration, future work should explicitly consider the trade-offs between memory effectiveness and execution latency—especially in multi-session agentic settings where memory is repeatedly accessed.
+
+
+
+\subsection{\ours as a POMDP Testbed}
+\label{sec:pomdp_link}
+
+We view the multi-session agent-environment loop in \ours as a natural instance of a \emph{partially observable Markov decision process} (POMDP). Across sessions, the agent never directly observes the full underlying task state (e.g., the latent bundle specification, the evolving set of group constraints, or the intermediate dependencies required by later subtasks). Instead, at each session it receives a partial observation consisting of the current subtask instruction and environment feedback. When \textit{no external memory is provided}, the agent must rely on a truncated interaction trace (or its internal parametric knowledge), making the decision process effectively partially observable and history-dependent.
+
+This perspective yields a two-step connection to view \ours as a POMDP-oriented testbed. First, \ours exposes long-horizon partial observability in multi-session tasks, where performance decay with depth can be interpreted as \textbf{belief drift}: small errors in the agent’s implicit state estimate accumulate across sessions and eventually dominate downstream decisions, as shown in \cref{fig:all_at_k}.
+
+Second, external memory in \ours can be interpreted as \textit{an explicit mechanism for approximating belief-state estimation}. In an idealized setting, an \emph{optimal} memory base that returns all and only the information necessary to infer the current belief state (i.e., the task-relevant sufficient statistics from past sessions) should enable an agent policy to act as if it were operating in a fully observed MDP (or, equivalently, to solve the underlying POMDP via a belief-MDP reduction). However, our empirical results show that current state-of-the-art memory systems and RAG systems still yield low Task SR, indicating that current SOTA memory does not reliably support the kind of \textbf{state tracking} required by the agent POMDP.
+
+These results suggest two complementary bottlenecks. From \emph{memory-side}: contemporary memory mechanisms, often optimized for generic recall, compression, or semantic-similarity retrieval, have limited capacity to preserve and update task-relevant state variables that are sufficient for \textbf{belief tracking} under a task’s dependency. From \emph{agent-side}: task agents are not trained to query, interpret, and integrate memory outputs as structured cues for \textbf{belief updates}, which can lead to under-utilization or mis-utilization of retrieved information. These motivate future work that jointly optimizes memory representations and agent training objectives with explicit awareness of POMDP state estimation for long-horizon planning.
+
+
+
+
+
+% \paragraph{Low Task-level SRs. }
+%\cref{tab:main_result} shows task performance in the four environments.  We report the the success rate (SR) which messures how many subtask has all subtasks completed sucessfully and also report the aggregated pass rate which captures to what percentage a task is compeleted sucessfully. All task scenarios shows a low SR over all methods, indicating the \ours's multi-session task completion is a challeging setting even with mainstream long-context models or memory-/rag- systems. While math tasks come from the real claims in research paper (human-level reasoning tasks), formal reasoning is not the hardest tasks as agents still have non-zero pass rates. Instead group travel planning is the hardest test scenarios, as each of the subtask contains 9-15 slots to reason about and fill the requirement, which is also verified by the extremely low SR and r-M in the table. 
+
+
+% \paragraph{Coupling memory vs Just Plain Long Context.} 
+%A pair-wisely comparing task agent + memory systems or RAG systems with Task Agent only (long-context GPT-5.1-mini),  we also notice coupling with these external systems offers no help or even downgrades the task agent which directly puts all history into the context window (because gpt-5-mini + any methods has no higher score than gpt-5-mini only with full history only). We guess the reason is: as a long-context agent, gpt-5.1-mini has enough capacity in solving the context as long as it is reasonably long. 
+%What implies behind this is: we know both memory systems and agents works okay in their isolation setting (e.g., memory system works good in recall task, and task agent works good in webshopping), but no obvious add on after combining them together. We guess the reason is: This suggests a disjoint effect between the helpfulness of memory systems and helpfulness of the task agent, implying in the future the memory system should be trained together with task agent linked with in an agentic environment.
+%However, we also found in agent tasks such as progressive web searching where the average trace in the last session has more than 122k tokens, coupling memory provide positie boost comparing to without it. We guess it is because the agent produces traces longer than what the task agent can \textit{effectively} handle, relying on external memory systems or the rag agents can provide positive solution.  
+
+
+%\paragraph{Memory Type v.s. Task Category.} 
+%Here we discuss how three type of memory works with different task scenarios. In Shopping, we notice Task agent + Memory agent works worst, RAG-systems lies in between, and long-context agent works best. Given the fact that the last session will have the longest trace whose length is around 40k which long-context agents can easily handles. ,  using information retrieved from memory can lose some information so less effective than use them all (since it is not considered as long to llms). 
+%In the difficult reasoning task environment like Group travel planning where agents should do logical reasoning (plan joined actvities and refer relation activities along the relationship chain) and formal reasoning like math and physics,  rag overperforms long-context hugely. Perhaps becuase the reaosning trace in the long context contains many errors in these tasks where reasoning is difficult and the misleading information culmulates more than rag so ruin the following problem solving.  
+
+
+%Not that these long context agents or memory /rag systems already achieve saturated performance on existing recall-based memory systems. therefore, this divergency indicates an evaluation gaps between existing memory evaluation benchmarks and argentic usage. 
+
+
+
+% \paragraph{Subtask difficulty}
+% pass\@1 performance: need to compare with existing paper \zexue{Math needs pass@1}
+
+
+
+
+
+% \input{tables/latency}
+

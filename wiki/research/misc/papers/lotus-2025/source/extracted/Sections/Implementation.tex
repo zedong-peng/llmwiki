@@ -1,0 +1,63 @@
+\section{Optimized Execution Plans for Semantic Operators} 
+\label{sec:impl}
+
+In this section, we present novel optimizations for several costly operators, including semantic filters, joins, top-k and group-by. Each optimization provides statistical accuracy guarantees with respect to the gold algorithm, building from Section~\ref{sec:operators}.
+While this paper focuses on novel optimizations for several expensive semantic operators, we envision a rich space of future work exploring new optimizations and applications of traditional optimizations to semantic operator programs. For example, several prior works demonstrate performance gains in both logical query plan optimizations (e.g. operator re-ordering~\cite{liu_suql_2024, liu_declarative_2024, lin_towards_2024, lu_accelerating_2018}) and other general LM-approximation techniques (e.g. code synthesis~\cite{arora_language_2023, liu_declarative_2024} and prompt adaptation~\cite{chen_frugalgpt_2023}).
+
+
+\subsection{Optimizing Semantic Filter}
+\input{algs/approx_sem_filter}
+
+
+\label{subsubsec:filter_cascade} We provide an approximation for semantic filters that obtains recall and precision targets $\gamma_R$ and $\gamma_P$ with respect to the gold implementation with probability $1-\delta$. To achieve reduced cost we leverage the cheaper, but less accurate proxy model $A(t, l)$, which outputs a score indicating whether the tuple $t$ passes the predicate.
+This idea is inspired by prior works~\cite{viola_rapid_2001, yue_large_2024, chen_frugalgpt_2023, kang_noscope_2017, kang_approximate_2022, yue_large_2024}, which leverage model cascades for different problem settings. Specifically, several works study cascades in the video analytics setting with vision models, which have significantly different properties than LLMs, requiring different proxy scoring mechanisms. Other works study cascades for LLMs, but use heavy-weight scoring mechanisms to decide whether to use the proxy model and do not provide accuracy guarantees. In contrast, we focus on providing accuracy guarantees for the constrained problem of applying cascades for filters, which allows us to use lighter-weight scoring functions than the more general case studied in prior works.
+
+In general, we cannot assume the proxy model is accurate. In fact, the proxy model may perform very poorly for some tasks and records. The goal of our algorithm is to automatically discover the quality of the proxy \emph{at query time} by sampling and comparing to the gold algorithm with the oracle model. Our algorithm will exploit the proxy when it is likely to provide high-quality outputs, and otherwise defer the oracle model. To do this we must learn a decision rule, with learned thresholds on the proxy scores using sampling. As prior work~\cite{kang_approximate_2020} discusses, such sampling-based algorithms introduce multiple-hypothesis testing problems, requiring statistical corrections using confidence intervals, which we carefully apply in our algorithm.
+
+We consider a small LLM as the proxy model and generate scores $A(t)$ using log-probabilities\footnote{This optimizations assumes access to log-probabilities, which is available in common model providers, such as OpenAI, and serving systems, such as vLLM. In the absence of available log-probabilities, alternative uncertainty quantification methods, such as prompt-based methods, may be more suitable.} corresponding to the \verb|True| or \verb|False| output tokens of the proxy model's predicate evaluations, re-scaling by the quantiles over all generated log-probabilities over the relation. 
+Algorithm~\ref{alg:approx_sem_filter} shows the full procedure for performing the approximate semantic filter. We begin by collecting a sample of tuples $S$, and labeling each sample with the oracle and proxy models. The sampling procedure uses importance sampling and defensively mixes a uniform sample following prior work~\cite{kang_approximate_2022}. Using the central limit theorem and the normal approximation on the distribution of sample statistics, we then learn a decision rule by finding thresholds $\tau_+$ and $\tau_-$, which will respectively ensure the precision target and recall target are met, each with an error probability of $\delta/2$. The statistical sub-procedures to choose each threshold follows prior work~\cite{kang_approximate_2022}, but applies them to this new setting where we must ensure \emph{both} targets are met, requiring a correction for hypothesis testing and multiple failure modes. 
+Finally, using the learned decision rule, our algorithm proceeds to process each tuple in the relation. If the tuple's proxy score is at least $\tau_+$, we mark it as passing the predicate. If the tuple's proxy score is less than or equal to $\tau_-$, we mark it as failing the predicate, and for tuples with proxy scores between $\tau_+$ and $\tau_-$, we resort to the oracle model to provide a label.
+
+
+\subsection{Optimizing Semantic Join}
+
+Similar to semantic filters, we provide an approximation for semantic joins that obtains recall and precision targets $\gamma_R$ and $\gamma_P$ with respect to the gold algorithm with probability $1-\delta$. Due to the expensive quadratic scaling of the nested-loop join, rather than using a small LLM as the proxy model, we consider an even cheaper proxy based on semantic similarity scores using embeddings. 
+We leverage two possible proxy algorithms and dynamically choose the lowest cost one. 
+
+The first approximation, \textbf{sim-filter} produces a proxy score $A_1(t_i, t_j)$, $t_i\in T_1, t_j\in T_2$ based on embedding similarity. We perform batched similarity search between the right and left join keys and re-calibrate similarity scores according to their quantiles to obtain proxy scores. 
+This approximation is likely to perform efficiently when tuple pairs with high semantic similarity between the the right and left join key are more likely to pass the predicate. This correlation phenomenon between predicate matches and embedding similarity has been studied by prior works~\cite{patel_acorn_2024} and is not always present. Thus, we introduce an alternative approximation, often suitable when correlation is not present.
+
+The second approximation, \textbf{project-sim-filter} first performs a projection over the left join key and then uses the projected column to compute proxy scores $A_2(t_i', t_j)$ uses the embedding similarity between the projected value $t_i'$ and $t_j$. As before, we also re-calibrate the proxy scores taking their quantiles.
+Intuitively, performing the projection is useful when tuple pairs that pass the user's natural language predicate exhibit low semantic similarity. The projection step invokes the LLM over each tuple in left join table, prompting it to predict values for the right join key. Notably, this LLM projection is ungrounded, i.e., it is done without knowledge of the right join key's attribute domain and can thus be performed in a fully parallelized semantic map operation. 
+Figure~\ref{fig:example_llmjoin2} provides an example of a semantic join between a table of papers and datasets, where the predicate evaluates whether a given paper abstract uses a specific dataset. Here, the map step would invoke the LLM over each abstract, instructing the model to output the dataset used, conditioned only on the abstract. 
+
+To dynamically choose between these two approximations, we follow a procedure similar to Algorithm~\ref{alg:approx_sem_filter} used for semantic filters. We begin by importance sampling to collect the sample $S$ and construct the set of oracle labels, $O_S$, over the sample. We then obtain tresholds $\tau_+$ and $\tau_-$ independently for each approximation algorithm using their respective proxy scores, $A_1$ and $A_2$. We use the learned thresholds for each candidate plan to then determine the exact oracle cost needed to execute either algorithm, and we take the least cost plan with its associated learned thresholds to proceed to evaluate the predicate for each tuple pair.
+
+
+
+
+
+\begin{figure}[t]
+    \centering
+    \vspace{-.2cm}
+    \begin{lstlisting}[language=Python]
+papers_df.sem_join(dataset_df, "The paper {abstract:left} uses the {dataset:right}.", recall_target=0.9, precision_target=0.9, delta=0.1)
+\end{lstlisting}
+    \vspace{-.5cm}
+    \caption{\small Example sem\_join for matching papers and datasets.}
+    \label{fig:example_llmjoin2}
+    \vspace{-.5cm}
+\end{figure}
+
+
+
+\subsection{Optimizing Semantic Group-by}
+We provide an efficient approximation that guarantees a classification accuracy target, $\gamma$, is met with probability $1-\delta$. We follow the clustering algorithm in the first stage of the gold algorithm to discover centers $\mu_1, ...\mu_C$. We then use a proxy-based approximation for point wise assignments in the second stage of the algorithm. Similar, to semantic joins, we consider semantic similarity scores as a cheap proxy, although other proxy models are also feasible. Specifically, we leverage the embeddings constructed during the clustering stage and compute similarity scores between the the candidate label of each tuple and the discovered centers  $\mu_1, ...\mu_C$. The proxy score of the tuple $t_i$ with a predicted label, $t_i'$, for a discovered center $\mu_j$ is given by $A(t_i, \mu_j) = sim(t'_i, \mu_j)$. Our goal is then to learn a threshold, $\tau$, such that if the proxy score between a tuple and center is greater than $\tau$, we return the center as label for the tuple, and otherwise we resort to the more expensive LLM-based classification procedure. We accomplish this by uniform sampling and running the sub-procedure equivalent to the $\verb|PT_threshold_estimation|$ used in Algorithm~\ref{alg:approx_sem_filter} for semantic filters, where the metric we evaluate is classification accuracy over the $C$ groups.
+
+\subsection{Optimizing Semantic Top-k}
+We leverage the embedding similarity scores to optimize pivot selection for some queries, while incurring no accuracy loss. This optimization is useful when there exists correlation between the ranking imposed by the user's arbitrary sorting criteria and the ranking imposed by semantic similarity scores. In this case, we can sort tuples based on embedding distances to the user's query, and select the $(k + \epsilon)$-th item, rather than a random item, as the first pivot. This can reduce the number of LLM comparisons required by subsequent rounds in the quick-select algorithm, leading to higher query efficiency at no accuracy loss. In the case of no correlation between the langex-based ranking and similarity-based ranking, this method amounts to random pivot selection, and in the worst case of an adversarial pivot, the algorithm will incur one extra pivot round, which can impact execution time, but not degrade quality.
+
+
+
+
+

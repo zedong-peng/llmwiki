@@ -1,0 +1,156 @@
+\appendix
+
+\section{Artifact Appendix}
+
+\subsection{Abstract}
+%
+In this work, we present \sysname{}, a processing-in-memory
+acceleration solution for post-transformer large language models.
+%
+Our artifact includes a full-system simulator for \sysname{} as well as
+accuracy evaluation code.
+%
+To ensure reproducibility and streamline the experimental workflow,
+we made two key engineering efforts:
+%
+(1) The entire codebase relies solely on the modern project manager
+\texttt{uv}, allowing evaluators to install exactly the same versions
+of dependencies and build tools with a one-line command; and
+%
+(2) we provide only two scripts--one to run all experiments and
+another to generate all figures from the results--to reduce the burden
+on evaluators.
+%
+These two engineering efforts collectively enable a streamlined
+experimental workflow and maximize reproducibility.
+%
+
+%
+Beyond the artifact evaluation, we also document the challenges we
+encountered while preparing
+the code and a breif API reference to assist those who wish to extend
+our codebase.
+%
+We believe these resources will help those preparing artifact
+evaluations and aid future research efforts.
+%
+
+\subsection{Artifact check-list}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Program:} uv
+  \item \textbf{Compilation:} gcc
+  \item \textbf{Model:} Our code automatically downloads all required
+    model weights from Hugging Face: RetNet, GLA, HGRN2, Mamba2,
+    Zamba2, OPT, LLaMA
+  \item \textbf{Data sets:} Our code automatically downloads all required
+    datasets from Hugging Face: Wikitext2, Piqa, Lambada,
+    Hellaswag, Arc-easy, Arc-challenge, Winogrande
+  \item \textbf{Run-time environment:} CUDA, x86\_64
+  \item \textbf{Hardware:} An NVIDIA GPU based on the Ampere
+    architecture or newer, equipped with at least 24GB of memory
+  \item \textbf{Metrics:} Perplexity, Accuracy, Throughput
+  \item \textbf{Output:} PDF files for the figures, a CSV file for the table
+  \item \textbf{How much disk space required (approximately)?:} The
+    installation occupies about 100GB in the user's "\$HOME" directory,
+    primarily due to models and datasets stored under
+    "\$HOME/.cache/huggingface".
+  \item \textbf{How much time is needed to prepare workflow
+    (approximately)?:} 10 minutes
+  \item \textbf{How much time is needed to complete experiments
+    (approximately)?:} 15 hours
+  \item \textbf{Publicly available?:}
+    \bluetext{\url{https://github.com/casys-kaist/pimba}}
+  \item \textbf{Archived (provide DOI)?:}
+    \bluetext{\url{https://doi.org/10.5281/zenodo.16946084}}
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Description}
+%
+\niparagraph{How to access.}
+%
+Clone our public repository from github:
+%
+\begin{verbatim}
+  $ git clone https://github.com/casys-kaist/pimba
+\end{verbatim}
+%
+
+%
+\niparagraph{Hardware dependencies.}
+%
+Evaluators require an NVIDIA GPU based on
+the Ampere architecture or newer, with at least 24GB of memory
+(e.g., RTX 3090, RTX 4090, RTX 5090, A6000, A100, etc.).
+%
+
+%
+\niparagraph{Software dependencies.}
+%
+Evaluators only need \texttt{gcc} and \texttt{uv}; all other required
+python packages and build tools are installed through \texttt{uv}.
+%
+\texttt{uv} itself can be installed using the system package manager
+or via a one-line command provided in the official documentation~\cite{uv}.
+%
+
+%
+\niparagraph{Models and data sets.}
+%
+During the experiments, our code automatically downloads all required
+models and datasets.
+%
+
+\subsection{Installation}
+%
+With the following commands, \texttt{uv} automatically downloads the required
+dependencies and build tools (e.g., cmake, ninja) in exactly the same
+versions we used and compiles our project.
+%
+\begin{verbatim}
+  $ uv sync
+  $ uv run cmake --preset release
+  $ uv run cmake --build build
+\end{verbatim}
+
+\subsection{Experiment workflow}
+%
+Evaluators can run all experiments with a single command:
+%
+\begin{verbatim}
+  $ uv run python scripts/run.py
+\end{verbatim}
+%
+This command generates two files, "accuracy\_result.yaml" and
+"performance\_result.yaml", under the "res/" directory, which are
+then used to reproduce the figures and the table.
+
+\subsection{Evaluation and expected results}
+%
+Using the result files, evaluators can simply reproduce the figures
+and the table in the paper by executing the following command:
+%
+\begin{verbatim}
+  $ uv run python scripts/draw.py
+\end{verbatim}
+%
+This process generates PDF files for the figures and a CSV file for
+the table in the "summary/" directory.
+%
+Note that the PDF files do not include axis labels or legends, as we
+add them using external drawing tools.
+%
+However, all scales and colors precisely match those in the paper,
+ensuring no issues arise when
+comparing values.
+%
+
+%
+We also observed that accuracy may slightly vary with the GPU
+platform and CUDA version used for evaluation, especially in
+Table~\ref{tab:accuracy}.
+%
+However, the key trend we aim to convey in this paper remains
+consistent: quantization with \texttt{MX8} has minimal impact on accuracy.
+%

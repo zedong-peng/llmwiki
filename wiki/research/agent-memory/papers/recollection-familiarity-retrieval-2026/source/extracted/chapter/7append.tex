@@ -1,0 +1,1170 @@
+\newpage
+\appendix
+\begin{center}
+    \LARGE \textbf{Technical Appendix}
+    \vspace{1em}
+\end{center}
+\addcontentsline{toc}{part}{Appendix}  %
+
+\begingroup
+  \etocsetnexttocdepth{subsection}     %
+  \etocsettocstyle{\section*{Table of Contents}}{} %
+  \localtableofcontents                %
+\endgroup
+\clearpage
+
+\appendix
+% \section{Appendix}
+% You may include other additional sections here.
+
+
+\section{Dataset Details}
+\label{app:dataset}
+\paragraph{PersonaMem.} 
+We use \textbf{PersonaMem}\footnote{\url{https://github.com/bowen-upenn/PersonaMem}}~\citep{jiang2025know}, a large-scale personalized memory benchmark introduced at COLM 2025, as the core dataset for evaluating personalized retrieval and generation.
+PersonaMem is designed to evaluate memory-augmented LLMs by requiring them to retrieve user-specific histories and preferences from long-term dialogue traces. 
+To stress-test retrieval under different scales, we follow the original paper and construct three memory corpora of increasing size: 32K, 128K, and 1M entries. 
+Table~\ref{tab:personamem_desc_overall} reports dataset statistics, showing that query length remains relatively stable across scales while memory size grows by orders of magnitude, creating a challenging retrieval environment. 
+Table~\ref{tab:taskdist} further summarizes the task distribution, covering diverse domains such as family relations, study consultation, legal and medical consults, and recommendation tasks (movies, food, books, etc.). 
+These heterogeneous task types capture both fact-oriented and reasoning-intensive scenarios, making PersonaMem a suitable benchmark for evaluating the balance between \emph{Familiarity}-based fast recall and \emph{Recollection}-driven contextual reconstruction.
+
+
+\begin{table}[htbp]
+\centering
+\caption{Dataset Statistics across Different Memory Corpora.}
+\label{tab:personamem_desc_overall}
+    \begin{tabular}{lccc}
+    \toprule
+    \textbf{Dataset name} & \textbf{32k memory corpus} & \textbf{128k memory corpus} & \textbf{1M memory corpus} \\
+    \midrule
+    \# of samples            & 589   & 2727   & 2674 \\
+    Avg tokens of question   & 464.6 & 416.3  & 415.1 \\
+    Avg tokens of memory     & 24193.2 & 15185.1 & 911733.4 \\
+    \midrule
+    \# of Revisit Reasons    & 99    & 269    & 235 \\
+    \# of Track Evolution    & 139   & 341    & 225 \\
+    \# of Latest Prefs       & 17    & 866    & 768 \\
+    \# of Aligned Recs       & 55    & 349    & 280 \\
+    \# of New Scenarios      & 57    & 213    & 295 \\
+    \# of Shared Facts       & 129   & 171    & 144 \\
+    \# of New Ideas          & 93    & 518    & 727 \\
+    \bottomrule
+    \end{tabular}
+\vspace{-10pt}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Task Distribution across Different Memory Corpora}
+\label{tab:taskdist}
+    \begin{tabular}{lccc}
+    \toprule
+    \textbf{Dataset name} & \textbf{32k memory corpus} & \textbf{128k memory corpus} & \textbf{1M memory corpus} \\
+    \midrule
+    \# of Home Decoration   & 3   & 153 & 164 \\
+    \# of Family Relations  & 32  & 144 & 193 \\
+    \# of Therapy           & 2   & 249 & 161 \\
+    \# of Travel Plan       & 71  & 155 & 192 \\
+    \midrule
+    \# of Medical Consult   & 19  & 195 & 163 \\
+    \# of Legal Consult     & 32  & 283 & 197 \\
+    \# of Study Consult     & 35  & 157 & 191 \\
+    \# of Dating Consult    & 94  & 197 & 208 \\
+    \# of Financial Consult & 72  & 198 & 181 \\
+    \midrule
+    \# of Food Rec          & 2   & 229 & 191 \\
+    \# of Movie Rec         & 104 & 158 & 212 \\
+    \# of Music Rec         & 56  & 44  & 128 \\
+    \# of Book Rec          & 67  & 172 & 139 \\
+    \# of Sports Rec        & --  & 197 & 148 \\
+    \# of Online Shopping   & --  & 196 & 206 \\
+    \bottomrule
+    \end{tabular}
+\vspace{-10pt}
+\end{table}
+
+\paragraph{PersonaBench.} 
+We further evaluate on the \textbf{PersonaBench}\footnote{\url{https://github.com/SalesforceAIResearch/personabench}} dataset, which benchmarks personalized retrieval in multi-source user environments introduced in ACL 2025~\citep{tan2025personabench}. As shown in Table~\ref{tab:personabench_stats}, PersonaBench aggregates heterogeneous user histories across six users, including \emph{conversations with friends}, \emph{user-AI interactions}, and \emph{e-commerce purchase records}. Each user contributes on average 44 queries grounded in a corpus of about 88 items, yielding rich signals of both social and transactional behavior. The resulting setting allows us to test retrieval robustness across diverse memory types, from casual dialogue to structured purchase history.  
+This design contrasts with PersonaMem, which primarily focuses on long user-AI dialogues, and complements our study by introducing multi-modal user traces that better capture the breadth of personalization scenarios. 
+% PersonaBench~\cite{tan2025personabench}\footnote{\url{https://github.com/SalesforceAIResearch/personabench}} is a benchmark dataset designed to evaluate personalized retrieval grounded in user-specific contexts. It includes six users, each associated with a heterogeneous personal corpus composed of (i) conversations with friends (Conv.), (ii) dialogues with AI assistants (AI.), and (iii) e-commerce purchase histories (E-com.). For each user, 40--50 short and ambiguous natural language queries are provided (e.g., ``Do you know what my favorite color is?''), which require accurate grounding in the user’s prior behavior. This setup enables evaluation of models' ability to align with diverse personal semantics. Table~\ref{tab:personabench_stats} summarizes the query and corpus statistics across users.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Statistics of the PersonaBench dataset across users.}
+
+    \label{tab:personabench_stats}
+    \begin{tabular}{M{1cm}M{1cm}M{1.3cm}M{3cm}M{2cm}M{3cm}}
+    \toprule
+    \textbf{User Id} & \textbf{\# of Queries} & \textbf{\# of Corpus} & \textbf{\# of Conversations with friends} & \textbf{\# of User-AI Conversation} & \textbf{\# of User e-comerce purchase histories} \\
+    \midrule
+    1 & 48 & 110 & 84 & 23 & 3 \\
+    2 & 43 & 90  & 78 & 8  & 4 \\
+    3 & 42 & 64  & 51 & 12 & 1 \\
+    4 & 46 & 85  & 71 & 14 & 0 \\
+    5 & 44 & 84  & 59 & 21 & 4 \\
+    6 & 40 & 94  & 79 & 14 & 1 \\
+    \midrule
+    \textbf{Sum} & 263 & 527 & 422 & 92 & 13 \\
+    \textbf{Avg} & \textbf{43.83} & \textbf{87.83} & \textbf{70.33} & \textbf{15.33} & \textbf{2.17} \\
+    \bottomrule
+    \end{tabular}
+\vspace{-10pt}
+\end{table}
+
+
+\paragraph{LongMemEval.}
+We further evaluate on the \textbf{LongMemEval}\footnote{\url{https://github.com/xiaowu0162/LongMemEval}} dataset, which benchmarks the ability to retrieve task-relevant information from extended user-specific corpora. introduced in ICLR 2025~\citep{wu2024longmemeval}. 
+Each instance in the dataset consists of a factual question paired with a synthetic memory corpus simulating historical user data. The dataset includes two settings: \textit{LongMemEval-s}, where each question is associated with approximately 50 memories, and \textit{LongMemEval-m}, where each corpus contains over 500 memories. In total, both settings consist of 500 questions, allowing evaluation of memory retrieval precision under varying context lengths. This benchmark enables controlled analysis of personalized retrieval performance under realistic long-context scenarios.
+
+\begin{table}[htbp]
+\centering
+\caption{Statistics of the LongMemEval dataset, with different sizes of associated memory corpora.}
+\label{tab:longmemeval_stats_vertical}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Statistic} & \textbf{LongMemEval-s} & \textbf{LongMemEval-m} \\
+\midrule
+Total Questions & 500 & 500 \\
+Total Session-level Memory & 25,112 & 250,948 \\
+Min Session-level Memory per Question & 39 & 501 \\
+Max Session-level Memory per Question & 66 & 506 \\
+Avg Session-level Memory per Question & \textbf{50.22} & \textbf{501.90} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+
+\section{Implementation details}
+\label{app:imple}
+All experiments are conducted on a single NVIDIA A100 GPU with Ubuntu OS, where the GPU is exclusively allocated to the process when measuring runtime. 
+
+For \textbf{PersonaMem}, we follow the original setup and build the memory corpus at the dialogue-turn level, where each chunk corresponds to a user query and a single LLM response. We use \texttt{advanced LLM} as the generator and \texttt{multi-qa-MiniLM-L6-cos-v1} as the retriever. The hyperparameters are set as $\lambda=20$, $B=3$, $F=2$, with thresholds $\theta_{\text{high}}=0.6$ and $\theta_{\text{low}}=0.3$, ensuring stable regulation across turn-level retrieval. 
+% For \textbf{PersonaMem}, we follow the original setup and build the memory corpus at the dialogue-turn level, where each chunk corresponds to a user query and a single LLM response. We use \texttt{GPT-4.1-mini} as the generator and \texttt{multi-qa-MiniLM-L6-cos-v1} as the retriever. The hyperparameters are set as $\lambda=20$, $B=3$, $F=2$, with thresholds $\theta_{\text{high}}=0.6$ and $\theta_{\text{low}}=0.3$, ensuring stable regulation across turn-level retrieval. 
+% And $\alpha=0.2$, $\tau=0.15$ for 32k data.
+% And $\alpha=0.5$, $\tau=0.18$ for 128k data.
+% And $\alpha=0.8$, $\tau=0.21$ for 1M data.
+And prompt for generation can be found at Appendix~\ref{app:prompt}. 
+And we illustrate the mean score $\bar{s}$ and entropy $H(p)$ of the PersonaMem dataset in Figure~\ref{fig:Mean_Ent_personamem}. 
+The cumulative distributions reveal a consistent pattern across corpus sizes: as the scale increases from 32K to 1M, the mean score distribution shifts slightly toward lower values, reflecting weaker overall familiarity in larger search spaces, whereas entropy remains concentrated within a narrow band (0.1-0.2), indicating stable uncertainty resolution. 
+The annotated quartiles further confirm that the median values of both $\bar{s}$ ($\approx$0.50-0.55) and $H(p)$ ($\approx$0.17-0.18) remain largely invariant, which demonstrates that the familiarity signal preserves a stable operating range across different scales. 
+Such stability provides empirical support for RF-Mem’s threshold design, ensuring that the switching mechanism can generalize without costly re-tuning and maintaining robustness under varying corpus sizes. \revise{For support our theorical assumption in Appendix~\ref{app:sub_gaus}, we show the empirical distribution of mean score $\bar{s}$ in the Figure~\ref{fig:Mean_dist_personamem}. All three datasets exhibit light-tailed, bounded distributions without heavy-tail behavior, and the tail shape remains stable as the corpus size grows. This empirically confirms that the similarity landscape does not display the heavy-tailed structure.}
+
+
+
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.99\linewidth]{chapter/figure/Mean_Ent_personamem.pdf}
+    \caption{Mean score $\bar{s}$ and entropy $H(p)$ of the PersonaMem dataset.}
+    \label{fig:Mean_Ent_personamem}
+\vspace{-10pt}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.99\linewidth]{chapter/figure/Mean_KDE_personamem.pdf}
+    \caption{\revise{Empirical distributions of mean score $\bar{s}$ of the PersonaMem dataset.}}
+    \label{fig:Mean_dist_personamem}
+\vspace{-10pt}
+\end{figure}
+
+
+For \textbf{PersonaBench}, we adopt the session-level memory construction as in the benchmark paper, which enables fair evaluation of retrieval quality using Recall. We evaluate our method under multiple retrievers, including \texttt{multi-qa-MiniLM-L6-cos-v1}\footnote{\url{https://huggingface.co/sentence-transformers/multi-qa-MiniLM-L6-cos-v1}}, \texttt{all-MiniLM-L6-v2}\footnote{\url{https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2}}, and \texttt{bge-base-en-v1.5}\footnote{\url{https://huggingface.co/BAAI/bge-base-en-v1.5}} to ensure generality. 
+For Recall@5, we use $B=3$, $F=1$; for Recall@10, we use $B=3$, $F=2$, and $\lambda=30$ for both. The thresholds are set to $\theta_{\text{high}}=0.6$ and $\theta_{\text{low}}=0.0$, reflecting the lower similarity scores in session-level indices. And we illustrate the mean score $\bar{s}$ and entropy $H(p)$ of the PersonaMem dataset in Figure~\ref{fig:Mean_Ent_personabench}. \revise{Also, for support our theorical assumption in Appendix~\ref{app:sub_gaus}, we show the empirical distribution of mean score $\bar{s}$ in the Figure~\ref{fig:Mean_dist_personabench}.}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.99\linewidth]{chapter/figure/Mean_Ent_personabench.pdf}
+    \caption{Mean score $\bar{s}$ and entropy $H(p)$ of the PersonaBench dataset.}
+    \label{fig:Mean_Ent_personabench}
+\vspace{-10pt}
+\end{figure}
+
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.99\linewidth]{chapter/figure/Mean_KDE_personabench.pdf}
+    \caption{\revise{Empirical distributions of mean score $\bar{s}$ of the Personabench dataset.}}
+    \label{fig:Mean_dist_personabench}
+\vspace{-10pt}
+\end{figure}
+
+
+
+
+For \textbf{LongMemEval}, we also adopt the session-level memory construction as in the paper, with recall as a metric. We also evaluate RF-Mem under \texttt{multi-qa-MiniLM-L6-cos-v1}, \texttt{all-MiniLM-L6-v2}, and \texttt{bge-base-en-v1.5} to ensure generality. 
+For LongMemEval-S and LongMemEval-M, we use $B=4$, $F=1$, and $\lambda=20$. The thresholds are set to $\theta_{\text{high}}=0.6$ and $\theta_{\text{low}}=0.0$. And we illustrate the mean score $\bar{s}$ and entropy $H(p)$ of the two datasets in Figure~\ref{fig:Mean_Ent_LME-s} and Figure~\ref{fig:Mean_Ent_LME-m}. \revise{The empirical distribution of mean score $\bar{s}$ shown in Figure~\ref{fig:Mean_dist_LME_S} and Figure~\ref{fig:Mean_dist_LME_M} also support our theorical assumption in Appendix~\ref{app:sub_gaus}.}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.99\linewidth]{chapter/figure/Mean_Ent_LME-s.pdf}
+    \caption{Mean score $\bar{s}$ and entropy $H(p)$ in the LongMemEval-S dataset.}
+    \label{fig:Mean_Ent_LME-s}
+\vspace{-10pt}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.99\linewidth]{chapter/figure/Mean_KDE_LME_S.pdf}
+    \caption{\revise{Empirical distributions of mean score $\bar{s}$ of the LongMemEval-S dataset.}}
+    \label{fig:Mean_dist_LME_S}
+\vspace{-10pt}
+\end{figure}
+
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.99\linewidth]{chapter/figure/Mean_Ent_LME-m.pdf}
+    \caption{Mean score $\bar{s}$ and entropy $H(p)$ in the LongMemEval-M dataset.}
+    \label{fig:Mean_Ent_LME-m}
+\vspace{-10pt}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.99\linewidth]{chapter/figure/Mean_KDE_LME_M.pdf}
+    \caption{\revise{Empirical distributions of mean score $\bar{s}$ of the LongMemEval-M dataset.}}
+    \label{fig:Mean_dist_LME_M}
+\vspace{-10pt}
+\end{figure}
+
+
+
+\section{Prompt For PersonaMem}
+\label{app:prompt}
+For the multiple-choice evaluation of PerosnaMem dataset, we adopted a strict prompt template to ensure consistency and avoid ambiguous model outputs. The instruction explicitly restricts the model to return exactly one option among \texttt{(a)}, \texttt{(b)}, \texttt{(c)}, or \texttt{(d)}, without any reasoning or additional text. This design prevents uncontrolled generation and makes results directly comparable across models.
+
+\begin{tcolorbox}[colback=gray!5,colframe=gray!40!black,title=Prompt Instruction]
+\small
+You are a multiple-choice answer generator. You MUST respond with exactly one option in the form of (a), (b), (c), or (d).  
+Do not include any explanation, reasoning, or extra text.  
+Do not output anything else besides the chosen option.  
+If the correct answer is unknown, make the best guess and still only respond in that format.  
+If your output does not exactly match one of (a), (b), (c), or (d), your answer will be considered incorrect.
+\end{tcolorbox}
+
+During evaluation, the prompt is constructed by concatenating the question, the fixed instruction above, and all candidate options. Retrieved memory context (from RF-Mem or baselines) is prepended as dialogue history to provide user-specific background. This structure guarantees deterministic outputs while isolating the effect of retrieval on answer quality.
+
+\begin{tcolorbox}[colback=gray!1,colframe=gray!10!black,title=Example Prompt, fonttitle=\bfseries]
+\textbf{Question:} Can you suggest some new evidence-based practices to explore for healthcare decision-making?
+
+\textbf{Instruction:} You are a multiple-choice answer generator. You MUST respond with exactly one option in the form of (a), (b), (c), or (d). Do not include any explanation, reasoning, or extra text. Do not output anything else besides the chosen option. If the correct answer is unknown, make the best guess and still only respond in that format. If your output does not exactly match one of (a), (b), (c), or (d), your answer will be considered incorrect.
+
+\textbf{Options:}
+\begin{enumerate}[label=(\alph*)]
+    \item Exploring patient-centered communication strategies might be a great new evidence-based practice to consider...
+    \item One practice that could be impactful is the integration of artificial intelligence in predictive analytics for healthcare decision-making...
+    \item You might consider exploring systematic reviews and meta-analyses of clinical trials, as these often provide robust evidence for healthcare practices...
+    \item Implementing shared decision-making models in clinical practice is a promising evidence-based strategy to explore...
+\end{enumerate}
+
+\noindent\textcolor{gray!60!black}{\textbf{Correct Answer:} (c) \# This is the correct answer and not in the prompt.}
+\end{tcolorbox}
+
+
+
+\section{Additional Experiment}
+\label{app:add_exp}
+
+\subsection{Result Across Category in PersonaMem}
+To further examine retrieval behaviors across different task types, we conduct a category-level analysis on \textbf{PersonaMem} (Table~\ref{tab:memory_corpus}). 
+This evaluation spans factual queries (e.g., \emph{food recommendation}, \emph{medical consult}),  reasoning-intensive domains (e.g., \emph{family relations}, \emph{therapy}),  and hybrid scenarios (e.g., \emph{aligned recommendations}, \emph{new scenarios}), allowing us to disentangle how each retrieval strategy responds to varying demands of factual precision, contextual reasoning, and personalization. 
+
+\textbf{First, Familiarity excels in direct recall but struggles as complexity grows.}  
+As shown in Table~\ref{tab:memory_corpus}, dense retrieval achieves peak scores on fact-centric categories where surface similarity is sufficient. For instance, it reaches perfect accuracy on \emph{food recommendation} (1.0000 at 32k corpus) and strong results in \emph{movie recommendation} (0.5759 at 128k). These cases confirm its cognitive role as a fast, coarse recognition process. However, as tasks demand contextual integration—such as \emph{track evolution} or \emph{aligned recommendations}—Familiarity shows clear degradation, particularly when scaling to 1M memories.  
+
+\textbf{Second, Recollection proves valuable for reasoning-intensive tasks.}  
+In categories like \emph{family relations}, \emph{therapy}, and \emph{dating consultation}, Recollection consistently surpasses Familiarity by reconstructing dispersed cues across sessions (e.g., 0.5938 vs.\ 0.5625 in \emph{family relations} at 32k, and 0.5280 vs.\ 0.4534 in \emph{therapy} at 1M). Yet, on factual categories such as \emph{food recommendation} or \emph{study consultation}, where surface matches are already diagnostic, its advantage diminishes or even reverses. This confirms its role as a slower but more diagnostic mode.  
+
+\textbf{Third, RF-Mem achieves robust gains through adaptive switching.}  
+As shown in Table~\ref{tab:memory_corpus}, RF-Mem consistently outperforms single-mode baselines by combining the efficiency of Familiarity with the diagnostic depth of Recollection. For instance, it improves \emph{legal consultation} at 32k (0.94 vs.\ 0.78/0.88) and sustains advantages in \emph{family relations} at 1M (0.60 vs.\ 0.57/0.58). These examples illustrate its ability to maintain high accuracy across both factual and reasoning categories. Importantly, RF-Mem also delivers the best overall results at all corpus scales, confirming that uncertainty-aware routing enables robust retrieval without committing to a single mode.    
+
+% \textbf{Third, RF-Mem balances efficiency with robustness across categories.}  
+% By adaptively switching between the two modes, RF-Mem sustains stable improvements in hybrid and uncertain tasks. For example, it achieves the best scores in \emph{aligned recommendations} (0.7818 at 32k) and \emph{new scenarios} (0.4131 at 128k), where familiarity alone is insufficient. Importantly, even at the million-scale corpus—where single-mode strategies degrade—RF-Mem continues to improve overall accuracy (0.4589 vs.\ 0.4518 for Familiarity), showing its ability to capture key user memories without committing to a fixed retrieval strategy.  
+
+\label{app:cate_res}
+\begin{table}[h]
+\centering
+\small
+\caption{Performance comparison on different memory corpus sizes.}
+\label{tab:memory_corpus}
+\setlength{\tabcolsep}{1pt}
+\renewcommand{\arraystretch}{1.0}
+\begin{tabular}{p{2.5cm}M{1.1cm}M{1.1cm}M{1.2cm} | M{1.1cm}M{1.1cm}M{1.2cm}| M{1.1cm}M{1.1cm}M{1.2cm}}
+\toprule
+\multirow{2}{*}{\textbf{Question Category}} 
+& \multicolumn{3}{c}{\textbf{32k memory corpus}} 
+& \multicolumn{3}{c}{\textbf{128k memory corpus}} 
+& \multicolumn{3}{c}{\textbf{1M memory corpus}} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(l){8-10}
+& Famili. & Recol. & RF-Mem 
+& Famili. & Recol. & RF-Mem 
+& Famili. & Recol. & RF-Mem  \\
+\midrule
+\rowcolor{blue!5}
+\textbf{Overall}          & 0.5908 & 0.6214 & \textbf{0.6350} & 0.5259 & 0.5288 & \textbf{0.5394 }& 0.4518 & 0.4544 & \textbf{0.4589} \\ 
+\midrule
+Home Decoration  & \textbf{0.6667} & \textbf{0.6667} & \textbf{0.6667} & 0.6275 & 0.6275 & \textbf{0.6471} & 0.4207 & \textbf{0.4451} & 0.4207 \\
+Family Relations & 0.5625 & \textbf{0.5938} & \textbf{0.5938} & 0.5486 & 0.5625 & \textbf{0.5764} & 0.5734 & 0.5803 & \textbf{0.6010} \\
+Therapy          & \textbf{0.5000} & \textbf{0.5000} & \textbf{0.5000} & 0.5060 & 0.5301 & \textbf{0.5341} & 0.4534 & \textbf{0.5280} & 0.4845 \\
+Travel Plan      & 0.4789 & \textbf{0.5775} & 0.5634 & 0.5806 & 0.6194 & \textbf{0.6452} & \textbf{0.4948} & 0.4792 & 0.4896 \\
+\midrule
+Medical Consult  & \textbf{0.8421} & 0.7895 & \textbf{0.8421} & 0.4718 & \textbf{0.5128} & 0.5026 & 0.4294 & 0.4110 & \textbf{0.4356} \\
+Legal Consult    & 0.7812 & 0.8750 & \textbf{0.9375} & \textbf{0.5124} & 0.4735 & 0.4841 & \textbf{0.4061} & 0.3909 & 0.3909 \\
+Study Consult    & \textbf{0.6000} & \textbf{0.6000} & \textbf{0.6000} & \textbf{0.5096} & 0.4904 & 0.4773 & 0.4503 & 0.4293 & \textbf{0.4817} \\
+Dating Consult   & 0.5851 & 0.5851 & \textbf{0.6277} & 0.4772 & \textbf{0.5025} & 0.4975 & \textbf{0.5192} & 0.5000 & 0.5096 \\
+Financial Consult& 0.5556 & 0.5972 & \textbf{0.6389} & 0.4899 & 0.4697 & \textbf{0.4899} & \textbf{0.4365} & 0.4309 & 0.4199 \\
+\midrule
+Food Rec         & \textbf{1.0000} & \textbf{1.0000} & \textbf{1.0000} & 0.5240 & \textbf{0.5721} & 0.5633 & 0.3717 & \textbf{0.4241} & 0.3874 \\
+Movie Rec        & \textbf{0.6154} & \textbf{0.6154} & 0.5865 & \textbf{0.5759} & 0.5696 & 0.5633 & 0.4434 & 0.4481 & \textbf{0.4575} \\
+Music Rec        & 0.6071 & \textbf{0.6250} & \textbf{0.6250} & 0.4091 & 0.4773 & \textbf{0.5096} & 0.4609 & 0.4688 & \textbf{0.5000 }\\
+Book Rec         & 0.5373 & 0.5970 & \textbf{0.6418} & 0.5640 & 0.5407 & \textbf{0.5814} & 0.4964 & 0.4532 & \textbf{0.5036} \\
+Sports Rec       &   -    &   -    &   -    & \textbf{0.5228} & 0.4670 & 0.4975 & 0.4189 & \textbf{0.4392} & \textbf{0.4392} \\
+Online Shopping  &   -    &   -    &   -    & 0.5408 & 0.5459 & \textbf{0.5561} & 0.3738 & \textbf{0.3932} & 0.3786 \\
+\bottomrule
+\end{tabular}
+\vspace{-5pt}
+\end{table}
+
+
+% \subsection{Adaptive Experiment}
+% To further examine the modularity of RF-Mem, we integrate it with external indexing schemes beyond raw turn-level memory. As shown in Figure~\ref{fig:adaptive_study}, offline methods such as \emph{MemoryBank}~\citep{zhong2024memorybank} first summarize user dialog into indexes (e.g., turn-level summaries), while RF-Mem operates as an online module during retrieval. This separation of offline indexing and online retrieval highlights that RF-Mem does not compete with summarization- or graph-based memory banks, but instead complements them by enabling human-like remembering.
+
+% \begin{figure}[h]
+%     \centering
+%     \includegraphics[width=1.0\linewidth]{iclr2026/chapter/figure/adaptive_study.pdf}
+%     \caption{Illustration of adaptive study setup. Offline indexes (e.g., MemoryBank summaries or origin turn-level memory) provide different user memory storage, while RF-Mem serves as an online retrieval layer that adaptively regulates to these indexes. This design shows that RF-Mem complements, rather than replaces, existing indexing methods.}
+%     \label{fig:adaptive_study}
+% \end{figure}
+
+% Table~\ref{tab:adaptivity} highlights that RF-Mem demonstrates robustness across both settings: it achieves the highest overall accuracy under the turn-level index, and crucially, it narrows the performance drop under the summary index compared to single-path baselines. 
+% This adaptivity confirms that RF-Mem is modular and can be layered on top of heterogeneous memory indices, providing an uncertainty-aware dual-process retrieval mechanism that complements, rather than replaces, external indexing methods.
+
+
+
+% To demonstrate the modularity of RF-Mem, we integrate it with external indexing schemes beyond the raw turn-level corpus. Specifically, in our adaptive experiment we replace the \emph{Origin} index with session-level summaries constructed by \emph{MemoryBank}~\citep{zhong2024memorybank}. This setup shows that RF-Mem does not compete with summarization- or graph-based indexing methods, but instead complements them by providing an uncertainty-aware dual-process retrieval mechanism on top of any given index. As shown in our results, even under a compressed MemoryBank index, RF-Mem consistently surpasses one-shot and purely slow retrieval, confirming that entropy-driven regulation remains effective across heterogeneous indexing strategies.
+
+
+% \begin{table}[h]
+% \centering
+% \small
+% \caption{Comparison between Origin turn-level index and MemoryBank summary index on PersonaMem (32K corpus). Results include average LLM tokens and per-category accuracy.}
+% \label{tab:adaptivity}
+% \setlength{\tabcolsep}{1pt}
+% \renewcommand{\arraystretch}{1.0}
+% \begin{tabular}{p{1.8cm}|M{1.2cm}|M{1.3cm}M{1.4cm}M{0.9cm}M{1.1cm}M{1.3cm}M{1.1cm}M{1.0cm}|c}
+%     \toprule
+%      \textbf{Method} & \textbf{Avg. Tokens}&\textbf{Revisit Reasons} & \textbf{Track Evolution} & \textbf{Latest Prefs} & \textbf{Aligned Recs} & \textbf{New Scenarios}& \textbf{Shared Facts} & \textbf{New Ideas} & \textbf{Overall}  \\
+% \midrule
+% \rowcolor{gray!15}
+% \multicolumn{10}{c}{\textbf{Origin turn-level index}} \\
+% Familiarity   & 3515.9 & 0.9091 & 0.6475 & 0.6471 & 0.6364 & 0.5614 & 0.5426 & 0.2151 & 0.5908 \\
+% Recollection  & 3711.1 & 0.9495 & 0.6547 & 0.7059 & 0.7818 & 0.5965 & 0.5194 & 0.2688 & 0.6214 \\
+% RF-Mem        & 3566.6 & 0.9495 & 0.6619 & 0.7059 & 0.7818 & 0.6140 & 0.5659 & 0.2688 & \textbf{0.6350} \\
+% \midrule
+% \rowcolor{gray!15}
+% \multicolumn{10}{c}{\textbf{MemoryBank summary index}} \\
+% Familiarity   & 1267.6 & 0.7475 & 0.6187 & 0.5882 & 0.5818 & 0.3333 & 0.4341 & 0.1505 & 0.4941 \\
+% Recollection  & 1441.8 & 0.8182 & 0.6259 & 0.5294 & 0.6909 & 0.4737 & 0.4031 & 0.1398 & 0.5212 \\
+% RF-Mem        & 1421.8 & 0.8384 & 0.6259 & 0.5294 & 0.6545 & 0.4211 & 0.4419 & 0.1828 & \textbf{0.5314} \\
+% \bottomrule
+% \end{tabular}
+% \end{table}
+\subsection{Sensitivity Analysis of $\alpha$ and $\tau$}
+\label{app:alpha_tau}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.99\linewidth]{chapter/figure/heatmaps_alpha_tau_PB.pdf}
+    \caption{Hyperparameter sensitivity study on PersonaBench. Heatmaps report Recall@5 and Recall@10 across different retrievers, varying $\alpha$ (query–centroid mixing) and $\tau$ (entropy threshold).}
+    \label{fig:alpha_tau}
+\vspace{-10pt}
+\end{figure}
+
+
+To examine the robustness of RF-Mem, we conduct a systematic study varying two key hyperparameters, $\alpha$ and $\tau$, across different retrievers (MiniLM, MPNet, BGE) and evaluation metrics (Recall@5/10). Figure~\ref{fig:alpha_tau} visualizes the results as heatmaps, where warmer colors indicate higher retrieval performance. This setup allows us to directly assess how query mixing ($\alpha$) and entropy thresholding ($\tau$) interact to balance efficiency and coverage.
+
+\textbf{First, the query–centroid mixing coefficient $\alpha$ controls how strongly recollection expands beyond the original probe.} In Recall@5, moderate $\alpha$ (around $0.3$–$0.6$) yields the best results, such as MiniLM improving overall recall to $\sim$0.47, while extreme values ($\alpha=0.0$ or $\alpha=1.0$) reduce stability. For Recall@10, performance is less sensitive, but mid-range $\alpha$ still avoids degradation observed at the boundaries. This indicates that balanced mixing is crucial: too little restricts recollection, too much overwhelms with noisy expansions.
+
+
+\textbf{Second, the entropy threshold $\tau$ regulates the switch between Familiarity and Recollection.} Low $\tau$ values push the system toward frequent recollection, leading to higher gains in complex categories but also exposing variance. For instance, MiniLM Recall@10 achieves its highest values ($\sim$0.60) when $\tau$ is set around 0.2–0.25, while overly high thresholds ($\tau \geq 0.35$) reduce adaptivity, as retrieval defaults prematurely to Familiarity. The results highlight that moderate entropy gating achieves the best trade-off between efficiency and contextual depth.
+
+% To further examine the robustness of RF-Mem, we conduct a sensitivity analysis on the two central hyperparameters: the query mixing coefficient $\alpha$ and the entropy threshold $\tau$. As shown in Figure~\ref{fig:alpha-tau}, both PersonaMem and PersonaBench results exhibit stable performance across a broad range of settings. 
+
+% \begin{figure}[h]
+%     \centering
+%     \includegraphics[width=0.95\linewidth]{iclr2026/chapter/figure/heatmaps_alpha_tau.pdf}
+%     \caption{Sensitivity of RF-Mem to hyperparameters $\alpha$ (query mixing) and $\tau$ (entropy threshold) on PersonaMem (Accuracy) and PersonaBench (Recall@5).}
+%     \label{fig:alpha-tau}
+% \end{figure}
+
+% \textbf{Effect of query mixing coefficient $\alpha$.}
+% We first examine the role of $\alpha$, which controls the balance between preserving the original query and incorporating cluster centroids during refinement. 
+% As shown in Figure~\ref{fig:alpha-tau}, performance improves with moderate values ($0.7$–$0.8$), indicating that partial blending is critical: overly high $\alpha$ reduces exploration to surface-level similarity (Familiarity-like), while overly low $\alpha$ overemphasizes centroid feedback, diluting the query intent. 
+% This confirms that controlled mixing enables effective contextual reconstruction, consistent with the theoretical view of recollection as a cue-guided extension of initial recognition.  
+
+% \textbf{Effect of entropy threshold $\tau$.}
+% We then evaluate $\tau$, which governs the switch between Familiarity and Recollection. 
+% The results show that mid-range thresholds ($0.4$–$0.6$) deliver the most stable gains across both PersonaMem and PersonaBench. 
+% A very low $\tau$ prematurely activates Recollection, leading to redundant expansion and efficiency loss, while a very high $\tau$ locks the system in Familiarity mode, missing opportunities for deeper reasoning. 
+% This pattern aligns with dual-process theory: effective memory retrieval arises when the system adapts its depth of search according to uncertainty, rather than committing to either mode exclusively.  
+
+
+\subsection{Sensitivity Analysis of $B$ and $F$}
+\label{app:B_F}
+Figure~\ref{fig:B_F} reports the effect of beam width $B$ and fanout $F$ on retrieval performance in LongMemEval-S and LongMemEval-M, under the retrievaler \texttt{multi-qa-MiniLM-L6-cos-v1} of recollection retrieval.  We observe three consistent patterns. 
+
+\textbf{First, increasing $F$ generally reduces recall@5.}  
+As shown in the top-left and bottom-left plots, recall@5 steadily drops when $F$ grows, since higher fanout expands the search too widely, diluting precision in top-ranked results. For example, in LongMemEval-S, recall@5 decreases from 0.72 ($F=1$) to below 0.60 when $F=4$.
+
+\textbf{Second, recall@10 is more stable under moderate $F$, but declines when $B$ or $F$ are too large.}  
+The middle plots show that recall@10 peaks around $F=1$ or $F=2$ (e.g., 0.83 in LongMemEval-S, 0.56 in LongMemEval-M), but drops once $F=3$ or $F=4$, reflecting over-expansion and redundancy. This suggests that moderate fanout provides useful diversification, while excessive expansion introduces noise.
+
+\textbf{Third, recall@50 is robust and even improves with higher $F$.}  
+As shown in the rightmost plots, recall@50 remains very high in LongMemEval-S (above 0.98 across all settings), and increases slightly in LongMemEval-M (up to 0.76 when $B=3,F=2$). This indicates that large fanout helps cover more relevant memories at longer retrieval depths, consistent with recollection’s role of broad exploration.
+
+Overall, these results demonstrate that small beam width and low fanout ($B=2$ or $3$, $F=1$ or $2$) offer the best balance between early precision and broad coverage, aligning with the intuition of controlled, stepwise recollection.  
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1.00\linewidth]{chapter/figure/B_F.pdf}
+    \caption{Hyperparameter $B$ and $F$ sensitivity of Recollection retrieval on LongMemEval-S and LongMemEval-M.} 
+    \label{fig:B_F}
+\vspace{-10pt}
+\end{figure}
+
+\subsection{Impact of $\alpha$ Under Varying Retrieval Size $K$}
+\label{app:alpha_k}
+
+\paragraph{Effect of $\alpha$ on Retrieval.}
+% To investigate the influence of the mixing weight $\alpha$, we conduct a sensitivity study on the LongMemEval-M dataset, measuring Recall@5, Recall@10, and Recall@50, under the \textbf{recollection} retrieval. As shown in Figure~\ref{fig:alpha_sensitivity}, the effect of $\alpha$ varies substantially across different retrieval depths. 
+% In particular, Recall@5, which emphasizes short-path retrieval, decreases steadily as $\alpha$ grows, indicating that overweighting the original query suppresses exploratory expansion and limits coverage.
+% By contrast, Recall@50 improves as $\alpha$ increases. This suggests that higher query mixing benefits long-path retrieval by enabling the system to capture a broader set of relevant memories. Recall@10 lies between the two extremes, peaking around $\alpha=0.3$--$0.5$ before slightly declining. These findings highlight the trade-off between precision in short-hop retrieval and breadth in longer explorations, confirming that $\alpha$ must be tuned to balance different retrieval depths.
+
+To investigate the role of the mixing weight $\alpha$, we conduct a sensitivity study on the LongMemEval-M dataset under the \textbf{Recollection} retrieval, measuring Recall@5, Recall@10, and Recall@50. As shown in Figure~\ref{fig:alpha_sensitivity}, the impact of $\alpha$ exhibits a clear dependence on retrieval depth. For Recall@5, which emphasizes short-hop retrieval precision, performance decreases steadily as $\alpha$ grows, suggesting that placing excessive weight on the original query suppresses exploratory expansion and thereby reduces the system’s ability to capture nearby but diverse evidence. In contrast, Recall@50 improves markedly with larger $\alpha$, indicating that stronger query–centroid mixing facilitates broader exploration and enables the retriever to recover more distant but relevant memories over long retrieval chains. Recall@10 demonstrates an intermediate pattern, peaking around $\alpha=0.3$--$0.5$ before declining, which reflects the delicate balance between preserving the specificity of the original query and promoting contextual expansion through recollection. 
+
+These results highlight a fundamental trade-off: smaller values of $\alpha$ favor precision in short-path retrieval, while larger values enhance coverage in long-path retrieval. The presence of an intermediate optimum for Recall@10 further confirms that no single setting universally dominates across depths, underscoring the need to calibrate $\alpha$ according to application demands. More broadly, this sensitivity analysis validates the design choice in RF-Mem to treat $\alpha$ as a tunable parameter, enabling the framework to flexibly adjust the balance between efficiency and breadth when navigating different levels of the memory space.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1.00\linewidth]{chapter/figure/alpha_LME.pdf}
+    \caption{Effect of $\alpha$ on short- vs. long-path retrieval performance (Recall@$K$).}
+    \label{fig:alpha_sensitivity}
+\vspace{-10pt}
+\end{figure}
+
+
+\subsection{Sensitivity Analysis of Retrieval Size $K$}
+\label{app:pm_k}
+% To further examine the sensitivity of RF-Mem to the probe retrieval parameter $K$, 
+% we vary $K$ from 5 to 50 and report the resulting accuracy under different corpus sizes (32K and 128K) in PersonaMem. 
+% As shown in Figure~\ref{fig:probe_k}, the overall performance remains stable across a wide range of $K$, 
+% demonstrating the robustness of our entropy-driven regulation. 
+% Specifically, while larger $K$ slightly increases the entropy resolution and thus benefits the Recollection path, 
+% the gains saturate beyond $K=20$, suggesting that moderate values are sufficient for effective uncertainty estimation. 
+% This result highlights that RF-Mem does not rely on finely tuned probe parameters, making it practical to deploy in real-world personalized memory retrieval scenarios.
+To further examine the sensitivity of RF-Mem to the probe retrieval parameter $K$, 
+we vary $K$ from 5 to 50 and report the resulting accuracy under different corpus sizes (32K, 128K, and 1M) in PersonaMem. 
+As shown in Figure~\ref{fig:probe_k}, the overall performance of RF-Mem remains consistently stable across a wide range of $K$, 
+demonstrating the robustness of our familiarity-based regulation. 
+In contrast, the baselines exhibit stronger fluctuations: for Familiarity, accuracy quickly rises with $K$ but plateaus once $K \geq 10$, 
+while Recollection benefits from larger $K$ due to finer entropy resolution, yet its gains taper off and even slightly degrade after $K=20$. 
+
+RF-Mem combines the advantages of both pathways, achieving higher accuracy than either baseline across all corpus scales, 
+and crucially avoids the over-expansion problem of Recollection by adaptively invoking recollection only when necessary. 
+Notably, the performance curves at 128K and 1M confirm that the improvement saturates beyond moderate probe sizes, 
+suggesting that small values of $K$ (e.g., 10–20) are already sufficient for effective familiarity estimation and adaptive switching. 
+These results highlight that RF-Mem does not depend on finely tuned probe parameters, 
+making it both robust and practical for deployment in large-scale personalized memory retrieval scenarios.
+
+
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.90\linewidth]{chapter/figure/para_k.pdf}
+    \caption{Effect of probe size $K$ on retrieval performance across different corpus scales.}
+    \label{fig:probe_k}
+\vspace{-10pt}
+\end{figure}
+
+\newpage
+
+
+\subsection{\revise{Learning the Strategy Selection Mechanism}}
+\revise{
+Although the gating thresholds in RF-Mem are manually specified, it is important to assess whether the routing policy can also be learned from data. To this end, we construct a binary classification task in which each memory instance is represented by the two gating signals, namely the mean similarity $\bar{s}$ of the probe retrieval and the entropy $H(p)$ over the top-$K$ similarity distribution. The classifier predicts whether the familiarity path or the recollection path yields higher retrieval quality. This setting allows us to examine (i) how much supervision is needed to approximate the decision boundary and (ii) whether the two handcrafted signals contain sufficient information for reliable automatic routing.
+
+\paragraph{Training data.}
+We utilize two subsets of PersonaMem: the 32k corpus (589 samples) and the 128k corpus (2727 samples). For 32k, the first 400 samples are used for training and the remaining 189 for evaluation; for 128k, the first 2000 samples are allocated for training and the remaining 727 for evaluation. Only cases in which one path clearly outperforms the other are retained, forming a clean binary-labeled dataset. Table~\ref{tab:gate-data} summarizes the distribution of positive and negative labels.
+
+\paragraph{Training Details.}
+A three-layer MLP is trained as a binary classifier, with hidden dimensions of 32 and 16, and a final sigmoid output unit. ReLU activations are used in the hidden layers. Training follows an 80/20 train–validation split.
+}
+\begin{table}[h]
+\centering
+\caption{\revise{Training data statistics for the learned gating classifier.}}
+\label{tab:gate-data}
+\begin{tabular}{lccc|>{\columncolor{blue!5}}c}
+\toprule
+\textbf{Dataset} & \textbf{Fami.\ win} & \textbf{Recol.\ win} & \textbf{Tie}& \textbf{Training Samples} \\
+\midrule
+PersonaMem-32k  & 34  & 41  & 325 & 75 (34+41) \\
+PersonaMem-128k & 178 & 185 & 1637& 363 (178+185) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\revise{
+\paragraph{Experimental findings.}
+Tables~\ref{tab:gate-32k} and~\ref{tab:gate-128k} report detailed performance across evaluation categories. We can find \textbf{while the hand-tuned thresholds remain slightly superior, the learned gate shows clear improvements when trained on more data, demonstrating its potential applicability in real-world scenarios where larger-scale logs are accessible.}
+On the smaller 32k set, the learned gate shows high variance across runs and does not consistently outperform simple heuristics, indicating that limited data makes the decision boundary difficult to estimate reliably.  
+When moving to the larger 128k set, the learned gate becomes considerably more stable and approaches the performance of the manually tuned mechanism.  
+These results suggest that the two handcrafted signals already capture a meaningful structural separation between the two retrieval modes, and that automatic tuning becomes increasingly effective as more user data is available.
+}
+
+
+\begin{table*}[h]
+\centering
+\caption{\revise{Results of the learned strategy selector on PersonaMem-32k (189 test samples).}}
+\label{tab:gate-32k}
+\setlength{\tabcolsep}{0.5pt}
+\begin{tabular}{l|>{\columncolor{blue!5}}M{1.3cm}|M{1.3cm}M{1.25cm}M{1.3cm}M{1.25cm}M{1.25cm}M{1.3cm}|M{1.25cm}M{1.0cm}M{1.0cm}}
+\toprule
+\textbf{Method} & \textbf{Overall} & \textbf{Revisit Reasons} & \textbf{Shared Facts} & \textbf{Track Evolution} & \textbf{Aligned Recs} & \textbf{Latest Prefs} & \textbf{New Scenarios} & \textbf{New Ideas} & \textbf{Num. of Famili.} & \textbf{Num. of Recol.} \\
+\midrule
+Dense & 0.6296 & 0.9688 & 0.7297 & 0.6327 & 0.8125 & 0.2857 & 0.5385 & 0.2286 & 189 & 0 \\
+Recol. & \underline{0.6667} & 0.9688 & 0.7297 & 0.7551 & 0.8750 & 0.1429 & 0.7297 & 0.2286 & 0 & 189 \\
+RF-Mem & \textbf{0.6720} & 1.0000 & 0.7838 & 0.6939 & 0.8750 & 0.1429 & 0.6154 & 0.2571 & 83 & 106 \\
+\makecell{RF-Mem \\ (Learned)} & 0.6482 $\pm$0.0067 & 0.9688 $\pm$0.0000 & 0.7514 $\pm$0.0114 & 0.6878 $\pm$0.0255 & 0.8750 $\pm$0.0000 & 0.1429 $\pm$0.0000 & 0.5385 $\pm$0.0000 & 0.2286 $\pm$0.0000 & 97.5 $\pm$6.70 & 91.5 $\pm$6.70 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[h]
+\centering
+\caption{\revise{Results of the learned strategy selector on PersonaMem-128k (727 test samples).}}
+\label{tab:gate-128k}
+\setlength{\tabcolsep}{0.5pt}
+\begin{tabular}{l|>{\columncolor{blue!5}}M{1.3cm}|M{1.3cm}M{1.25cm}M{1.3cm}M{1.25cm}M{1.25cm}M{1.3cm}|M{1.25cm}M{1.0cm}M{1.0cm}}
+\toprule
+\textbf{Method} & \textbf{Overall} & \textbf{Revisit Reasons} & \textbf{Shared Facts} & \textbf{Track Evolution} & \textbf{Aligned Recs} & \textbf{Latest Prefs} & \textbf{New Scenarios} & \textbf{New Ideas} & \textbf{Num. of Famili.} & \textbf{Num. of Recol.} \\
+\midrule
+Dense & 0.5131 & 0.7742 & 0.6410 & 0.6162 & 0.5176 & 0.5122 & 0.3529 & 0.3043 & 727 & 0 \\
+Recol. & 0.5158 & 0.7634 & 0.5897 & 0.6162 & 0.5647 & 0.5366 & 0.3824 & 0.2609 & 0 & 727 \\
+RF-Mem& \textbf{0.5199} & 0.7527 & 0.6410 & 0.6162 & 0.5059 & 0.5463 & 0.3824 & 0.2971 & 402 & 325 \\
+\makecell{RF-Mem \\ (Learned)} & \underline{0.5175} \underline{$\pm$0.0039} & 0.7591 $\pm$0.0055 & 0.6180 $\pm$0.0255 & 0.6091 $\pm$0.0048 & 0.5553 $\pm$0.0182 & 0.5400 $\pm$0.0108 & 0.3794 $\pm$0.0152 & 0.2718 $\pm$0.0070 & 334.4 $\pm$28.33 & 392.6 $\pm$28.33 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+
+
+
+\subsection{Case Study.}  
+\label{app:case}
+
+% To illustrate how RF-Mem differs from single-pass retrieval, we conduct a case study on the PersonaMem dataset. For clarity, we set $B=2$ and $F=2$ to illustrate the case. Figure~\ref{fig:case} presents the outputs under different retrieval modes for the query \textit{``Can you suggest some new evidence-based practices to explore for healthcare decision-making?’’}.
+%  The \emph{Familiarity} retriever directly returns the top-10 highest-scoring entries, capturing salient but fragmented memories such as mentions of ``conventional medicine'' or ``therapeutic modalities.'' While efficient, this strategy surfaces only isolated fragments and misses temporally distributed details that are critical for reasoning.  
+
+% By contrast, the \emph{Recollection} process proceeds in rounds, clustering retrieved items and mixing them with the query to expand the evidence chain. As shown in Figure~\ref{fig:case}, successive rounds bring in complementary memories—for example, references to ``gathering patient history'' and ``learning about new developments''—that were absent in the fast path. This chain-like reconstruction not only reduces redundancy through clustering but also assembles contextually coherent anchors, thereby providing more diagnostic evidence. Compared with the static list of Familiarity retrieval, RF-Mem’s recollection branch demonstrates the capacity to progressively uncover deeper, semantically linked user memories that align with the cognitive theory of deliberate recall.
+\subsubsection{\revise{Recollection-Path Winning Case}}
+To illustrate the difference between one-shot familiarity retrieval and recollection retrieval, we conduct a case study on the \textbf{PersonaMem} dataset. For clarity, we set $B=2$ and $F=2$ in the recollection process. Figure~\ref{fig:case} presents the outputs under different retrieval modes for the query \textit{``Can you suggest some new evidence-based practices to explore for healthcare decision-making?’’}. The \emph{Familiarity} retriever directly returns the top-10 highest-scoring entries, capturing salient but fragmented memories such as mentions of ``conventional medicine'' or ``therapeutic modalities.'' While efficient, this strategy surfaces isolated fragments—sometimes with noisy mentions like ``trying a new healthy recipe''—and fails to integrate them into a coherent chain. As a result, crucial contextual cues that span across sessions remain overlooked, highlighting the inherent limitation of one-shot retrieval.
+
+By contrast, the \emph{Recollection} process unfolds in multiple rounds. At each step, retrieved items are clustered into semantically coherent groups, and their centroids are blended with the query to form new probes. As shown in Figure~\ref{fig:case}, this branching expansion progressively uncovers complementary evidence: for instance, r=1 surfaces ``modern science blending with age-old methods,'' r=2 brings in references to ``gathering patient history'' and ``reviewing health records,'' and r=3 integrates higher-level anchors like ``structured methodology and evidence-based practices.'' This stepwise enrichment not only reduces redundancy by grouping similar items but also reconstructs temporally dispersed details into a coherent memory trace. Compared with the static list from Familiarity retrieval, RF-Mem’s recollection branch demonstrates a chain-like reconstruction process, aligning with the dual-process theory by simulating deliberate, effortful recall. Ultimately, this yields more diagnostic and contextually grounded evidence for answering the user’s query.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.99\linewidth]{chapter/figure/case_study.pdf}
+    \caption{Case study from PersonaMem: comparison between \emph{Familiarity} and \emph{Recollection} retrieval \revise{where Recollection wins}. Familiarity surfaces salient but fragmented evidence, while Recollection progressively reconstructs temporally distributed details via clustering and query refinement.}
+    \label{fig:case}
+    \vspace{-10pt}
+\end{figure}
+
+
+\subsubsection{\revise{Familiarity-Path Winning Case}}
+\revise{To analysis the failure case, we again compare one-shot \emph{Familiarity} retrieval with the multi-round \emph{Recollection} process on the PersonaMem dataset. As shown in Figure~\ref{fig:bad_case}, we show the retrieval result of dual paths for the query \textit{``I'm considering developing a tool to manage finances while traveling. How could I ensure it helps me prioritize experiences like local cuisine or guided tours?’’}.
+\emph{Familiarity} retrieval outperforms \emph{Recollection} in serving the user’s intent. The one-shot Familiarity retriever returns a broad and query-aligned set of memories, many of which explicitly mention `local experiences', `finance management apps', or `last trip'. These results directly address the user’s need to “prioritize experiences while traveling,” illustrating that high-scoring surface cues can sometimes be sufficient for intent coverage.
+
+In contrast, the multi-round \emph{Recollection} process drifts along a different semantic trajectory. Although its iterative clustering-and-refinement mechanism successfully produces deeper and more structured traces, the retrieved branches gradually converge toward `long-term financial habits' and `personal finance management'. This indicates that the recollection trajectory can overfit to dominant semantic clusters in the memory corpus, especially when several high-density branches are thematically coherent but misaligned with the user’s immediate intent. As a result, the recollection path becomes increasingly anchored in financial-management narratives, overlooking the travel-related aspects of the query.
+
+Despite being a bad case for retrieval accuracy, this example is instructive. It exposes a core trade-off of deliberative recollection: the mechanism excels at reconstructing temporally dispersed, conceptually rich memory chains, yet it may over-emphasize internal coherence at the cost of task-oriented alignment. This case highlights the importance of balancing depth with intent fidelity, and underscores the need for more precise familiarity-uncertainty–guided strategy selection in future work.
+}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.99\linewidth]{chapter/figure/bad_case.pdf}
+    \caption{\revise{Case study from PersonaMem: comparison between \emph{Familiarity} and \emph{Recollection} retrieval where Familiarity wins. Familiarity produces broader and more relevant evidence aligned with prioritizing travel experiences, while Recollection progressively drills into long-term financial management and drifts away from the user’s actual intent.}}
+    \label{fig:bad_case}
+    \vspace{-10pt}
+\end{figure}
+
+
+
+
+
+\subsection{\revise{Alternative Study}}
+
+\revise{
+    In this section, we evaluate several alternative recollection mechanisms to test the robustness of RF-Mem beyond the proposed KMeans-based and $\alpha$-mix design. We replace the centroid module with DBSCAN and Spectral Clustering, replace the $\alpha$-mix with gated mixing, and replace the entire module with graph-based expansion, while keeping all other components fixed. The comparison results in Table~\ref{tab:alter_recollection_results} highlight the generality of RF-Mem across diverse structural assumptions.
+}
+
+\begin{table}[h]
+\vspace{-10pt}
+\centering
+\small
+\caption{\revise{Retrieval performance comparison under different recollection strategies.}}
+\label{tab:alter_recollection_results}
+\setlength{\tabcolsep}{1pt}
+\renewcommand{\arraystretch}{0.8}
+    \begin{tabular}{p{1.3cm}|M{1.2cm}M{1.2cm}M{1.2cm}M{1.2cm}>{\columncolor{blue!5}}M{1.1cm}
+                            |M{1.2cm}M{1.2cm}M{1.2cm}M{1.2cm}>{\columncolor{blue!5}}M{1.1cm}}
+        \toprule
+        \textbf{Metrics}  &
+        \multicolumn{5}{c|}{\textbf{Recall@5}} &
+        \multicolumn{5}{c}{\textbf{Recall@10}} \\
+        \cmidrule(lr){2-6} \cmidrule(l){7-11}
+        \textbf{Methods}
+        & \textbf{Basic Info} & \textbf{Social Info} & \textbf{Pref Easy} & \textbf{Pref Hard} & \textbf{Overall}
+        & \textbf{Basic Info} & \textbf{Social Info} & \textbf{Pref Easy} & \textbf{Pref Hard} & \textbf{Overall}   \\
+        \midrule
+                \rowcolor{gray!15}
+                \multicolumn{11}{c}{\textit{\textbf{Basic KMeans}}} \\
+                Famili.
+                 & 0.4515 & 0.4852 & 0.4904 & 0.3659 & 0.4484 
+                 & 0.5879 & 0.6220 & 0.6442 & 0.5561 & 0.5964 \\
+                
+                Recol.
+                 & 0.4379 & 0.4903 & 0.5128 & 0.3854 & 0.4491
+                 & 0.5924 & 0.6859 & 0.5659 & 0.6267 & 0.6062 \\
+                
+                RF-Mem 
+                 & 0.4788 & 0.5091 & 0.4872 & 0.3854 & \textbf{0.4701}
+                 & 0.5924 & 0.6799 & 0.5707 & 0.6267 & \textbf{0.6071} \\
+                \midrule
+                \rowcolor{gray!15}
+                \multicolumn{11}{c}{\textit{\textbf{DBSCAN cluster (KMeans alternative)}}} \\
+                Recol.
+                 & 0.4424 & 0.4940 & 0.4872 & 0.3512 & 0.4431
+                 & 0.6045 & 0.6079 & 0.6891 & 0.5366 & 0.6028\\
+                
+                RF-Mem
+                 & 0.4879 & 0.5129 & 0.4744 & 0.3463 & \textbf{0.4669}
+                 & 0.5659 & 0.6079 & 0.6667 & 0.6015 & \textbf{0.6040} \\
+                \midrule
+                
+                \rowcolor{gray!15}
+                \multicolumn{11}{c}{\textit{\textbf{Spectral cluster (KMeans alternative)}}} \\
+                Recol.
+                 & 0.4591 & 0.4739 & 0.5000 & 0.3756 & 0.4522
+                 & 0.6045 & 0.5978 & 0.6474 & 0.5366 & 0.5957\\
+                
+                RF-Mem 
+                 & 0.4818 & 0.4928 & 0.4872 & 0.3707 & \textbf{0.4651}
+                 & 0.6015 & 0.6041 & 0.6474 & 0.5610 & \textbf{0.6001} \\
+                \midrule
+                
+                \rowcolor{gray!15}
+                \multicolumn{11}{c}{\textit{\textbf{Gate ($\alpha$-mix alternative)}}} \\
+                Recol.
+                 & 0.4439 & 0.4739 & 0.5128 & 0.3902 & 0.4491
+                 & 0.5924 & 0.6016 & 0.6795 & 0.5317 & 0.5936\\
+                
+                RF-Mem
+                 & 0.4667 & 0.4928 & 0.5000 & 0.3756 & \textbf{0.4602}
+                 & 0.5924 & 0.6079 & 0.6667 & 0.5610 & \textbf{0.5988} \\
+                \midrule
+                
+                \rowcolor{gray!15}
+                \multicolumn{11}{c}{\textit{\textbf{Graph + Breadth-First Search (whole alternative)}}} \\
+                Recol.
+                 & 0.4167 & 0.4739 & 0.4872 & 0.3805 & 0.4314 
+                 & 0.5591 & 0.5887 & 0.5887 & 0.5366 & 0.5722 \\
+                
+                RF-Mem
+                 & 0.4258 & 0.4739 & 0.4872 & 0.3756 & \textbf{0.4349}
+                 & 0.5742 & 0.6220 & 0.6442 & 0.5561 & \textbf{0.5899}\\
+        \bottomrule
+        \end{tabular}
+\vspace{-10pt}
+\end{table}
+
+\subsubsection{\revise{DBSCAN Recollection (KMeans alternative)}}
+\revise{
+    \textbf{Experiment setup.}
+    To examine whether the assumptions of KMeans (balanced and approximately spherical clusters) influence recollection, we evaluate DBSCAN~\citep{ester1996density} as a density-based alternative. DBSCAN identifies arbitrarily shaped clusters and automatically detects noise points, providing a contrasting clustering geometry. The retrieval backbone, mixing rule, and evaluation setup remain unchanged to ensure a clean comparison between recollection mechanisms.
+    
+    \textbf{Findings.}
+    Results in Table~\ref{tab:alter_recollection_results} show that DBSCAN-based recollection performs competitively, and RF-Mem (DBSCAN) consistently improves over its recollection baseline. This demonstrates that the effectiveness of $\alpha$-mixing is not tied to KMeans-specific assumptions and remains stable under density-driven neighborhood structures.
+}
+
+\subsubsection{\revise{Spectral Clustering Recollection (KMeans alternative)}}
+
+\revise{
+    \textbf{Experiment setup.}
+    We further evaluate Spectral~\citep{ng2001spectral} Clustering, which identifies clusters via graph Laplacian eigenvectors and effectively models manifold-shaped structures. This setup tests whether recollection remains stable when memory clusters deviate from centroid-based geometry. All configurations follow the evaluation results summarized in Table~\ref{tab:alter_recollection_results}.
+    
+    \textbf{Findings.}
+    As reported in Table~\ref{tab:alter_recollection_results}, RF-Mem (Spectral) achieves consistent gains over the Spectral baseline, improving R@5 Overall from 0.4522 to 0.4651. These results indicate that $\alpha$-mixing generalizes well across diverse cluster geometries and maintains its geometry-respecting update behavior even under manifold-structured partitions.
+}
+
+\subsubsection{\revise{Nonlinear Gated Mixing ($\alpha$-mix alternative)}}
+
+\revise{
+    \textbf{Experiment setup.}
+    Motivated by nonlinear interpolation strategies, we implement a gated mixing variant in which the update coefficient is determined by a sigmoid gate applied to the similarity between the current query representation and the cluster centroid. Specifically, given the query vector $\mathbf{x}^{(r)}$ at iteration $r$  and the corresponding centroid $\mathbf{g}_b^{(r)}$, the gated interpolation is  defined as:
+    \begin{equation}
+        g(\mathbf{x}^{(r)}, \mathbf{g}_b^{(r)}) = 
+        \sigma\!\left( \mathbf{x}^{(r)\top} \mathbf{g}_b^{(r)} \right),
+    \end{equation}
+    and the updated query is computed via:
+    \begin{equation}
+        \mathbf{x}_b^{(r+1)} = 
+        \mathrm{norm}\!\left(
+        g\,\mathbf{x}^{(r)} + (1-g)\,\mathbf{g}_b^{(r)} + \mathbf{x}_t
+        \right),
+    \end{equation}
+    where $\sigma(\cdot)$ denotes the sigmoid function and $\mathbf{x}_t$ is the original query. This formulation introduces a nonlinear, content-adaptive interpolation mechanism that contrasts with the proposed linear $\alpha$-mixing. All experiments follow the unified evaluation protocol in Table~\ref{tab:alter_recollection_results} to ensure comparability.
+    
+    \textbf{Findings.}
+    As shown in Table~\ref{tab:alter_recollection_results}, gated mixing improves over Familiarity retrieval but does not surpass the effectiveness of the proposed $\alpha$-mixing rule. RF-Mem (Gate) obtains 0.4602 R@5 Overall, compared with 0.4701 for our KMeans-based implementation. The performance gap is particularly noticeable in Social Info and Pref-Hard subsets, where recollection plays a critical role. These results indicate that although nonlinear interpolation is a reasonable alternative, $\alpha$-mixing provides a stable and geometry-aligned update, consistent with its interpretation as a manifold-aware update rule on the unit hypersphere.
+}
+
+\subsubsection{\revise{Graph-Based Recollection (whole alternative)}}
+
+\revise{
+    \textbf{Experiment setup.}
+    Finally, we examine a structure-free alternative by constructing a KNN graph~\citep{zhang2025survey2} over a user memory corpus and performing Breadth-First Search (BFS) expansion. This mechanism collects local neighborhoods via graph traversal rather than via clustering. The full evaluation follows the protocol summarized in Table~\ref{tab:alter_recollection_results}.
+    
+    \textbf{Findings.}
+    Table~\ref{tab:alter_recollection_results} shows that graph-based recollection performs weaker than clustering-based recollection. Nevertheless, RF-Mem consistently improves over its graph baseline, demonstrating the robustness. The comparison suggests that clustering more effectively aggregates semantically coherent neighborhoods, whereas BFS may over-expand into dense yet irrelevant regions.
+}
+
+\subsection{\revise{Full-exploration Study}}
+\revise{
+    To further examine whether the effectiveness of RF-Mem depends on the early-stop rule used in the recollection path, we conduct an additional analysis where the expansion process is allowed to continue until all reachable candidates (within a predefined maximum depth) have been explored.
+}
+
+
+\begin{table}[h]
+\vspace{-10pt}
+\centering
+\small
+\caption{\revise{Retrieval performance under full exploration.}}
+\label{tab:explor_recollection_results}
+\setlength{\tabcolsep}{1pt}
+\renewcommand{\arraystretch}{0.8}
+    \begin{tabular}{p{1.3cm}|M{1.2cm}M{1.2cm}M{1.2cm}M{1.2cm}>{\columncolor{blue!5}}M{1.1cm}
+                            |M{1.2cm}M{1.2cm}M{1.2cm}M{1.2cm}>{\columncolor{blue!5}}M{1.1cm}}
+        \toprule
+        \textbf{Metrics}  &
+        \multicolumn{5}{c|}{\textbf{Recall@5}} &
+        \multicolumn{5}{c}{\textbf{Recall@10}} \\
+        \cmidrule(lr){2-6} \cmidrule(l){7-11}
+        \textbf{Methods}
+        & \textbf{Basic Info} & \textbf{Social Info} & \textbf{Pref Easy} & \textbf{Pref Hard} & \textbf{Overall}
+        & \textbf{Basic Info} & \textbf{Social Info} & \textbf{Pref Easy} & \textbf{Pref Hard} & \textbf{Overall}   \\
+        \midrule
+                \rowcolor{gray!15}
+                \multicolumn{11}{c}{\textit{\textbf{Basic KMeans (Early-Stop)}}} \\
+                Famili.
+                 & 0.4515 & 0.4852 & 0.4904 & 0.3659 & 0.4484 
+                 & 0.5879 & 0.6220 & 0.6442 & 0.5561 & 0.5964 \\
+                
+                Recol.
+                 & 0.4379 & 0.4903 & 0.5128 & 0.3854 & 0.4491
+                 & 0.5924 & 0.6859 & 0.5659 & 0.6267 & 0.6062 \\
+                
+                RF-Mem 
+                 & 0.4788 & 0.5091 & 0.4872 & 0.3854 & 0.4701
+                 & 0.5924 & 0.6799 & 0.5707 & 0.6267 & 0.6071 \\
+                 
+                \midrule
+                \rowcolor{gray!15}
+                \multicolumn{11}{c}{\textit{\textbf{Basic KMeans (Fully Exploration)}}} \\
+                Recol.
+                 & 0.4530 & 0.4827 & 0.5128 & 0.3805 & 0.4537
+                 & 0.6015 & 0.6204 & 0.6763 & 0.5415 & 0.6036 \\
+                
+                RF-Mem
+                 & 0.4848 & 0.5016 & 0.5000 & 0.3756 & \textbf{0.4709}
+                 & 0.6015 & 0.6267 & 0.6667 & 0.5659 & \textbf{0.6083} \\
+                 
+                \midrule
+                \rowcolor{gray!15}
+                \multicolumn{11}{c}{\textit{\textbf{Graph + Breadth-First Search (Early-Stop)}}} \\
+                Recol.
+                 & 0.4167 & 0.4739 & 0.4872 & 0.3805 & 0.4314 
+                 & 0.5591 & 0.5887 & 0.5887 & 0.5366 & 0.5722 \\
+                
+                RF-Mem
+                 & 0.4258 & 0.4739 & 0.4872 & 0.3756 & 0.4349
+                 & 0.5742 & 0.6220 & 0.6442 & 0.5561 & 0.5899\\
+
+                \midrule
+                \rowcolor{gray!15}
+                \multicolumn{11}{c}{\textit{\textbf{Graph + Breadth-First Search  (Fully Exploration)}}} \\
+                Recol.
+                 & 0.4530 & 0.4701 & 0.4776 & 0.3902 & 0.4486
+                 & 0.5818 & 0.5642 & 0.6635 & 0.5659 & 0.5841 \\
+                
+                RF-Mem 
+                 & 0.4758 & 0.4890 & 0.4776 & 0.3854 & \textbf{0.4629}
+                 & 0.5924 & 0.6220 & 0.6442 & 0.5561 & \textbf{0.5986} \\
+                 
+        \bottomrule
+        \end{tabular}
+\vspace{-10pt}
+\end{table}
+
+
+\revise{
+    \textbf{Experiment setup.} Unlike the default setting, in which the recollection process terminates once the top-$K$ quota is satisfied, this full-exploration variant aggregates the complete expanded set and performs a final dense re-ranking step over all collected items. This design enables us to test whether the proposed recollection mechanism remains robust when given a substantially larger search budget. Table~\ref{tab:explor_recollection_results} summarizes the results for both the KMeans-based and Graph-based recollection mechanisms under the early-stop and full-exploration settings. Across all categories, full exploration increases the coverage of semantically relevant nodes, providing a stricter evaluation of the recollection path.
+    
+    \textbf{Findings.}
+    \textbf{First}, we observe that allowing full exploration followed by a global re-ranking step consistently improves RF-Mem compared to the early-stopped variant. For instance, RF-Mem (Full) achieves an Overall Recall@5 of 0.4709 under KMeans, surpassing the early-stop score of 0.4701. This demonstrates that RF-Mem continues to benefit from deeper recollection when additional evidence is made available, reinforcing the stability and scalability of the proposed $\alpha$-mixing updates.
+    \textbf{Second}, under the full-exploration setting, the graph-based variant shows clear improvements over both its early-stopped counterpart and the Familiarity (dense) baseline. RF-Mem (Graph+bfs, Full) obtains an Overall Recall@10 of 0.5986, outperforming the early-stop result of 0.5899. This indicates that graph-guided recollection, despite being weaker than KMeans in the default setting, becomes more competitive when provided with additional traversal depth. These findings support our broader claim that deliberate, structure-aware exploration of the memory space offers a valuable and robust alternative formulation for retrieval.
+}
+
+
+
+
+\subsection{\revise{Routing Robustness Across Embedding Models}}
+\revise{
+    To assess the sensitivity of RF-Mem to the underlying embedding model, we investigate how embedding quality and calibration influence routing decisions. Because both the similarity-based uncertainty measure and the recollection path depend on the geometry of the embedding space, understanding the extent to which different retrievers alter routing behavior or introduce failure risks is crucial for evaluating the robustness of the framework.
+    
+    \textbf{Experiment Setup}
+    To answer the question of whether routing accuracy varies across different retrievers, we measure routing statistics for three embedding models on PersonaBench: \texttt{multi-qa-MiniLM-L6-cos-v1}, \texttt{all-mpnet-base-v2}, and \texttt{bge-base-en-v1.5}. For each model, we record (i) routing frequencies into the familiarity and recollection branches, and (ii) retrieval accuracy. All other components of RF-Mem remain fixed to isolate the effect of the embedding backbone.
+    
+    \textbf{Findings.} Table~\ref{tab:routing_retrievers} summarizes the result. We can find: \textbf{First}, Stronger retrievers route more queries into the recollection path, while weaker retrievers rely more heavily on fast familiarity. MiniLM and MPNet trigger substantially more recollection transitions, indicating that their embedding spaces provide more reliable cluster structures for iterative refinement. In contrast, BGE, which exhibits less stable similarity distributions, routes a significantly larger number of queries to familiarity.
+    \textbf{Second}, the routing behavior demonstrates that the mechanism adapts to the embedding geometry in a principled way. Stronger retrievers provide clearer cluster boundaries, which encourages recollection, whereas noisier or weakly calibrated embeddings shift routing toward familiarity as a more reliable fallback. 
+}
+
+\begin{table}[h]
+\centering
+\small
+\caption{\revise{Routing statistics and retrieval performance across different embedding models.}}
+\label{tab:routing_retrievers}
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{0.9}
+\begin{tabular}{l|cccc}
+\toprule
+\textbf{Retriever} & 
+\textbf{Time} & 
+\textbf{Route$\rightarrow$Famili.} & 
+\textbf{Route$\rightarrow$Recol.} & 
+\textbf{R@5 Overall}  \\
+\midrule
+multi-qa-MiniLM-L6-cos-v1 
+& 9.16ms & 60 & 203 & 0.4701  \\
+all-mpnet-base-v2 
+& 8.33ms & 15 & 248 & 0.4009  \\
+bge-base-en-v1.5 
+& 10.14ms & 140 & 123 & 0.3836 \\
+\bottomrule
+\end{tabular}
+\vspace{-10pt}
+\end{table}
+
+
+
+\section{Pseudocode of RF-Mem}
+\label{app:pse_code}
+% \textbf{RF-Mem algorithm.} Algorithm~\ref{alg:rfmem-main} adaptively switches between a fast \emph{Familiarity} path and a deliberate \emph{Recollection} path using a short probe over the index. Given the query embedding $\mathbf{x}_t$, we retrieve the top-$K$ candidates, compute a mean score and entropy $H(p)$ (Eqs. (1) and (2)) of this list to decide the path. If the familiarity signal is high (high mean or low entropy), RF-Mem retrieves the top-$K$ items by similarity in a one-shot Familiarity retrieval. Otherwise, Algorithm~\ref{alg:rfmem-recol} performs stepwise recollection with beam width $B$ and fanout $F$: each round retrieves top-$N$, clusters candidates via KMeans into at most $B$ groups, forms centroids, and updates the query by $\alpha$-mixing with the centroid while retaining a residual from the original query. Unique hits are accumulated across rounds, scores are aggregated, and the final top-$K$ results are returned. This design keeps one-shot efficiency when the probe is decisive and selectively engages chain\textnormal{-}like evidence construction when uncertainty is high.
+
+\noindent\textbf{RF-Mem algorithm.} Algorithm~\ref{alg:rfmem-main} begins with a short probe to estimate retrieval certainty and then switches between a fast \emph{Familiarity} path and a deliberate \emph{Recollection} path. Given the query embedding $\mathbf{x}_t$, the retriever returns the top-$k_p$ probe candidates and produces a temperature–scaled score distribution $p$; we compute the list entropy $H(p)$ and the mean score $\bar{s}$, then apply thresholds $(\theta_{\text{high}},\theta_{\text{low}})$ together with an entropy gate $\tau$ as specified in Eqs.~(1)–(2). If the familiarity signal is strong, that is $\bar{s}\ge\theta_{\text{high}}$ or $H(p)\le\tau$, RF-Mem executes a one–shot \emph{Familiarity} retrieval that returns the top-$K$ items by similarity. 
+If the signal is weak, that is $\bar{s}\le\theta_{\text{low}}$ or $H(p)>\tau$, or if the probe yields no hits, RF-Mem invokes Algorithm~\ref{alg:rfmem-recol} to perform stepwise \emph{Recollection}.
+In each round $r$ of recollection, we retrieve top-$N$ candidates with $N=(B+r)F$, cluster them by KMeans into at most $B$ groups, form a centroid for each group, and update the query by $\alpha$-mixing the current query with the centroid while retaining a residual from the original query, then continue with the resulting queries as a beam of size $B$. 
+Unique hits are accumulated across rounds, scores are aggregated per item, and the process stops early when at least $K$ unique items have been collected or when the round limit $R$ is reached. 
+The probe therefore preserves one–shot efficiency when certainty is high, while the recollection loop builds chain–like evidence under uncertainty, where $B$ and $F$ regulate breadth and $\alpha$ controls the balance between exploration and query stability. 
+And theoretical analysis can be found at Appendix~\ref{app:theory}.
+
+
+\begin{algorithm}[h]
+\caption{RF-Mem: Entropy-guided Switching Between Familiarity and Recollection (with inlined entropy)}
+\label{alg:rfmem-main}
+\begin{algorithmic}[1]
+\Require Retriever $\mathcal{R}$ with indexed memories $\{m_i\}_{i=1}^M$ and embeddings $z_i=\phi(m_i)$; query $q$ with embedding $x_t=\phi(q)$; probe size $k_p$; temperature $\lambda$; entropy threshold $\tau$; mean-score thresholds $(\theta_{\text{high}}, \theta_{\text{low}})$; final budget $K$. Recollection params: beam $B$, fanout $F$, max rounds $R$, mix rate $\alpha$, per-round candidate size $N$.
+\Ensure Ranked memory set $\mathcal{S}$ with $|\mathcal{S}|\le K$.
+\State $(\mathbf{s}, \mathbf{id}) \gets \mathcal{R}.\textsc{Probe}(x_t, K)$ \Comment{Top-$K$ probe scores}
+\State $\bar{s} \gets \mathrm{mean}(\mathbf{s})$
+\State \textbf{(Calculate entropy)} Let $k\gets|\mathbf{s}|$ and for $i=1..k$ set
+\State \hspace{1em}$z_i \gets \lambda\,(s_i - \max_{j} s_j)$;\quad $p_i \gets \exp(z_i)\big/\sum_{j=1}^{k}\exp(z_j)$
+\State $H \gets -\sum_{i=1}^{k} p_i \log p_i$
+\If{$\bar{s} \ge \theta_{\text{high}}$ \textbf{ or } $H \le \tau$}
+  \State \Return \textsc{FamiliarityTopK}$(x_t, K, \mathcal{R})$
+\ElsIf{$\bar{s} \le \theta_{\text{low}}$ \textbf{ or } $H > \tau$}
+  \State \Return \textsc{Recollection}$(x_t, K, B, F, R, \alpha, N, \mathcal{R})$
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[h]
+\caption{Familiarity Retrieval}
+\label{alg:rfmem-fam}
+\begin{algorithmic}[1]
+\Require Query $x_t$, budget $K$, retriever $\mathcal{R}$
+\State For each memory $m_i$, compute $s_i \gets \langle x_t, z_i\rangle$ \Comment{cosine or inner product after normalization}
+\State $\mathcal{S} \gets$ top-$K$ items by $s_i$ (optionally filter by a floor)
+\State \Return $\mathcal{S}$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[h]
+\caption{Recollection Retrieval: retrieve $\rightarrow$ cluster $\rightarrow$ $\alpha$-mix $\rightarrow$ iterate}
+\label{alg:rfmem-recol}
+\begin{algorithmic}[1]
+\Require $x_t$, $K$, $B$, $F$, $R$, $\alpha$, $N$, retriever $\mathcal{R}$
+\Ensure Ranked set $\mathcal{S}$ with $|\mathcal{S}|\le K$
+\State $x^{(0)} \gets \mathrm{norm}(x_t)$;\quad $\mathsf{Beam} \gets \{x^{(0)}\}$;\quad $\mathsf{Seen}\gets\emptyset$;\quad $\mathsf{Bag}\gets\emptyset$
+\For{$r = 0$ \textbf{to} $R-1$}
+  \State $\mathsf{Next}\gets\emptyset$;\quad $N \gets (B+r)\times F$ \Comment{$N<K$}
+  \ForAll{$x^{(r)} \in \mathsf{Beam}$}
+    \State $C^{(r)} \gets \mathcal{R}.\textsc{TopN}(x^{(r)}, N)$ \Comment{$C^{(r)}=\mathrm{Top}\mbox{-}N\{(m_i,\langle x^{(r)}, z_i\rangle)\}$}
+    \State Cluster $\{z_i: m_i\in C^{(r)}\}$ into $k=\min(B,|C^{(r)}|)$ groups by KMeans
+    \For{$b = 1$ \textbf{to} $k$}
+       \State $G^{(r)}_b \gets$ index set of cluster $b$;\quad $g^{(r)}_b \gets \mathrm{norm}\big(\frac{1}{|G^{(r)}_b|}\sum_{i\in G^{(r)}_b} z_i\big)$
+       \State $x^{(r+1)}_b \gets \mathrm{norm}\big(\alpha\,x^{(r)} + (1-\alpha)\,g^{(r)}_b + x_t\big)$
+       \State Append $\big(x^{(r+1)}_b, G^{(r)}_b\big)$ to $\mathsf{Next}$
+    \EndFor
+  \EndFor
+  \If{$\mathsf{Next}=\emptyset$} \textbf{break} \EndIf
+  \State Score each $(x^{(r+1)}_b, G^{(r)}_b)$ by $\sum_{i\in G^{(r)}_b}\langle x^{(r+1)}_b, z_i\rangle$; keep top-$B$ as new $\mathsf{Beam}$
+  \ForAll{kept $\big(x^{(r+1)}_b, G^{(r)}_b\big)$}
+    \ForAll{$i \in G^{(r)}_b$}
+      \If{$i\notin \mathsf{Seen}$} insert $(i,\langle x^{(r+1)}_b, z_i\rangle)$ into $\mathsf{Bag}$; add $i$ to $\mathsf{Seen}$ \EndIf
+    \EndFor
+  \EndFor
+  \If{$|\mathsf{Bag}|\ge K$} \textbf{break} \EndIf
+\EndFor
+\State For each id in $\mathsf{Bag}$ take top-$K$ as $\mathcal{S}$
+\State \Return $\mathcal{S}$
+\end{algorithmic}
+\end{algorithm}
+
+
+
+\FloatBarrier
+\section{Theoretical Analysis}
+\label{app:theory}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+
+\paragraph{Preliminaries.}
+Let the user memory be $\mathcal{M}=\{m_i\}_{i=1}^M$ with embeddings $\mathbf{z}_i=\phi(m_i)$ and a query $q$ encoded as $\mathbf{x}_t=\phi(q)$, with unit normalization.
+Define similarity scores $s_i=\langle \mathbf{x}_t,\mathbf{z}_i\rangle$ and the probe list $\mathcal{C}=\texttt{Top-}K\big(\{(m_i,s_i)\}_{i=1}^M\big)$.
+Following the paper, define a tempered softmax over probe scores
+\begin{equation}
+p_i=\frac{\exp\!\big(\lambda(s_i-\max_j s_j)\big)}{\sum_{j=1}^K \exp\!\big(\lambda(s_j-\max_\ell s_\ell)\big)},\qquad i=1,\dots,K,
+\end{equation}
+with entropy $H(p)=-\sum_{i=1}^K p_i\log p_i$ and mean similarity $\bar{s}=\frac{1}{K}\sum_{i=1}^K s_i$.
+The RF-Mem selection is
+\begin{equation}
+\text{Strategy}(q) =
+\begin{cases}
+\text{Familiarity}, & \bar{s} \geq \theta_{\text{high}}, \\[6pt]
+\text{Recollection}, & \bar{s} \leq \theta_{\text{low}}, \\[6pt]
+\begin{cases}
+\text{Familiarity}, & H(p) \leq \tau, \\
+\text{Recollection}, & H(p) > \tau,
+\end{cases} & \theta_{\text{low}} < \bar{s} < \theta_{\text{high}}.
+\end{cases}
+\label{eq:gate}
+\end{equation}
+% \begin{equation}
+% \text{Strategy}(q)=
+% \begin{cases}
+% \textsf{Fam}, & \bar{s}\ge \theta_{\text{high}},\\[2pt]
+% \textsf{Rec}, & \bar{s}\le \theta_{\text{low}},\\[2pt]
+% \textsf{Fam}, & \theta_{\text{low}}<\bar{s}<\theta_{\text{high}} \ \text{and}\ H(p)\le \tau,\\[2pt]
+% \textsf{Rec}, & \theta_{\text{low}}<\bar{s}<\theta_{\text{high}} \ \text{and}\ H(p)>\tau.
+% \end{cases}
+% \label{eq:gate}
+% \end{equation}
+In the Familiarity path, the retriever returns $\texttt{Top-}K$ by $s_i$.
+In the Recollection path, the system iterates \emph{retrieve–cluster–mix}: at round $r$ it retrieves $\texttt{Top-}N_r$ with $N_r=(B+r)F\le K$, clusters into $B$ groups with centroids $\mathbf{g}^{(r)}_b$, and forms recollect queries
+\begin{equation}
+\mathbf{x}^{(r+1)}_b=\operatorname{norm}\big(\alpha \mathbf{x}^{(r)}+(1-\alpha)\mathbf{g}^{(r)}_b+\mathbf{x}_t\big),\quad b=1,\dots,B,
+\end{equation}
+for $r=0,\dots,R-1$, then returns $\texttt{Top-}K$ from the union $\bigcup_{r=0}^R \mathcal{C}^{(r)}$.
+This matches the method description and notation in the main content.
+
+\subsection{Risk-Minimizing Selection}
+We formalize the selection in \eqref{eq:gate} as minimizing a retrieval risk that trades correctness and cost.
+Let $\mathcal{E}(\text{mode}\mid q)$ denote the probability of returning an insufficient set for $q$ under a mode $\text{mode}\in\{\text{Familiarity},\text{Recollection}\}$, and let $C(\text{mode})$ denote the expected computation cost.
+For a penalty $\beta>0$ define
+\begin{equation}
+\mathcal{L}(\text{mode}\mid q)=\mathcal{E}(\text{mode}\mid q)+\beta\, C(\text{mode}).
+\label{eq:risk}
+\end{equation}
+
+\begin{lemma}[Monotonicity of proxy signals]
+\label{lem:mono}
+Assume the similarity distribution admits a monotone likelihood ratio in $s_i$ between relevant and nonrelevant items, and that the probe softmax temperature $\lambda$ is fixed.
+Then $\mathcal{E}(\text{Familiarity}\mid q)$ is nonincreasing in $\bar{s}$ and nondecreasing in $H(p)$, while $C(\text{Familiarity})<C(\text{Recollection})$.
+\end{lemma}
+
+
+\noindent\emph{Proof.}
+Let $Y_i\in\{0,1\}$ for the relevance label of item $i$ (1 means relevant).Assume a monotone likelihood ratio for scores so the posterior relevance $\pi(s)=\Pr(Y=1\mid s)$ is nondecreasing in $s$.
+For \text{Familiarity}, the miss probability given scores is $\prod_{i\in K}\bigl(1-\pi(s_i)\bigr)$.
+Any coordinatewise increase of $(s_i)_{i\in K}$ decreases each factor, hence decreases the product, so $\mathcal{E}(\text{Familiarity}\mid q)$ is nonincreasing in $\bar s$.
+For entropy, softmax $p$ is Schur–concave: smaller $H(p)$ implies larger $p_{\max}$ and larger top margins $s_{(1)}-s_{(j)}$, which increase $\pi(s_{(1)})$ and $\sum_{i\in I_K}\pi(s_i)$, thus the product and its expectation are nonincreasing; therefore $\mathcal{E}(\text{Familiarity}\mid q)$ is nondecreasing in $H(p)$.
+For costs, $C(\text{Familiarity})=\Theta(K\,c_{\mathrm{sim}})$, while \text{Recollection} performs at least one extra retrieve–cluster–mix round, so $C(\text{Recollection})\ge C(\text{Familiarity})+R\,c_{\mathrm{clust}}(B)>C(\text{Familiarity})$ for $R\ge1$.
+\hfill$\square$
+
+\begin{theorem}[Threshold optimality within monotone policies]
+\label{thm:gate-opt}
+Consider the class $\Pi$ of policies that are monotone in $(\bar{s},H)$ in the sense of Lemma~\ref{lem:mono}.
+Within $\Pi$, a two-threshold policy of the form \eqref{eq:gate} minimizes the pointwise risk \eqref{eq:risk}.
+\end{theorem}
+
+% \noindent\emph{Proof sketch.}
+% By Lemma~\ref{lem:mono}, $\bar{s}$ and $H$ are sufficient monotone statistics for ordering $\mathcal{E}(\textsf{Fam}\mid q)$ at fixed cost gap $C(\textsf{Rec})-C(\textsf{Fam})$.
+% The optimal decision region is therefore a south-east orthant in $(\bar{s},H)$ space, which is realized by axis-aligned thresholds on $\bar{s}$ and $H$.
+% \hfill$\square$
+\noindent\emph{Proof.}
+By Lemma~\ref{lem:mono}, $\mathcal{E}(\text{Familarity}\mid q)$ is nonincreasing in $\bar s$ and nondecreasing in $H$.
+Define
+\begin{equation}
+t := \mathcal{L}(\text{Recollection}\mid q), \qquad
+f(\bar s,H) := \mathcal{L}(\text{Familiarity}\mid q) = \mathcal{E}(\text{Familiarity}\mid q)+\beta\,C(\text{Familiarity}).
+\end{equation}
+Then the \text{Familiarity}-region is the sublevel set
+\begin{equation}
+\mathcal{D} := \{(\bar s,H): f(\bar s,H)\le t\},
+\end{equation}
+which is a down-set in $(\bar s\uparrow,\, H\downarrow)$ (``south–east orthant'').
+Hence the risk-minimizing monotone policy is $\mathbf{1}_{\mathcal{D}}$.
+Introduce axis-aligned thresholds
+\begin{equation}
+\theta_{\mathrm{high}} := \inf\{\bar s:\ \sup_H f(\bar s,H)\le t\}, \qquad
+\theta_{\mathrm{low}}  := \sup\{\bar s:\ \inf_H f(\bar s,H)> t\},
+\end{equation}
+and, on $\bar s\in(\theta_{\mathrm{low}},\theta_{\mathrm{high}})$,
+\begin{equation}
+H_\star(\bar s) := \inf\{H:\ f(\bar s,H)\le t\}, \qquad
+\tau := \sup_{\bar s\in(\theta_{\mathrm{low}},\theta_{\mathrm{high}})} H_\star(\bar s).
+\end{equation}
+Therefore
+\begin{equation}
+\text{Familiarity}\ \Longleftrightarrow\ \big(\bar s\ge \theta_{\mathrm{high}}\big)\ \ \text{or}\ \ \big(\theta_{\mathrm{low}}<\bar s<\theta_{\mathrm{high}}\ \&\ H\le \tau\big),
+\end{equation}
+and \text{Recollection} otherwise, which is exactly the two-threshold gate. \hfill$\square$
+
+\subsection{An Entropy Certificate for Correctness}
+Let $p_{\max}=\max_i p_i$.
+For fixed $p_{\max}$, the maximal entropy occurs when the residual mass is uniform, that is
+\begin{equation}
+H(p)\le h_2(p_{\max})+(1-p_{\max})\log(K-1),
+\label{eq:entropy-upper}
+\end{equation}
+where $h_2(x)=-x\log x-(1-x)\log(1-x)$ is the binary entropy.
+Define the inverse certificate
+\begin{equation}
+\phi_K(\tau)=\max\{x\in[1/K,1]: h_2(x)+(1-x)\log(K-1)\le \tau\}.
+\end{equation}
+
+\begin{lemma}[Entropy certificate]
+\label{lem:cert}
+If $H(p)\le \tau$, then $p_{\max}\ge \phi_K(\tau)$.
+\end{lemma}
+
+\noindent\emph{Proof.}
+Rearrange \eqref{eq:entropy-upper} and apply the definition of $\phi_K(\tau)$.
+\hfill$\square$
+
+\begin{proposition}[Bound on familiarity error under low entropy]
+\label{prop:fam-error}
+Suppose that returning the $\texttt{Top-}K$ set suffices whenever the true relevant item has $p_i\ge \rho$ for some $\rho\in(0,1)$.
+Under $H(p)\le \tau$ with $\phi_K(\tau)\ge \rho$, the familiarity mode achieves negligible miss probability with respect to this sufficient condition.
+\end{proposition}
+
+\noindent Proposition~\ref{prop:fam-error} provides a certificate: a small entropy ensures a large $p_{\max}$, which guarantees that the best evidence is included by $\texttt{Top-}K$ under a mild sufficiency condition, hence \text{Familiarity} is safe in the certified region.
+
+\subsection{Sub-Gaussian Mean Similarity and Gating Reliability}
+\label{app:sub_gaus}
+Assume probe scores $\{s_i\}_{i=1}^K$ are independent sub-Gaussian with proxy mean $\mu$ and variance proxy $\sigma^2$.
+Let $\widehat{\mu}=\bar{s}$ and fix thresholds $\theta_{\text{low}}<\theta_{\text{high}}$.
+
+\begin{proposition}[Gating error bound via concentration]
+\label{prop:gate-concentration}
+For any $\delta>0$,
+\begin{equation}
+\Pr\big(\widehat{\mu}-\mu\le -\delta\big)\le \exp\!\Big(-\frac{K\delta^2}{2\sigma^2}\Big), \qquad
+\Pr\big(\widehat{\mu}-\mu\ge \delta\big)\le \exp\!\Big(-\frac{K\delta^2}{2\sigma^2}\Big).
+\end{equation}
+If the true regime satisfies $\mu\ge \theta_{\text{high}}+\delta$ (familiar) or $\mu\le \theta_{\text{low}}-\delta$ (unfamiliar), the probability of mis-selection due to mean estimation is bounded by $\exp(-K\delta^2/(2\sigma^2))$.
+\end{proposition}
+
+\noindent Proposition~\ref{prop:gate-concentration} shows that increasing $K$ tightens the reliability of the mean-based selection of the familiarity and the recollection paths.
+
+\subsection{Complexity–Coverage Trade-off}
+Let the cost of a similarity evaluation be $c_{\text{sim}}$ and of a $B$-way $k$-means update be $c_{\text{clust}}(B)$ on a batch of size $N_r$.
+
+\begin{proposition}[Complexity bounds]
+\label{prop:complexity}
+\text{Familiarity} has time $T_{\text{Fam}}=O(K\,c_{\text{sim}})$.
+\text{Recollection} with parameters $(B,F,R)$ has time
+\begin{equation}
+T_{\text{Rec}}=O\Big(\sum_{r=0}^{R} \big(N_r\,c_{\text{sim}}+c_{\text{clust}}(B)\big)\Big)
+=O\big(R\,(BF)\,c_{\text{sim}}+R\,c_{\text{clust}}(B)\big),
+\end{equation}
+since $N_r\le (B+r)F\le O(BF+RF)$.
+Therefore $T_{\text{Rec}}=O\big((BF+RF)\,c_{\text{sim}}+R\,c_{\text{clust}}(B)\big)$, which is polynomial in $(B,F,R)$ and strictly lower than full-context processing $O(M)$ when $BF+RF\ll M$.
+\end{proposition}
+
+\noindent This formalizes the method’s bounded overhead relative to full-context, consistent with empirical latency advantages reported in the paper.
+
+% \subsection{Consistency of Stepwise Recollection}
+% Assume there exists at least one relevant cluster $\mathcal{G}^\star$ of memories with centroid $\mathbf{g}^\star$ that has margin $\gamma>0$ in cosine similarity against nonrelevant clusters, and that clustering is $\eta$-accurate so that $\|\mathbf{g}^{(r)}_b-\mathbf{g}^\star\|\le \eta$ along at least one active branch for all $r$.
+
+% \begin{theorem}[Recall consistency under margin and accurate branching]
+% \label{thm:consistency}
+% Fix $B\ge 1$ and choose $F$ so that each round includes at least one sample from $\mathcal{G}^\star$ with probability bounded away from zero.
+% If $\alpha\in(0,1)$ and $R\to\infty$ while budgets keep the branch containing $\mathbf{g}^\star$ active, then the probability that a relevant item from $\mathcal{G}^\star$ appears in the final $\texttt{Top-}K$ tends to one.
+% \end{theorem}
+
+% \noindent\emph{Proof sketch.}
+% Under the margin and accuracy assumptions, the recollect update moves $\mathbf{x}^{(r)}$ toward a cone around $\mathbf{g}^\star$ along at least one branch, increasing the similarity gap to nonrelevant items by a fixed amount per effective round.
+% This yields a success probability that converges to one by a standard boosting argument for iterated query refinement.
+% \hfill$\square$
+
+\paragraph{Discussion.}
+Lemmas~\ref{lem:mono} and \ref{lem:cert} justify using $(\bar{s},H)$ as reliable control signals.
+Theorems~\ref{thm:gate-opt} show that the selection is optimal within a broad monotone class.
+Propositions~\ref{prop:gate-concentration} and \ref{prop:complexity} bound mis-selection and computation.
+Together these results explain the empirical accuracy–latency improvements of RF-Mem across corpora and tasks.
+
+
+\section{LLM Usage Disclosure}
+
+In accordance with ICLR 2026 policy, we disclose our use of large language models (LLMs) in preparing this manuscript. 
+% We employed GPT-5 (OpenAI) solely to aid in polishing the writing, specifically for improving clarity, grammar, and sentence structure across sections. 
+We employed an advanced LLM solely to aid in polishing the writing, specifically for improving clarity, grammar, and sentence structure across sections. 
+All technical content, algorithmic contributions, experimental results, and scientific conclusions remain entirely the authors' own work, without any LLM involvement.
+
+\section{Limitation and future work}
+\textbf{Limitations.} While RF-Mem demonstrates consistent advantages across corpora and tasks, several aspects remain simplified. 
+First, our current evaluation is confined to dialogue-style personalized memory and does not yet explore other modalities (e.g., cross-modal histories). 
+Second, we adopt list entropy as a lightweight uncertainty proxy; although effective, it may not fully capture finer-grained task difficulty or user intent. 
+\revise{Third, our uncertainty signal is based on similarity scores and entropy, which may not fully capture semantic ambiguity.}
+Finally, our retrieval operates over a static embedding index, without modeling temporal updates of memory or potential conflicts across long-term sessions.
+\revise{Moreover, because RF-Mem improves the surfacing of long-term user history, downstream deployments should include safeguards to prevent unintended resurfacing of sensitive information, a direction we identify as important future work for quantifying and mitigating such risks.}
+
+
+
+\textbf{Future Work.} 
+Several directions arise naturally from the above limitations. 
+First, extending RF-Mem to multi-modal or cross-domain settings (e.g., multimodal dialogue) would allow testing its generality beyond personalized text-based memory. 
+Second, uncertainty estimation could be enhanced by integrating richer signals—such as calibration measures or user feedback—to complement list entropy and better capture task difficulty. 
+\revise{In addition, incorporating semantic or contextual uncertainty cues beyond similarity distributions may further improve the reliability of the strategy selection mechanism.}
+Third, incorporating temporal dynamics into the memory index (e.g., recency weighting, conflict resolution, or session-aware updates) may further improve long-term personalization. 
+Finally, exploring tighter integration between retrieval and generation—for example, jointly optimizing the entropy threshold with the LLM’s decoding behavior—could yield a more unified and adaptive personalized reasoning framework.
+
+
+
+
+

@@ -1,0 +1,206 @@
+\clearpage
+\appendix
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Constructing Retrieval Corpora}
+\label{sec:apndx-corpora}
+
+HotpotQA already comes with the associated Wikipedia corpus for the open-domain setting, so we use it directly. 2WikiMultihopQA and MuSiQue, however, are originally reading comprehension datasets. Questions in 2WikiMultihopQA and MuSiQue are associated with 10 and 20 paragraphs respectively, 2-4 of which are supporting and others are non-supporting. To turn these datasets into an open-domain setting, we make two corpora, one for each dataset, by combining all supporting and non-supporting paragraphs for all its questions in the train, development, and test sets. IIRC is originally a mix between reading comprehension and an open-domain setting. Each question is grounded in one main paragraph, which contains links to multiple Wikipedia pages with several paragraphs each. We create a corpus out of all the paragraphs from all the Wikipedia pages present in the dataset.\footnote{Following are the corpus sizes for the datasets: HotpotQA (5,233,329), 2WikiMultihopQA (430,225), MuSiQue (139,416), and IIRC (1,882,415)} We do assume the availability of the main passage which doesn't need to be retrieved and is always present. We don't assume the availability of Wikipedia links in the main passage, however, to keep the retrieval problem challenging.\footnote{IIRC corpus has a positional bias, i.e., the majority of supporting paragraphs are always within the first few positions of the Wikipedia page. To keep the retrieval problem challenging enough we shuffle the paragraphs before indexing the corpus, i.e., we don't use positional information in any way.}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Special Handling of Models for IIRC}
+\label{sec:apndx-iirc-special-handling}
+
+IIRC is slightly different from the other datasets, in that the question is grounded in the main passage and other supporting paragraphs come from the Wikipedia pages of entities mentioned in this passage. We modify the retrievers and readers to account for this difference: (i) We always keep the main passage as part of the input to the model regardless of the retrieval strategy used. (ii) For all the retrieval methods, we first prompt the model to generate a list of Wikipedia page titles using the main passage and the question. We map these generated titles to the nearest Wikipedia page titles in the corpus (found using BM25), and then the rest of the paragraph retrieval queries are scoped within only those Wikipedia pages.
+
+To prompt the model to generate Wikipedia page titles using the main passage and the question for IIRC, we use the following template.
+
+\begin{small}
+\begin{verbatim}
+Wikipedia Title: <Main Page Title>
+<Main Paragraph Text>
+
+Q: The question is: '<Question>'. Generate titles 
+of <N> Wikipedia pages that have relevant
+information to answer this question.
+A: ["<Title-1>", "<Title-2>", ...]
+\end{verbatim}
+\end{small}
+
+For ``training'', i.e., for demonstrations, N ($\le 3$) is the number of supporting Wikipedia page titles for the question. At test time, since the number of supporting page titles is unknown, we use a fixed value of 3. We found this trick of prompting the model to generate more titles at the test time improves its recall over letting the model decide by itself how many titles to generate.
+
+
+\begin{table*}[ht]
+    \centering
+    \footnotesize
+    \setlength{\tabcolsep}{10.0pt}
+    \begin{tabular}{lccccc}\toprule
+        Model &  HpQA\textsuperscript{Br} &  HpQA & 2WikiMQA & MQ\textsuperscript{2H} & MQ \\
+        \midrule
+        InterAug~\cite{internet-augmented-qa}  &         $-$ | $-$   &        30.3 | $-$\p{xx}   &        $-$ | $-$        &        $-$ | $-$        &   $-$ | $-$       \\
+        RECITE~\cite{recitationlm}             &         $-$ | $-$   &        37.1 | 48.4        &        $-$ | $-$        &        $-$ | $-$        &   $-$ | $-$       \\
+        ReAct~\cite{react}                     &         $-$ | $-$   &        35.1 | $-$\p{xx}   &        $-$ | $-$        &        $-$ | $-$        &   $-$ | $-$       \\
+        SelfAsk~\cite{selfask}                 &         $-$ | $-$   &         $-$ | $-$         &       40.1 | $-$\p{xx}   &       15.2 | $-$\p{xx} &   $-$ | $-$        \\
+        DecomP~\cite{old-decomp}               &  \p{x..}$-$ | 50.0  &         $-$ | $-$         &   \p{x..}$-$ | 59.3      &       $-$ | $-$        &   $-$ | $-$ \\
+        \midrule
+        DecomP~\cite{decomp} *                 &         $-$ | $-$   &         \p{x..}$-$ | 53.5 &   \p{x..}$-$ | \textbf{70.8}      &       $-$ | $-$        &  \p{xx}$-$ | 30.9 \\
+        DSP~\cite{dsp} *                       &         $-$ | $-$   &     \bf{51.4 | 62.9}      &        $-$ | $-$        &        $-$ | $-$        &        $-$ | $-$   \\
+        \midrule
+        \sys QA (ours)                         & \textbf{45.8 | 58.5} &       49.3 | 60.7       &   57.7 | 68.0      &  \bf{34.2 | 43.8}       &   \textbf{26.5 | 36.5}      \\
+        \bottomrule
+    \end{tabular}
+    \caption{Extended comparison with published LLM-based ODQA systems (as of May 25, 2023) on EM and F1 scores (with new numbers marked with *). `$-$': score is unavailable. HpQA\textsuperscript{Br}: Bridge questions subset of HotpotQA. MQ\textsuperscript{2H}: MuSiQue 2-hop questions. IRCoT remains SOTA for MuSiQue and is close to SOTA for HotpotQA and 2WikiMultihopQA. Note the comparisons here are not head-to-head as discussed in the text.}
+    \label{table:extended-extrinsic-comparison}
+\end{table*}
+
+
+\begin{table*}[ht]
+    \centering
+    \footnotesize
+    \setlength{\tabcolsep}{3.5pt}
+    \begin{tabular}{cccccccccccc}\toprule
+        & &\p{0}& \multicolumn{4}{c}{Flan-T5-XXL} & \p{0}& \multicolumn{4}{c}{GPT3} \\
+        \cmidrule{4-7} \cmidrule{9-12}
+        & Model &\p{0}&   HotpotQA & 2WikiMQA & MuSiQue & IIRC &  \p{0}&   HotpotQA & 2WikiMQA & MuSiQue & IIRC\\
+        \midrule
+        \multirow{2}{*}{ZeroR QA}
+        & Direct       &\p{0}&        \bf{25.3}\std{0.3}  &  \bf{32.7}\std{0.3}  &  \bf{13.7}\std{0.3}  &  \bf{28.9}\std{0.3} &   \p{0}&     \nf{41.0}\std{1.1}  &  \nf{38.5}\std{1.1}  &  \nf{19.0}\std{1.2} &  \nf{40.9}\std{0.7} \\
+        & CoT          &\p{0}&        \nf{22.9}\std{0.1}  &  \nf{31.7}\std{1.5}  &  \nf{10.3}\std{0.5}  &  \nf{24.4}\std{0.1} &   \p{0}&     \bf{47.5}\std{0.4}  &  \bf{41.2}\std{1.0}  &  \bf{25.2}\std{1.2} &  \bf{52.1}\std{0.1} \\
+        \midrule
+        \multirow{2}{*}{OneR QA}
+        & Direct       &\p{0}&        \bf{49.7}\std{0.5}  &  \bf{51.2}\std{0.3}  &  \bf{25.8}\std{0.6}  &  \bf{40.0}\std{1.3} &   \p{0}&     \nf{50.7}\std{0.1}  &  \nf{46.4}\std{2.9}  &  \nf{20.4}\std{0.3} &  \nf{40.1}\std{0.9} \\
+        & CoT          &\p{0}&        \nf{43.1}\std{0.7}  &  \nf{47.8}\std{0.9}  &  \nf{17.6}\std{0.2}  &  \nf{34.5}\std{1.5} &   \p{0}&     \bf{53.6}\std{0.7}  &  \bf{54.8}\std{2.1}  &  \bf{29.4}\std{0.8} &  \bf{49.8}\std{2.3} \\
+        \midrule
+        \multirow{2}{*}{\fixedicon\sys QA}
+        & Direct       &\p{0}&        \bf{59.1}\std{0.9}  &  \bf{66.5}\std{1.4}  &  \bf{30.8}\std{0.2}  &  \bf{42.5}\std{2.1} &   \p{0}&     \nf{60.6}\std{1.0}  &  \nf{63.5}\std{2.7}  &  \nf{36.0}\std{0.5} &  \nf{47.9}\std{2.3} \\
+        & CoT          &\p{0}&        \nf{52.0}\std{0.6}  &  \nf{55.1}\std{1.0}  &  \nf{24.9}\std{1.0}  &  \nf{36.5}\std{1.3} &   \p{0}&     \bf{60.7}\std{1.1}  &  \bf{68.0}\std{1.5}  &  \bf{36.5}\std{1.2} &  \bf{49.9}\std{1.1} \\
+        \bottomrule
+    \end{tabular}
+    \caption{Answer F1 for different ODQA models made from NoR, One and \iconsys retrievals, and Direct and CoT prompting readers. For \texttt{Flan-T5-XXL}, Direct prompting is a better choice for the reader, and for \texttt{GPT3}, CoT prompting is a better choice for the reader. Hence, we make different reader choices for Flan-T5 and GPT3 for the experiments in the main paper. Note that \iconsys QA $>$ OneR QA $>$ ZeroR QA holds up regardless of this choice.}
+    \label{table:direct-cot-reader-results}
+\end{table*}
+
+
+
+\begin{table*}[htb]
+    \centering
+    \footnotesize
+    \setlength{\tabcolsep}{4.0pt}
+    \begin{tabular}{llllll}\toprule
+        & \textbf{Question} &   \textbf{Gold Facts} & \textbf{NoR QA} & \textbf{OneR QA} & \textbf{IRCoT QA} \\
+
+        \midrule
+
+        % % HotpotQA
+        \multirow{2}{*}{\rotatebox[origin=c]{90}{\parbox[c]{2.5cm}{\centering HotpotQA}}}
+        & \begin{minipage}[t]{2cm} What was the island, on which Marinelli Glacier is located, formerly known as?\end{minipage}
+        & \begin{minipage}[t]{3.0cm} $\Rightarrow$ Marinelli Glacier is located on the island of \textcolor{blue}{Tierra del Fuego}. \\ $\Rightarrow$ The island of Tierra del Fuego was formerly known as \textcolor{blue}{Isla de Xativa}. \end{minipage}
+        & \begin{minipage}[t]{3.0cm} Marinelli Glacier is located on the island of \textcolor{red}{Graham Land}. Graham Land was formerly known as \textcolor{red}{Graham's Land}. So the answer is: Graham's Land. \end{minipage}
+        & \begin{minipage}[t]{3.0cm} Marinelli Glacier is located on \textcolor{blue}{Isla Grande de Tierra del Fuego}. Isla Grande de Tierra del Fuego was formerly known as \textcolor{red}{Tierra del Fuego}. So the answer is: Tierra del Fuego. \end{minipage}
+        & \begin{minipage}[t]{3.0cm} Marinelli Glacier is located on the island of \textcolor{blue}{Tierra del Fuego}. The island of Tierra del Fuego was formerly known as \textcolor{blue}{Isla de Xativa}. So the answer is: Isla de Xativa. \end{minipage} \\
+
+        \midrule
+
+        % % 2WikiMultihopQA
+        \multirow{2}{*}{\rotatebox[origin=c]{90}{\parbox[c]{3.0cm}{\centering 2WikiMQA}}}
+        & \begin{minipage}[t]{2cm} Who is the child of the director of film Mukhyamantri (1996 Film)? \end{minipage}
+        & \begin{minipage}[t]{3.0cm} $\Rightarrow$ The director of Mukhyamantri (1996 film) is \textcolor{blue}{Anjan Choudhury}. \\ $\Rightarrow$ Anjan Choudhury has a child named \textcolor{blue}{Sandip Choudhury}. \end{minipage}
+        & \begin{minipage}[t]{3.0cm} The film Mukhyamantri was directed by \textcolor{red}{S. V. Rajendra Singh Babu}. S. V. Rajendra Singh Babu has a child named \textcolor{red}{S. V. Rajendra Singh Babu}. So the answer is: S. V. Rajendra Singh Babu. \end{minipage}
+        & \begin{minipage}[t]{3.0cm} Mukhyamantri (1996 film) was directed by \textcolor{blue}{Anjan Choudhury}. Anjan Choudhury has a child named \textcolor{red}{Aniruddha Choudhury}. So the answer is: Aniruddha Choudhury. \end{minipage}
+        & \begin{minipage}[t]{3.0cm} The director of Mukhyamantri (1996 film) is \textcolor{blue}{Anjan Choudhury}. Anjan Choudhury has a child named \textcolor{blue}{Sandip Choudhury}. So the answer is: Sandip Choudhury. \end{minipage} \\
+
+        \midrule
+
+        % % MuSiQue
+        \multirow{2}{*}{\rotatebox[origin=c]{90}{\parbox[c]{2.7cm}{\centering MuSiQue}}}
+        & \begin{minipage}[t]{2cm} When did the Governorship end of the city where the author of Sacerdotii Nostri Primordia died? \end{minipage}
+        & \begin{minipage}[t]{3.0cm} $\Rightarrow$ Sacerdotii Nostri Primordia was written by \textcolor{blue}{Pope John XXIII}. \\ $\Rightarrow$ Pope John XXIII died in \textcolor{blue}{Vatican City}. \\ $\Rightarrow$ The Governorship of Vatican City ended in \textcolor{blue}{1952}. \end{minipage}
+        & \begin{minipage}[t]{3.0cm} The author of Sacerdotii Nostri Primordia is \textcolor{red}{Pope Pius IX}. Pope Pius IX died in the city of \textcolor{red}{Rome}. The Governorship of Rome ended in \textcolor{red}{1870}. So the answer is: 1870. \end{minipage}
+        & \begin{minipage}[t]{3.0cm} Sacerdotii Nostri Primordia was written by \textcolor{blue}{Pope John XXIII}. Pope John XXIII died in the city of \textcolor{red}{Rome}. The Governorship of Rome ended in \textcolor{red}{1870}. So the answer is: 1870. \end{minipage}
+        & \begin{minipage}[t]{3.0cm} Sacerdotii Nostri Primordia was written by \textcolor{blue}{Pope John XXIII}. Pope John XXIII died in \textcolor{blue}{Vatican City}. The Governorship of Vatican City ended in \textcolor{blue}{1952}. So the answer is: 1952. \end{minipage} \\
+
+        \bottomrule
+
+    \end{tabular}
+    \caption{Additional CoTs generated by GPT3 with different methods. ZeroR is most prone to factual errors. OneR often fixes some of the factual information which is closest to the question but doesn't always fix it all the way. Since IRCoT retrieves after each step, it can also fix the errors at each step.  More examples are in Table~\ref{table:nor-oner-cot-examples}.}
+    \label{table:apdx-nor-oner-cot-examples}
+\end{table*}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Comparison with Previous Systems for ODQA with LLMs}
+\label{sec:sota-differences}
+
+We showed a leaderboard-style comparison with previous approaches to using large language models for open-domain QA in \S~\ref{sec:exp-results}. We noted though that the comparison is not head-to-head given various differences. We briefly describe each method and the differences in API, LLM, retrieval corpus, and other choices here.
+
+Internet-Augmented QA~\cite{internet-augmented-qa} does (one-step) Google Search retrieval, performs additional LLM-based filtering on it, and then prompts an LLM to answer the question using the resulting context. It uses the Gopher 280B language model. RECITE~\cite{recitationlm} bypasses the retrieval and instead prompts an LLM to first generate (recite) one or several relevant passages from its own memory, and generate the answer conditioned on this generation. They experiment with many LLMs, the highest performing of which is \texttt{code-davinci-002} which we report here. ReAct~\cite{react} prompts LLMs to produce reasoning and action traces where actions are calls to a Wikipedia API to return the summary for a given Wikipedia page title. It uses the PALM 540B model. SelfAsk~\cite{selfask} prompts LLMs to decompose a question into subquestions and answers these subquestions by issuing separate calls to the Google Search API. It uses the GPT3 (\texttt{text-davinci-002}) model. Finally, DecomP~\cite{decomp} is a general framework that decomposes a task and delegates sub-tasks to appropriate sub-models. Similar to our system, it uses BM25 Search and the GPT3 (\texttt{code-davinci-002}) model. And lastly, DSP~\cite{dsp} provides a way to programmatically define interactions between LLM and retrieval for ODQA (e.g., via question decomposition), bootstrap demonstrations for such a program, and use them to make the answer prediction. It uses GPT3.5 LLM with ColBERT-based retrieval. Since most of these methods use different knowledge sources or APIs and are built using different LLMs and retrieval models, it's difficult to make a fair scientific comparison across these systems. Additionally, the evaluations in the respective papers are on different random subsets (from the same distribution) of test instances. 
+
+Despite these differences, it is still informative to explore, in a leaderboard-style fashion, how \iconsys performs relative to the best numbers published for these recent systems. Table~\ref{table:extended-extrinsic-comparison} shows results from different systems, including contemporaneous and newer numbers. The two new systems in this table (relative to Table~\ref{table:extrinsic-comparison}) are DecomP (newer version) and DSP. While \iconsys remains SOTA on MuSiQue, DSP outperforms it on HotpotQA by 2.0 points and the newer version of Decomp outperforms \iconsys on 2WikiMultihopQA by 2.8 points. We speculate DecomP performs well on 2WikiMultihopQA because it has only a few easy-to-predict decomposition patterns, which DecomP's question decomposition can leverage. The lack of such patterns in HotpotQA and MuSiQue causes it to underperform compared to \iconsys. Lastly, it will be useful to assess whether DSP, which is hardcoded for 2-hop questions like that of HotpotQA, will work well for a dataset with a varied number of hops like that of MuSiQue. We leave this further investigation to future work.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Additional CoT Generation Examples}
+\label{sec:apdx-nor-oner-cot-examples}
+
+Table~\ref{table:apdx-nor-oner-cot-examples} provides illustrations, in addition to the ones provided in Table~\ref{table:nor-oner-cot-examples}, for how the CoT generations for NoR QA, OneR QA, and IRCoT QA methods vary. This gives an insight into how IRCoT improves QA performance. Since NoR relies completely on parametric knowledge, it often makes a factual error in the first sentence, which derails the full reasoning chain. Some of this factual information can be fixed by OneR, especially information closest to the question (i.e., can be retrieved using the question). This is insufficient for fixing all the mistakes. Since IRCoT involves retrieval after each step, it can fix errors at each step.
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Direct vs CoT Prompting Readers}
+\label{sec:apndx-readers-results}
+
+Table~\ref{table:direct-cot-reader-results} compares reader choice (Direct vs CoT Prompting) for Flan-T5-XXL and GPT3. We find that Flan-T5-XXL works better with Direct Prompting as a reader and GPT3 works better with CoT Prompting as a reader. Therefore, for the experiments in the main paper, we go with this choice. Note though that the trends discussed in \S~\ref{sec:exp-results} (\iconsys QA $>$ OneR QA $>$ ZeroR QA) hold regardless of the choice of the reader.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Separate Reader in \iconsys QA}
+\label{sec:qa-reader-ablation}
+
+\begin{table}[ht]
+    \centering
+    \footnotesize
+    \setlength{\tabcolsep}{1.0pt}
+    \begin{tabular}{p{1.5em}ccccc}\toprule
+        & Model &   HotpotQA & 2WikiMQA & MuSiQue & IIRC   \\
+        \midrule
+        {\multirow{2}{*}{\rotatebox[origin=c]{90}{Flan}}}
+        & \fixedicon\sys QA     &  \bf{59.1}\std{0.9}     & \bf{66.5}\std{1.4}     & \bf{30.8}\std{0.2}     & \bf{42.5}\std{2.1} \\
+        & w/o reader            &  \nf{52.6}\std{0.3}     & \nf{60.9}\std{0.6}     & \nf{24.9}\std{0.2}     & \nf{40.3}\std{0.2} \\
+
+        \midrule
+        {\multirow{2}{*}{\rotatebox[origin=c]{90}{GPT3}}}
+        & \fixedicon\sys QA     &  \nf{60.7}\std{1.1}     & \nf{68.0}\std{1.5}     & \bf{36.5}\std{1.2}     & \bf{49.9}\std{1.1} \\
+        & w/o reader            &  \bf{61.0}\std{0.7}     & \bf{70.4}\std{1.5}     & \nf{31.5}\std{0.6}     & \nf{48.4}\std{1.0} \\
+        \bottomrule
+    \end{tabular}
+    \caption{Answer F1 of \iconsys QA with and without a separate reader for \texttt{Flan-T5-XXL} (top two rows) and \texttt{GPT3} (bottom two rows). When the reader is not used, the answer is extracted from the CoT generated by \sys while doing the retrieval. Ablating the reader usually hurts the performance.}
+    \label{table:qa-reader-ablation}
+\end{table}
+
+\iconsys, by construction, produces a CoT as a part of its retrieval process. So, instead of having a separate post-hoc reader, one can also just extract the answer from the CoT generated during retrieval. As Table~\ref{table:qa-reader-ablation} shows the effect of such an ablation.
+For \texttt{Flan-T5-XXL} having a separate reader is significantly better. For GPT3, this is not always true, but at least a model with a separate reader is always better or close to the one without. So overall we go with the choice of using the reader for the experiments in this paper.
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Prompts}
+\label{sec:apndx-prompts}
+Our manually written chain-of-thought annotations for HotpotQA, 2WikiMultihopQA, MuSiQue, and IIRC are given in Listing \ref{lst:hotpotqa-cots}, \ref{lst:2wikimultihopqa-cots}, \ref{lst:musique-cots} and \ref{lst:iirc-cots} respectively. Our prompts for GPT3 CoT Prompting are the same as these, except they have Wikipipedia paragraphs on the top of the questions as shown in \S~\ref{subsec:retriever}\footnote{We are not showing the paragraphs in the paper for brevity but they can be obtained from the released code.}. Our prompts for GPT3 Direct Prompting are the same as that of CoT prompting, except have the answer after "A:" directly. Our prompts for Flan-T5-* are slightly different from that of GPT3. For CoT Prompting, we prefix the question line: "Q: Answer the following question by reasoning step-by-step. <actual-question>". For Direct Prompting, we prefix the question line: "Q: Answer the following question. <actual-question>". We did this to follow Flan-T5-*'s training format and found it to help its CoT generation.
+
+
+\onecolumn
+\colorlet{shadecolor}{gray!10}
+\UseRawInputEncoding
+\lstset{breaklines=true, columns=fullflexible, backgroundcolor=\color{shadecolor}}
+% HotpotQA
+\lstinputlisting[basicstyle=\footnotesize, title={Chain-of-Thought annotations for HotpotQA.}, caption={Chain-of-Thought annotations for HotpotQA.}, label={lst:hotpotqa-cots}]{prompts/hotpotqa.txt}
+% 2WikiMultihopQA
+\lstinputlisting[basicstyle=\footnotesize, title={Chain-of-Thought annotations for 2WikiMultihopQA.}, caption={Chain-of-Thought annotations for 2WikiMultihopQA.}, label={lst:2wikimultihopqa-cots}]{prompts/2wikimultihopqa.txt}
+% MuSiQue
+\lstinputlisting[basicstyle=\footnotesize, title={Chain-of-Thought annotations for MuSiQue.}, caption={Chain-of-Thought annotations for MuSiQue.}, label={lst:musique-cots}]{prompts/musique_ans.txt}
+% IIRC
+\lstinputlisting[basicstyle=\footnotesize, title={Chain-of-Thought annotations for IIRC.}, caption={Chain-of-Thought annotations for IIRC.}, label={lst:iirc-cots}]{prompts/iirc.txt}
+\twocolumn

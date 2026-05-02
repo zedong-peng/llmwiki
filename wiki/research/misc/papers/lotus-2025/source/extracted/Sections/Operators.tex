@@ -1,0 +1,117 @@
+\section{The Semantic Operator Model}
+\label{sec:operators}
+
+Semantic operators provide a declarative interface for semantic-based manipulation and access to data.  Extending the data independence model of relational systems~\cite{codd_relational_1970}, these new \emph{AI-based} operators introduce \emph{model-data independence}, which separates the application logic from the underlying ML-based algorithm and access pattern that specifies how data is passed to model invocations. 
+Unlike relational operators, semantic operators are parametrized by natural language expressions and rely on AI-based computation, making their behavior inherently ambiguous and imprecise. We address this key challenge by presenting a formalism for defining semantic operators, their behavior and correct optimizations, in this section.
+In Section~\ref{sec:impl}, we build on this formalism to provide optimized execution plans with accuracy guarantees, similar to relational query optimizers.
+
+
+\subsection{Defining Semantic Operators}
+ 
+\heading{Definition.} \emph{A semantic operator is a declarative transformation over one or more datasets, parameterized by a natural language expression. Each semantic operator can be implemented by many AI-based algorithms, and its behavior is defined with respect to a gold algorithm.}
+
+
+
+Table~\ref{tab:operators} lists a core set of semantic operators, which cover common semantic transformations in real-world applications and mirror key transformations in relational operators.
+Specific systems may, of course, provide additional semantic operators beyond the ones we discuss here. 
+% \footnote{Akin to regular expressions (regex), which specify character patterns to match in text, \emph{langex} are natural language expressions to programmatically specify reasoning-based patterns over structured data and free-form text.}
+Each semantic operator takes a \emph{parameterized natural language expressions} (\emph{langex} for short), which are natural language expressions that specify a function over one or more attributes. As Figure~\ref{fig:example_code} demonstrates, the langex signature varies for different semantic transformations. The figure shows a \sys program, 
+which performs a \verb|sem_join|, \verb|sem_map| and \verb|sem_agg| over datasets of research papers and user projects.
+While the \verb|sem_join| langex signature provides a natural language \emph{predicate}, the \verb|sem_map| langex signature indicates a natural language projection, and the \verb|sem_agg| langex is a commutative, associative \emph{aggregator} expression, which here indicates a summarization task over abstracts. 
+
+We provide a high-level definition of each semantic transformation with respect to the user langex and a world model\footnote{In practice, the world model, $M$ may be the strongest LLM a practioner has available.}, $M$, which captures a probability distribution over the vocabulary $V$. For example, semantic filter returns $\{t_i \in T | l_M(t_i) = 1\}$, where $T$ is the input relation and $l_M(t_i)$ represents a natural language predicate evaluated on tuple $t_i$ with model M. 
+Notably, the definition of each semantic operator  can be implemented by multiple AI-based algorithms, and different decisions as to how to invoke the model over the relation have consequences on the algorithm's result quality. 
+Thus, to fully specify the ground truth behavior of each semantic operator, we define a \emph{gold algorithm}, which is a computable and tractable ML algorithm that produces high-quality results and specifies the model's access pattern over the data, $M(\cdot)$. 
+
+
+
+\subsection{Defining Correct Optimizations for Semantic Operators}
+Semantic operators create a rich design space of diverse execution plans.
+While gold algorithms define a tractable, high-quality implementation, they are often expensive, with the complexity of LLM calls scaling linearly or quadratically in the dataset cardinality. For example, the semantic filter's gold algorithm entails invoking the LLM in a linear pass over each tuple. However, an alternate AI-based algorithm may reduce cost, while offering \emph{close results}. In the case of semantic filters, \emph{close results}, can be measured according to accuracy metrics, in this case recall and precision, and guaranteed with high probability compared to the accuracy obtained by the gold algorithm. As such, we define correct optimizations for semantic operators\footnote{Our optimization approach can naturally extend to multi-operator execution plans by composition. In multi-operator programs, the user may configure an accuracy target and failure probability per operator, or for the full program, in which case the optimizer assigns a target accuracy and failure budget to each operator.} below.
+
+\heading{Definition.} \emph{A correct optimization for a given semantic operator, and a gold algorithm for that operator, reduces cost while providing statistical accuracy guarantees with respect to the gold algorithm. Specifically, the optimization should ensure an accuracy target, $\gamma$, is met with probability $1-\delta$.}
+
+In general, optimized semantic operator plans allows for both lossless optimizations and approximations with respect to a gold algorithm. This formulation builds on approaches in approximate query processing and assumes some error is often tolerable, which we find (Section~\ref{sec:eval}) is reasonable for achieving high-quality results, for semantic processing, which is inherently non-exact.
+
+
+
+
+
+
+
+\subsection{Core Semantic Operators}
+
+We now overview several core semantic operators, providing the operator's definition and at least one gold algorithm for each. We discuss design decisions for our gold algorithms based on state-of-the-art algorithms studied in the AI literature, well-known failure cases, such as long-context challenges~\cite{liu_lost_2023}, and our empirical evaluation in Section~\ref{sec:eval}.
+
+\heading{Semantic Filter} is a unary operator over the relation $T$ and returns the relation $\{t_i \in T | l_M(t_i) = 1\}$, where the langex provides a natural language predicate over one or more attributes. 
+
+
+\headingtwo{Gold Algorithm.} Our gold algorithm runs batched LLM calls over all tuples in relation $T$. Each model invocation, $M(t_i, l)$, prompts the LLM with a single tuple $t_i\in T$, the langex predicate, and an operator-specific instruction to generate a boolean value. This simple choice avoids well-studied long-context issues~\cite{liu_lost_2023} by processing rows independently rather than batching multiple tuples within a single prompt invocation.
+
+
+\heading{Semantic Join} provides a binary operator over relations $T_1$ and $T_2$ to return the relation $\{(t_i, t_j) | l_M(t_i, t_j) = 1, t_i \in T_1, t_j\in T_2 \}$. Here the langex is parameterized by the left and right join keys and describes a natural language predicate over both.
+
+\headingtwo{Gold Algorithm.} 
+The gold algorithm implements a \emph{nested-loop join pattern}, performing a single predicate evaluation over a tuple pair with each model invocation $M(t_i, t_j, l) \forall t_i\in T_1, t_j\in T_2$, similar to filters This yields an $O(N_1 \cdot N_2)$ LM call complexity, where $N_1$ and $N_2$ are the table sizes of the left and right join tables respectively.
+This quadratic join algorithm is suitable for small join tables but scales poorly for large tables. 
+
+
+\heading{Semanic Top-k} imposes a ranking\footnote{This definition implies that $l_M$ imposes a total and consistent ordering. However, this definition can also be softened to assume partial orderings and noisy comparisons with respect to model $M$.} over the relation $T$ and returns the ordered sequence, $\langle t_1, ..., t_k\rangle  \textit{ st } \forall (t_i, t_j), i < j \implies  l_M(t_i, t_j) = \langle t_i, t_j\rangle$. Here, the langex signature provides a general ranking criteria according to one or more attributes.
+ 
+
+\headingtwo{Gold Algorithm.}
+Two important algorithmic design decisions for the semantic top-k include how to implement LLM-based comparison and how to aggregate ranking information from these comparisons. Our gold algorithm uses pairwise LLM comparisons for the former, and a quick-select top-k algorithm~\cite{hoare_algorithm_1961} for the latter. We briefly describe the reason for these choices and alternatives considered. 
+Our decisions build on prior works, which have studied LLM-based passage re-ranking~\cite{desai_calibration_2020, drozdov_parade_2023, liang_holistic_2022, ma_zero-shot_2023, pradeep_rankvicuna_2023, pradeep_rankzephyr_2023, qin_large_2024, sachan_improving_2022, sun_is_2023} and ranking with noisy comparisons~\cite{shah_simple_2016, braverman_noisy_nodate} with the goal of achieving high quality results in a modest complexity of LLM calls or comparisons. 
+
+
+First, pairwise-prompting methods offer a simple and high-quality approach that feeds a single pair of tuples to each LLM invocation, $M(t_i, t_j, l)$, prompting the model to compare the two inputs and output a binary label. The two main classes of alternatives are point-wise ranking methods~\cite{desai_calibration_2020, drozdov_parade_2023, liang_holistic_2022, sachan_improving_2022, wu_stark_2024}, and list-wise ranking methods~\cite{ma_zero-shot_2023, pradeep_rankvicuna_2023, pradeep_rankzephyr_2023, sun_is_2023}, both of which have been shown to face quality issues~\cite{sun_is_2023, qin_large_2024, desai_calibration_2020}. We verify these limitations in Section~\ref{sec:eval}. In contrast, pairwise comparisons have been shown to be effective and relatively robust to input ordering~\cite{qin_large_2024}. 
+
+In addition, we consider several possible rank-aggregation algorithms, including quadratic sorting algorithms, a heap-based top-k algorithm and a quick-select-based top-k ranking algorithm. All three alternatives represent candidate gold algorithms. Our evaluation in Section~\ref{sec:eval} demonstrates that each of these sorting algorithms yield high-quality results, comparable to one another. However, the quick-select-based algorithm offers an efficient implementation with at least an order of magnitude fewer LLM calls than the quadratic sorting algorithm and more opportunities for efficient batched inference, leading to lower execution time, compared to a heap-based implementation. The quick-select top-k algorithm proceeds in successive rounds, each time choosing a pivot, and comparing all other remaining tuples to the pivot tuple to determine the rank of the pivot. Because each round is fully parallelizable, we can efficiently batch these LLM-based comparisons before recursing in the next round. 
+
+ 
+
+
+
+
+\heading{Semantic Aggregation} performs a many-to-one reduce over the input relation, returning $l_M(t_1, ..., t_n),  \forall t_1, .., t_n \in T$. Here, the the langex signature provides a commutative and associative aggregation function\footnote{We note that the ordering of inputs within an LLM prompt invocation can in fact affect results quality for some tasks. Thus, programmers may wish to override the commutativity and associativity assumptions of the semantic aggregation langex. For this, the LOTUS API exposes a partioner function which groups and orders inputs within LLM prompts according to an arbitrary user-specification.}, which can be applied over any subset of rows to produce an intermediate results. We note that the langex iteself is model-agnostic, assuming infinite context. Managing finite context limits of the underlying model $M$ is an implementation detail left to the system. 
+
+
+\headingtwo{Gold Algorithm.}
+Our gold algorithm must efficiently orchestrate the LLM to manage long context inputs, which may degrade result quality~\cite{liu_lost_2023} or overflow the underlying model's context length. We select a hierarchical reduce pattern for the gold algorithm. Our choice builds on the LLM-based summarization pattern studied by prior research works~\cite{wu_recursively_2021, chang_booookscore_2024, adams_sparse_2023} 
+and deployed systems~\cite{llamaindex, langchain}, which we briefly overview. 
+
+Prior works primarily implement one of two aggregation patterns: either a fold pattern, which performs a sequential, linear pass over the data, while iteratively updating an accumulated partial answer, or a hierarchical reduce pattern, which recursively aggregates the input data to produce partial answers until a single answer remains. 
+Both represent candidate gold algorithms, however, the hierarchical pattern has been shown to produce higher quality results for commutative, associative aggregation tasks, like summarization, in prior work~\cite{chang_booookscore_2024} and allows for greater parallelism during query processing, making it our default choice.
+
+
+
+
+
+\heading{Semantic Group-by} takes a langex that specifies a projection from a tuple to an unknown group label, as well as a target number of groups, which specifies the desired granularity of group labels. As a example, a user might group-by the topics presented in a set of ArXiv papers, wishing to find 10 key groups. The group-by operator must \emph{discover} representative group labels and assign a label to each each tuple. In general, performing the unsupervised group discovery is a clustering task, which is NP-hard~\cite{dasgupta_hardness_nodate}. Clustering algorithms over points in a metric space typically optimize the potential function tractably using coordinate descent algorithms, such as k-means. For the semantic group-by, the clustering task is over unstructured fields with a natural language similarity function specified by $l_M(t_i, \mu_j)$, which imposes a real-valued score between a tuple $t_i$ and a candidate label $\mu_j$. This operator poses the following optimization problem: 
+
+$$\argmax_{\{\mu_1, ...\mu_C\},\textit{\space}\mu_i \in V^\mathbb{N}} \sum_{t_i\in T} \max_{j\in 1\ldots C} l_{M}(t_i, \mu_j)$$
+
+\noindent where $\mu_1, ..., \mu_C$ are $C$ group labels, each consisting of tokens in the vocabulary, $V$. 
+
+
+\headingtwo{Gold Algorithm.}
+Since this operator, by definition, entails a clustering problem, known to be NP-hard~\cite{dasgupta_hardness_nodate}, our gold algorithm instead offers a computable implementation to obtain group labels using a tractable clustering algorithm to discover group labels followed by a point-wise classification step. Both steps use a linear LLM pass over the relation. 
+
+Specifically, the first stage performs an LLM-based clustering algorithm to discover centers $\mu_1, ..., \mu_C$, given user langex. Our gold algorithm first performs a semantic projection, prompting the LLM to predict a label for each input tuple. Then, we embed these candidate labels and perform an efficient vector clustering using a k-means algorithm to construct $C$ groups. For each group, we top-k sample tuples based on centroid-similarity scores, and use a semantic aggregation that prompts the model to generate an appropriate label over each group. In the second stage of our gold algorithm, we use the $C$ generated labels, $\mu_1, ...\mu_C$ and invoke the model to perform point-wise assignments $M(t_i, \mu_1, ...\mu_C), \forall t_i\in T$.  
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

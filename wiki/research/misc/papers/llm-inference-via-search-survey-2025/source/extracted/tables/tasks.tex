@@ -1,0 +1,140 @@
+\begin{table*}[ht!]
+    \caption{A unification of various tasks for LLM Inference via Search (LIS). A single benchmark may be configured for different tasks. Therefore, the “Benchmark” column specifies each task’s benchmark alongside the corresponding adapting frameworks \textit{(listed in parentheses)}.}
+    % The column ``Used By'' denotes the LIS frameworks associated with the stated definition. 
+    \label{tab:task_unification}
+    \centering
+    \scriptsize
+    \begin{tabular}{p{2cm}p{1.75cm}p{1.75cm}p{1.5cm}p{1.5cm}p{1.5cm}p{3cm}}
+        \toprule
+                       Tasks
+                     & Actions
+                     & States / Observations
+                     % & Known Final State?
+                     & Transitions
+                     & Rewards 
+                     & Action Reversible?
+                     % & Applicable Tasks 
+                     & Benchmarks (\textit{Used by}) 
+                     \\
+        \midrule
+        \red{Embodied Tasks}
+                & \red{Discrete, \newline
+                    constrained, \newline
+                    heterogeneous, \newline
+                    state-dependent}
+                & \red{Discrete}
+                & \red{Normally deterministic}
+                & \red{$R_{\text{default}}$: 1 if the goal is achieved}
+                & \red{Maybe}
+                & \red{VirtualHome \citep{puig2018virtualhome}\textit{(Tree-Planner)}, Jericho \citep{hausknecht2020game} \textit{(MC-DML)}}
+        \\ \addlinespace
+
+        \red{Combinatorial Tasks}
+                & \red{Discrete, \newline
+                    constrained,  \newline
+                    state-dependent}
+                & \red{Discrete}
+                & \red{Deterministic}
+                & \red{$R_{\text{default}}$} 
+                & \red{Maybe}
+                & \red{Game-of-24 \citep{yao2023tree} \textit{(ToT, TS-LLM)}, Chess \citep{wan2024alphazerolike} \textit{(TS-LLM)}}
+        \\ \addlinespace
+        
+        Web Navigations
+                    & Discrete, \newline
+                    constrained, \newline
+                    heterogeneous
+                      % structural, better predefined text sequences
+                    & Discrete, \newline
+                    infinite
+                    & Dynamic or Deterministic 
+                    & $R_{\text{default}}$
+                    & Maybe
+                    & WebShop~\citep{yao2022webshop} \textit{(Agent Q, LATS)}, WebArena~\citep{zhou2024webarena} \textit{(Best-LLM)}
+        \\ \addlinespace
+        
+        Graph traversal 
+                     & Discrete, \newline 
+                     constrained, \newline 
+                     homogeneous 
+                     & Discrete, \newline
+                     finite (commonly)
+                     % & \cmark       
+                     & Deterministic
+                     & 1 if $s \in G$
+                     & Maybe
+                     & GridMap~\citep{meng2024llm} \textit{(LLM-A*)}
+        \\ \addlinespace
+       
+        Reasoning ($\mathcal{T}$ via Concatenation)
+                    & Open (A thought expressed in one or more tokens)
+                    & Open, unknown until reached (Problem description + concatenated thoughts)  
+                    & Deterministic  (Concatenating)
+                    & 1 if the final results $=$ ground-truth 
+                    % generated code passes all test cases
+                    & \cmark
+                    & 
+                    % Naturally evolving:
+                    GSM8K \citet{cobbe2021gsm8k} \textit{(Q*, M*, ReST-MCTS*)}, Math \citep{hendrycks2021measuring} \textit{(Q*, ReST-MCTS*)}, HotpotQA \citep{yang-etal-2018-hotpotqa} \textit{(CPO, rStar)}, 
+                    % Delibrately reasoning: 
+                    ToT-Writing \citep{yao2023tree} \textit{(ToT)}
+        \\ \addlinespace
+        
+        \red{Reasoning via QAs }
+                    & \red{Open} 
+                    & \red{Open, unknown until reached}
+                    & \red{Dynamic (Question answering then concatenating Q\&A)}
+                    & \red{1 if the final results $=$ ground-truth }
+                    & \red{\cmark}
+                    & \red{HotpotQA \citep{yang-etal-2018-hotpotqa} \textit{(rStar)}, GSM8K \citet{cobbe2021gsm8k} \textit{(RAP)}}     
+                    % LeastToMost \citep{zhou2023leasttomost}
+        \\ \addlinespace
+        Reasoning ($\mathcal{T}$ via concatenations and tool invocation) 
+                    & Open 
+                    & Open, unknown until reached
+                    & Deterministic (Concatenating); dynamic or deterministic (tool invocation)
+                    & 1 if the final results $=$ ground-truth 
+                    & Maybe
+                    & HotpotQA \citep{yang-etal-2018-hotpotqa} \textit{(LATS)}
+        \\ \addlinespace
+        \red{Reasoning Over Knowledge Graph}
+        & \red{Discrete, \newline
+            constrained,\newline
+            heterogeneous}
+        & \red{Open thoughts + discrete and finite entity-relation triplets}
+        & \red{Deterministic (Concatenating)}
+        & \red{1 if the final results $=$ ground-truth }
+        & \red{\cmark}
+        & \red{WebQSP~\citep{yih-etal-2016-value} \textit{(Think-on-Graph, Think-on-Graph 2.0)}}
+        \\ \addlinespace
+        
+        \red{Tool-based tasks}
+        & \red{Discrete, \newline
+                    constrained, \newline
+                    heterogeneous}
+        & \red{Problem description + concatenated actions}
+        & \red{Deterministic (Concatenating)}
+        & \red{1 if the task is completed}
+        & \red{Maybe}
+        & GSM8K \citet{cobbe2021gsm8k} \textit{(ToolChain*)}, ToolBench \citep{xu2023tool} \textit{(ToolChain*)} 
+        \\ \addlinespace
+        
+        Code Generation
+        & Open (A single token)
+        & Open, unknown until reached  (Problem description + concatenated tokens)   
+        & Deterministic 
+        & E.g., pass rate of the complete program 
+        & \cmark
+        & MBPP \citep{austin2021program} \textit{(LATS, Q*)}, APPS \citep{hendrycks2021measuring2} \textit{(PG-TD)}
+        \\ \addlinespace
+
+        Goal-oriented Dialog
+        & Discrete, constrained (An intent)
+        & A sequence of intents, agent/user utterances
+        & Dynamic
+        & 1 if the conversational goal is achieved
+        & \xmark 
+        & PersuasionForGood \citep{wang-etal-2019-persuasion} \textit{(GDP-Zero)}
+        \\ \bottomrule
+    \end{tabular}
+\end{table*}

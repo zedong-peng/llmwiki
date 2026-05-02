@@ -1,0 +1,31 @@
+\vspace{-2mm}
+\section{Related Work}
+\label{sec:related}
+\vspace{-2mm}
+We briefly discuss related work here and give an extended discussion of the related work in Appendix~\ref{appdx:extended_rw}.
+%
+
+Traditional RNNs are difficult to scale  due to the nonlinear dependencies between the  hidden states and expensive matmul-based sequential hidden state updates. Linear RNNs/State-Space Models (SSMs)/Transformers eliminate nonlinear dependencies, making training parallelizable along the temporal dimension \citep{parallel-martin, s4, s5}. Such models have been the focus of much recent work as a competitive sub-quadratic alternative to the Transformer architecture \citep{rwkv, Gu2023MambaLS,HGRN,qin2023scaling,sun2023retentive,pretrain_wo_attn}.
+
+
+
+\input{figures/tps}
+
+
+
+Data-dependent decay rates have always been regarded important for  RNNs  \citep{DBLP:journals/neco/GersSC00,unreasonable-forget-gate}. Typical forget gate values depend on both the previous hidden state and the current input. However \citet{parallel-martin} suggest that forget gate values should depend solely on the current inputs to enable parallel training. This simple strategy has been shown to be effective in moderate-scale experiments conducted by HGRN \citep{qin2023scaling}.  RWKV-v6 \citep{peng2024eagle} and Mamba \citep{Gu2023MambaLS} also use data-dependent decay rates that are reminiscent of forget gates. In the context of linear Transformers, \citet{peng2021random} employ a coarse-grained position-wise forget gate, while \citet{mao-2022-fine} and \citet{gatedloop} use a more fine-grained forget gate. 
+%
+
+RNNs rely on fixed-dimensional hidden states to encode their entire history. The hidden state dimension  serves as a proxy for memory capacity and thus significantly influences their expressive power. 
+Linear Transformers expand the hidden dimension of RNNs via the outer-product parameterization, as discussed \S\ref{subsec:background-lin}. Linear SSMs on the other hand expand their hidden dimension via a single-input-single-output (SISO) strategy. 
+Without data-dependent SSM parameters, this can be done efficiently during training via the Fast Fourier Transform (FFT). However, with data-dependent SSM parameters, FFT-based training is not possible, and thus \citet{Gu2023MambaLS} implements a custom CUDA kernel to train a selective state-space model using the parallel scan algorithm \citep{s5}. To fit all the hidden states into SRAM, they can only afford an expansion rate up to 16. In contrast our hardware-aware training algorithm provides an alternative, efficient approach for expanding the hidden dimension to a wider range, which we have shown useful in recall-intensive tasks.
+
+
+\vspace{-2mm}
+%
+%
+
+
+
+
+

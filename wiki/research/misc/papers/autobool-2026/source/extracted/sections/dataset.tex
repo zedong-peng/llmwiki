@@ -1,0 +1,24 @@
+\section{Dataset Creation}
+\label{sec:dataset}
+To support both training and large-scale evaluation of systematic review Boolean query generation, we construct a new dataset based on full-text systematic reviews from the PubMed Central (PMC) Open Access (OA) subset~\cite{pmc_open_access_subset}. This subset is license-compatible with commercial use and substantially larger than existing public benchmarks.%
+\footnote{Dataset will be made available on~\href{https://www.example.com}{Huggingface}.}
+
+\subsection{Data Source and Extraction}
+We begin by extracting all articles labeled with the publication type \texttt{systematic review} from PubMed Central (PMC) Open Access (OA) subset, resulting in a total of \num{75676} systematic review topics. For each topic, we parse the full PMC XML and extract the PMIDs cited in the results section. These cited references are treated as the included studies (i.e., the gold-standard relevant set) for that review. After filtering for availability of cited PMIDs, we retain \num{65600} usable topics.
+
+\subsection{Benchmark Integrity}
+To prevent data leakage from prior evaluation sets, we manually remove any topics overlapping with the CLEF TAR or Seed Collection~\cite{kanoulas2018clef, wang2022little}. This resulted in the exclusion of 12 topics, yielding a final dataset of \num{65588} unique systematic reviews topics.
+
+\subsection{Temporal Train-Test Split}
+To prevent temporal leakage and better simulate real-world deployment, we split the dataset chronologically based on publication date:
+\begin{itemize}\setlength\itemsep{0ex}
+	\item \textbf{Training set:} \num{32794} topics published between \texttt{2000-07-06} and \texttt{2021-10-30}.
+	\item \textbf{Test set:} \num{32794} topics published between \texttt{2021-10-31} and \texttt{2025-03-01}.
+	\item \textbf{PubTemp} (\textbf{PubMed Temporal}) \textbf{Set:} 1,000 randomly sampled topics published after \texttt{2024-11-01}.
+\end{itemize}
+
+This temporal split reflects real-world usage: an information specialist formulates a Boolean query to retrieve studies published up to that point. The model, trained only on earlier topics, must generalize to future, unseen ones. Chronological partitioning also supports continual evaluation, enabling future research on adapting to evolving terminology, intervention types, and publication trends.
+
+We introduce the \textbf{PubTemp} set to enable fair, out-of-distribution evaluation by ensuring topics were unseen during LLM pretraining. Since Qwen3 (the primary model used) has an October 2024 knowledge cutoff,%
+\footnote{While there is no officially published knowledge cutoff for Qwen3, we confirmed via direct model queries that its knowledge extends up to October 2024.} 
+we select topics published after November 1, 2024, to minimize overlap. To keep evaluation feasible, we randomly sample \num{1000} such topics to avoid the API time cost of issuing too many PubMed API queries and reducing the expense of evaluating commercial models (e.g., generating queries for \num{1000} topics using O3 costs around~\$50). The PubTemp split will be released with our dataset to support reproducibility.

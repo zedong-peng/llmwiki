@@ -1,0 +1,332 @@
+
+\appendix
+
+\section{Appendix}
+
+
+
+\subsection{Prompt Template}
+
+We design four prompt templates to investigate how different reasoning styles influence Boolean query generation performance:
+
+\begin{itemize}
+	\item \textbf{No Reasoning (N.R):} A simple prompt that directly asks the model to generate a Boolean query from a review topic without explanation. (See Table~\ref{fig:no-reasoning-prompt})
+	\item \textbf{Free-text Reasoning (R):} Allows the model to reason freely before producing a final query, enabling unstructured decomposition. (See Table~\ref{fig:reasoning-prompt})
+	\item \textbf{Conceptual Reasoning (R-con):} Guides the model to map the topic into structured elements like Population, Intervention, and Outcome before forming the query. (See Table~\ref{fig:prompt-conceptual})
+	\item \textbf{Objective Reasoning (R-obj):} Encourages the model to extract explicit inclusion criteria and convert them into Boolean syntax. (See Table~\ref{fig:prompt-objective})
+\end{itemize}
+
+These templates serve as both zero-shot prompting strategies and scaffolds for reinforcement learning. Their comparative impact is analyzed throughout our experiments.
+
+
+
+\label{appendix:prompts}
+
+\input{tables/no-reasoning-prompt.tex}
+
+\input{tables/free-reasoning-prompt.tex}
+
+\input{tables/conceptual-reasoning-prompt.tex}
+
+\input{tables/objective-reasoning-prompt.tex}
+
+
+\subsection{Model Tuning}
+\label{appendix:training-details}
+
+\input{tables/tunning-parameter.tex}
+
+\subsection{Ablation Result Comparison}
+
+To evaluate AutoBool's generalization capability and validate its design choices, we conduct comprehensive ablation studies examining performance across multiple dimensions. We first assess generalization to existing datasets including CLEF TAR and Seed Collection (although the number of topics in these datasets are much less than the we published), demonstrating robustness across diverse systematic review domains. We then compare AutoBool against in-context learning baselines to isolate the contribution of reinforcement learning over prompt-based approaches. Finally, we analyze performance variations across individual topics to identify systematic patterns in query difficulty and failure modes. 
+
+\subsubsection{Result on CLEF and Seed}
+
+\begin{table*}[t]
+	\centering
+	\footnotesize
+	\caption{Effectiveness of LLM-generated Boolean queries on the CLEF TAR set. \textbf{Bold} indicates the best result for each model within a setting; \underline{Underlined} indicates the overall best across all models. \textbf{Expert-Crafted} refers to results obtained by issuing the original Boolean queries from the dataset to PubMed. \textbf{Best~\citet{wang2025reassessing}-O1} denotes the O1 model using the P3 prompt from~\citet{wang2025reassessing}, which achieved the highest recall in that study.}
+	\label{tab:eval-results-clef}
+		\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lllllllllll@{}}
+			\toprule
+			%\multicolumn{3}{c}{} & \multicolumn{4}{c}{\textbf{Primary Metrics}} & \multicolumn{4}{c}{\textbf{Secondary Metrics}} \\
+			\cmidrule(lr){4-7} \cmidrule(lr){8-11}
+			Setting & Model & Prompt & Recall & F3 & \parbox{2.5em}{Recall\\>80\%} & \parbox{2.5em}{Recall\\>90\%} & Precision & \parbox{4em}{Avg\\Retrieved} & \parbox{2.5em}{Avg\\Regen} & \%Success \\
+			\midrule
+			\multirow{12}{*}{\rotatebox{90}{Zero-shot}} & \multicolumn{2}{l}{Expert Crafted} & \underline{\textbf{0.8458}} & \textbf{0.0970} & \underline{\textbf{80.56}} & \underline{\textbf{79.17}} & \textbf{0.0206} & \textbf{14327.07} & / & \underline{\textbf{100.00}} \\
+			& \multicolumn{2}{l}{Best~\citet{wang2025reassessing}-O1} & 0.6545 & 0.1966 & / & / & 0.1078 & / & / & / \\			\cmidrule{3-11}
+			 & GPT-4o & N.R & 0.4258 & 0.2245 & 19.44 & 11.11 & \textbf{0.1275} & \textbf{389.74} & 1.01 & \underline{\textbf{100.00}} \\
+			& GPT-4o & R & 0.4534 & 0.2160 & 22.22 & 16.67 & 0.1013 & 459.18 & 1.01 & \underline{\textbf{100.00}} \\
+			& GPT-4o & R-con & \textbf{0.5283} & \textbf{0.2283} & \textbf{26.39} & \textbf{19.44} & 0.1080 & 535.54 & \underline{\textbf{1.00}} & \underline{\textbf{100.00}} \\
+			& GPT-4o & R-obj & 0.3498 & 0.1449 & 16.67 & 9.72 & 0.1139 & 422.67 & 1.07 & \underline{\textbf{100.00}} \\
+			\cmidrule{3-11}
+			& O3 & R & \textbf{0.7454} & 0.3167 & \textbf{56.94} & \textbf{40.28} & 0.0879 & 663.10 & 1.58 & 98.61 \\
+			& O3 & R-con & 0.7270 & \underline{\textbf{0.3196}} & 48.61 & 34.72 & \textbf{0.0928} & \textbf{627.35} & 1.18 & \underline{\textbf{100.00}} \\
+			& O3 & R-obj & 0.5811 & 0.2157 & 25.00 & 13.89 & 0.0779 & 731.69 & \textbf{1.15} & \underline{\textbf{100.00}} \\
+			\cmidrule{3-11}
+			& Qwen3-4B & N.R & 0.0255 & 0.0235 & 0.00 & 0.00 & 0.0608 & \underline{\textbf{59.00}} & 6.39 & 41.67 \\
+			& Qwen3-4B & R & 0.1756 & 0.1246 & 2.78 & 0.00 & \underline{\textbf{0.1389}} & 175.38 & 1.65 & 98.61 \\
+			& Qwen3-4B & R-con & \textbf{0.5282} & \textbf{0.1579} & \textbf{33.33} & \textbf{22.22} & 0.0871 & 608.08 & \textbf{1.18} & \underline{\textbf{100.00}} \\
+			& Qwen3-4B & R-obj & 0.0717 & 0.0422 & 1.39 & 1.39 & 0.0447 & 236.60 & 2.15 & 94.44 \\
+			\midrule
+			\multirow{4}{*}{\rotatebox{90}{\shortstack{AutoBool \\ ($\alpha = 0.5$) \\ Weak R.O}}} & Qwen3-4B & N.R & \textbf{0.7919} & \textbf{0.2497} & \textbf{65.28} & \textbf{41.67} & \textbf{0.0728} & 772.68 & 1.12 & 98.61 \\
+			& Qwen3-4B & R & 0.6677 & 0.1773 & 43.06 & 31.94 & 0.0709 & 769.17 & \textbf{1.01} & \underline{\textbf{100.00}} \\
+			& Qwen3-4B & R-con & 0.5729 & 0.1520 & 30.56 & 22.22 & 0.0548 & \textbf{722.76} & 1.39 & 97.22 \\
+			& Qwen3-4B & R-obj & 0.7909 & 0.1704 & 62.50 & \textbf{41.67} & 0.0390 & 867.03 & \textbf{1.01} & \underline{\textbf{100.00}} \\
+			\midrule
+			\multirow{4}{*}{\rotatebox{90}{\shortstack{AutoBool \\ ($\alpha = 1$) \\ Mod R.O}}} & Qwen3-4B & N.R & \textbf{0.8387} & \textbf{0.2401} & \textbf{70.83} & \textbf{51.39} & 0.0499 & 818.31 & \underline{\textbf{1.00}} & \underline{\textbf{100.00}} \\
+			& Qwen3-4B & R & 0.6090 & 0.2011 & 31.94 & 19.44 & \textbf{0.0782} & \textbf{696.92} & 1.06 & \underline{\textbf{100.00}} \\
+			& Qwen3-4B & R-con & 0.5885 & 0.1684 & 34.72 & 20.83 & 0.0672 & 697.35 & 1.03 & \underline{\textbf{100.00}} \\
+			& Qwen3-4B & R-obj & 0.7619 & 0.2035 & 55.56 & 43.06 & 0.0433 & 880.74 & \underline{\textbf{1.00}} & \underline{\textbf{100.00}} \\
+			\midrule
+			\multirow{4}{*}{\rotatebox{90}{\shortstack{AutoBool \\ ($\alpha = 2$) \\ Heavy R.O}}} & Qwen3-4B & N.R & \textbf{0.8239} & \textbf{0.2193} & \textbf{73.61} & \textbf{51.39} & 0.0538 & 830.08 & \underline{\textbf{1.00}} & \underline{\textbf{100.00}} \\
+			& Qwen3-4B & R & 0.5723 & 0.2054 & 31.94 & 15.28 & \textbf{0.0737} & \textbf{698.60} & \underline{\textbf{1.00}} & \underline{\textbf{100.00}} \\
+			& Qwen3-4B & R-con & 0.6571 & 0.1348 & 41.67 & 29.17 & 0.0356 & 869.71 & 1.04 & \underline{\textbf{100.00}} \\
+			& Qwen3-4B & R-obj & 0.8177 & 0.1995 & 65.28 & \textbf{51.39} & 0.0406 & 904.31 & \underline{\textbf{1.00}} & \underline{\textbf{100.00}} \\
+			\bottomrule
+		\end{tabular*}
+\end{table*}
+
+\begin{table*}[t]
+	\centering
+	\footnotesize
+	\caption{Effectiveness of LLM-generated Boolean queries on Seed Collection.. \textbf{Bold} indicates the best result for each model within a setting; \underline{Underlined} indicates the overall best across all models. \textbf{Expert-Crafted} refers to results obtained by issuing the original Boolean queries from the dataset to PubMed. \textbf{Best~\citet{wang2025reassessing}-O1} denotes the O1 model using the P3 prompt from~\citet{wang2025reassessing}, which achieved the highest recall in that study}
+	\label{tab:eval-results-seed}
+		\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lllllllllll@{}}
+			\toprule
+			%\multicolumn{3}{c}{} & \multicolumn{4}{c}{\textbf{Primary Metrics}} & \multicolumn{4}{c}{\textbf{Secondary Metrics}} \\
+			\cmidrule(lr){4-7} \cmidrule(lr){8-11}
+			Setting & Model & Prompt & Recall & F3 & \parbox{2.5em}{Recall\\>80\%} & \parbox{2.5em}{Recall\\>90\%} & Precision & \parbox{4em}{Avg\\Retrieved} & \parbox{2.5em}{Avg\\Regen} & \%Success \\
+			\midrule
+			
+			\multirow{12}{*}{\rotatebox{90}{Zero-shot}} &  \multicolumn{2}{l}{Expert Crafted} & \underline{\textbf{0.7241}} & \underline{\textbf{0.1869}} & \underline{\textbf{57.50}} & \textbf{25.00} & 0.0341 & 1416.55 & / & \underline{\textbf{100.00}} \\
+			& \multicolumn{2}{l}{Best~\citet{wang2025reassessing}-O1} & 0.5786 & 0.0852 & / & / & 0.0523 & / & / & / \\
+			\cmidrule{3-11}
+			& GPT-4o & N.R & 0.3106 & 0.1073 & 2.50 & \textbf{2.50} & 0.0694 & \textbf{369.30} & \underline{\textbf{1.00}} & \underline{\textbf{100.00}} \\
+			& GPT-4o & R & 0.3330 & 0.1076 & 5.00 & \textbf{2.50} & 0.0317 & 426.77 & 1.05 & \underline{\textbf{100.00}} \\
+			& GPT-4o & R-con & \textbf{0.3936} & \textbf{0.1262} & 2.50 & 0.00 & 0.0382 & 559.98 & \underline{\textbf{1.00}} & \underline{\textbf{100.00}} \\
+			& GPT-4o & R-obj & 0.2647 & 0.0847 & \textbf{7.50} & \textbf{2.50} & \underline{\textbf{0.0882}} & 478.00 & 1.25 & \underline{\textbf{100.00}} \\
+			\cmidrule{3-11}
+			& O3 & R & \textbf{0.7027} & 0.1142 & \textbf{47.50} & \textbf{25.00} & 0.0174 & 733.10 & 1.48 & \underline{\textbf{100.00}} \\
+			& O3 & R-con & 0.6482 & 0.1336 & 30.00 & 15.00 & 0.0235 & 659.42 & 1.35 & \underline{\textbf{100.00}} \\
+			& O3 & R-obj & 0.5411 & \textbf{0.1418} & 22.50 & 12.50 & \textbf{0.0424} & \textbf{653.65} & \textbf{1.12} & \underline{\textbf{100.00}} \\
+			\cmidrule{3-11}
+			& Qwen3-4B & N.R & 0.0003 & 0.0000 & 0.00 & 0.00 & 0.0000 & \underline{\textbf{124.00}} & 8.10 & 25.00 \\
+			& Qwen3-4B & R & 0.0306 & 0.0144 & 0.00 & 0.00 & \textbf{0.0327} & 170.43 & 4.35 & 75.00 \\
+			& Qwen3-4B & R-con & \textbf{0.3768} & \textbf{0.0567} & \textbf{10.00} & \textbf{10.00} & 0.0193 & 596.70 & \textbf{1.23} & \underline{\textbf{100.00}} \\
+			& Qwen3-4B & R-obj & 0.0384 & 0.0113 & 0.00 & 0.00 & 0.0275 & 194.13 & 2.58 & 97.50 \\
+			\midrule
+			\multirow{4}{*}{\rotatebox{90}{\shortstack{AutoBool \\ ($\alpha = 0.5$) \\ Weak R.O}}} & Qwen3-4B & N.R & 0.5820 & 0.0855 & \textbf{37.50} & 20.00 & 0.0126 & 803.08 & 1.23 & 97.50 \\
+			& Qwen3-4B & R & 0.5445 & \textbf{0.0899} & 27.50 & 25.00 & 0.0147 & 726.08 & \textbf{1.02} & \underline{\textbf{100.00}} \\
+			& Qwen3-4B & R-con & 0.4701 & 0.0873 & 17.50 & 15.00 & \textbf{0.0198} & \textbf{651.63} & 1.48 & 95.00 \\
+			& Qwen3-4B & R-obj & \textbf{0.6419} & 0.0820 & \textbf{37.50} & \textbf{27.50} & 0.0170 & 817.83 & 1.15 & \underline{\textbf{100.00}} \\
+			\midrule
+			\multirow{4}{*}{\rotatebox{90}{\shortstack{AutoBool \\ ($\alpha = 1$) \\ Mod R.O}}} & Qwen3-4B & N.R & \textbf{0.6828} & 0.0943 & \textbf{47.50} & \underline{\textbf{35.00}} & 0.0136 & 827.00 & 1.23 & 97.50 \\
+			& Qwen3-4B & R & 0.5301 & 0.0668 & 30.00 & 17.50 & 0.0109 & \textbf{735.50} & \underline{\textbf{1.00}} & \underline{\textbf{100.00}} \\
+			& Qwen3-4B & R-con & 0.5307 & \textbf{0.1051} & 30.00 & 12.50 & \textbf{0.0226} & 736.30 & 1.15 & \underline{\textbf{100.00}} \\
+			& Qwen3-4B & R-obj & 0.5890 & 0.0642 & 35.00 & 27.50 & 0.0097 & 831.35 & 1.05 & \underline{\textbf{100.00}} \\
+			\midrule
+			\multirow{4}{*}{\rotatebox{90}{\shortstack{AutoBool \\ ($\alpha = 2$) \\ Heavy R.O}}} & Qwen3-4B & N.R & 0.6539 & 0.0749 & 35.00 & 25.00 & 0.0099 & 855.03 & 1.25 & 97.50 \\
+			& Qwen3-4B & R & 0.5963 & \textbf{0.1071} & 32.50 & 20.00 & \textbf{0.0215} & \textbf{730.12} & 1.05 & \underline{\textbf{100.00}} \\
+			& Qwen3-4B & R-con & 0.5066 & 0.0528 & 20.00 & 17.50 & 0.0123 & 786.40 & \underline{\textbf{1.00}} & \underline{\textbf{100.00}} \\
+			& Qwen3-4B & R-obj & \textbf{0.6804} & 0.0672 & \textbf{50.00} & \underline{\textbf{35.00}} & 0.0089 & 896.00 & 1.23 & 97.50 \\
+			\bottomrule
+		\end{tabular*}
+\end{table*}
+
+
+
+
+
+We report detailed evaluation results for AutoBool on two widely used external benchmarks for Boolean query generation: CLEF TAR (Table~\ref{tab:eval-results-clef}) and the Seed Collection (Table~\ref{tab:eval-results-seed}). Both tables compare AutoBool against zero-shot prompting baselines using the same underlying model (Qwen3-4B), commercial LLMs (GPT-4o, O3), and manually written expert queries when available. These benchmarks provide insights into AutoBool's generalization ability when deployed beyond its training distribution.
+
+\paragraph{CLEF TAR.} AutoBool demonstrates strong generalization across all primary metrics. It substantially improves recall over zero-shot baselines and also outperforms commercial LLMs such as GPT-4o and O3 on recall and high-recall coverage (Recall > 80\%, Recall > 90\%). Notably, when using the \texttt{No Reasoning} prompt and \(\alpha = 1\), AutoBool achieves recall that is within 1\% of expert-written queries, while retrieving 17× fewer documents. This trade-off leads to improved F\textsubscript{3} and precision, indicating not only strong comprehensiveness but also a meaningful reduction in screening burden. AutoBool also surpasses the performance of the O1 model used in~\citet{wang2025reassessing}, highlighting the advantage of retrieval-aware training via reinforcement learning over static prompting-based generation.
+
+\paragraph{Seed Collection.} Similar results are observed on the Seed Collection benchmark. While AutoBool does not fully match the performance of expert-authored queries in recall or F\textsubscript{3}, it consistently outperforms all zero-shot prompting baselines and the O1 model from~\citet{wang2025reassessing}. The model demonstrates strong recall-oriented behavior while keeping the number of retrieved documents at a practical level, maintaining its advantage in terms of screening efficiency. The success rate remains close to 100\%, indicating stable formatting and reliable generation.
+
+These results confirm that AutoBool generalizes effectively across different domains and collections, even though it was trained solely on PubMed data. The performance gains on CLEF and Seed further reinforce the value of reinforcement learning for robust and transferable Boolean query generation.
+
+
+
+\subsubsection{Comparison to In Context Learning}
+\label{appendix:icl}
+\begin{table}[t!]
+	\centering
+	\small
+	\caption{Performance comparison of Zero-shot, In-context Learning (ICL), and the Autobool for the Qwen3-4B model. Best performance for each metric within a prompt group is highlighted in bold.}
+	\label{tab:method_comparison_qwen3-4b}
+
+	\begin{tabular}{@{}llcccc@{}}
+		\toprule
+		Prompt & Method & Recall & F3 & \parbox{2.5em}{Recall\\>80\%}  & \parbox{2.5em}{Recall\\>90\%}  \\
+		\midrule
+		\multirow{5}{*}{N.R} & Zero-shot & 0.0098 & 0.0074 & 0.00 & 0.00 \\
+		& ICL (1-shot) & 0.1011 & 0.0334 & 3.80 & 2.80 \\
+		& ICL (3-shot) & 0.0899 & 0.0337 & 2.50 & 1.20 \\
+		& ICL (5-shot) & 0.0848 & 0.0347 & 1.50 & 0.70 \\
+		& Autobool & \textbf{0.7036} & \textbf{0.1195} & \textbf{47.10} & \textbf{32.30} \\
+		\midrule
+		\multirow{5}{*}{R} & Zero-shot & 0.0681 & 0.0429 & 0.70 & 0.60 \\
+		& ICL (1-shot) & 0.1142 & 0.0410 & 2.80 & 2.00 \\
+		& ICL (3-shot) & 0.1052 & 0.0419 & 3.00 & 2.20 \\
+		& ICL (5-shot) & 0.1156 & 0.0442 & 2.80 & 1.80 \\
+		& Autobool & \textbf{0.5453} & \textbf{0.1346} & \textbf{27.90} & \textbf{16.50} \\
+		\midrule
+		\multirow{5}{*}{R-con} & Zero-shot & 0.3458 & 0.0824 & 11.60 & 6.50 \\
+		& ICL (1-shot) & 0.3341 & 0.0692 & 12.50 & 7.40 \\
+		& ICL (3-shot) & 0.3052 & 0.0670 & 9.20 & 5.40 \\
+		& ICL (5-shot) & 0.3094 & 0.0694 & 9.80 & 6.00 \\
+		& Autobool & \textbf{0.5262} & \textbf{0.1066} & \textbf{26.30} & \textbf{16.80} \\
+		\midrule
+		\multirow{5}{*}{R-obj} & Zero-shot & 0.0676 & 0.0212 & 1.40 & 1.10 \\
+		& ICL (1-shot) & 0.0812 & 0.0228 & 1.80 & 1.20 \\
+		& ICL (3-shot) & 0.0969 & 0.0316 & 1.80 & 1.10 \\
+		& ICL (5-shot) & 0.0799 & 0.0304 & 1.40 & 1.10 \\
+		& Autobool & \textbf{0.6540} & \textbf{0.1094} & \textbf{39.70} & \textbf{26.70} \\
+		\bottomrule
+		
+
+	\end{tabular}
+
+\end{table}
+
+To assess the effectiveness of our reinforcement learning approach against prompt-based alternatives, we compare AutoBool with zero-shot and in-context learning (ICL) baselines using the Qwen3-4B backbone model. For ICL, we provide exemplar systematic review topics with their corresponding expert-crafted Boolean queries from the CLEF collection~\cite{kanoulas2018clef}. For one-shot, we used topic CD010438, following~\citet{wang2025reassessing, wang2023can}.\footnote{Prior work has shown that using one high-quality example is more effective than using a related but lower-quality example.} For three-shot, we additionally selected topics CD007427 and CD009944; for five-shot, we added CD011602 and CD010213. All selected topics have comprehensive expert-formulated queries that satisfy our prompt requirements.
+
+For reasoning-based prompts, to ensure the example reasoning patterns align with the inference distribution, we used the same inference prompt structure but provided the expert Boolean query and asked Qwen3-4B to generate the corresponding reasoning that would lead to that target query.
+
+Table~\ref{tab:method_comparison_qwen3-4b} reveals that while ICL improves over zero-shot baselines in most cases, it demonstrates no scaling benefits with additional examples. For no-reasoning prompts, ICL improves recall from 0.01 (zero-shot) to 0.101 (1-shot), but then degrades to 0.085 (5-shot). The R prompt shows similar patterns with modest gains over zero-shot (0.068) reaching 0.114–0.116 with examples. Notably, R-con is the exception where ICL actually harms performance: declining from 0.346 (zero-shot) to 0.334 (1-shot) and further to 0.309 (5-shot). This absence of scaling or even negative scaling contrasts with typical NLP tasks where few-shot learning provides consistent improvements, suggesting that Boolean query generation requires learning formulation \emph{strategies} rather than pattern matching from examples.
+
+Despite ICL's improvements over zero-shot, AutoBool substantially outperforms all ICL configurations across every prompt type and metric. For no-reasoning prompts, AutoBool achieves 0.704 recall—7.0× better than the best ICL result (1-shot: 0.101) and 47.1\% of topics exceeding 80\% recall versus only 3.8\% for best ICL. The R-obj prompt demonstrates similar dramatic improvement: 0.654 recall versus 0.097 for best ICL (3-shot), a 6.7× gain. Even for R-con where zero-shot outperforms ICL, AutoBool achieves 0.526 recall, improving upon both zero-shot (0.346) and ICL variants.
+
+These results demonstrate that while examples can provide modest gains over zero-shot (except for R-con), they fail to capture the complexity of balancing recall-precision trade-offs, applying proper Boolean operators, and selecting appropriate field specifications. The flat or declining ICL performance with additional examples confirms that reinforcement learning with retrieval-based feedback is necessary for this task, enabling adaptive strategy learning through direct optimization rather than static pattern matching.
+
+\subsubsection{Topics Analysis}
+To understand performance variations across different systematic review topics, we conduct a comprehensive analysis of recall distributions and identify characteristic patterns distinguishing high-performing from low-performing queries. We partition our test data into three equal groups based on recall performance: top third (highest recall), middle third, and bottom third (lowest recall). We then analyze term frequency statistics within each category to identify systematic patterns in query characteristics.
+
+\paragraph{Performance distribution demonstrates strong generalization.} Our models exhibit top-skewed recall distributions, indicating robust performance across most topics. For no-reasoning prompts, the top third of topics achieve approximately 0.90 recall, while reasoning-based prompts reach approximately 0.74 recall in their top third. This distribution pattern demonstrates that the models successfully generalize across diverse systematic review domains rather than memorizing specific topic patterns from training data.
+
+\paragraph{Topic difficulty correlates with terminology specificity and complexity.} Through term frequency analysis comparing high-recall versus low-recall topics, we identify systematic patterns in query difficulty. High-recall topics typically involve specific medical procedures or distinct conditions with well-established terminology, such as ``portoenterostomy,'' ``keratoconus,'' and ``zuranolone.'' These terms have clear, unambiguous meanings in medical literature, facilitating precise Boolean query construction.
+
+In contrast, low-recall topics exhibit three characteristic patterns. First, procedural or technical terms like ``root canals'' and ``ultrasonic clamping'' require precise field specifications that models struggle to generate correctly. Second, multi-component medical concepts such as ``platinumsensitiveresistant'' present challenges in formulating comprehensive queries that capture all relevant term variants. Third, broad conceptual terms like ``validation'' and ``algorithm'' lack the specificity needed for effective Boolean retrieval, leading to either overly broad or overly narrow queries.
+
+\paragraph{Prompt-specific failure patterns reveal architectural limitations.} No-reasoning prompts demonstrate particular difficulty with topics requiring nuanced terminology distinctions. For example, dental procedures involve subtle semantic differences that significantly impact retrieval effectiveness, yet the model struggles to capture these distinctions without explicit reasoning guidance. Reasoning-based prompts face different challenges: they struggle with compound medical terms and emerging biomedical technologies such as ``multiomics'' and ``gwas.'' In these cases, the reasoning steps may introduce additional complexity or verbosity without corresponding improvements in query precision.
+
+These findings suggest three possible improvement directions. First, enhanced handling of compound terms through specialized tokenization or term expansion strategies could better capture multi-component medical concepts. Second, improved field-specific query formulation through domain-aware templates could help models generate appropriate field tags for procedural topics. Third, specialized training strategies for emerging biomedical concepts could address terms that lack established Boolean query patterns in existing literature. The systematic nature of these failure modes indicates that architectural modifications or training data augmentation could address specific weaknesses rather than requiring fundamental redesign of the approach.
+
+
+
+\subsection{Ablations on Retrieval Reward}
+\label{appendix:retrieval_reward}
+
+In this section, we systematically examine the design choices underlying our retrieval reward function. The reward function balances multiple objectives: recall prioritization, precision awareness, and poor-performing query awareness through recall-dependent precision weighting, logarithmic scaling, and penalty mechanisms. To validate these design decisions, we conduct comprehensive ablation studies that isolate the contribution of each component. These ablations reveal the empirical foundations of our reward design and provide practical guidance for hyperparameter selection in similar reinforcement learning applications for information retrieval tasks.
+
+\subsubsection{Impact of Retrieval Reward Modules}
+\input{tables/impact-retrieval-reward.tex}
+
+To understand the contribution of each component in our reward function design, we conduct systematic ablation studies by removing key components: logarithmic scaling (W/O Scaling), recall dependency on precision reward (W/O Dependency), precision component (W/O Precision). These experiments demonstrate the necessity of each component for achieving balanced performance across different prompt types using the Qwen3-4B model on the PubTemp dataset.
+
+To clarify the impact of each component, we define the modified reward functions used in our ablations:
+\begin{itemize}
+	\item \textbf{W/O Scaling:}
+	\[
+	F_{\text{no-log}}(r, p) = M \cdot r + M \cdot r^\alpha \cdot p
+	\]
+	\item \textbf{W/O Dependency:}
+	\[
+	F_{\text{no-dep}}(r, p) = M \cdot r + M \cdot p
+	\]
+	\item \textbf{W/O Precision:}
+	\[
+	F_{\text{no-prec}}(r, p) = M \cdot r
+	\]
+\end{itemize}
+
+Table~\ref{tab:eval-results-reward-components} demonstrates the impact of different reward function components across all prompt types. The results reveal three critical insights about the necessity of each component for systematic review Boolean query generation.
+
+\paragraph{Logarithmic scaling prevents catastrophic F3 degradation while maintaining recall quality.} The W/O Scaling variant shows dramatically different behavior patterns across prompt types. For no-reasoning prompts (N.R), removing logarithmic scaling yields higher raw recall (76.3\% vs 70.4\%) and improved high-recall coverage (56.6\% vs 47.1\% for recall $>80\%$), but causes severe F3 collapse from 0.1195 to 0.0429 (-64.1\%). This pattern indicates that without logarithmic scaling, models optimize for recall at the expense of precision control, creating queries that retrieve excessive irrelevant documents. Conversely, reasoning-based prompts show more stable behavior, with W/O Scaling causing modest F3 degradation (-7.6\% to -25.1\%) while maintaining reasonable recall performance. This suggests that explicit reasoning steps provide additional structure that partially compensates for the loss of logarithmic precision scaling.
+
+\paragraph{Recall dependency critically balances recall-precision trade-offs across prompt architectures.} The impact of removing recall dependency (W/O Dependency) varies significantly by prompt type, revealing fundamental differences in how implicit versus explicit reasoning approaches handle reward optimization. For no-reasoning prompts, removing the $r^\alpha$ weighting causes substantial recall degradation (-35.2\%) while maintaining F3 performance, indicating premature precision optimization that sacrifices coverage. However, reasoning-based prompts exhibit opposite behavior: W/O Dependency actually improves recall performance (+16.8\% for R, +4.2\% for R-con, +2.0\% for R-obj) while showing modest F3 degradation. This counterintuitive result suggests that structured reasoning approaches benefit from independent precision optimization, as the explicit reasoning steps provide sufficient recall guidance without requiring mathematical dependency encoding.
+
+\paragraph{Precision component removal consistently degrades balanced performance across all architectures.} The W/O Precision variant, which reduces the reward to pure recall optimization ($M \cdot r$), shows consistent negative impacts across all prompt types. F3 scores drop substantially (-28.8\% to -12.0\% for N.R and R respectively), while recall performance also degrades moderately (-8.8\% to -10.5\%). This pattern demonstrates that even recall-oriented systematic review applications require precision awareness to generate practically useful queries. Pure recall optimization leads to queries that retrieve excessive document volumes, creating unrealistic screening burdens that compromise the systematic review workflow.
+
+The differential sensitivity patterns across prompt types reveal important architectural insights for reward design in reasoning-heavy applications. No-reasoning prompts require carefully balanced reward components with logarithmic scaling and recall dependency to achieve optimal performance, while reasoning-based approaches show greater robustness to individual component variations due to their structured intermediate outputs.
+
+
+\subsubsection{Why not using F3 for retrieval reward}
+
+\input{tables/impact-f3.tex}
+
+While we design this complex reward, one question remains: what if we use a simpler reward that prioritises recall, like F3? To address this, we compare our decomposed reward design against F3 optimization using:
+\[
+F_{\text{F3}}(r, p)  = M \cdot \frac{(1 + \beta^2) \cdot r \cdot p}{\beta^2 \cdot r + p}
+\]
+
+where $\beta = 3$ for F3 weighting.
+
+Table~\ref{tab:eval-results-reward-f3} shows that while F3 optimization achieves higher F3 scores (+11.2\% to +72.8\%), it causes severe recall degradation (-15.7\% to -48.0\%). Most critically, high-recall performance collapses: for recall $>80\%$, performance drops from 47.1\% to 12.0\% topics for N.R and from 39.7\% to 12.5\% for R-obj. These recall levels (0.37-0.44) fall far below the 0.80-0.90 thresholds required for systematic review quality standards, making F3-optimized queries practically unusable despite superior F3 scores.
+
+\subsubsection{Impact of Scalling factor M}
+
+\input{tables/impact-m.tex}
+
+The scaling factor $M$ controls the magnitude of retrieval reward signals relative to the fixed format and validity rewards ($\pm 10$ each). Since $R_{\text{total}} = R_{\text{format}} + R_{\text{validity}} + R_{\text{retrieval}}$, the value of $M$ determines whether the model prioritizes syntactic correctness (low $M$) or retrieval effectiveness (high $M$). We examine $M$ values of 5, 10, and 20 to understand how this balance affects learning dynamics.
+
+Table~\ref{tab:eval-results-m-values} reveals distinct sensitivity patterns across prompt architectures. The no-reasoning prompt (N.R) demonstrates high sensitivity to $M$ values, with optimal performance at $M=10$ achieving 0.7036 recall and 47.1\% high-recall coverage. Both lower ($M=5$) and higher ($M=20$) scaling values lead to substantial performance degradation, with recall dropping to 0.4368 and 0.5524 respectively. This sensitivity reflects the prompt's reliance on implicit learning without structured intermediate steps, making it dependent on precise reward signal calibration for effective policy optimization.
+
+In contrast, reasoning-based prompts exhibit greater stability across different $M$ values. For structured reasoning approaches (R, R-con, R-obj), performance variations remain modest, with some prompts even achieving peak performance at higher scaling factors ($M=20$ for R and R-obj). This robustness suggests that explicit reasoning steps provide additional training signals that compensate for suboptimal reward scaling, making these approaches more resilient to hyperparameter variations. The structured intermediate outputs effectively regularize the learning process, reducing dependence on the primary reward scaling parameter.
+
+
+\subsubsection{Impact of Smoothing constant s}
+\input{tables/impact-s.tex}
+
+The smoothing constant $s$ in the logarithmic scaling function $\log_{1+s}(1 + s \cdot p)$ controls the curvature of precision rewards, determining how quickly precision improvements translate into reward increases. Lower $s$ values create steeper gradients at low precision, while higher values provide more gradual scaling across the precision range.
+
+Table~\ref{tab:eval-results-scale-values} demonstrates that $s=100$ provides optimal performance for the no-reasoning prompt, achieving 70.4\% recall and 47.1\% high-recall coverage, substantially outperforming both $s=10$ (38.9\% recall) and $s=1000$ (48.1\% recall). This indicates that moderate logarithmic curvature effectively balances gradient sensitivity at low precision values with stable training dynamics for implicit learning approaches.
+
+Reasoning-based prompts show more varied optimal values across the range. The R prompt performs best at $s=10$ for recall metrics, while R-con and R-obj achieve peak performance at $s=1000$ and $s=10$ respectively. This variability suggests that structured reasoning approaches are less sensitive to precision reward curvature, as their explicit intermediate steps provide additional learning signals that compensate for suboptimal logarithmic scaling parameters.
+
+
+\subsubsection{Impact of Retrieval Reward Penalty}
+
+\input{tables/impact-retrieval-panelty.tex}
+
+Penalty parameters guide model behavior by providing negative signals for undesirable outcomes in the retrieval reward function. We examine two key penalties in $R_{\text{retrieval}}(r, p, |D|)$: the empty result penalty (applied when $|D| = 0$) and the zero relevant results penalty (applied when $r = 0 \land p = 0$).
+
+\paragraph{Empty result penalty maintains training stability through symmetric incentives.} Table~\ref{tab:eval-results-min-reward} shows that the penalty value of -20 achieves optimal performance across most prompt types. For no-reasoning prompts, this penalty yields 70.4\% recall and 47.1\% high-recall coverage, substantially outperforming both weaker (-10: 52.7\% recall) and stronger (-30: 46.2\% recall) penalties. The -20 value maintains intentional symmetry with the maximum retrieval reward (+20), creating balanced incentives between achieving good retrieval and avoiding complete failure states. Insufficient penalties (-10) fail to discourage empty queries adequately, while excessive penalties (-30) can cause training instability as models become overly cautious. Reasoning-based prompts show similar patterns with more modest performance variations, suggesting their structured outputs provide additional stability that partially compensates for suboptimal penalty values.
+
+\paragraph{Zero relevant results penalty provides graduated failure signals.} Table~\ref{tab:eval-results-off-topic-penalty} demonstrates that the -5 penalty for queries retrieving documents but finding zero relevant results achieves consistently strong performance. This penalty represents less severe failure than empty results, as these queries demonstrate syntactic validity and sufficient topic relevance to retrieve documents despite poor relevance matching. The graduated penalty structure guides models toward incremental improvements rather than binary success/failure optimization. Without this penalty (0), performance degrades substantially: no-reasoning recall drops from 70.4\% to 41.8\%, while excessive penalties (-10) show modest degradation (50.7\% recall). The -5 value effectively balances encouraging document retrieval while maintaining pressure for relevance.
+
+
+
+\subsection{Llama Model Training instability}
+
+
+\label{appendix:llama-instability}
+While LLaMA3.1-8B achieved the highest recall performance in our Boolean query generation experiments (Table~\ref{tab:model_comparison}), its RL training exhibited significant instability that prevented reliable deployment. 
+%Training instability observed with LLaMA 3.1 models provides important insights into architecture-specific challenges for reinforcement learning in reasoning-heavy applications. 
+Through systematic analysis of training logs and failure patterns, we identify three primary factors contributing to instability in the context of Boolean query generation for systematic reviews.
+
+
+\paragraph{Architecture-prompt interaction effects.} Instability correlates strongly with prompt type complexity. LLaMA 3.1 models experience reward collapses primarily with reasoning-based prompts, following a clear severity hierarchy: free-text reasoning exhibits highest instability, structured reasoning shows moderate issues, and no-reasoning prompts remain relatively stable. This pattern contrasts sharply with Qwen3 models, which maintain stable training dynamics across all prompt types. We hypothesize this difference stems from Qwen3's pretraining on reasoning-specific tasks and long-context data, capabilities that LLaMA 3.1 lacks in comparable depth, making it more vulnerable to gradient instabilities when generating extended reasoning traces during RL optimization.
+
+
+\paragraph{Generation length correlates with instability patterns.} Training failures increase systematically with output length requirements: free-text reasoning ($\sim$2000 tokens) demonstrates highest instability, structured reasoning ($\sim$1500 tokens) exhibits moderate issues, and no-reasoning ($\sim$100 tokens) remains stable. During collapse events, LLaMA 3.1 frequently generates repetitive content that exceeds the 3072 token limit, entering degenerate states that resist recovery through continued training. This suggests that the model's attention mechanisms may struggle to maintain coherent long-form generation under the gradient pressures of reinforcement learning optimization.
+
+\paragraph{Pretraining differences explain stability variations.} Qwen3's technical documentation indicates specific reasoning-based and long-context training during pretraining phases, capabilities that LLaMA 3.1 lacks in comparable depth~\cite{yang2025qwen3}. This architectural preparation appears crucial for maintaining stability during RL optimization with reasoning-heavy prompts, providing the foundational capabilities necessary for stable policy learning in complex generation tasks.
+
+These findings offer practical guidance for practitioners applying RL fine-tuning to Boolean query generation. The observed instability patterns indicate that GRPO's interaction with LLaMA's architecture becomes problematic when generating long, reasoning-heavy Boolean queries, particularly for model backbones without reasoning-specific pretraining. For Boolean query formulation tasks requiring extended reasoning traces, practitioners should either: (1) use models with reasoning-specific pretraining, or (2) employ no-reasoning prompts with LLaMA models to maintain training stability. Future work should investigate whether similar stability issues appear in other structured query generation tasks and develop architecture-specific training strategies for complex retrieval applications.
+
+
+\subsection{Example Case}
+\label{appendix:example}
+
+To illustrate behavioral differences across prompt types, we present an example systematic review topic 39707254: ``The asymptomatic tuberculosis proportion among the elderly population,'' which includes 28 studies as relevant studies. Figures~\ref{fig:topic_39707254_no_reasoning}--\ref{fig:topic_39707254_objective_reasoning} show the generated queries and performance metrics.
+
+\paragraph{Generation patterns reveal distinct query construction strategies.} The no-reasoning prompt generates exhaustive term expansion through comprehensive OR-combinations across multiple semantic dimensions: tuberculosis variants (``TB,'' ``Mycobacterium tuberculosis''), asymptomatic concepts (``undiagnosed,'' ``latent''), elderly terms (``geriatric,'' ``aged,'' ``older adult''), and epidemiological terms (``prevalence,'' ``incidence,'' ``screening''). Free-text reasoning exhibits explicit deliberation in the \texttt{<think>} section, considering MeSH terms and field specifications, but produces notably more conservative queries that focus on core concepts. Conceptual reasoning systematically decomposes topics into constituent concepts (``asymptomatic tuberculosis,'' ``elderly population'') and generates extensive synonym lists for each before combining them. Objective reasoning simulates relevant article structures and incorporates study design terms (``cohort study,'' ``cross-sectional study'') alongside medical concepts, demonstrating domain-aware query construction.
+
+\paragraph{Performance metrics reflect the recall-precision trade-offs of each strategy.} No-reasoning and conceptual reasoning both achieve perfect recall (1.0) through their exhaustive term coverage, but suffer from extremely low precision (0.0001 and 0.0000 respectively), retrieving over 270,000 documents. Free-text reasoning's conservative approach produces moderate recall (0.333) with improved precision (0.0038), though at the cost of missing two-thirds of relevant studies. Objective reasoning represents an intermediate strategy, yielding strong recall (0.667) with modest precision improvement (0.0002). These results demonstrate how different reasoning architectures fundamentally alter the query construction process and resulting retrieval characteristics.
+
+\clearpage
+\include{tables/example.tex}
+
+\include{tables/example-b.tex}

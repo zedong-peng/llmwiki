@@ -1,0 +1,49 @@
+% \input{tables/rerank/main}
+\section{Analysis}
+
+\subsection{Reranking with LLMs enhances retrieval performance}
+\label{sec:rerank}
+A common approach for improving retrieval results is to utilize powerful rerankers capable of performing joint computation over both the query and the documents.
+To this end, we investigate if performance on \ours{} can be improved through reranking.
+We test this with a classical cross-encoder, MiniLM\footnote{\url{https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-12-v2}}, and LLMs to rerank the top $k=\{10, 100\}$ retrieved documents.
+The cross-encoder is trained on the MS MARCO reranking task \citep{bajaj2016ms} and outputs a relevance score for each pair of query and document $(Q, D_i)$.
+% We further rerank the top-k (k=10, 100) most retrieved documents using either a classical cross-encoder \href{https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-12-v2}{ms-marco-MiniLM-L-12-v2} or LLMs. The cross-encoder, trained on the MS Marco reranking task, takes a pair of query and document and outputs a relevance score. 
+Following \citet{sun2023chatgpt}, we also rerank with LLMs by including the query and top-k documents in the prompt and asking the LLMs to order the documents based on their relevance to the query (detailed prompts can be found in Table~\ref{tab:rerank_prompts}).
+% In the experiments, we use GPT-4 to rerank the top-10 and top-100 most relevant documents and use Gemini to rerank only the top-10 due to its context length limitations. % feels too specific to include
+Table~\ref{tab:results_rerank} shows that the traditional cross-encoder negatively impacts retrieval quality, with performance declining as more documents are reranked, suggesting that training rerankers on MS MARCO does not transfer well to \ours.
+On the other hand, reranking by LLMs generally enhances performance. 
+Stronger LLMs provide more significant improvements; for instance, based on BM25 retrieval results, Gemini-1.0 reranking increases the score by 1.4, and GPT-4 reranking enhances by 3.1 and continues to improve with higher $k$. 
+LLMs can serve as an effective tool for reasoning-intensive retrieval, but the final results still highly depend on the underlying retrieval system.
+% This indicates that using LLMs for reranking is a practical solution for reasoning-intensive retrieval tasks, as LLMs can effectively assess the relevance between queries and documents during the reranking process.
+
+
+% \subsection{\textbf{BRIGHT} is robust against data leakage from large-scale pretraining}
+\subsection{Robustness against data leakage from pretraining}
+\label{sec:robustness}
+% Many existing benchmarks lead to inflated performance due to benchmark data contamination from large-scale pre-training~\citep{zhou2023don,xu2024benchmarking}. 
+% In this section, we demonstrate that \ours is robust to such leakage, even when the retrieving documents are fully seen during pretraining. 
+% We simulate a scenario where language models are trained on data crawled from the internet, which may include StackExchange data. 
+% Specifically, we continue training \grit~\citep{muennighoff2024generative} on the data in the StackExchange retrieval pool from \ours using language modeling loss. 
+% To maintain the retrieval ability of \grit, we also train it with a contrastive learning objective on StackExchange question and answer pairs (more training details in Appendix~\ref{app:continue_training}). 
+% This exposes all the StackExchange data from \ours to the model, but omits direct training on the mappings between queries and documents, which require intensive reasoning to resolve and do not naturally occur during pretraining. 
+% Table~\ref{tab:robustness} shows a slight decrease in the average results of fine-tuned \grit, indicating that the current data formats and training procedures may not significantly impact performance in \ours. 
+% This indicates that \ours is robust to data leakage from large-scale pretraining and calls for novel approaches to improve reasoning-intensive retrieval.
+
+Many existing benchmarks suffer from inflated performance due to benchmark data contamination during large-scale pre-training~\citep{zhou2023don,xu2024benchmarking}. We demonstrate that \ours remains robust against such data leakage, even when retrieval documents are fully exposed during pre-training. To test this, we simulate a realistic scenario where language models encounter StackExchange data during internet-based training. We continue training \grit~\citep{muennighoff2024generative} on StackExchange data from our retrieval pool using both language modeling loss and contrastive learning on question-answer pairs (see Appendix~\ref{app:continue_training} for training details). This approach exposes the model to all StackExchange content in \ours, while avoiding direct training on query-document mappings that require intensive reasoning. As shown in Table~\ref{tab:robustness}, the fine-tuned \grit exhibits only a slight performance decrease, suggesting that conventional training procedures have limited impact on \ours performance. These results demonstrate \ours's robustness to pre-training data leakage and highlight the need for novel approaches to advance reasoning-intensive retrieval.
+% \vspace{-5pt}
+\input{tables/grit}
+
+\vspace{-10pt}
+% \footnote{We exclude \theorem, \aops, and \leetcode, as the documents are short example demonstrations.} 
+\subsection{Long-context retrieval with a reduced search space is challenging}
+\label{sec:long_context_retrieval}
+Retrieving information from long documents is crucial for applications such as legal contracts, company financial documents, and patient notes~\citep{saad2024benchmarking,zhu2024longembed}. 
+% To evaluate retrieval models on reasoning-intensive tasks involving lengthy documents, we create an additional version of \ours using the StackExchange datasets to retrieve data from complete web pages and documentation. 
+To evaluate retrieval models on reasoning-intensive tasks involving lengthy documents, we convert the StackExchange datasets to a long-context retrieval setting, where documents are complete web pages with significantly more tokens but fewer total number of documents (Table \ref{tab:statistics_long}).
+% Table \ref{tab:statistics_long} shows a notable increase in average document lengths and a significant decrease in the number of documents per dataset in this setting.
+% This reduction results in a considerably smaller search space.
+With most datasets containing only a few hundred documents, nDCG@10, which evaluates the top 10 results, becomes more susceptible to randomness. 
+Moreover, processing 10 long documents with an average length of up to 40,000 tokens is challenging for both humans and LLMs. 
+Therefore, we decide to use recall@1 metric to provide a more reliable measure in this setting.
+Table \ref{tab:long_context} presents the average scores for 8 datasets from StackExchange and Pony. The highest recall achieved is $27.8$, indicating that even with significantly reduced retrieval pools, the combination of long-context documents and intensive reasoning remains challenging for existing retrieval models.
+\input{tables/long_context}

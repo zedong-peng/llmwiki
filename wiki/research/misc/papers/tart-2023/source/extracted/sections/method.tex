@@ -1,0 +1,78 @@
+\label{sec:method}
+{
+We now present our unified multi-task retriever \model ({\bf TA}sk-aware {\bf R}e{\bf T}riever) trained on \rib via multi-task instruction-tuning. 
+% \akari{provides overview?}
+}
+
+
+\subsection{Model Architecture}
+\label{sec:model_architecture}
+
+\paragraph{\model-dual.}
+{
+\model-dual adopts a dual-encoder architecture, where a single encoder encodes queries with instructions and documents independently. 
+We use maximum inner product search (MIPS) over the embeddings to find relevant documents~\cite{karpukhin-etal-2020-dense}. 
+}
+Formally, the similarity scores between a query $\boldsymbol{q}$ and a document $\boldsymbol{d}$, given an instruction $\boldsymbol{t}$, is calculated as follows:
+\begin{equation}\label{eq:bi_enc_sim}
+    {\rm s}(\boldsymbol{t}, \boldsymbol{q}, \boldsymbol{d}) = \mathbf{E}([\boldsymbol{t};\boldsymbol{q}])^T\mathbf{E}(\boldsymbol{d}),
+\end{equation}
+where $\mathbf{E}(\cdot)$ is the embedding function\footnote{We use a shared encoder since having separate encoders gave no additional gains in preliminary experiments.} and $[\boldsymbol{t};\boldsymbol{q}]$ is the concatenation of the instruction and query. 
+% Due to its independence from queries, 
+For this model, document embeddings can be computed offline, improving inference efficiency at the cost of storage space~\cite{yamada-etal-2021-efficient}.
+
+\paragraph{\model-full.}
+The bi-encoder architecture is known to be less expressive since it only has limited interactions between queries and documents~\cite{colbert}, especially when the training data is limited~\cite{hofstatter2021efficiently}. 
+{
+To address this issue, we also explore a cross-encoder architecture~\cite{nogueira2019passage}, which computes the relevance between a query and each document by jointly encoding them with cross-attention. 
+A cross-encoder model is often prohibitively expensive to scale up to millions of documents, so we first run a lightweight off-the-shelf retrieval system (e.g., a bi-encoder retrieval system) to retrieve the top documents. 
+For each of these documents, our instruction-aware cross-encoder, \model-full, computes a similarity score between a query and the document $\boldsymbol{d}$ as:
+% , which we call Instruct-Retriever-CrossEncoder. 
+}
+\begin{equation}
+\label{eq:ce_score}
+    {\rm s}(\boldsymbol{t}, \boldsymbol{q}, \boldsymbol{d}) ={\rm FFN}(\mathbf{E}([\boldsymbol{t}; \boldsymbol{q}; \boldsymbol{d}])),
+\end{equation}
+where {\rm FFN} represents an additional feed-forward network that predicts whether the document follows the instruction and is related to the query. 
+
+We explored different encoder-only and encoder-decoder models to initialize our cross-encoder; we found that initializing \model-full with encoders of T5-based instruction-following pretrained models, {namely T0-3B~\cite{sanh2022multitask} and FLAN-T5~\cite{flan_palm}, empirically leads to superior performance as found in prior work~\cite{sachan2022improving}.}
+% relative to other similar scale or smaller models, 
+% potentially due to its instruction-based pretraining, as found in prior work~\cite{sachan2022questions,sachan2022improving}. 
+We follow the EncT5 approach~\cite{liu2021enct5} and prepended each sequence with a start-of-sequence token. 
+The token representation is then fed to a newly initialized feed-forward network. 
+% We did not explore the late interaction such as ColBERT~\cite{colbert}. 
+Unlike MonoT5~\cite{nogueira-etal-2020-document}, we use their encoders only to reduce parameters and improve inference-time efficiency. 
+
+
+\subsection{Training \model}
+\label{sec:training}
+We train \model-dual and \model-full using the positive documents and {three types of negative documents
+in \rib with instructions} (Figure~\ref{tab:dataset_schema}).  
+
+\paragraph{Training \model-dual.}
+During training, we combine documents annotated with the queries in \rib as well as in-batch negatives and train the model as follows: 
+\begin{equation*}
+    \mathcal{L} = - \log \frac{e^{s(\boldsymbol{q},\boldsymbol{d}^{+}, \boldsymbol{t})}}{\sum_{\boldsymbol{d} \in \mathcal{B}} e^{ s(\boldsymbol{q},\boldsymbol{d}, \boldsymbol{t})} },
+\end{equation*}
+where $\mathcal{B}$ denotes all documents in the same mini-batch~\cite{karpukhin-etal-2020-dense}.
+% including $\boldsymbol{d}^{+}$ and $\boldsymbol{d}^{-}$. 
+
+
+\paragraph{Training \model-full.}
+Following prior work~\cite{nogueira2019passage}, \model-full is trained with the cross entropy loss as:
+% given $(\boldsymbol{q}, \boldsymbol{i}, \boldsymbol{d})$, 
+% as follows:
+\begin{equation*}
+    \mathcal{L} =-\sum_{\boldsymbol{d} \in \boldsymbol{d}^{+}} \log s(\boldsymbol{t}, \boldsymbol{q}, \boldsymbol{d}) -\sum_{\boldsymbol{d} \in \boldsymbol{d}^{-}} \log (1 - s(\boldsymbol{t}, \boldsymbol{q}, \boldsymbol{d})).
+\end{equation*}
+
+\paragraph{{Knowledge distillation from \model-full to \model-dual.}}
+{The default hard negatives in \rib rely on off-the-shelf models fine-tuned on MS MARCO; for some domains, the hard negative samples mined by those models can be less reliable. 
+Especially for a smaller bi-encoder model, those false positive and negative samples can significantly diminish performance~\cite{qu-etal-2021-rocketqa}. 
+We found that leveraging more powerful \model-full to denoise and obtain better negative and positive samples lets us distill knowledge from the powerful model to a smaller \model-dual.  
+We first train \model-full on the annotated gold documents and the negative documents mined  
+%equipped 
+in \rib. }
+We then re-run the denoising process described in Section~\ref{sec:dataset_collecitons} with the newly trained cross-encoder. 
+Importantly, unlike the initial denoising step, we now leverage instructions and update hard negative documents $\boldsymbol{d}^{\rm HD}$ and positive documents  $\boldsymbol{d}^{+}$ based on more accurate \model-full predictions. 
+

@@ -1,0 +1,87 @@
+\section{Introduction}
+Auto-regressive Large Language Models (LLMs) such as GPT-4 \citep{achiam2023gpt} have achieved impressive performance across a range of tasks using few-shot prompting \citep{radford2019language,brown2020gpt3} or even zero-shot prompting \citep{kojima2022large}.
+They demonstrate broad world knowledge, commonsense, and human-like reasoning for problem solving \citep{santurkar2023whose,wang2022lsat,zhong-etal-2022-analytical,zhong2023agieval}. Nonetheless, these models still struggle with complex tasks that require long-horizon planning and deep reasoning. This limitation motivates extending sequential decoding with search methods \citep{yao2023tree,hao-etal-2023-reasoning}, an approach we refer to as \textbf{L}LM \textbf{I}nference via \textbf{S}earch (\textbf{LIS}) in this survey. \footnote{While related, frameworks discussed in Section~\ref{sec:others} are not categorized under LIS.} 
+
+% Incompetence of LLMs under Reasoning and Planning
+To clarify the specific reasoning and planning tasks that challenge LLMs, we distinguish between two general categories:
+\begin{enumerate}
+\item \textbf{Language Reasoning Tasks}:
+These tasks align closely with typical Natural Language Processing (NLP) problems but require multi-step reasoning, such as solving math word problems \citep{cobbe2021gsm8k}. Some prior works classify language reasoning as a form of planning \citep{huang2024understanding}. Anyway, LLMs frequently achieve near-saturation performance on these tasks, especially when explicitly prompted to generate intermediate steps using methods like Chain-of-Thought (CoT) \citep{wei2022chain}. \citet{valmeekam2023planbench} argue that the reason for such high performance is that the solutions and reasoning paths for these tasks are likely included as world knowledge and commonsense in the LLM training corpus. To more rigorously evaluate reasoning capabilities, \citet{valmeekam2023planbench} introduce problem sets that involve multi-step reasoning beyond traditional NLP contexts, leading to the second category.
+
+\item \textbf{Non-NLP Tasks:}
+These tasks typically involve simple decision-making environments (such as games) and dynamic real-world scenarios (such as household or logistics tasks) traditionally addressed by reinforcement learning and classical planning algorithms. Current state-of-the-art LLMs show significantly lower performance compared to humans on benchmarks in these domains, including PlanBench \citep{valmeekam2023planbench,valmeekam2023on} and SearchBench \citep{borazjanizadeh2024navigating}.
+\end{enumerate}
+
+Importantly, our survey not only addresses the challenging scenarios of planning but also systematically explores all tasks that can be formulated within LIS frameworks, including language reasoning, sequential decision-making tasks like robotics \citep{Putta2024AgentQA} and graph-traversal tasks such as path finding \citep{meng2024llm}. The following two subsections highlight the unique perspectives and novel contributions offered by this survey.
+
+
+\subsection{Existing Surveys}
+Current reviews on LLM search are limited from the following perspectives.
+\paragraph{No dedicated, Detailed Survey}
+Current surveys only contain paragraphs or sections to roughly touch on both technical aspects and their practical applicability, as summarized in Table \ref{tab:survey_comparisons}. 
+
+\paragraph{Limited Mention on LLM-Side Design} Specifically, most of existing surveys \citep{huang2024understanding,wang2024survey} mention little or a few implementations and dimensions for LLM profiling, which is not suitable for all the frameworks. Besides, the lack of examples hinders understanding. 
+
+\paragraph{Limited Mention on Search}
+\citet{li2024survey} give more detail regarding LLM profiling but lack details on search processes. Nonthelessness, most of existing surveys \citep{huang2024understanding,wang2024survey} give a general sense of the computation process by mentioning which classical search algorithms the frameworks are built upon (e.g., depth-first search). However, details should be given because of their nuanced differences. Besides, many untypical twists to classic search algorithms are hidden. The deviations are not friendly for newcomers in the newly-developed area, e.g., those computer science graduates educated with typical search algorithms. 
+
+\input{tables/survey_comparison}
+
+
+\subsection{Survey Structure}
+To solve the above limitations, we provide unified \textbf{task definitions} and decouple the \textbf{LLM-specific design (mainly prompting)} from \textbf{the control program (search procedures/algorithms)}. There exists a hierarchical structure between them: the low-level definitions provide a unified interface for the high-level components. The overall structure, accompanied by illustrative examples, is presented in Figure~\ref{fig:survey_structure}.
+\input{tables/structure}
+
+\paragraph{Introducing a Unified Task Definition Based on MDPs} 
+(\S~\ref{sec:task_unify}) 
+Our definition standardizes different tasks in MDP structure.
+While MDPs naturally align with AI domains like robotics, special attention is given to adapting this definition for tasks traditionally not modeled as MDPs, such as graph traversal, reasoning, dialogue systems, and code generation. Notably, this MDP-based definition is also applicable to other LLM inference frameworks beyond search, including works like \citet{li2022pretrained}, \citet{zhao2023large}, and \citet{hu2024treeplanner}.  
+
+\paragraph{Comprehensively Summarizing LLM Profiling and Implementations} 
+(\S~\ref{sec:lmprs})
+The design and implementation of LLM profiling and prompting can be modularized into components commonly used in solving MDPs \citep{sutton2018reinforcement}: policies, value functions, and transition models. Correspondingly, 3 types of LLM-Profiled Roles (LMPRs) are defined.
+
+\paragraph{Defining Modular Search Procedures} (\S~\ref{sec:procedures})
+Rather than directly showcasing individual search-based frameworks for LLM inference, we focus on modular and reusable components to reduce redundancy and enable more straightforward comparisons across frameworks. This approach promotes flexibility and minimizes overhead when adapting or extending search methods.
+
+\paragraph{Reviewing Individual Frameworks} (\S~\ref{sec:search})
+Based on the unified task and LMPR interface, we provide a comprehensive review of individual frameworks, organized by the search algorithms they are built upon. Our analysis highlights how LLM integration either diverges from or enhances traditional search algorithms. 
+We identify and clearly present 11 frameworks, summarized in Table~\ref{tab:llm_integrated_search}. This count exclusively includes frameworks that focus on test-time computation through search detailed in Section~\ref{sec:search}. 
+\red{Note that our implementations may differ from the specific approach described in the original manuscript, as our goal is to provide a unified interface that facilitates easier comparison among various methods.
+Nevertheless, they are functionally equivalent. For example, whereas \citet{koh2024tree} implement Best-first search using a priority queue, we achieve the same outcome by employing a top-k selection procedure that is common to MCTS and other search algorithms.}
+
+\paragraph{Comparisons with Other Test-Time Frameworks}
+Additionally, we highlight other test-time frameworks that function as components within search processes, such as ReAct \citep{yao2023react}, CoT \citep{wei2022chain}, and Self-Consistency \citep{wang2023selfconsistency}, along with those discussed in Section~\ref{sec:related_work}.
+
+    
+\paragraph{Analyzing Key Perspectives of LIS Frameworks} 
+(\S~\ref{sec:discussion})
+We critically examine these methods from four key perspectives: \textbf{deviation}, \textbf{applicability}, \textbf{performance}, and \textbf{efficiency}. For deviations, we compare the structural and functional differences between search procedures in LIS frameworks and standard search algorithms as described in foundational texts such as \citet{russell2010artificial} and \citet{sutton2018reinforcement}. 
+This analysis highlights how LLMs modify or enhance traditional search processes, providing a deeper understanding of their impact and potential.
+
+\paragraph{\red{Other LLM Inference + Search Directions}} \red{(\S~\ref{sec:others})}
+\red{This survey primarily focuses on LLM inference via search, where downstream tasks are formulated as sequential decision-making problems, and LLMs serve as integral components. This focus allows us to present a detailed, concise, and systematic analysis. However, confining our discussion solely to these frameworks might give the impression that the title overstates our scope. Hence, Section~\ref{sec:others} covers additional research directions that also involve LLM inference and search.} 
+
+\subsection{Intended Audience and Use Cases}
+
+\paragraph{Reviewed Venues}
+Our goal is to provide a comprehensive overview of the latest research from active venues. \red{To this end, we systematically search high-quality conferences that publish work on LLM inference via search, including ICLR, ICML, and NeurIPS from 2023 to 2025\footnote{Excluding ICML2025 and NeurIPS2025, which have not yet been released.}, and we pay special attention to ACL, EMNLP, and NAACL conferences. 
+We acknowledge, however, that the rapid pace of advancements in the field means that some forthcoming papers (that are under review or available as preprints) may not be covered. Nonetheless, this survey offers a curated collection of classical and reusable implementations that serve as a solid foundation for future research and development.}
+
+\paragraph{\red{Support for Reviewers and Researchers}}
+\red{This survey is intended to help reviewers and researchers more effectively assess the novelty of their contributions relative to prior work. After reviewing papers and evaluating the reviews of papers on OpenReview,, we have observed that some claims of novelty in existing research may be inadvertently inaccurate due to the rapid pace of developments and the entanglement of task novelty and technical novelty in this area. Researchers and reviewers from the venues we specify above might have additional interests.}
+
+\paragraph{For Research Engineers}  
+To support practical implementation, search procedures (Section~\ref{sec:procedures}) are presented in an Object-Oriented Programming (OOP) style, promoting modularity and ease of integration for research engineers.
+
+\paragraph{Anchoring Purpose}  
+Our work serves as a valuable reference in two key ways:  
+\textbf{1) Incorporating Novel Designs with Minimal Adjustments}: During the development of this survey, we seamlessly integrated emerging methods with minor modifications. For example, we separated single-step simulation from path simulation in MCTS to accommodate LATS \citep{zhou2024language} and decoupled value-based selection from LMPE+ or state-based evaluation to allow specialized ways to assign values, e.g., using parents' states for evaluation \citet{koh2024tree}.  
+\textbf{2) Expanding with Additional Details}: 
+% Although we intentionally omit details unrelated to search procedures—such as how the reflection module is incorporated in LATS \citep{zhou2024language}—
+Our structured presentation of search control flows serves as a stable anchor for integrating such complex components. 
+Although many of these design elements are non-trivial, our framework simplifies readers' understanding of their integration by using existing search process as a guiding anchor.
+
+
+\subsection{Limitations}  
+We adopt Markov Decision Process (MDP) definitions to unify and compare various methods due to their comprehensive nature. However, this formalism may feel excessive for readers focused on specific frameworks or tasks where transition and action definitions are unnecessary. For instance, the Tree-of-Thoughts \citep{yao2023tree} approach could be more intuitively understood without relying on MDP foundations.

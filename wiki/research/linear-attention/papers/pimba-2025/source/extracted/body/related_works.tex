@@ -1,0 +1,81 @@
+\section{Related Work}
+%
+\niparagraph{Post-transformer accelerators.}
+%
+As post-transformer LLMs gain traction, the architecture community
+has initiated efforts to accelerate these models.
+%
+Yoon et al.~\cite{yoon24analysish3} conducts a detailed
+characterization of the Hungry Hungry Hippos (H3) model, a variant of
+SSM, and highlights the generation phase as a major bottleneck.
+%
+VGA~\cite{vga} identifies inefficiencies in Fast Fourier Transform
+(FFT) operations on GPUs in the H3 model and proposes an FFT-based
+convolution architecture to address these inefficiencies.
+%
+MARCA~\cite{marca} focuses on accelerating the Mamba model, the
+predecessor of the Mamba-2 model, by introducing architectural
+optimizations for element-wise operations and nonlinear computations
+used in the model.
+%
+However their scope is limited to SSM-based models, and even within
+SSMs, they target specific instances such as the H3 or Mamba models.
+%
+In contrast, our work represents the first comprehensive analysis of
+a wide range of post-transformer models.
+%
+We rigorously examine the computational patterns shared across many
+post-transformers and propose PIM-based acceleration that is broadly applicable.
+
+%
+\niparagraph{PIM-based LLM serving systems.}
+%
+Recently, there has been significant research on PIM-based LLM
+serving
+systems~\cite{alsop2024inclusivepimhardwaresoftwarecodesignbroad,
+  hyun2024pathfinding, heo2024neupims, ianus, psyncpim, llmservingsim,
+newton, hbm_pim}.
+%
+However, these systems predominantly target transformer-based LLMs,
+focusing on GEMV operations.
+%
+Furthermore, they provide a limited exploration of integrating
+quantization techniques into PIM architectures.
+%
+In contrast, \sysname{} targets both state update and attention
+operations for post-transformer LLM acceleration.
+%
+To address the increased area overhead associated with this
+versatility, \sysname{} employs resource sharing and quantization techniques.
+
+%
+\niparagraph{Quantization.}
+%
+Quantization techniques have garnered significant attention in both
+the algorithm and system communities as an effective solution for
+accelerating LLMs~\cite{xiao2023smoothquant, hooper2024kvquant, monkey, atom}.
+%
+Recently, research on quantization for post-transformer models has
+been actively pursued.
+%
+Quamba~\cite{quamba} and MambaQuant~\cite{mambaquant} propose a
+technique for quantizing both activations and weights of the Mamba
+model to 8-bit.
+%
+However, these works focus exclusively on activation and weight
+quantization and do not address state quantization, making them
+orthogonal to our research.
+%
+Q-Mamba~\cite{qmamba} proposes Decoupled Scale Quantization, which
+employs an \texttt{int8} format with decoupled scales for state
+quantization in the Mamba model.
+%
+Although this approach is effective, it necessitates additional
+arithmetic operations and logic to manage scaling factors, thus
+limiting its practicality for PIM architectures.
+%
+On the other hand, our work identifies that MX
+format~\cite{rouhani2023shared} achieves Pareto optimality in terms
+of the area-accuracy trade-off for PIM environments, and we
+incorporate this format into our design.
+%

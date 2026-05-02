@@ -1,0 +1,104 @@
+
+
+
+
+
+
+\section{Methodology}
+% We introduce our framework in this section and demonstrate the overview in Figure.
+
+\subsection{Preliminary: Memory-Augmented LLM-Agents}
+To address the limit of LLMs struggling in retaining information from long input text, recent studies turn to equip LLM agents with memory to support long-turn conversations \cite{lu2023memochat,packer2023memgpt,zhong2024memorybank}. Therefore, we base our study on memory-augmented LLM-agents.
+
+
+The general pipeline of memory-augmented LLM-agents comprises three stages: \textit{memorization}, \textit{retrieval}, and \textit{response}. In the \textit{memorization} stage, the model summarizes each dialogue session and stores these summaries as memory. During the \textit{retrieval} stage, the model retrieves the most relevant memory for the current dialogue session. This retrieved memory is then concatenated with the ongoing dialogue to generate the next \textit{response}.
+% For temporal reasoning in multi-session dialogues, we can apply this pipeline by summarizing each dialogue session, retrieving relevant memory for each temporal question, and using this information to select the answer. 
+Specifically, we build our framework based on MemoChat \cite{lu2023memochat}, which realizes this three-stage process through prompting and has demonstrated effectiveness in handling long-range dialogues.
+
+\subsection{TReMu}
+Building on the memory-augmented LLM-agent pipeline, we introduce our framework called \textbf{TReMu} as shown in Algorithm \ref{algo1}. The framework consists of two key components: \textit{time-aware memorization} and \textit{neuro-symbolic temporal reasoning}.
+
+\begin{algorithm}
+\small
+\caption{TReMu} \label{algo1}
+\begin{algorithmic}
+\STATE \textbf{Initialize:} 
+\STATE Time-aware Memorization Model LLM\textsubscript{mem}
+\STATE Memory Retrieval Model LLM\textsubscript{retrieval}
+\STATE Neuro-symbolic Reasoning Model LLM\textsubscript{code}
+\STATE Symbolic Solver $\mathcal{P}$
+\STATE Memorization pool $\mathcal{M} \leftarrow \emptyset $
+\STATE \COMMENT{\textit{Time-aware Memorization}}
+\FOR{each dialogue session $d_i$ in dialogue $\mathcal{D}$}
+    \STATE \( m_i \leftarrow \text{LLM}_\text{mem}(d_i) \)
+    \STATE \( \mathcal{M} \leftarrow f_{org} ( \mathcal{M}, m_i ) \)
+\ENDFOR
+\STATE \COMMENT{\textit{Neuro-symbolic Temporal Reasoning}}
+\FOR{each temporal question $q$}
+\STATE  \(m_{retrieved} \leftarrow \text{LLM}_\text{retrieval}(q, \mathcal{M})\)
+\STATE \(c \leftarrow \text{LLM}_{code}(q, m_{retrieved})\)
+\STATE \(o \leftarrow \mathcal{P}(c)\)
+\STATE final answer \(a \leftarrow \text{LLM}(q, o)\)
+\ENDFOR
+\end{algorithmic}
+\end{algorithm}
+% \vspace{-0.5cm}
+
+\subsubsection{Time-aware Memorization} 
+% As LLMs may struggle with capturing temporal information in dialogues, particularly relative time, we propose a time-aware memorization strategy using timeline summarization \cite{steen-markert-2019-abstractive,rajaby-faghihi-etal-2022-crisiltlsum,sojitra2024timeline}. Specifically, for each dialogue session tagged with its timestamp, we prompt the LLM to generate its summary while also summarizing mentioned events occurring on different inferred dates. The prompt is shown in Appendix Sec.\ref{sec:timeline_prompt}. This allows us to obtain a series of summaries for a single dialogue session, with each summary is linked to a specific date. By distinguishing between when an event occurred and when it was mentioned, this time-aware memorization could improve temporal reasoning and enable more precise event tracking across the dialogue sessions.
+
+Our time-aware memorization builds on timeline summarization \cite{steen-markert-2019-abstractive,rajaby-faghihi-etal-2022-crisiltlsum,sojitra2024timeline} and it consists of two steps: \textit{Temporal Memory Writing} and \textit{Memory Organization}. During Temporal Memory Writing (prompt in Appendix $\S$.\ref{sec:timeline_prompt}), we instruct LLM agents to generate memory pieces while also extracting and associating mentioned events with inferred dates. Unlike prior approaches that summarize entire sessions holistically, our method produces fine-grained memory pieces linked to specific inferred time markers. As shown in Tables \ref{tab:memochat} and \ref{tab:timeaware}, our memorization outputs memory pieces corresponding to events with inferred time steps that facilitates to mitigate temporal ambiguity. For example, the highlighted texts show that Michelle cooked a meal and later referenced cooking it at different dates. This enables finer temporal granularity, effectively distinguishing events based on inferred time intervals.
+
+\begin{table}[h]
+    \centering
+    \scalebox{1.0}{
+    \begin{tabular}{p{2.2cm} p{4.5cm}}
+        \toprule
+        \textbf{Topic} & \textbf{Summary} \\
+        \midrule
+        Catching Up & Daniel and Michelle catch up on new events in their lives including new jobs, hobbies, and activities. \\
+        Hobbies and Daily Rituals & Daniel and Michelle discuss their hobbies and rituals like running, ballet, playing guitar, meditation, and cooking. \\
+        Cooking and Celebrations & Both talk about their cooking experiences and celebrate Daniel's promotion. \\
+        Books and Recommendations & Michelle and Daniel discuss books they've read and recommend some to each other. \\
+        Personal Items with Sentimental Value & Michelle and Daniel talk about cameras and a vintage motorcycle with sentimental value. \\
+        \bottomrule
+    \end{tabular}}
+    \caption{Output memory from MemoChat based on one dialogue session in LoCoMo.}
+    \label{tab:memochat}
+    % \vspace{-0.5cm}
+\end{table}
+
+\begin{table}[h]
+    \centering
+    \scalebox{1.0}{
+    \begin{tabular}{p{1.5cm} p{5.2cm}}
+        \toprule
+        \textbf{Time} & \textbf{Summary} \\
+        \midrule
+        01/28/2020 & Daniel and Michelle share updates on their lives...
+        including Michelle starting her Masters in Psychology, Daniel starting a new job where he learns to code and problem-solve, and Michelle's hobby of ballet, meditation, and journaling...
+        % They discuss their hobbies and daily activities, including Daniel's guitar playing and Michelle's cooking. 
+        \textbf{Michelle mentions she made an Italian meal last Saturday} and Daniel made salsa for a taco night. Daniel also shared receiving a promotion ... 
+        % Michelle mentions finding a new book, 'The Power of Now,' and Daniel recommends 'The Alchemist.' Michelle enjoys using old cameras, especially her Polaroid Land Camera, while Daniel treasures a vintage motorcycle from 1978. 
+        \\
+        01/27/2020 & Daniel received a promotion and celebrated with a dinner at his favorite spot. \\
+        01/25/2020 & \textbf{Michelle cooked a delicious Italian meal for her friends}, including pasta, garlic bread, and tiramisu. \\
+        01/24/2020 & Daniel made a huge batch of salsa and hosted a taco night with friends. \\
+        01/20/2020 & Michelle started her Masters in Psychology. \\
+        \bottomrule
+    \end{tabular}}
+    \caption{Output memory from Time-aware Memorization based on the same dialogue session in LoCoMo.}
+    \label{tab:timeaware}
+    % \vspace{-0.4cm}
+\end{table}
+
+Then, we perform Memory Organization on the output memory pieces to maintain long-term memory. We structure memory in a timeline format, grouping events that occur simultaneously and indexing them based on inferred timesteps. This approach enhances the distinction between an event’s occurrence and its mention, reducing temporal ambiguity and improving time-based retrieval. These enhancements mark a significant difference from traditional memorization approaches, supporting efficiency in temporal reasoning.
+
+\subsubsection{Neuro-symbolic Temporal Reasoning}
+% Allen's interval algebra \cite{allen1983maintaining} provides a foundation for solving various types of temporal reasoning by identifying event timestamps and performing temporal comparisons or calculations. For example, determining the difference between the timestamps of two events allows us to resolve temporal interval problems. Building on the interval algebras, previous works have developed various neuro-symbolic models to integrate symbolic reasoning with neural networks \cite{garcez2003reasoning,zhou2021temporal}.
+
+% Additionally, researchers have explored neuro-symbolic reasoning for LLMs. By providing LLMs with clear instructions about the grammar of the symbolic language and offering a few demonstrations as in-context examples, LLMs can accurately translate problems into different symbolic language, such as first-order logic \cite{han2022folio}. Once the problem is translated, symbolic solvers can be employed to solve it, and it has been demonstrated to outperform methods like CoT for multi-hop reasoning tasks \cite{pan2023logic}.
+
+Inspired by the recent progress in neuro-symbolic reasoning for LLMs \cite{han2022folio, pan2023logic}, we propose leveraging LLMs to translate temporal reasoning questions into Python code as intermediate rationales, which is executed as the reasoning process to derive answers (prompts shown in Appendix $\S$.\ref{sec:reasoning_prompt}). We tried different symbolic languages and finally chose Python because SOTA LLMs are better at generating Python code and there exist Python libraries that support temporal calculations, like \textit{datetime} and \textit{dateutil}. Particularly, \textit{dateutil} provides a function \textit{relativedelta} supporting relative time calculation, for example we can infer next Friday using \textit{TODAY + relativedelta(weekday=FR)}. Meanwhile, we provide implemented functions to be directly called, such as "weekRange(\textit{t})" returns the start date and the end date of the week that \textit{t} lies in.  Different from other works in temporal reasoning based on code execution\cite{li2023unlocking}, we enable our LLM agents with \textbf{function-calling} abilities, ensuring correctness and expanding the range of temporal reasoning tasks beyond simple precedence relations.
+
+We provide demonstration via in-context learning to generate Python code with function calling, given then question and retrieved memory. After the generated code is executed, the output and code serve as \textbf{intermediate rationales}, and the LLM is prompted again to give the answer. Particularly, our reasoning approach offers an alternative form of CoT. While the original CoT \cite{wei2022chain} performs step-by-step reasoning in natural language, our neuro-symbolic approach conducts temporal reasoning by executing generated code line-by-line in a programming language. This neuro-symbolic method retains the core concept of CoT’s step-by-step reasoning while leveraging the precision and additional support provided by Python code and packages. However, prior works \cite{li2023unlocking} rely solely on solver outputs without providing intermediate justifications.

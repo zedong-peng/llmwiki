@@ -1,0 +1,38 @@
+\begin{Verbatim}[commandchars=\\\{\},codes={\catcode`\$=3\catcode`\^=7\catcode`\_=8\relax}]
+\PYG{k+kn}{import} \PYG{n+nn}{palimpzest} \PYG{k}{as} \PYG{n+nn}{pz}
+
+\PYG{k}{class} \PYG{n+nc}{RealEstateListingFiles}\PYG{p}{(}\PYG{esc}{\textcolor{blue}{pz.Schema}}\PYG{p}{)}\PYG{p}{:}
+    \PYG{l+s+sd}{\PYGZdq{}\PYGZdq{}\PYGZdq{}The source text and image data for a real estate listing.\PYGZdq{}\PYGZdq{}\PYGZdq{}}
+    \PYG{n}{listing} \PYG{o}{=} \PYG{esc}{\textcolor{blue}{pz.StringField}}\PYG{p}{(}\PYG{n}{desc}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{The name of the listing}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{text\PYGZus{}content} \PYG{o}{=} \PYG{esc}{\textcolor{blue}{pz.StringField}}\PYG{p}{(}\PYG{n}{desc}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{The content of the listing}\PYG{l+s+s2}{\PYGZsq{}}\PYG{l+s+s2}{s text description}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{image\PYGZus{}contents} \PYG{o}{=} \PYG{esc}{\textcolor{blue}{pz.ListField}}\PYG{p}{(}\PYG{n}{element\PYGZus{}type}\PYG{o}{=}\PYG{esc}{\textcolor{blue}{pz.BytesField}}\PYG{p}{,} \PYG{n}{desc}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{A list of the image contents}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+
+\PYG{k}{class} \PYG{n+nc}{TextRealEstateListing}\PYG{p}{(}\PYG{esc}{\textcolor{blue}{RealEstateListingFiles}}\PYG{p}{)}\PYG{p}{:}
+    \PYG{l+s+sd}{\PYGZdq{}\PYGZdq{}\PYGZdq{}Represents a real estate listing with specific fields extracted from its text.\PYGZdq{}\PYGZdq{}\PYGZdq{}}
+    \PYG{n}{address} \PYG{o}{=} \PYG{esc}{\textcolor{blue}{pz.StringField}}\PYG{p}{(}\PYG{n}{desc}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{The address of the property}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{price} \PYG{o}{=} \PYG{esc}{\textcolor{blue}{pz.NumericField}}\PYG{p}{(}\PYG{n}{desc}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{The listed price of the property}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+
+\PYG{k}{class} \PYG{n+nc}{ImageRealEstateListing}\PYG{p}{(}\PYG{esc}{\textcolor{blue}{RealEstateListingFiles}}\PYG{p}{)}\PYG{p}{:}
+    \PYG{l+s+sd}{\PYGZdq{}\PYGZdq{}\PYGZdq{}Represents a real estate listing with specific fields extracted from its images.\PYGZdq{}\PYGZdq{}\PYGZdq{}}
+    \PYG{n}{is\PYGZus{}modern\PYGZus{}and\PYGZus{}attractive} \PYG{o}{=} \PYG{esc}{\textcolor{blue}{pz.BooleanField}}\PYG{p}{(}\PYG{n}{desc}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{The home interior is modern and attractive}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+    \PYG{n}{has\PYGZus{}natural\PYGZus{}sunlight} \PYG{o}{=} \PYG{esc}{\textcolor{blue}{pz.BooleanField}}\PYG{p}{(}\PYG{n}{desc}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{The home interior has lots of natural sunlight}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+
+\PYG{k}{def} \PYG{n+nf}{within\PYGZus{}two\PYGZus{}miles\PYGZus{}of\PYGZus{}mit}\PYG{p}{(}\PYG{n}{record}\PYG{p}{)}\PYG{p}{:}
+    \PYG{c+c1}{\PYGZsh{} filter based on record.address}
+
+\PYG{k}{def} \PYG{n+nf}{in\PYGZus{}price\PYGZus{}range}\PYG{p}{(}\PYG{n}{record}\PYG{p}{)}\PYG{p}{:}
+    \PYG{c+c1}{\PYGZsh{} filter based on record.price}
+
+\PYG{c+c1}{\PYGZsh{} define logical plan}
+\PYG{n}{listings} \PYG{o}{=} \PYG{esc}{\textcolor{blue}{pz.Dataset}}\PYG{p}{(}\PYG{n}{source}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{real\PYGZhy{}estate\PYGZhy{}eval}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{,} \PYG{n}{schema}\PYG{o}{=}\PYG{esc}{\textcolor{blue}{RealEstateListingFiles}}\PYG{p}{)}
+\PYG{n}{listings} \PYG{o}{=} \PYG{n}{listings}\PYG{o}{.}\PYG{n}{convert}\PYG{p}{(}\PYG{esc}{\textcolor{blue}{TextRealEstateListing}}\PYG{p}{,} \PYG{n}{depends\PYGZus{}on}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{text\PYGZus{}content}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+\PYG{n}{listings} \PYG{o}{=} \PYG{n}{listings}\PYG{o}{.}\PYG{n}{convert}\PYG{p}{(}\PYG{esc}{\textcolor{blue}{ImageRealEstateListing}}\PYG{p}{,} \PYG{n}{depends\PYGZus{}on}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{image\PYGZus{}contents}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+\PYG{n}{listings} \PYG{o}{=} \PYG{n}{listings}\PYG{o}{.}\PYG{n}{filter}\PYG{p}{(}
+    \PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{The interior is modern and attractive, and has lots of natural sunlight}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{,}
+    \PYG{n}{depends\PYGZus{}on}\PYG{o}{=}\PYG{p}{[}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{is\PYGZus{}modern\PYGZus{}and\PYGZus{}attractive}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{,} \PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{has\PYGZus{}natural\PYGZus{}sunlight}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{]}
+\PYG{p}{)}
+\PYG{n}{listings} \PYG{o}{=} \PYG{n}{listings}\PYG{o}{.}\PYG{n}{filter}\PYG{p}{(}\PYG{esc}{\textcolor{blue}{within\_two\_miles\_of\_mit}}\PYG{p}{,} \PYG{n}{depends\PYGZus{}on}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{address}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+\PYG{n}{listings} \PYG{o}{=} \PYG{n}{listings}\PYG{o}{.}\PYG{n}{filter}\PYG{p}{(}\PYG{esc}{\textcolor{blue}{in\_price\_range}}\PYG{p}{,} \PYG{n}{depends\PYGZus{}on}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+s2}{price}\PYG{l+s+s2}{\PYGZdq{}}\PYG{p}{)}
+
+\PYG{c+c1}{\PYGZsh{} create and execute physical plans...}
+\end{Verbatim}

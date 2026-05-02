@@ -1,0 +1,659 @@
+% This must be in the first 5 lines to tell arXiv to use pdfLaTeX, which is strongly recommended.
+\pdfoutput=1
+% In particular, the hyperref package requires pdfLaTeX in order to break URLs across lines.
+
+\documentclass[11pt]{article}
+
+% Remove the "review" option to generate the final version.
+\usepackage{authblk}
+\usepackage{acl}
+
+
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\hypersetup{colorlinks, urlcolor={medium-blue}}
+
+% Commands
+\newcommand{\todo}[1]{\textcolor{red}{ToDo: #1}}
+% \newcommand{\davinci}[0]{Davinci}
+
+\definecolor{medium-blue}{rgb}{0,0,1}
+\definecolor{rd}{HTML}{D7263D}
+\definecolor{blu}{HTML}{255C99}
+\definecolor{orng}{HTML}{E59500}
+
+\usepackage{array}
+\newcolumntype{H}{>{\setbox0=\hbox\bgroup}c<{\egroup}@{}}
+
+\interfootnotelinepenalty=10000
+
+\title{InPars: Data Augmentation for Information Retrieval \\using Large Language Models
+}
+% Title options:
+%UnQeGeS: Unsupervised Question Generation For Search
+%UnQeGIR: Unsupervised Question Generation For Information Retrieval
+%Unges: Unsupervised Generative models for Search
+%Inger: Inquisitive Generative models for Retrieval
+%Inges: Inquisitive Generative models for Search
+%Information Retrieval with no labeled data? Generative models to the rescue!
+%Neural search with no manually annotated data? Generative models to the rescue!
+%Data augmentation with Large LMs for information retrieval
+
+% alternative author formatting suggestion:
+\author[$\dagger\diamond\ddagger\star$]{\textbf{Luiz Bonifacio}}
+\author[$\dagger\diamond\star$]{\textbf{Hugo Abonizio}}
+\author[$\dagger\star$]{\textbf{Marzieh Fadaee}}
+\author[$\dagger\diamond\ddagger\triangleleft\star$]{\textbf{Rodrigo Nogueira}}
+\affil[$\dagger$]{Zeta Alpha}
+\affil[$\diamond$]{NeuralMind}
+\affil[$\ddagger$]{University of Campinas}
+\affil[$\triangleleft$]{University of Waterloo}
+\affil[$\star$]{\small All authors contributed equally.}
+
+%% alternative author formatting suggestion:
+%\author{\textbf{Luiz Bonifacio}$^\dagger^\diamond^\bullet$\thanks{\hspace{3pt}All authors contributed equally.}, \textbf{Hugo Abonizio}$^\dagger^\diamond^\ast$, \textbf{Marzieh Fadaee}$^\dagger^\ast$, \textbf{Rodrigo Nogueira}$^\dagger^\diamond^\bullet^\ddagger^\ast$ \\
+%$^\dagger$Zeta Alpha\\
+%$^\diamond$NeuralMind\\
+%$^\bullet$University of Campinas\\
+%$^\ddagger$University of Waterloo\\
+%}
+
+\begin{document}
+
+\maketitle
+
+%%
+%% The abstract is a short summary of the work to be presented in the
+%% article.
+\begin{abstract}
+The information retrieval community has recently witnessed a revolution due to large pretrained transformer models. Another key ingredient for this revolution was the MS MARCO dataset, whose scale and diversity has enabled zero-shot transfer learning to various tasks.
+However, not all IR tasks and domains can benefit from one single dataset equally. 
+Extensive research in various NLP tasks has shown that using domain-specific training data, as opposed to a general-purpose one, improves the performance of neural models~\cite{yu2021adaptsum,sharami2022selecting}.
+In this work, we harness the few-shot capabilities of large pretrained language models as synthetic data generators for IR tasks.
+We show that models finetuned solely on our unsupervised dataset outperform strong baselines such as BM25 as well as recently proposed self-supervised dense retrieval methods.
+Furthermore, retrievers finetuned on both supervised and our synthetic data achieve better zero-shot transfer than models finetuned only on supervised data. 
+Code, models, and data are available at \url{https://github.com/zetaalphavector/inpars}
+\end{abstract}
+
+
+\section{Introduction}
+
+% First: Large LMs and how they are contributing to different areas
+Language models (LMs) such as GPT-3~\cite{DBLP:journals/corr/abs-2005-14165}, FLAN~\cite{wei2022finetuned}, Gopher~\cite{rae2021scaling}, and T0++~\cite{sanh2021multitask} have demonstrated impressive performance on many NLP tasks.
+Additionally, when sufficient supervised information is not available for a task, they have been shown to be effective and at times yield compelling results~\cite{winata-etal-2021-language,schick-schutze-2021-just}.
+
+% Second: Why large LMs have not been widely used in IR
+% Also discuss how they are used in IR (dense retrievers and rerankers)
+Despite the appealing capabilities of large LMs, multi-billion parameter models are rarely used in information retrieval (IR), with some notable exceptions~\cite{nogueira2020document,pradeep2021expando,neelakantan2022text}.
+One reason is the computationally intensive nature of information retrieval tasks. In a typical reranking task, for instance, we compute the relevancy of 1000 candidate documents for one query, which requires 1000 inference passes on a reranking model. This can be prohibitively expensive when using large models. For example, OpenAI offers a search API that allows one to compute query-document relevancy using their models with billions of parameters. As of February 2022, they charge 0.06 USD per 1000 tokens for their largest model.
+%
+%
+% Source fig: https://docs.google.com/drawings/d/1kYVzBbk32nPf1lForTCHCMceuMEsmFPJexZ2ashFYkU/edit
+\begin{figure}
+  \includegraphics[width=0.45\textwidth]{gpt3-data-generation}
+  \caption{Illustration of our few-shot method that generates training data for search tasks. We use a language model $G$ to generate a question $q$ (and its probability $p_q$) from a document $d$. The top $K$ pairs $(q,d)$ with respect to $p_q$ are used as positive examples to train a reranker whose task it to estimate the relevancy of $d$ to $q$.}
+  \label{fig:overview}
+\end{figure}
+%
+%
+If each candidate document contains 250 tokens, naively using this API for a reranking task would cost approximately 15 USD per query.
+
+Dense retrievers~\cite{DBLP:journals/corr/abs-2004-04906, DBLP:journals/corr/abs-2004-12832} avoid this expensive reranking step by precomputing vector representations for each document in the collection prior to retrieval. When a query comes in, only its vector representations are computed, and a fast vector search framework can be used to retrieve the nearest document vectors to the vector representation of the query~\cite{johnson2019billion}. Despite being computationally cheaper at inference time, dense retrievers need one inference pass to compute the vector representation of each document in the collection, which also makes billion-parameter neural models impracticable to be used as dense retrievers.\footnote{For a more detailed cost estimation, check this \href{https://medium.com/@nils_reimers/openai-gpt-3-text-embeddings-really-a-new-state-of-the-art-in-dense-text-embeddings-6571fe3ec9d9}{blog post}.}
+
+% Third: Other challenges in IR (lack of labeled data to train large models and domain adaptation). Mention how synthetic data can be key.
+Another challenge in developing neural models for IR is the lack of domain-specific training data. Manually constructing high-quality datasets is difficult as it requires queries from real users. % Neural models notoriously require huge amount of data to learn patterns~\cite{edunov-etal-2018-understanding,articleamina}.
+While there are a few general-purpose labeled data available~\cite{DBLP:journals/corr/NguyenRSGTMD16,47761}, they are not always effective in generalizing to out-of-domain datasets~\cite{thakur2021beir}.
+For this goal, zero-shot and few-shot learning models are in particular promising.
+%Large LMs demonstrated promising performance in zero-shot scenarios in various NLP tasks. 
+However, a cost-effective manner of using large LMs in IR tasks is still an open question.
+
+% Last: Our contribution
+In this work, we propose a simple yet effective approach towards efficiently using large LMs in retrieval and obtain improvements across several IR datasets.
+Rather than using large LMs directly in the retrieval process, we harness them to generate labeled data in a few-shot manner.
+We then finetune retrieval models on this synthetic data and use them to rerank the the search results of a first-stage retrieval system. 
+\setitemize{noitemsep,topsep=0pt,parsep=0pt,partopsep=0pt}
+We summarize our contributions as follows:
+\begin{itemize}
+    \item We propose a method for adapting large LMs to IR tasks that otherwise are infeasible to be used due to their computational demands.
+    \item In an unsupervised setting, our method largely outperforms recently proposed ones. When combined with supervised finetuning, our method achieves state-of-the-art results in two of the three transfer learning datasets evaluated in this work.
+\end{itemize}
+
+
+\section{Related Work}
+
+Data augmentation methods aim at increasing the amount of data to assist the learning process of data-driven models.
+To improve the performance of neural models in low-resource settings, small-scale LMs have been used to generate synthetic data in various NLP tasks~\cite{fadaee-etal-2017-data,kobayashi2018contextual}. 
+Recent works show that large pretrained LMs are capable of generating data of reasonable quality~\cite{anaby2020not,papanikolaou2020dare,yang2020g,mohapatra2021simulated,kumar2020data,schick2021generating,meng2022generating}, sometimes leading to better transfer learning than human generated datasets~\cite{liu2022wanli}.
+
+In information retrieval, dense retrievers can achieve comparable results to BM25 in some datasets when solely pretrained on documents without annotations~\cite{ram2021learning,izacard2021towards,neelakantan2022text}. These methods rely on extracting pairs of segments of texts that are likely relevant to each other which then used as positive pairs to train the retrieval models.
+
+Focusing on improving the transfer learning effectiveness of dense retrievers, \citet{ma-etal-2021-zero} and \citet{wang2021gpl} use supervised sequence-to-sequence models to augment the training data. They generate questions from texts from different collections and use these synthetic question-text pairs as positive training examples.
+Our work differs from existing approaches as we rely exclusively on simple prompts to generate questions from large language models with minimal supervision, i.e., using only a few supervised examples.
+We were mostly inspired by~\citet{han2021unsupervised}, who uses such models to generate synthetic translation pairs in a zero-shot manner, i.e., without using any parallel corpora.
+
+
+\section{Our Method: \textit{InPars}}
+\label{sec:method}
+
+In this section, we describe the proposed method, dubbed \textit{InPars} (Inquisitive Parrots for Search), for generating synthetic training datasets for IR tasks.
+Given a document $d$ and a prefix $t$ consisting of $N$ pairs of questions and their relevant documents, i.e., $t=\{(q_1^*,d_1^*), ..., (q_N^*,d_N^*)\}$, our method uses a language model $G(t,d)$ to generate a question $q$ that is likely to be relevant to $d$.
+The pair $(q, d)$ forms a positive training example that is later used to finetune our retrieval models.
+
+We generate thousands of these positive training examples using documents randomly sampled from a collection $D$. The prefix $t$ is always the same regardless of the input document $d$, i.e., we can potentially generate millions of synthetic training examples using only $N$ manually annotated examples. This characterizes our method as a few-shot learning approach as long as N is small (in our experiments, we use three examples).
+
+As a last step to create our training dataset, we select the top $K$ pairs with respect to the following (log) probability:
+\begin{equation}
+    p_{q} = \frac{1}{|q|} \sum_{i=1}^{|q|} \log p(q_i|t,d,q_{<i}),
+\end{equation}
+\noindent where $p(q_i|t,d,q_{<i})$ is the probability assigned by $G$ when autoregressively generating the $i$-th token of $q$.
+We show in Section~\ref{sec:filtering_ablation} that this filtering step largely improves IR metrics. 
+
+Due to its few-shot nature, our method can be used to adapt retrievers to any collection or IR task, which we later empirically confirm on various collections. This is particularly relevant for IR tasks as gathering data to train retrieval models is an expensive process~\cite{yilmaz2020reliability}, with most high-quality collections having less than a few hundred queries~\cite{Voorhees1999OverviewOT,Voorhees2004OverviewOT}.
+
+We do not perform any pretraining to adapt the model to the target corpus, such as proposed by \citet{gao2021unsupervised}. Our method does not require any modifications in the loss function, as is done by~\citet{izacard2021towards,neelakantan2022text}. This makes InPars also suitable for non-neural retrieval algorithms.
+
+%\subsection{Why rerankers and not dense retrieval?}
+%Although the data produced by our method could be use to train any retrieval model, in this work we experiment only with reranking models~\cite{nogueira and cho, sean, dai2019deeper}. We did not experiment with dense retrievers recent work show that these models finetuned on large amounts of \textit{supervised} data (i.e., MS MARCO) could not outperform BM25 on zero-shot scenarios~\cite{thakur2021beir}.
+
+
+\section{Experimental Setup}
+
+In this section, we describe the datasets used in this work, the procedure to generate questions from the datasets in an few-shot manner, and finally, how we train retrievers on this synthetic data.
+
+\subsection{Datasets}
+
+\textbf{MS MARCO} \citet{DBLP:journals/corr/NguyenRSGTMD16} is a large-scale ranking dataset with more than half million anonymized questions sampled from Bing's search query logs. Its passage ranking version is formed by 8.8M passages and approximately 500k training pairs of queries and relevant documents. On average, there is one relevant passage per query, which were manually annotated. The development and test sets contain approximately 6,900 queries each and the test set is kept hidden from the public.
+
+\textbf{TREC-DL} \citet{DBLP:journals/corr/abs-2102-07662} is a dataset that uses the same collection of passages from MS MARCO, but it contains only 54 queries and a higher number of judged documents per query.
+
+\textbf{Robust04} \cite{96071} is an retrieval dataset formed by 249 queries. Its corpus consists of 528k documents from the news wire domain. It has on average 1250.6 judged documents per query. 
+
+\textbf{Natural Questions} \cite{47761} is an open domain Question Answering dataset created from Wikipedia documents. The questions are real anonymized queries submitted to Google's search engine. In this work, we use the BEIR's version of NQ, which contains 3,452 queries and 1.21 relevant documents per query in its development set. The corpus consists of 2.6M passages from Wikipedia.
+
+\textbf{TREC-COVID} \cite{10.1093/jamia/ocaa091} dataset was created during a challenge organized by NIST whose goal was to study information retrieval methods in response to the pandemic. We use the dataset version provided by the BEIR benchmark. The dataset consists of 50 queries, an average of 1,326 judged documents per query, and a corpus of 171k articles from the COVID-19 scientific literature. 
+
+%\textbf{FiQA} \cite{10.1145/3184558.3192301} is an opinion-based question-answering dataset created from financial data. In this work, we use the BEIR version of FiQA, formed by more than 57k documents and 648 queries.
+
+\begin{figure*}
+\begin{center}
+  %\includegraphics[width=0.4\textwidth]{vanilla-prompt.pdf}
+  %\includegraphics[width=0.5\textwidth]{bad-questions-prompt.pdf}
+    \includegraphics[width=\textwidth]{promptlex.pdf}
+  \caption{``Vanilla'' (left) and ``GBQ'' (right) prompts proposed in this work. The GBQ prompt consists of 3 relevant passages and queries randomly sampled from MS MARCO. The query is used as a \textit{bad question} and we provide a more descriptive \textit{good question} for the passage. 
+  %In order to answer the \textit{good question}, more contextual information from the passage is needed. 
+  For the fourth example, we replace \texttt{\{document\_text\}} with a sampled document for which the language model is asked to generate a \textit{good question}.}
+  \label{fig:prompts}
+  \end{center}
+\end{figure*}
+
+\subsection{Training Data Generation}
+
+Our training set comprises triples of a query, a positive, and a negative document. We first describe how pairs of query and positive documents are generated.
+% The question generation and the mining of negative samples are discussed in the following.
+We randomly sample 100,000 documents from the collection and generate one question per document using GPT-3's Curie as our language model $G$. We prepend the document text with its title, when it is available. Documents with less than 300 characters are discarded and a new one is sampled.
+We use a temperature of 0, which defaults to greedy decoding. We tried other decoding algorithms such as sampling (with a temperature of 1.0) and top-p sampling~\cite{holtzman2019curious} (with p=0.95) but did not notice significant differences in the final results.
+
+We experiment with two prompt templates for generating questions which are illustrated in Figure~\ref{fig:prompts}.
+The first called ``Vanilla'' (left), uses $N=3$ pairs of document and relevant question randomly chosen from the MS MARCO training dataset. The string \texttt{\{document\_text\}} is replaced with the document sampled from the collection and the language model generates a question one token at a time until a termination token \texttt{\textbackslash n} is chosen or a maximum number of 64 tokens is reached.
+
+The second prompt template called ``Guided by Bad Questions'' (GBQ) illustrated in Figure~\ref{fig:prompts} (right) is similar to the ``Vanilla'' template, but we encourage the language model to produce more contextual-aware questions than the ones from MS MARCO. For that, we use MS MARCO questions as examples of ``bad'' questions, and manually create more complicated ones as examples of ``good'' questions. Rather than finding the answer in \textit{part} of the input document, the full context of the document will contribute to the answer.
+With this prompt, the model generates a ``good'' and a ``bad'' question for each document and we keep only the good ones to form our positive training pairs.
+Because the GBQ prompt, by design, generates questions that are different from MS MARCO ones, we use the ``Vanilla'' prompt to generate questions that are used in finetuning retrievers evaluated on MS MARCO and TREC-DL datasets.
+
+There are four GPT-3 models available to the public via the OpenAI API: Ada, Babbage, Curie and Davinci. Their sizes are not explicitly mentioned, but from the figures reported by \citet{neelakantan2022text} and its accompanying blog post,\footnote{\url{https://openai.com/blog/introducing-text-and-code-embeddings/}} we infer that Ada, Baggage, Curie and Davinci have 300M, 1.2B, 6B and 175B parameters, respectively.
+We show in Section~\ref{sec:model_size} that questions generated by the more expensive Davinci model lead to marginal improvements in IR metrics. Therefore, throughout this paper, we report results using questions generated by the Curie model.
+
+Of the 100,000 questions generated (and their respective input documents), we use the top $K$=10,000 pairs w.r.t to $p_q$ as positive examples for finetuning our models.
+
+Our retrievers are binary classifiers, so we also need to select documents that are not relevant to $q$ to form negative finetuning examples $(q, d^-)$.
+%Although recent work has shown the benefits of selecting harder negatives~\cite{ANCE,RocketQA,condenser,sean}, these often require multiple rounds of finetuning and retrieving from the model itself or using in-batch negatives, which often needs multi-GPU training due to the large number of negatives~\cite{condenser}. 
+We use a simple method that has been shown to be effective for finetuning rerankers~\cite{pradeep2021expando}.
+We use BM25 with $q$ as query to retrieve 1000 documents from the collection $D$. We randomly select one of these as $d^-$, and the pair $(q,d^-)$ forms a negative example.
+
+
+\subsection{Retrieval Methods}
+
+We use a multi-stage retrieval architecture~\cite{matveeva2006high,wang2011cascade,chen2017efficient,liu2017cascade} comprised of initial retrieval with bag-of-words BM25~\cite{robertson1995okapi} followed by a neural reranker.
+
+The collection is indexed using pyserini~\cite{lin2021pyserini} and 1000 candidate documents for each query are retrieved using BM25. 
+Then we rerank the candidate documents using monoT5, which is an adaption of the T5 model~\cite{raffel2020exploring} to text ranking proposed by~\citet{nogueira2020document}.
+We finetune monoT5 base (220M parameters) and 3B with a constant learning rate of $10^{-3}$ and an equal number of positive and negative examples in each batch of size 128. We did not conduct experiments with the 11B version due to its computational cost. To simplify our training procedure (and related hyperparameters) as well as to eliminate the need for convergence checks, we simply train for 156 steps (approximately one epoch).
+Because the number of training steps is small, we observed a difference of up to two points in the final metric depending on the order in which the training examples are shown to the model. Thus, we report the results that are the average of three seeds.
+Training T5 base and 3B takes a few minutes on a single Google TPU v3-8.
+
+We finetune a model per collection using the synthetic questions generated from that collection. 
+In Section~\ref{sec:prompt_ablation}, we show that having in-domain synthetic sets is beneficial. 
+Nevertheless, using only MS MARCO as a source for documents also leads to reasonable results.
+ 
+We use a maximum of 512 input tokens and two output tokens (one for the target token and another for the end-of-sequence token). In the experiments with the MS MARCO passage dataset, none of the inputs exceed this length limitation. For NQ and TREC-COVID, documents are often truncated. 
+
+\begin{table*}
+\centering\centering\resizebox{1.0\textwidth}{!}{
+\begin{tabular}{llrrrrrrrH}
+\toprule
+& &\multicolumn{1}{c}{\textbf{MARCO}} & \multicolumn{2}{c}{\textbf{TREC-DL 2020}} & \multicolumn{2}{c}{\textbf{Robust04}} & \multicolumn{1}{c}{\textbf{NQ}} & \multicolumn{1}{c}{\textbf{TRECC}} & \multicolumn{1}{H}{\textbf{FiQA}}\\
+& & \textbf{MRR@10} & \textbf{MAP}    & \small\textbf{nDCG@10} &  \textbf{MAP} & \small\textbf{nDCG@20} & \small\textbf{nDCG@10} & \small\textbf{nDCG@10} & \small\textbf{nDCG@10}\\
+\midrule
+\midrule
+& \multicolumn{3}{l}{\textit{\textbf{Unsupervised}}} \\
+(1) & BM25        & 0.1874 & 0.2876  & 0.4876 & 0.2531 & 0.4240 & 0.3290 & 0.6880 & 0.2536 \\
+(2) & Contriever~\cite{izacard2021towards}  & - & - & - & - & - & 0.2580 & 0.2740 & 0.2450 \\
+(3) & cpt-text~\cite{neelakantan2022text}  & 0.2270 & - & - & - & - & - & 0.4270 & 0.3970 \\
+\midrule
+& \multicolumn{4}{l}{\textit{OpenAI Search reranking 100 docs from BM25}}\\
+(4) & Ada (300M)    & \$ & 0.3141 & 0.5161 & 0.2691 & 0.4847 & 0.4092 & 0.6757 & 0.3388\\
+%Ada (N=1000)         & - & 0.3156 & 0.5083 & - & - & - & - \\
+(5) & Curie (6B)    & \$ & 0.3296 & 0.5422 & 0.2785 & 0.5053 & 0.4171 & 0.7251 & 0.4012 \\
+%Curie (N=1000)      & - & 0.3593 & 0.5602 & - & - & - & - \\
+(6) & Davinci (175B) & \$ & 0.3163 & 0.5366 & 0.2790 & 0.5103 & \$ & 0.6918 & \$ \\
+\midrule
+& \textit{InPars (ours)}\\
+%(7) & monoT5-220M & 0.2585 & 0.3599 & 0.5764 & 0.2547 & 0.4413 & 0.3354 & 0.6666\\
+(7) & monoT5-220M & 0.2585 & 0.3599 & 0.5764 & 0.2490 & 0.4268 & 0.3354 & 0.6666 & 0.3316\\ %robust is averaged over 3 runs
+%(8) & monoT5-3B & \textbf{0.2967} & \textbf{0.4334} & \textbf{0.6612} & \textbf{0.3690} & \textbf{0.5822} & \textbf{0.5134} & \textbf{0.7835} \\
+(8) & monoT5-3B & \textbf{0.2967} & \textbf{0.4334} & \textbf{0.6612} & \textbf{0.3180} & \textbf{0.5181} & \textbf{0.5133} & \textbf{0.7835} & \textbf{0.4103} \\
+\midrule
+\midrule
+& \multicolumn{3}{l}{\textbf{\textit{Supervised} [$\triangleright$ MARCO]}} \\
+%doc2query~\cite{nogueira2019doc2query} & 0.2770 & 0.4074 & 0.6187 & 0.2704 & 0.4420 & $^\star$0.3990 & $^\star$0.7130 \\
+(9) & Contriever~\cite{izacard2021towards} & - & - & - & - & - & 0.4980 & 0.5960 & 0.3290 \\
+(10) & cpt-text~\cite{neelakantan2022text} & - & - & - & - & - & - & 0.6490 & 0.5120 \\
+(11) & ColBERT-v2~\cite{santhanam2021colbertv2} & 0.3970 & - & - & - & - & 0.5620 & 0.7380 & 0.3560\\
+(12) & GPL~\cite{wang2021gpl} & - & - & - & - & - & - & 0.7400 & 0.3330 \\
+(13) & miniLM reranker & $^\dagger$0.3901 & - & - & - & - & $^\ddag$0.5330 & $^\ddag$0.7570 & $^\ddag$0.3470 \\
+(14) & monoT5-220M~\cite{nogueira2020document} & 0.3810 & 0.4909 & 0.7141 & 0.3279 & 0.5298 & 0.5674 & 0.7775 & 0.4136\\
+(15) & monoT5-3B~\cite{nogueira2020document} & 0.3980 & \textbf{0.5281} & \textbf{0.7508} & 0.3876 & 0.6091 & \textbf{0.6334} & 0.7948 & \textbf{0.5137} \\
+\midrule
+& \multicolumn{5}{l}{\textit{InPars (ours)} [$\triangleright$ MARCO $\triangleright$ unsup in-domain]}\\
+(16) & monoT5-3B & 0.3894 & 0.5087 & 0.7439 & \textbf{0.3967} & \textbf{0.6227} & 0.6297 & \textbf{0.8471} & 0.4987 \\
+
+\bottomrule
+
+\end{tabular}
+}
+\caption{Main results. Figures marked with a $\dagger$ and a $\ddag$ are from~\citet{reimers-2020-Curse_Dense_Retrieval} and \citet{thakur2021beir}, respectively. Experiments that are too expensive to run are marked with a \$ symbol. For example, evaluating Davinci as a reranker on the MS MARCO development set would cost approximately 6.3k USD. $\triangleright$ indicates the dataset used for finetuning the model.}
+\label{tab:main}
+\end{table*}
+
+Robust04 contains long documents that would require large amounts of memory due to the quadratic cost of the Transformer models. Thus, during finetuning and inference, it is not possible to directly feed the entire text at once to our models. To address this issue, we use a slightly modified version of the MaxP technique of \citet{dai2019deeper}. We first segment each document into passages by applying a sliding window of 10 sentences with a stride of 5. We then obtain a relevance probability for each passage by classifying it independently. We select the highest probability among these passages as the relevance probability of the document; that is, we do not use the original (BM25) retrieval scores.
+
+\noindent{\textbf{OpenAI Search API:}} We also experiment with OpenAI's Search API\footnote{https://beta.openai.com/docs/guides/search} as a reranker of 100 documents retrieved by BM25. The Search API provides an endpoint to perform semantic text search over a set of documents, where we provide a query and the top 100 documents retrieved by BM25, and the result is a reranked list with the respective scores. OpenAI does not disclose what is under the hood of their Search API, whether it was finetuned on IR datasets, the prompt used during inference, or its relation with cpt-text~\cite{neelakantan2022text}. Therefore we compare their Search API, which uses large LMs as rerankers, with our method, which uses the same LMs to train rerankers with lower inference cost.
+
+We did not rerank more documents due to the high cost of the API (approximately 5.85 USD per 1000 query-document pairs of TREC-DL 2020 using Davinci). Nevertheless, we conducted a single experiment reranking 1000 documents per query using Curie and saw an improvement of almost two nDCG@10 points on TREC-DL 2020 in comparison to reranking 100 documents (0.5602 vs 0.5422). Thus, with more candidate documents, the figures reported for the other datasets in Table~\ref{tab:main} would probably be higher.
+
+\section{Results}
+\label{sec:results}
+
+The main results are shown in Table~\ref{tab:main}. We observe that unsupervised models finetuned using our method (rows 7-8), outperform models of equivalent size available in OpenAI's Search API (rows 4-6).
+For instance, our monoT5 with 3B parameters (row 8) is significantly better than the larger Curie and Davinci models (rows 5 and 6).
+InPars also outperforms Contriever~\cite{izacard2021towards} and cpt-text~\cite{neelakantan2022text}, two unsupervised methods.
+\citet{neelakantan2022text} (row 3) also use large LMs, but their numbers are much lower than those achieved by InPars or OpenAI's Search reranking documents from BM25 (rows 4-6).
+
+%We provide two hypotheses for these results: 
+We believe different factors contribute to these results:
+1) Due to the query-document interaction, cross-encoders (rows 7-8) are more effective (and contextual) than the independent query and document encoding of bi-encoders (rows 3-6). This is inline with results from~\citet{thakur2021beir} which shows that bi-encoders and cross-encoders perform similarly when trained and evaluated on the same dataset, but cross-encoders show better zero-shot effectiveness. 2) The synthetic questions generated by InPars have closer resemblance to the queries that the retriever will see at inference time than the sentences extracted from texts used by Contriever and cpt-text.
+3) The brand-new queries we generate combined with documents that the model otherwise will not use, provide a completely new training set with high diversity. Diversity in the training data has been shown to lead to improvement in performance of neural models~\cite{qu2021coda}.
+
+\begin{table*}
+\centering\centering\resizebox{1.0\textwidth}{!}{
+\begin{tabular}{llllrrrrrrrH}
+\toprule
+& & & &\multicolumn{1}{c}{\textbf{MARCO}} & \multicolumn{2}{c}{\textbf{TREC-DL 2020}} & \multicolumn{2}{c}{\textbf{Robust04}} & \multicolumn{1}{c}{\textbf{NQ}} & \multicolumn{1}{c}{\textbf{TRECC}} & \multicolumn{1}{H}{\textbf{FiQA}}\\
+& & \textbf{Input docs} & \textbf{Prompt} & \textbf{MRR@10} & \textbf{MAP}    & \small\textbf{nDCG@10} &  \textbf{MAP} & \small\textbf{nDCG@20} & \small\textbf{nDCG@10} & \small\textbf{nDCG@10} & \small\textbf{nDCG@10}\\
+\midrule
+%monoT5-base marco & 0.2630 & 0.3578 & 0.5766 & 0.2242 & 0.4037 & 0.3870 & 0.7011  \\
+%monoT5-base marco TF & 0.2585 & 0.3833 & 0.5723 & 0.2539 & 0.4017 & 0.3755 & 0.6727  \\
+(1) & monoT5-220M & Marco & Vanilla & 0.2585 & 0.3599 & 0.5764 & 0.2242 & 0.4017 & 0.3755 & 0.6727 & 0.3036  \\
+(2) & monoT5-220M & In-domain & GBQ & 0.2279 & 0.3354 & 0.5451 & 0.2490 & 0.4268 & 0.3354 & 0.6666 & 0.3316\\
+(3) & monoT5-3B & Marco & Vanilla & \textbf{0.2967} & \textbf{0.4334} & \textbf{0.6612} & \textbf{0.3397} & \textbf{0.5478} & 0.4870 & 0.7606 & ? \\
+(4) & monoT5-3B & In-domain & GBQ & 0.2819 & 0.4100 & 0.6255 & 0.3180 & 0.5181 & \textbf{0.5134} & \textbf{0.7835} & \textbf{0.4103} \\
+\bottomrule
+\end{tabular}
+}
+\caption{Ablation: Few-shot results when using different input documents and prompts to generate questions.}
+\label{tab:prompt_ablation}
+\end{table*}
+
+
+
+%\begin{table*}
+%\centering\centering\resizebox{1.0\textwidth}{!}{
+%\begin{tabular}{llllrrrr}
+%\toprule
+%& & & & \multicolumn{2}{c}{\textbf{Robust04}} & \multicolumn{1}{c}{\textbf{NQ}} & \multicolumn{1}{c}{\textbf{TRECC}}\\
+%& & \textbf{Input docs} & \textbf{Prompt} &  \textbf{MAP} & \small\textbf{nDCG@20} & \small\textbf{nDCG@10} & \small\textbf{nDCG@10}\\
+%\midrule
+% & \multicolumn{3}{l}{[$\triangleright$ MARCO]} \\
+%(1) & monoT5-220M~\cite{nogueira2020document} & - & -& 0.3279 & 0.5298 & 0.5617 & 0.7775 \\
+%(2) & monoT5-3B~\cite{nogueira2020document} & - & - & 0.3876 & 0.6091 & \textbf{0.6334} & 0.7948 \\
+%& \multicolumn{3}{l}{[$\triangleright$ MARCO $\triangleright$ InPars]} \\
+%(3) & monoT5-220M & Marco & Vanilla & ? & ? & ? & 0.6951 \\
+%(4) & monoT5-220M & In-domain & GBQ & ? & ? & ? & 0.6642 \\
+%(5) & monoT5-3B & Marco & Vanilla & \textbf{0.4134} & \textbf{0.6344} & 0.6099 & 0.8393 \\
+%(6) & monoT5-3B & In-domain & GBQ & 0.3967 & 0.6227 & 0.6297 & \textbf{0.8471} \\
+
+%\bottomrule
+%\end{tabular}
+%}
+%\caption{Ablation: Supervised results when using different input documents and prompts to generate questions. Models are first finetuned on MS MARCO.}
+%\label{tab:prompt_ablation}
+%\end{table*}
+
+The last row (16) presents the results of monoT5-3B finetuned on MS MARCO and further finetuned on our synthetic datasets. Starting from the model from row 15, we finetuned them on questions generated from the in-domain collection.\footnote{TREC DL and MS MARCO results in rows 14-16 are from models finetuned for 10 epochs on MS MARCO. For the other datasets, the models were finetuned for one epoch on MS MARCO as this leads to better zero-shot effectiveness~\cite{Pradeep2020H2olooAT}.} This procedure achieves the state-of-the-art on Robust04 and TREC-COVID datasets, outperforming the zero-shot transfer achieved by models trained solely on MS MARCO (rows 9-15)\footnote{We do not report PARADE~\cite{li2020parade} results, that achieves an nDCG@20 of 0.6127 on Robust04, since it was finetuned on Robust04 data and are are only comparing against zero-shot models on this dataset.}. This result is especially noteworthy for TREC-COVID, in which the subject is relatively recent and unknown by many pretrained LMs. This indicates that the adaptation to the domain brought by our generation method led to large gains compared to the zero-shot approaches.
+
+As for MS MARCO and TREC DL, further finetuning a model on 10k synthetic examples that was already trained on 530k manually annotated examples led to a slight decrease in effectiveness. We hypothesize that our synthetic examples are different from MS MARCO ones as we sample passages from the MS MARCO corpus to generate questions that do not often appear in the original relevant passage set (e.g., footnotes, texts about advertisements, passages with multiple topics, etc). Thus, any further training on different examples would be harmful when compared to training and evaluating on data of the same distribution.
+
+% \textcolor{red}{Hugo, could you please describe how the model on the last row was trained (i.e., finetuned for one epoch on MS MARCO then ft on our dataset), and discuss why it beat models finetuned only on MARCO (e.g., bias towards MARCO questions/docs)?}
+
+\section{Ablation Study and Analysis}
+In this section we take a deeper look into the properties of our proposed approach.
+
+\subsection{Prompt Selection and Source Corpus}
+\label{sec:prompt_ablation}
+First, we investigate the impact of using different styles of prompts as well as using in-domain or ad hoc collections to generate synthetic data.
+We compare IR metrics obtained with different prompt templates in Table~\ref{tab:prompt_ablation}. The column ``Input docs'' refers to the collection used to generate the questions.
+Marco indicates that we sampled documents from the MS MARCO passage collection as input for generating questions since models trained on them have shown great generalization capabilities \cite{pradeep5h2oloo,thakur2021beir}.
+In contrast, in-domain signifies that questions were generated from documents sampled from the same collections that the model is evaluated on. This approach can be regarded as zero-shot domain adaptation as we do not use any in-domain \textit{labeled} data to finetune our retrievers.
+Since the MS MARCO development set and TREC-DL 2020 use the MS MARCO passage collection, this distinction of in-domain and Marco does not apply to these datasets.
+
+Column ``Prompt'' in Table~\ref{tab:prompt_ablation} refers to the type of prompt fed to the language model during the question generation step. Preliminary experiments demonstrate that GBQ leads to better performance than the Vanilla prompt when used in combination with in-domain input documents. A marginal gain was observed when using the GBQ prompt on MS MARCO documents. Therefore, we combined Marco with the Vanilla prompt and in-domain with the GBQ prompt in our experiments.
+
+It costs 100-300 USD to generate 100,000 questions using the Curie model regardless of the prompt type. Table~\ref{tab:examples_robust04} shows the difference in the predicted query for both prompts. It is notably observed that GBQ questions tend to be more descriptive and specific to the input document while Vanilla questions are more generic and can be answered by a broader set of documents.
+
+Both MS MARCO and TREC-DL 2020 achieved the highest scores using the Vanilla prompt for both monoT5 220M and 3B models. However, for the other datasets (Robust04, NQ, and TREC-COVID), we obtained the highest scores with the GBQ prompt and using questions generated from their collections. The 3B models benefited the most from the in-domain examples, consistently outperforming the Marco results. For smaller monoT5 220M, there is no clear winner between the types of prompts and input documents.
+
+
+
+%\begin{table}[]
+%\begin{tabular}{lrrrr}
+%\toprule
+%                     & \textbf{MAP}    & \textbf{nDCG@10} & \textbf{MRR}    & \textbf{R@1K} \\ \midrule
+%\multicolumn{3}{l}{\textit{Unsupervised}} \\
+%\textbf{BM25}        & 0.2876          & 0.4876           & 0.6594          & 0.8031        \\
+%\textbf{Ada}         & 0.3156          & 0.5083           & 0.6584          & 0.8031        \\
+%\textbf{Ada-100}     & 0.3141          & 0.5161           & 0.6713          & 0.8031        \\
+%\textbf{Curie}       & \textbf{0.3593} & 0.5602           & \textbf{0.7407} & 0.8031        \\
+%\textbf{Curie-100}   & 0.3296          & 0.5422           & 0.7055          & 0.8031        \\
+%\textbf{Davinci-100} & 0.3163          & 0.5366           & 0.6596          & 0.8031        \\
+%\textbf{monoT5-base curie}  & 0.3578          & \textbf{0.5766}  & 0.7315          & 0.8031        \\
+%\textbf{monoT5-3B curie} & ? & ? & ? \\
+%\midrule
+%\multicolumn{3}{l}{\textit{Supervised (finetuned on MS MARCO)}} \\
+%\textbf{doc2query} & 0.4074 & 0.6187 & 0.7326 & 0.8452 \\
+%\textbf{monoT5-base}  & 0.4909 & 0.7141 & 0.8629 & 0.8031 \\
+%\textbf{monoT5-3B}  & 0.5281 & 0.7508 & 0.8670 & 0.7863 \\
+%\bottomrule
+%\end{tabular}
+%\caption{TREC-DL 2020 results.}
+%\label{tab:trec-dl-20}
+%\end{table}
+
+%\begin{table}[]
+%\begin{tabular}{lrrr}
+%\toprule
+%                     & \textbf{MAP}    & \textbf{nDCG@20} & R@1000\\
+%\midrule
+%\multicolumn{3}{l}{\textit{Unsupervised}} \\
+%\textbf{BM25}        & 0.2531          & 0.4240  &  0.6989       \\
+%\textbf{Ada-100}     & 0.2691          & 0.4847        \\
+%\textbf{Curie-100}   & 0.2785          & 0.5053        \\
+%\textbf{Davinci-100} & 0.2790          & 0.5103        \\
+%\textbf{monoT5-base curie robust04} & 0.2014 & 0.3704 \\
+%\textbf{monoT5-base curie msmarco} & 0.2242 & 0.4037 \\
+%\textbf{monoT5-3B curie msmarco} & ? & ? \\
+%\midrule
+%\multicolumn{3}{l}{\textit{Training \textsc{monoT5-base curie}}} \\
+%\textbf{checkpoint 100}        &    0.2241  & 0.3707         & 0.6989        \\
+%\textbf{checkpoint 156}        &   0.2305 & 0.3955          & 0.6989        \\
+%\textbf{checkpoint 1000}        &      0.1349 &  0.2018       & 0.6989        \\
+%\midrule
+%\multicolumn{3}{l}{\textit{Unsupervised: good/bad descriptive queries}} \\
+%\textbf{checkpoint 312}  & 0.2339 & 0.4226 & 0.6989 \\
+%\textbf{checkpoint 300 LR=3e-4}  & 0.2401 & 0.4337 & 0.6989 \\
+%\midrule
+%\multicolumn{3}{l}{\textit{Supervised (finetuned on MS MARCO)}} \\
+%\textbf{doc2query} & 0.2704 & 0.4420  \\
+%\textbf{miniLM-L6} & 0.2895 & 0.4898 & 0.6495\\
+%\textbf{monoT5-base} &  0.3279 & 0.5298 & 0.6989\\
+%\textbf{monoT5-3B} &  0.3876 & 0.6091  \\
+%\bottomrule
+%\end{tabular}
+%\caption{Robust04 results.}
+%\label{tab:robust04}
+%\end{table}
+
+%\begin{table}[]
+%\begin{tabular}{lrr}
+%\toprule
+%                    & \textbf{nDCG@10}    & \textbf{R@1K} \\
+%\midrule
+%\multicolumn{3}{l}{\textit{Unsupervised}} \\
+%\textbf{BM25} (BEIR paper) & 0.3290 & -        \\
+%\textbf{BM25} (BEIR code, ours) & 0.3261 & 0.9107        \\
+%\textbf{BM25} (ours)  & 0.3055 & 0.8958        \\
+%\textbf{BM25 (300)} & 0.3065 & 0.9061 \\
+%\textbf{Ada-100 (300)} & 0.4092 & 0.9061 \\
+%\textbf{Curie-100 (300)} & 0.4171 & 0.9061 \\
+%\textbf{monoT5-base curie NQ}   &0.3472 & 0.9107        \\
+%\textbf{monoT5-base curie msmarco}   & 0.3497 & 0.9107        \\
+%\textbf{monoT5-3B curie msmarco} & 0.4533 & 0.9107 \\
+%\midrule
+%\multicolumn{3}{l}{\textit{Supervised (finetuned on MS MARCO)}} \\
+%\textbf{miniLM-L6} (BEIR paper) & 0.5330 & -\\
+%\textbf{doc2query} (BEIR paper) & 0.3990 & - \\
+%\textbf{monoT5-base}  & 0.5617 & 0.8958\\
+%\textbf{monoT5-3B}  & 0.6334 & 0.9107\\
+%\bottomrule
+%\end{tabular}
+%\caption{Natural Questions (from BEIR) Results.}
+%\label{tab:nq}
+%\end{table}
+
+\subsection{Model Size Impact on IR Metrics}
+\label{sec:model_size}
+
+
+In Figure~\ref{fig:mrr_vs_usd} we present the effectiveness on the MS MARCO development set of the monoT5-220M reranker trained on synthetic questions generated using different sizes of GPT-3. As we increase the model size, the IR metric keeps increasing, although very slowly. A hypothesis that explains this gain is that larger models can generate more relevant questions to a given passage, instead of broad and more general questions. Using more specific questions avoids confusing the reranker with questions that are relevant to many passages, which can lead to false-negative examples.
+
+%However, the curve shown in the chart displays a log trend and the x-axis is also in log-scale, which leads to a very slow-growing trend. Hence, increasing the generative model's size does not seem a promising direction to improve the IR metrics using our method. The first gaps are more significant, where increasing the generative model 4 times results in a 17\% higher score and increasing in 20 times results in a 22\% gain. At the same time, the largest model achieves an effectiveness that is only 3\% superior to the previous.
+
+This relation between GPT-3 model sizes and their IR effectiveness is also observed in the OpenAI Search results presented in Table~\ref{tab:main}. However, in those results, the Davinci model rivals Curie as the best performing, with the latter delivering a higher score on most experiments.
+
+
+\subsection{Filtering by the Most Likely Questions}
+\label{sec:filtering_ablation}
+As mentioned in Section~\ref{sec:method}, we used only the top $K=10,000$ pairs w.r.t to $p_q$ to finetune the rerankers. %The best results were obtained by filtering the generated questions based on their generation likelihood score. In addition to the sentence prediction, the LM also outputs the probability $p_q$ which we use to remove less confident questions.
+Finetuning on all 100,000 synthetic examples leads to a 4 MRR@10 points decrease on MS MARCO when compared to the top $K$ filtering approach. Thus, to avoid relying on the test sets and keep the method fully unsupervised, we only evaluated this difference on MS MARCO and applied the filtering approach to all other datasets.
+
+\subsection{Was GPT-3 Trained on Supervised IR Data?}
+
+The answer to this question is not disclosed to the public, but we tried to answer it by measuring the number of questions produced by GPT-3 that match those in the MS MARCO dataset. Of the 93,200 unique questions produced by the largest model (Davinci), 5,285 were also found in the 1M questions from MS MARCO, i.e., less than 5.7\%. Most of these questions contain a single entity (e.g., ``what is freedom of the press'', ``what is the fda'', ``who is gary young'') that are likely to be answered by multiple documents in the collection.
+Also, the Davinci model produced questions from 6,396 documents marked as relevant in either the training or development sets of MS MARCO. Of those synthetic questions, 725 were found in MS MARCO ground-truth, i.e., less than 12\%.
+Similar numbers were found for smaller models.
+We argue that these low percentages are evidence that the models were not finetuned on MS MARCO, or at least, they did not memorize it.
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[scale = 0.9]
+\begin{axis}[
+width=1.0\columnwidth,
+height=0.65\columnwidth,
+legend cell align=left,
+mark options={mark size=3},
+font=\scriptsize,
+axis y line*=left,
+xmin=0.3, xmax=175,
+ymin=0.17, ymax=0.28,
+xmode=log,
+log ticks with fixed point,
+xtick={0.3, 1.2, 6, 175},
+ytick={0.1874, 0.215, 0.2515, 0.2701},
+legend pos=south east,
+y tick label style={
+    /pgf/number format/.cd,
+        fixed,
+        fixed zerofill,
+        precision=3,
+    /tikz/.cd
+},
+ytick style={draw=none},
+xtick style={draw=none},
+xmajorgrids=true,
+ymajorgrids=true,
+xlabel style={font = \normalsize, yshift=1ex},
+xlabel=Billions of parameters,
+ylabel= MRR@10,
+ylabel style={font = \normalsize, yshift=0ex}]
+    \addplot[mark=*, very thick, blu, mark options={scale=1}] plot coordinates {
+    (0.3, 0.2150)(1.2, 0.2515)(6, 0.2585)(175, 0.2701)
+    };
+    \addlegendentry{\textsc{InPars}}
+    
+\addplot[mark=triangle*, very thick, orng, mark options={scale=1}] plot coordinates {
+    (0.3, 0.199)(1.2, 0.206)(6, 0.215)(175, 0.227)
+    };
+    \addlegendentry{\textsc{cpt-text}}
+    
+    \addplot[very thick, dashed, black, mark options={scale=1}] plot coordinates {
+    (0.3, 0.1874)(175, 0.1874)
+    };
+    \addlegendentry{\textsc{BM25}}
+\end{axis}
+\end{tikzpicture}
+\caption{MRR@10 on the MS MARCO development set achieved by InPars using monoT5-220M reranker trained on synthetic questions generated by GPT-3 models of different sizes. Figures for cpt-text are from~\cite{neelakantan2022text}. Note the log scale for the x-axis.}
+\label{fig:mrr_vs_usd}
+\end{figure}
+
+\section{Conclusion and Future Work}
+ 
+In this work, we presented \textit{InPars}, a method to generate synthetic training data for IR tasks using large LMs in a few-shot manner. 
+%A key result is that rerankers trained on this data outperform the models that generated the data itself.
+This allows one to harness the information learned by large models in a more efficient and effective way.
+%Our proposed approach can be used for any IR task that lacks manual annotations. 
+
+%We observed that methods that rely only on supervised training data for transfer learning may underperform when the nature of questions and documents differ at inference time from what they learned during training. When combined with supervised finetuning, our method resulted in large gains when compared to models finetuned on supervised data alone on 2 of the 3 datasets evaluated in this work. 
+Our experiments demonstrated that using large LMs to generate synthetic training data is a promising direction for development of neural retrievers.
+There are, however, many directions not explored in this work that we leave as future work: 1) Finetuning dense retrievers on our synthetic data; 2) Using ``bad questions'' as negative training examples; 3) Scale up our synthetic datasets to millions of examples; 4) More sophisticated methods to select (question, relevant document) pairs.
+
+
+\section*{Acknowledgments}
+This research was partially funded by a grant from Fundação de Amparo à Pesquisa do Estado de São Paulo (FAPESP)
+2020/09753-5.
+We also would like to thank Google Cloud for credits to support this work.
+
+\bibliography{main}
+\bibliographystyle{acl_natbib}
+
+\newpage
+\appendix
+\section{Appendix}
+
+
+\begin{table*}[htbp!]
+ \begin{small}
+%\begin{center}
+\setlength\tabcolsep{6pt} % default value: 6pt
+ \caption{Examples of questions generated from the Robust04 dataset using the Curie model with Vanilla and GBQ prompts.}
+ \label{tab:examples_robust04}
+\begin{tabularx}{\textwidth}{X}
+\toprule
+\textbf{\textcolor{blu}{Document:}} {\footnotesize South Korean President Kim Yong-sam said Saturday it is imperative that Japan and South Korea work to end North Korea's isolation and halt its suspected nuclear arms program. In a joint press conference with Prime Minister Morihiro Hosokawa after a second round of summit talks, Kim said that South Korea and Japan share a common interest in developing economic cooperation in the Asia-Pacific region. Peace and security on the Korean peninsula are essential to stability in the region, but vestiges of the Cold War still linger on the peninsula, Kim said. Kim stated that it is imperative that neighboring countries work together toward making North Korea discard its isolationist policy. He also said it is imperative that North Korea give up its suspected nuclear arms development program and return to the South-North dialogue. Reporting his agreement with Hosokawa on economic cooperation in the East Asian region, Kim noted that both sides agreed the lopsided bilateral trade imbalance must be resolved. The president ends a three-day visit to Japan Saturday afternoon, leaving for Shanghai for talks with Chinese leaders. Kim said it was the insincerity of North Korea that brought about the referral of the nuclear issue to the United Nations Security Council. Measures should be taken in accordance with the North's attitude, the president said, suggesting a flexible stance toward Pyongyang. Hosokawa stressed the need for a firm and unified response of international society to the issue while leaving open a window for dialogue with North Korea.}   \\
+\textbf{\textcolor{orng}{Vanilla question:}} \textit{What is the president's position on North Korea?}  \\ 
+\textbf{\textcolor{rd}{GBQ question:}} \textit{What is the South Korean president's position on North Korea?}  \\
+  \midrule
+\textbf{\textcolor{blu}{Document:}} {\footnotesize John West has resigned as non-executive chairman of Dalgety, the food group, and of Bridon, maker of wire rope and engineered products, having just suffered a stroke. Dalgety has appointed Maurice Warren, chief executive, to succeed West, 65, who became chairman of Dalgety only last September. Richard Clothier, who had been due to become chief executive when Warren turns 60 in June, will now do so on April 1. Warren has agreed to remain chairman for the indefinite future and says the appointment will not affect his plans to become non-executive chairman of the South West Electricity Board in June. Bridon yesterday named Derek Edwards, a non-executive director of the company for the past eight years, as chairman, and Brian Clayton as chief executive. Clayton has been responsible for day-to-day executive decisions since David Allday resigned as chief executive in September. John Hogan has been appointed chief operating officer of Lasmo, the independent oil exploration and production company. He replaces Joe Darby who recently became chief executive after Chris Greentree decided to step down. John Hogan has been managing director of Lasmo's North Sea operations for the past four years. At 39, he is generally regarded as one of the industry's younger generation of pragmatic managers who have to weigh more keenly the financial risks and rewards of oil exploration in a climate of persistently low oil prices.} \\
+Vanilla question: \textit{What is the name of the food group and the wire rope maker?}  \\ 
+GBQ question:  \textit{Information on John West's resignation as non-executive chairman of Dalgety and Bridon}  \\
+\midrule
+\textbf{\textcolor{blu}{Document:}} {\footnotesize WIDE PRICE fluctuations in many commodity markets this week resulted from relatively modest buying and selling orders in thin, pre-Christmas conditions. The sharpest movement was gold's Dollars 4.85-a-troy-ounce drop over Monday and Tuesday, which traders said was initiated by selling from an individual US trade house. As the price slid towards a support level at Dollars 332 an ounce one dealer told the Reuter news agency that 'under normal circumstances the volume traded would not have moved the market so much'. The gold price was steadier yesterday, gaining 55 cents to Dollars 332.85 an ounce, but was still Dollars 4.30 down on the week so far. The platinum price followed a similar pattern, recovering Dollars 1.10 at yesterday's afternoon fixing to reach Dollars 359.60 an ounce, Dollars 3.90 below last Friday's level, while cash silver was six cents down overall at 370.5 cents an ounce. Most base metals markets at the London Metal Exchange presented a mirror image of the movements in the gold market, slipping back a little yesterday following strong gains earlier in the week. Copper was a case in point. Modest Chinese buying and worries about copper workers joining a Polish general strike were less influential than technical factors in the three months delivery position's Pounds 54.50 rise to Pounds 1,489.25 a tonne over the first two days, dealers said. Mr Ted Arnold, analyst at the Merrill Lynch financial services group, pointed to the profound effect commodity funds, managing about Dollars 26bn, were having on traded metals markets.' These funds tend to work primarily on technical analysis,' he said.} \\
+\textbf{\textcolor{orng}{Vanilla question:}} \textit{What is the price of gold?}  \\ 
+\textbf{\textcolor{rd}{GBQ question:}}  \textit{What is the effect of commodity funds on the price of metals?}  \\
+\bottomrule
+\end{tabularx}
+ %\end{center}
+%}
+ %\end{center}
+
+ \end{small}
+\end{table*}
+
+
+\begin{table*}[htbp!]
+ \begin{small}
+\setlength\tabcolsep{6pt}
+ \caption{Examples of questions generated from the TREC-COVID dataset using the Curie model with generated good and bad questions.}
+ \label{tab:examples_trec_covid}
+\begin{tabularx}{\textwidth}{X}
+\toprule
+\textbf{\textcolor{blu}{Document:}} {\footnotesize [Ethical principles compromised during the COVID-19 pandemic?]. In the late 1970s, the American bioethicists Tom Beauchamp and James Childress described the four ethical principles that should guide a physician's actions in individual patient care. These principles are: (a) respect for autonomy; (b) doing well (beneficence); (c) not harming (non-maleficence); and (d) justice. In many countries, the global outbreak of SARS-CoV-2 has led to overloaded healthcare systems due to large numbers of COVID-19 patients. In order to provide care to this high volume of patients, far-reaching measures are taken that affect everyone. These measures are not taken from an individual patient's perspective but in the interest of public health; nonetheless, they can directly affect the individual patient's interests. This article examines the extent to which Beauchamp and Childress' ethical principles may be compromised during the COVID-19 pandemic.} \\
+\textbf{\textcolor{orng}{Bad question:}} \textit{What are Beauchamp and Childress' ethical principles?}  \\ 
+\textbf{\textcolor{rd}{Good question:}}  \textit{How does Beauchamp and Childress' ethical principles apply to the COVID-19 pandemic?}  \\
+\midrule
+\textbf{\textcolor{blu}{Document:}} {\footnotesize Covid-19 Confinement and Changes of Adolescent's Dietary Trends in Italy, Spain, Chile, Colombia and Brazil. Confinement due to the COVID-19 pandemic can influence dietary profiles, especially those of adolescents, who are highly susceptible to acquiring bad eating habits. Adolescents' poor dietary habits increase their subsequent risk of degenerative diseases such as obesity, diabetes, cardiovascular pathologies, etc. Our aim was to study nutritional modifications during COVID-19 confinement in adolescents aged 10 to 19 years, compare them with their usual diet and dietary guidelines, and identify variables that may have influenced changes. Data were collected by an anonymous online questionnaire on food intake among 820 adolescents from Spain, Italy, Brazil, Colombia, and Chile. The results show that COVID-19 confinement did influence their dietary habits. In particular, we recorded modified consumption of fried food, sweet food, legumes, vegetables, and fruits. Moreover, gender, family members at home, watching TV during mealtime, country of residence, and maternal education were diversely correlated with adequate nutrition during COVID-19 confinement. Understanding the adolescents' nutrition behavior during COVID-19 lockdown will help public health authorities reshape future policies on their nutritional recommendations, in preparation for future pandemics.} \\
+\textbf{\textcolor{orng}{Bad question:}} \textit{What is the COVID-19 pandemic?}  \\ 
+\textbf{\textcolor{rd}{Good question:}}  \textit{What is COVID-19 and how does it affect adolescents?}  \\
+\midrule
+\textbf{\textcolor{blu}{Document:}} {\footnotesize 67 CF patients with a declining FEV(1): At risk for acquisition of Burkholderia cepacia complex infection?. INTRODUCTION: Burkholderi
+a cepacia complex (Bcc) infection is considered to be associated with worsening of CF lung disease. Patient to patient spread has been reported, however mechanisms of ac
+quisition of Bcc are not well understood. Method: Data from the Belgian CF Registry (year 2000\u20132010) were collected. Inclusions: Bcc infected patients with entries
+on lung function in at least 1 y before and 3 y after Bcc acquisition. For each case, we included 2 controls, matched for age at the index year (year of first Bcc infect
+ion), pancreatic status, sex. Cumulative data up to 2 years before index year were compared to values obtained after infection using Rank sum test. Rate of decline in lu
+ng function was adjusted for baseline lung function, age, sex. RESULTS: Bcc prevalence in CF is low in Belgium (<3\%). 183 patients were included: 61 cases, 122 controls.
+ 59\% were F508del homozygous. Mean age in cases was 20.9 y (SD 10.5) vs 20.3 y (SD 10.3) in controls. Among the Bcc, 54\% were unspecified, 31\% were B. multivorans. Mean
+FEV(1) at index year was 65.2\% (SD 24.9) in cases vs 73.1 (SD 26.9) in controls (p = 0.07). FEV(1) decline before index year was significantly higher in cases (\u20131.7\%, SD 0.5) compared to controls (\u20131.0\%, SD 0.3) (p = 0.002). FEV(1) slopes were comparable in the period after index year (\u20131.1\%, SD 0.5, in cases vs \u20130.99\%, SD 0.4, p = 0.24). CONCLUSION: Our results suggest that a declining FEV(1) precedes acquisition of Bcc and may be a risk factor. After acquisition, lung function decline was comparable in Bcc infected and uninfected patients. These results should be interpreted with caution, since registry data are collected retrospectively and bear a risk of incompleteness or inaccuracy.} \\
+\textbf{\textcolor{orng}{Bad question:}} \textit{What is the prevalence of Bcc in CF patients?}  \\ 
+\textbf{\textcolor{rd}{Good question:}}  \textit{What is Burkholderia cepacia complex (Bcc) and how does it affect CF patients?}  \\
+\midrule
+\textbf{\textcolor{blu}{Document:}} {\footnotesize Safety and effectiveness of 5-mm and 10-mm electrothermal bipolar vessel sealers (LigaSure) in laparoscopic resections for sigmoid colon and rectal cancers.. BACKGROUND LigaSure\u2122 (Covidien, Mansfield, MA) has been used in cases undergoing laparoscopic colon and rectal resections. This study aims to analyze the efficacy and safety of the 5-mm and 10-mm devices. SUBJECTS AND METHODS Patients who received a laparoscopic or hand-assisted laparoscopic operation for a tumor located in the sigmoid colon or rectum since 2006 were abstracted from a prospectively designed database, and findings were analyzed in two groups based on size of the device used during the procedure. The videotapes of the procedures were watched, and operation reports were read to obtain further information on specific intra- and postoperative complications. Demographics, tumor and operation-related information, and postoperative data were compared. RESULTS Among 215 (128 [59.5\%] males; median age, 59.5\u00b113.8 years) patients, data obtained from the 5-mm (n=32) and 10-mm (n=183) groups were identical regarding demographics and data related to tumor (localization and stage) and operation (number of harvested lymph nodes, conversion rates, operation time, intraoperative bleeding, transfusion requirement, reoperation rates, complications, 30-day mortality, and length of hospital stay). However, more patients underwent an anterior resection in the 10-mm group than in the 5-mm group (31.7\% versus 15.6\%, P<.05). Further analyses found device-related bleeding in 8 (3.7\%) cases (2 [6.3\%] versus 6 [3.3\%] in the 5-mm versus 10-mm group, respectively, P>.05), requiring further attempts for hemorrhage control (n=6), conversion to open surgery (n=1), or relaparotomy (n=1). CONCLUSIONS The 5-mm and 10-mm LigaSure devices are similarly effective and safe during laparoscopic sigmoid colon and rectal resections. Severe bleeding from larger vessels may be observed, requiring conversion to open surgery or relaparotomy.", "question": "What is the safety and effectiveness of the LigaSure device?} \\
+\textbf{\textcolor{orng}{Bad question:}} \textit{What is the LigaSure device?}  \\ 
+\textbf{\textcolor{rd}{Good question:}}  \textit{What is the safety and effectiveness of the LigaSure device?}  \\
+\bottomrule
+\end{tabularx}
+ \end{small}
+\end{table*}
+
+\begin{table*}[htbp!]
+ \begin{small}
+\setlength\tabcolsep{6pt}
+ \caption{Examples of questions generated from the Natural Questions dataset using the Curie model with generated good and bad questions.}
+ \label{tab:examples_nq}
+\begin{tabularx}{\textwidth}{X}
+\toprule
+\textbf{\textcolor{blu}{Document:}} {\footnotesize 1993 Miami Dolphins season. The season was marked by Don Shula passing George Halas's record for most wins, against the Philadelphia Eagles. Also, during the Week 5 game against Cleveland, quarterback Dan Marino ruptured his Achilles' tendon and was lost for the remainder of the season. Quarterback Scott Mitchell filled in for Marino, and was Player of the Month for October 1993. Mitchell, too, became injured, leaving the then 9\u00e2\u20ac\u201c2 team in the hands of Doug Pederson and NFL veteran Steve DeBerg.} \\
+\textbf{\textcolor{orng}{Bad question:}} \textit{What happened to Dan Marino?}  \\ 
+\textbf{\textcolor{rd}{Good question:}}  \textit{What happened to the 1993 Miami Dolphins?}  \\
+\midrule
+\textbf{\textcolor{blu}{Document:}} {\footnotesize Social construction of gender. On Butler's hypothesis, the socially constructed aspect of gender performativity is perhaps most obvious in drag performance, which offers a rudimentary understanding of gender binaries in its emphasis on gender performance. Butler understands drag cannot be regarded as an example of subjective or singular identity, where \"there is a 'one' who is prior to gender, a one who goes to the wardrobe of gender decides with deliberation which gender it will be today\".[34]:21 Consequently, drag should not be considered the honest expression of its performer's intent. Rather, Butler suggests that what is performed \"can only be understood through reference to what is barred from the signifier within the domain of corporeal legibility\".[34]:24} \\
+\textbf{\textcolor{orng}{Bad question:}} \textit{What is drag?}  \\ 
+\textbf{\textcolor{rd}{Good question:}}  \textit{What is the social construction of gender?}  \\
+\midrule
+\textbf{\textcolor{blu}{Document:}} {\footnotesize Wentworth Miller. In 1995, Miller relocated to Los Angeles to pursue an acting career.[10] He has stated that his rocky road to stardom \"was a long time in the coming and there were a lot of upsets and a lot of failures and roadblocks, but I couldn't walk away from it. I needed it like I needed air, it was just something I had to do.\"[11] Miller's first TV appearance was as student-turned-sea monster Gage Petronzi on Buffy the Vampire Slayer (\"Go Fish\", 1998).} \\
+\textbf{\textcolor{orng}{Bad question:}} \textit{What is Wentworth Miller's first TV appearance?}  \\ 
+\textbf{\textcolor{rd}{Good question:}}  \textit{Information on Wentworth Miller's acting career.}  \\
+\midrule
+\textbf{\textcolor{blu}{Document:}} {\footnotesize Sport in Argentina. The national team has won the FIFA World Cup twice (in 1978 and 1986), successive Olympic gold medals (in 2004 and 2008), fourteen Copas Am\u00e9rica, one Confederations Cup and six World Youth Championships. Argentine clubs have won the Copa Libertadores, the top continental competition, a record 22 times and the Intercontinental Cup or FIFA Club World Cup 8 times, a record shared with Brazilian clubs. The Argentine Primera Divisi\u00f3n is the top level domestic competition. The country's most famed football idol is Diego Maradona. Actually the most famous football player is Lionel Messi.", "question": "Information on the Argentine national team and their history.} \\
+\textbf{\textcolor{orng}{Bad question:}} \textit{What is the most famous football player in Argentina?}  \\ 
+\textbf{\textcolor{rd}{Good question:}}  \textit{Information on the Argentine national team and their history.}  \\
+\midrule
+\textbf{\textcolor{blu}{Document:}} {\footnotesize American game show winnings records. In 1999, McKee was passed by Michael Shutterly, who was the biggest winner in the first airing of Who Wants to Be a Millionaire in the United States. Shutterly was the first contestant on the show to get to the 15th and final question, but elected to walk instead with \$500,000 (equivalent to \$719,000 in 2016),[1] which made him the biggest winner in American game show history at the time. Shutterly had previously won \$49,200 as a 4 day champion on Jeopardy! in 1988, making his career winnings total \$549,200. [12]} \\
+\textbf{\textcolor{orng}{Bad question:}} \textit{What is the biggest winner in the history of American game shows?}  \\ 
+\textbf{\textcolor{rd}{Good question:}}  \textit{Who is the biggest winner in the history of American game shows?}  \\
+\midrule
+\textbf{\textcolor{blu}{Document:}} {\footnotesize New Zealand Warriors. The Warriors reached their zenith to date in the National Rugby League season 2002. They won the Minor Premier
+ship, finishing in first place at the conclusion of the regular season after the Bulldogs lost 37 competition points late in the season due to severe salary cap breaches
+. The club played what stands as the first finals match to have been held outside Australia at Mt Smart Stadium in the first week of the Finals Series. The Warriors woul
+d defeat their bogey side Canberra 36\u00e2\u20ac\u201c20 after surviving an early scare.} \\
+\textbf{\textcolor{orng}{Bad question:}} \textit{What is the National Rugby League?}  \\ 
+\textbf{\textcolor{rd}{Good question:}}  \textit{Information on the New Zealand Warriors.}  \\
+\bottomrule
+\end{tabularx}
+ \end{small}
+\end{table*}
+
+
+\end{document}
+\endinput

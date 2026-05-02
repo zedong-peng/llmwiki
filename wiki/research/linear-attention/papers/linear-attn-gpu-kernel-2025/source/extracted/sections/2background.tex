@@ -1,0 +1,34 @@
+\section{Background}
+\label{related-works}
+\par At its core, the Transformer architecture~\cite{Vaswani2017-vf} processes sequential data through three main components. First, the input sequence is transformed into three sets of matrices Query ($\mathbf{Q}$), Key ($\mathbf{K}$), and Value ($\mathbf{V}$) by passing the input embeddings through linear projection layers. The attention layer then calculates its Output ($\mathbf{O}$) as a weighted sum of the Value vectors, where the weights are determined by the similarity between the Query of one position and the Key of all positions. This attention mechanism allows the model to weigh the importance of different parts of the input sequence when processing each position. The Output is then processed by a feed-forward network, which applies non-linear transformations. These layers are typically stacked multiple times, along with residual connections to build deep and powerful models. Our focus is solely on the attention mechanism.
+
+\par \textbf{Notation:} Bold upper case letters, e.g., $\mathbf{X}$ indicate matrices, and bold lower case letters $\mathbf{x}_i$ and $\mathbf{x}_{ij}$ the $i$-th row and the element at the $i$-th row and $j$-th column of $\mathbf{X}$ respectively. Letters $X,x,x_i,x^{(i)}_{jkl}$ indicate scalars.
+
+\subsection{Regular Attention}
+In the Regular Attention mechanism, given a sequence of $N$ tokens, model dimension of $C$, $H$ heads, and dimension per head of $D = C/H$, each head takes in three matrices $\mathbf{Q},\mathbf{K},\mathbf{V} \in \mathbb{R}^{N\times D}$, and gives an output matrix $\mathbf{O} \in \mathbb{R}^{N\times D}$. The output is calculated using a matrix vector product (MVP) of the Attention matrix $\mathbf{A}$ with $\mathbf{V}$ as follows:
+\begin{gather}
+  \mathbf{O} = \mathbf{A}\mathbf{V},\,\, \mathbf{A} = \mbox{Softmax}\left(\mathbf{Q}\mathbf{K}^T\right),\\
+        \mathbf{o_{ij}} \!=\! \dfrac{\sum_{n=1}^{N}{\exp(\mathbf{q}_i.\mathbf{k_n}/\sqrt{D})\mathbf{v_{n,j}}}}{\sum_{n=1}^{N}{\exp(\mathbf{q}_i.\mathbf{k}_n/\sqrt{D})}} \!=\! \dfrac{\sum_{n=1}^{N}{f(\mathbf{q}_i.\mathbf{k_n})\mathbf{v_{n,j}}}}{\sum_{n=1}^{N}{f(\mathbf{q}_i.\mathbf{k}_n)}}\label{0}
+\end{gather}
+ where $f(x)$ is the Attention kernel. Therefore, each head has a computational complexity of $O(N^2D)$. The final output is given by concatenating outputs from each head. We can apply a causal mask by changing Eq.~\ref{0} to
+ \begin{gather}
+    \mathbf{O} = \mbox{tril}(\mathbf{A}) \mathbf{V}, \quad \mbox{tril}(\mathbf{A})_{ij} = \begin{cases}\mathbf{a}_{ij}, j\leq i\\0,\, j > i\end{cases},\quad
+    \mathbf{o}_{ij} = \dfrac{\sum_{n=1}^{i}{f(\mathbf{q}_i.\mathbf{k}_n)\mathbf{v}_{n,j}}}{\sum_{n=1}^{i}{f(\mathbf{q}_i.\mathbf{k}_n)}}.
+\end{gather}
+
+\par The traditional softmax attention kernel, defined by $f(x)=\mbox{exp}(x/\sqrt{D})$, is not the sole viable option for deriving the attention matrix. In fact, any definite positive convex function can substitute for the attention kernel, with the choice impacting the model's expressivity.
+
+% \begin{figure}[h]
+%   \includegraphics[width=0.6\linewidth, trim=0mm 0mm 0mm 0mm, clip=true]{images/translayer.pdf}
+%   \vspace{-5pt}
+% \caption{Diagram of a Transformer layer with a single attention head. The attention layer employs the kernel function $f(x)$ and applies a causal mask. Our contribution focuses on the Attention Layer.}
+% \label{figtrans}
+% \end{figure}
+
+\subsection{Linear Attention}
+Using LA, the attention kernel is chosen to be $f(x) = a+bx$, with the coefficients either as the Taylor expansion of the exponential or as learnable parameters. The output with (left) and without (right) causal mask will be
+\begin{align}
+    \mathbf{o_{ij}} = \dfrac{\sum_{n=1}^{N}(a + b\mathbf{q}_i.\mathbf{k}_n)\mathbf{v_{n,j}}}{\sum_{n=1}^{N}a + b\mathbf{q}_i.\mathbf{k}_n},\quad \mathbf{o_{ij}} = \dfrac{\sum_{n=1}^{i}(a + b\mathbf{q}_i.\mathbf{k}_n)\mathbf{v_{n,j}}}{\sum_{n=1}^{i}a + b\mathbf{q}_i.\mathbf{k}_n},
+\end{align}
+which can be implemented using either an RNN architecture~\cite{pmlr-v119-katharopoulos20a, yang2023gated} or a Transformer~\cite{han2023flatten, cai2022efficientvit, zhang2024hedgehog, wangLinformerSelfAttentionLinear2020, shen2021efficient,you2024linear} in $O(ND^2)$ time. Our approach is based on the Transformer architecture. In Section~\ref{sec3} we demonstrate our novel method for calculating the forward and backward-pass of LA, and in Section~\ref{sec4} our optimized implementation.
+

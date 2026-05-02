@@ -1,0 +1,100 @@
+% \srm{I agree with Tim that we should lead with some use cases.  Sell wanting to process large corpora of documents with LLMs -- imagine what we could do!?!
+% Here's two examples, I'm sure we can come up with more:}
+
+% \srm{A data engineer who can quickly transform all financial documents, including pay stubs, financial reports, loan applications, investment prospectuses, and more, into queryable documents and structured tables for further analysis.
+% }
+
+% \srm{
+% A lawyer who can quickly search hundreds of thousands of pages of documents in legal discovery to look for particular phrases, names, or general topics, and tabulate statistics about the prevalence of each.
+% }
+
+% \lei{I second. This will also make the scope of the system clear. Obviously so far we are not handling prediction tasks, anomaly detection task, or generation tasks etc, which often are what many people assume an AI system should do.}
+
+%\mjf{I find this concept of an "AI system" (sometimes referred to as an "AI program") confusing - what is such a thing? (it could be all sorts of things)   Here's an alternative story: modern AI models provide the key to unlocking the data buried in varied formats, for example: LLMs enable summarization and information extraction from text and documents, visual recognition systems make the contents of images and videos searchable, etc.  These new tools have the potential to make all the world's data queryable, but using them at scale is currently time consuming and cost-prohibitive.  Thus.... palimpzest}
+
+
+Advances in AI models have driven progress in applications such as question answering \cite{zhang2024endtoend}, chatbots \cite{vicuna2023}, autonomous agents \cite{patil2023gorilla,schick2023toolformer}, and code synthesis \cite{Li_2022,hong2023metagpt}. In many cases these systems have evolved far beyond posing a simple question to a chat model: they are  complex AI systems~\cite{compound-ai-blog} that combine elements of data processing, such as Retrieval Augmented Generation (RAG); ensembles of different models; multi-step chain-of-thought reasoning; and in many cases, cloud-based modules.
+
+It is easy for the runtime, cost, and complexity of these AI systems to escalate quickly, particularly when applied to large collections of documents. Consider a few simple AI-powered analytical tasks:
+
+\begin{itemize}
+    \item {\bf Legal Discovery (\autoref{fig:legal-discovery-correct}}) --- In this use case, prosecutors conducting an investigation  wish to identify emails from defendants which are (a) related to corporate fraud (e.g., by mentioning a specific fraudulent investment vehicle) and (b) do not quote from a news article reporting on the business in question. Test (a) may be implemented using a regular expression or UDF, while (b) requires semantic understanding to distinguish between employees sharing news articles versus first-hand sources of information. An efficient implementation would recognize that (a) can likely be implemented using conventional and inexpensive methods, while (b) may require an LLM or newly-trained text model to retain good quality.
+    \item {\bf Real Estate Search (\autoref{fig:real-estate-search-correct}}) --- In this use case, a homebuyer wants to use online real estate listing data to find a place that is (a) modern and attractive, and (b) within two miles of work. Test (a) is a semantic search task that possibly involves analyzing images, while (b) is a more traditional distance calculation over extracted geographic data.  Any implementation needs to process a large number of images and listings, limit its use of slow and expensive models, and still obtain high-quality results.
+    \item {\bf Medical Schema Matching (\autoref{fig:biofabric-matching})} --- In the medical domain, cancer research is often based on large collections of information about patient cases and sample data. However, research studies' data outputs do not always conform to a unified standard. In this use case, based on the medical data pipeline described by Li, \etal~\cite{li2023proteogenomic}, we imagine a researcher who would like to (a) download the datasets associated with a dozen specified cancer research papers, (b) identify the datasets that contain patient experiment data, and (c) integrate those datasets into a single table.  Step (a) requires parsing and understanding research paper texts to obtain dataset URLs, step (b) requires classifying each dataset as either patient-related or not, and step (c) requires a complex data integration task. As with the use cases above, the programmer must manage multiple subtasks, each of which offer different possible optimization opportunities and quality trade-offs.
+    % \item {\bf Election Interference Detection} --- A researcher would like to identify social media accounts that (a) have a high-percentage of inflammatory posts and (b) form a clique with other suspicious accounts. Test (a) requires applying a (possibly fuzzy) semantic filter to identify whether or not posts are inflammatory/misinformation, while (b) can be measured using various graph processing techniques.
+    % \item {\bf Insurance Fraud}, {\bf Amber Alerts over Video Streams}, {\bf Fake Product Review Detection}, and more
+\end{itemize}
+
+These tasks:
+\begin{enumerate}
+    \item Interleave traditional data processing with AI-like semantic reasoning
+    \item Are data-intensive: each source dataset could reasonably range from hundreds to millions of records
+    \item Can be decomposed into an execution tree of distinct operations over sets of data objects
+    %\item Have well-defined outputs but can be implemented using a wide range of methods
+    \item May result in answers of varying quality
+\end{enumerate}
+
+\noindent {\bf Semantic Analytics Applications:} Taken together, these criteria outline a broad class of AI programs that are important, complex, and potentially very optimizable; we call them {\em semantic analytics applications} --- or, \textbf{SAPPs}. We believe there is a large set of such use cases that mix conventional data analytics with transformations and filters that would not be possible without AI methods. Such workloads frequently require interleaved data acquisition steps, conventional analytical queries, and AI operations. The AI operations process unstructured data, require broad domain knowledge to implement, or have specifications that users may not be able to implement correctly with traditional source code. % Some data management tasks, such as data integration (\autoref{fig:biofabric-matching}), may also fall into this category if they primarily exist for answering analytical questions.
+
+\noindent {\bf Challenges:} Naively scaling AI systems to process SAPPs with thousands or millions of inputs appears to require spending a huge amount of runtime and money executing high-end AI models. The performance gap between traditional data processing components and AI-powered components is profound.  For example, a high-quality open-source LLM running on a modern GPU might process 100-125 tokens per second. Assuming a token is represented by 5 bytes (on average), such a model yields a throughput of {\em less than 1 KB per second}. OpenAI's new GPT-4o model currently costs 5 USD for 1M input tokens, or in other words 5 USD for processing just 5MB of data. These numbers are many orders of magnitude worse than any other component of the modern data processing stack, such as data storage, network bandwidth, SQL query processing time, and so on.
+
+Thus, optimizing the use of AI components is crucial, while at the same time current AI infrastructure is in a state of tremendous technical flux. New models and implementation techniques are published seemingly every day, while model costs and runtimes change constantly. Harnessing the latest advances in model runtime, cost, and quality is complex, error-prone, and requires engineers to constantly rewrite and retune their systems.
+
+Consider the wide range of technical decisions an AI engineer faces:
+\begin{itemize}
+    \item When designing prompts, the engineer must optimize wording, choose to employ zero- or few-shot examples, and perhaps decide on a general prompting strategy (e.g., chain-of-thought, ReAct \cite{yao2023react}, etc.).
+    \item When choosing models, the engineer must pick the best model {\em for each substask in the program}, balancing time, cost, and quality.
+    \item When running the workload, the engineer must decide whether each subtask is best implemented by a foundation model query, synthesized code, or a locally-trained student model. Furthermore, they must consider how to combine tasks to improve GPU cache utilization, and how to avoid
+    running over LLM context limits.
+    \item When scaling out to a larger dataset, the engineer faces additional challenges in selecting an efficient execution plan. Even if the system performs well on a small dataset, it may require redesign to ensure reasonable runtime, cost, and performance at a larger scale. This may involve enabling parallelism for each component and integrating these parallelized components seamlessly into the broader system for optimal efficiency. 
+    \item When integrating with external data systems, the engineer must decide how to choose parameters (e.g., the number of chunks to return per RAG query) in a manner that yields the best speed, cost, and quality trade-offs.
+\end{itemize}
+
+The space of possible decisions is vast, and choosing wisely depends on low-level details of the exact task being performed. Moreover, the definition of "best" can change over time: a developer might prefer "fast and cheap" execution when quickly testing initial proof-of-concept ideas, then switch to "costly but high-quality" for customer deployment. Finally, the changing technical landscape means that optimization choices made today might be obsolete tomorrow.
+
+\begin{figure}[t!]
+    \centering
+    \includegraphics[width=0.85\textwidth]{imgs/intro.png}
+    \caption{Overview of the \system{} system. Users write their program(s) in a declarative language which undergoes compilation \circlednum{1}, logical plan generation \circlednum{2}, and physical plan generation \circlednum{3}. Subsequent steps involve profiling sample plans \circlednum{4} and analyzing performance statistics to estimate costs \circlednum{5}. The optimal plan, tailored to user-specified preferences (e.g. to maximize quality at fixed cost), is selected \circlednum{6} and executed, delivering relational results to the user \circlednum{7}. This comprehensive process is designed to optimize execution by effectively balancing cost, runtime, and quality.
+    % Overview of the \system{} system. Users write their program(s) in a declarative language. These programs are then optimized using a set of logical and physical optimizations, which produces multiple physical implementations of the program, each with its own cost, runtime, and quality trade-offs. Finally, the plan whose qualities best match user-specified preferences is executed with relational results. \system{} is able to process multiple modalities of data, and caches intermediate results to avoid unnecessary (re)computation.
+    % Detailed steps in the figure:  \circlednum{1}  user plan compilation, \circlednum{2} logical plan generation, \circlednum{3} physical plan generation, \circlednum{4}  sample plan profiling, \circlednum{5} performance stats gathering, \circlednum{6} suggesting optimal plan and \circlednum{7} returning relational views to the user. 
+    }
+    
+    \label{fig:intro}
+\end{figure}
+
+\noindent {\bf Our Goal:} The key insight is that machines, not human engineers, should decide how best to optimize semantic analytics applications. Engineers should be able to write AI programs at a high level of abstraction and rely on the computer to find an optimized implementation that best fits their use case. A similar set of circumstances --- a need for performance improvements for an important workload, during a time of enormous technical change --- led to the development of the relational database query optimizer in the 1970s. Today's underlying technical challenges are very different, but the basic idea of declarative program optimization remains valuable.
+
+In this paper we lay out our vision and a prototype for \system\footnote{Like an ancient palimpsest, our system entails constant revision and rethinking, in our case by the optimizer. Only zestier!}, a system that enables engineers to write succinct, declarative code that can be compiled into optimized programs. \system{} is designed to optimize the broad SAPP workload class, which should encompass large-scale information extraction, data integration, discovery from scientific papers,  image understanding tasks, and multimodal analytics. As shown in \autoref{fig:intro}, when running an input user program, \system\ considers a range of logical and physical optimizations, then yields a set of possible concrete executable programs. \system\ estimates the cost, time, and quality of each one, then chooses a program based on runtime user preferences. The system is designed to be extensible, so that new optimizations can be easily added in the future. Just as the RDBMS allowed users to write database queries more quickly and correctly than they could by writing traditional code, \system\ will allow engineers to write better AI programs more quickly than they could unaided.
+
+\noindent {\bf Our Approach:} A core challenge in building \system\ is creating an optimizer that can marshal many optimizations to meet a user's cost, runtime, and quality goals. By using a language that is high-level, type-focused, and declarative --- rather than the low-level prompting and coding method pursued by naive programming and some other frameworks \cite{langchain, zheng2023efficiently} --- we believe \system\ can exploit many optimizations that are not otherwise available. Another key challenge involves designing a programming interface which simultaneously enables engineers to express the broadest possible set of AI programs, while imposing structure on their programs that the optimizer can exploit. To this end, we created a Python library which implements a thin abstraction over an underlying relational algebra. The core intellectual difference between \system\ and previous database-style systems is the addition of the relational {\bf convert} operator, which transforms an object of one user-defined schema to another. This operator --- which is implemented using a variety of methods, often based on foundation models --- allows the programmer to implement many AI tasks in a relational and optimizable style.
+%We believe the space of possible optimizations for data-intensive AI is large, and recent published work suggests other researchers agree~\cite{everything}.
+% By using a language that is high-level, type-focused, and declarative --- rather than the low-level prompting and coding method pursued by naive programming and some other frameworks \cite{langchain} --- we believe \system\ should be able to exploit a wide range of optimizations that are not otherwise available.
+
+% From a user perspective, \system\ looks more like a development toolkit than a database, but a data management
+% researcher will see many similarities with the RDBMS. The system is built around a relational programming and 
+% query model. The core intellectual difference between \system\ and previous database-style systems is the addition 
+% of the relational {\bf convert} operator, which transforms an object of one arbitrary type to another. This 
+% operator --- which is implemented using a range of methods, often based on foundation models --- allows the 
+% programmer to implement many AI tasks in a relational and optimizable style.
+% \tim{is convert the only different operator? It puts a lot of emphasis on this. From the previous text I would say the cost/quality/time estimate is actually the harder problem. }
+% \tim{you might want to do a widom-style introduction: after introducing the problem, explain why it is hard and requires new techniques: convert is one of them, correctness, cost/time/quality-estimate another, etc.}
+
+% \mjf{I agree - there's a lot more going on than the convert operator. Although it is nice and concrete to have a new operator.}
+% \mjf{Actually, I could imagine all sorts of new operators.  For example, you would probably want some interesting flow control operators such as a "mixture of experts" operator, or an "evaluator" operator that uses one or more models to check the correctness of the output of another model.  The list goes on - I think I might go back to school and get another Ph.D.!}
+
+\noindent {\bf Contributions:} In this paper we:
+%\mjf{isn't another major contribution that of identifying a new class of applications that can benefit from traditional data management but require lots of new technical solutions and abstractions?}
+\begin{itemize}
+    \item Introduce Semantic Analytics Applications (SAPPs), a new class of data-intensive AI workloads that can benefit from many traditional ideas in data management. Addressing them requires a range of new technical solutions and abstractions. (\autoref{sec:workloads}.)
+    \item Describe the \system\ architecture and how it aims to support SAPPs. (\autoref{sec:overview}.)
+    % \item Describe the {\bf convert} operator
+    \item Describe a set of physical and logical optimizations, several of which are implemented in our prototype. (\autoref{sec:optimizations}.)
+    \item Present experimental results that show that even with just these basic optimizations in place, \system\ can execute SAPP workloads with a range of tradeoffs that are more appealing than a baseline approach.  The exact benefit depends on the workload and whether the user prefers to reduce time, reduce cost, or maximize quality. Our results include, for example, a plan that is 3.3x faster, 2.9x cheaper, and offers better data quality than its baseline method; and another plan that is 4.7x faster and 9.1x cheaper, with a trade-off of 14.3\% lower quality than its baseline. (\autoref{sec:evaluation}.)
+    \item Demonstrate that our prototype can produce parallelized plan implementations which are up to 90.3x faster and 9.1x cheaper than a single-threaded GPT-4 baseline, with an F1-score within 83.5\% of the baseline. (\autoref{sec:evaluation}.)
+\end{itemize}
+
+%We have implemented three different prompt-level optimization  \lei{Seems weird to emphasize the prompt-level optimization here.}methods in our current \system\ prototype: {\em (1) query bonding}, {\em (2) code synthesis},
+%and {\em (3) token compaction}. The system also considers a range of different AI models, hosted at multiple remote services and the local machine.
+
+\system\ is an exciting prototype system and we are looking forward to the potential for future optimizations and features. We invite interested readers to experiment with our code at \url{https://github.com/mitdbg/palimpzest} and perhaps contribute some source code of their own.

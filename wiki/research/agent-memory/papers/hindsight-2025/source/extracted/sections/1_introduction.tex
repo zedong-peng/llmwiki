@@ -1,0 +1,44 @@
+\section{Introduction}
+AI agents are increasingly expected to behave less like stateless question answering systems and more like long-term partners: they are expected to remember past interactions, build up and track knowledge about the world, and maintain stable perspectives over time~\cite{packer2023memgpt,rasmussen2025zep}. However, 
+the current generation of agent
+memory systems 
+today are still built around short-context retrieval-augmented generation (RAG) pipelines and generic large language models (LLMs). Such designs
+treat memory as an external layer that extracts salient snippets
+from conversations, stores them in vector or graph-based stores, and retrieves top-k
+items into the prompt of an otherwise stateless model~\cite{wu2024longmemeval,maharana2024evaluating}. 
+
+As a result, current approaches
+to modeling agent memory
+struggle with three recurring challenges.
+First, they are  unable to preserve
+and granularly access
+long-term information across sessions~\cite{tavakoli2025beyond,ai2025memorybench}. Second, AI agents are
+unable to epistemically
+distinguish what the agent has observed from what it believes. Finally,
+such agents are notorious for
+their inability to exhibit preference consistency, i.e., expressing a stable reasoning style and viewpoint across interactions rather than producing locally plausible but globally inconsistent responses~\cite{huang2025llms}.
+
+Recent work has begun to address these challenges through dedicated memory architectures for agents, e.g., see ~\cite{zhang2025survey,wu2025human}. Systems like MemGPT~\cite{packer2023memgpt} introduce operating system-like memory management, while Zep~\cite{rasmussen2025zep} proposes temporal knowledge graphs as an internal data structure. Other approaches focus on continual learning~\cite{ai2025memorybench}, reinforcement-based memory management~\cite{yan2025memory}, or production-ready memory systems~\cite{chhikara2025mem0}. 
+%However, these systems typically treat memory as an external layer that extracts salient snippets from conversations, stores them in vector or graph-based stores, and retrieves top-$k$ items into the prompt of an otherwise stateless model. 
+While these systems improve personalization and context carry-over, they still blur the line between evidence and inference, can struggle to selectively organize information over long horizons, and offer limited support for agents that must explain why they answered a question a certain way.
+
+We present \hindsight, a memory architecture for long-lived AI agents that addresses these challenges by unifying long-term factual recall with preference-conditioned reasoning. Each agent in \our is backed by a structured memory bank that accumulates everything the agent has seen, done, and decided over time, and a reasoning layer that uses this memory to answer questions, execute workflows, form opinions, and update beliefs in a consistent way. Conceptually, \our ties together two components: \tempr (Temporal Entity Memory Priming Retrieval), which
+implements the \emph{retain} and \emph{recall} operations over long-term memory, and \cara (Coherent Adaptive Reasoning Agents), which implements the \emph{reflect} operation over that memory.
+\tempr builds a temporal, entity-aware memory graph and exposes an agent-optimized retrieval interface, while \cara integrates configurable disposition behavioral parameters into the reasoning process and maintains an explicit opinion network that evolves over time.
+
+At the core of \our is a simple abstraction: a memory bank organized into four logical networks (\emph{world}, \emph{experience}, \emph{opinion}, \emph{observation}) and three core operations (retain, recall, and reflect, as mentioned earlier).
+The world and experience networks store objective facts about the external world and the agent's own experiences. The opinion network stores subjective beliefs with confidence scores that can be updated as new evidence arrives. The observation network stores preference-neutral summaries of entities synthesized from underlying facts. \tempr implements retain and recall by extracting narrative facts with temporal ranges, resolving entities and constructing graph links, and retrieving memories via multi-strategy search. \cara implements reflect by combining retrieved memories with an agent profile (name, background, and disposition behavioral parameters) to generate preference-shaped responses and to form and reinforce opinions.
+As we will demonstrate empirically, this design provides several performance advantages over existing memory systems~\cite{xu2025mem,liu2025memverse,wang2025karma}. 
+
+%First, the four-network organization provides epistemic clarity by structurally separating facts from beliefs, enabling transparent reasoning and debugging. Second, the temporal representation with occurrence intervals and mention timestamps supports precise historical queries and recency-aware ranking. Third, the entity-aware graph with multiple link types (temporal, semantic, entity, causal) enables multi-hop discovery of indirectly related information. Fourth, the preference-conditioned reflection with disposition behavioral parameters and opinion reinforcement ensures stable yet evolving perspectives over time.
+
+Our contributions are:
+\begin{enumerate}[itemsep=-0.1em]
+
+    \item \textbf{A unified memory architecture for agents.} \our's organization of memory into separate networks with core operations helps separate evidence, synthesize summaries better, and supports evolving beliefs, while supporting epistemic clarity and traceability.
+
+    \item \textbf{Retain, recall and reflect layers specialized for agent memory.} Our key operational primitives help turn conversational transcripts into a structured, queryable memory bank with ability to reason over this bank and update beliefs in a stable, auditable manner.
+    
+    \item \textbf{Empirical evaluation on long-horizon conversational benchmarks.} We evaluate \our on LongMemEval and LoCoMo: with an open-source 20B backbone it lifts overall accuracy from 39.0\% to 83.6\% over a full-context baseline on LongMemEval and from 75.78\% to 85.67\% on LoCoMo, and with larger backbones reaches 91.4\% and 89.61\% respectively, matching or surpassing prior memory systems and frontier-backed full-context baselines.
+
+\end{enumerate}

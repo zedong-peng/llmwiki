@@ -1,0 +1,42 @@
+\section{Introduction}
+Transformers are the foundational deep learning architecture behind many recent successes in diverse fields such as natural language processing, speech, computer vision, biology, and more. They incorporate a Softmax-based all-to-all "Attention" mechanism (Regular Attention) between input tokens \cite{Vaswani2017-vf}. While this mechanism has proven to be extraordinarily effective in learning tasks, it has a time and memory complexity of $O(N^2D)$ and $O(N^2+ND)$ respectively, where $N$ is the number of tokens and $D$ the dimension per attention head. Efficient hardware implementation can offer constant speedup, and significant memory reduction, and a notable example is the widely used FlashAttention-2~\cite{dao2024flashattention,dao2022flashattention}, where the memory complexity is reduced to $O(ND)$, but the time complexity remains $O(N^2D)$. With industrial models trending towards increasingly large sequence lengths ($N=10^7$ in Llama4\footnote{\url{https://ai.meta.com/blog/llama-4-multimodal-intelligence/}}), the growing ubiquity of Transformers in generative AI, and the significant interest in deploying large language models on computationally limited devices such as smartphones, the search for efficient attention mechanisms is a crucial area of research.
+
+
+\par One promising avenue for an efficient attention implementation is the linear attention (LA) mechanism, also known as Kernel Separation. This approach calculates the all-to-all attention with a time complexity of $O(ND^2)$ by employing a linear attention kernel ($a+bx$) instead of the exponential softmax kernel ($\exp{x}$) employed in Regular Attention, and has been shown in previous work to achieve comparable results on various benchmarks. The motivation for LA stemmed from observing the mathematical similarities between Recurrent Neural Networks (RNNs) and Transformers when using a linear attention kernel~\cite{pmlr-v119-katharopoulos20a}. While both RNNs and LA-based Transformers could theoretically yield the same results, RNNs suffer from limited parallelization due to their sequential nature, whereas Transformers are inherently highly parallelizable. Recent work~\cite{yang2023gated} has explored improving the parallelization of LA within RNNs through I/O-aware implementation. Furthermore, several studies suggest that LA can be computed in linear time using the Transformer architecture itself~\cite{han2023flatten, cai2022efficientvit, zhang2024hedgehog, wangLinformerSelfAttentionLinear2020, shen2021efficient} and accelerated with Speculative Decoding~\cite{you2024linear}. However, these approaches often underperform their RNN counterparts due to a lack of efficient GPU kernel implementation. Appendix~\ref{app:rnn} provides a discussion on the difference of RNN and Transformer-based approaches.
+
+Another line of research proposes combining LA with Regular Attention, where some of the attention layers compute attention over a limited window of $\sqrt{N}$ adjacent tokens, while others apply LA across all tokens~\cite{Qin2022-mp, qin2023transnormerllm, qin2024lightning}. Table~\ref{tab1} provides a summary of several approaches. Other approaches aimed at efficient attention include hierarchically-nested attention~\cite{ma2021luna}, the use of $\cos{x}$ as the attention kernel~\cite{qin2022cosformer}, approximating Regular Attention with the fast multipole method~\cite{FMMformer}, attending to a sparse set of tokens per layer~\cite{zaheerBigBirdTransformers2021, zhouInformerEfficientTransformer2020}, and projecting tokens into a lower-dimensional subspace~\cite{yu2023whitebox,singhania2024loki}. However, these alternative methods have not yet achieved the same level of practical success as Linear Attention. Further, they also lack the highly optimized GPU implementations that regular attention has, and which we seek to provide for the transformer based linear kernel attention in this paper.
+
+\begin{table*}[b]
+\centering
+\renewcommand{\arraystretch}{1.8} 
+\resizebox{0.95\textwidth}{!}{%
+\begin{tabular}{c|c|c|c|c|c}
+\makecell{Mechanism} & Attention Kernel & \makecell{Time\\Complexity} & \makecell{Memory Complexity\\(w. / w.o. causal mask)} & \makecell{Forward-Pass\\Time (ms)} & \makecell{Forward-Pass\\Memory (GB)}\\
+\hline
+Regular Attention & $f(x) = \exp{x}$ & $O(N^2D)$ & $O(N^2+ND)\,\,/\,\,O(N^2+ND)$ & OOM & OOM\\
+\hline
+FlashAttention-2~\cite{dao2024flashattention} & $f(x) = \exp{x}$ & $O(N^2D)$ & $O(ND)\,\,/\,\,O(ND)$ & 100 & 1.5\\
+\hline
+\makecell{Speculative\\Decoding LA~\cite{you2024linear}} & $f(x) = bx$ & $O(ND^2)$ & $O(ND)\,\,/\,\,O(ND^2)$ & OOM & OOM \\
+\hline
+Gated LA~\cite{yang2023gated} & $f(x) = bx$ & $O(ND^2)$ & $O(ND)\,\,/\,\,O(ND)$ & 100 & 5\\
+\hline
+ Our LA & $f(x) = a+bx$ & $O(ND^2)$ & $O(ND)\,\,/\,\,O(ND)$ & 25 & 1.5\\
+\end{tabular}%
+}
+\vspace{-5pt}
+\caption{Comparing the time and memory complexity of attention mechanisms. We achieve $3.3\times$ speedup and $3.6\times$ memory reduction compared to the sota linear attention (LA) implementation Gate LA. The forward-pass time and memory is for a single attention layer with a batch size of $4$, $16$ heads, dimension per head of $128$, token length of $10^4$, and causal mask applied. (OOM = out of memory)}
+\label{tab1}
+\vspace{-10pt}
+\end{table*}
+
+\par Due to the less established nature of LA, its implementation is far less optimized compared to Regular Attention, and leaving considerable room for improvement. Given LA's apparently comparable expressivity on certain problems and its increasing popularity, evidenced by deployable LA LLMs~\cite{minimax2025minimax01scalingfoundationmodels}, enhancing LA implementation efficiency is crucial. Our contribution is as follows:
+\begin{itemize}
+    \item We derive a novel method for calculating the forward and backward-pass of attention layer with LA based on the Transformer architecture in time complexity of $O(ND^2)$ and $O(ND)$ memory (Section~\ref{sec3}). This method aims to enable a parallelized implementation with minimal off-chip memory access.
+    \item We implement the forward and backward-pass on GPU using CUDA, extensively optimizing both data movement and thread scheduling (Section~\ref{sec4}).
+    \item We evaluate our implementation in an isolated setting as a standalone attention layer, and in an end-to-end setting where we train a 1.4 billion parameter LLM. We achieve $3.3\times$ speedup and a $3.6\times$ reduction in memory consumption compared to the state-of-the-art LA implementation~\cite{yang2023gated} on A6000 GPU. 
+\end{itemize}
+
+\par By improving the implementation efficiency of Linear Attention (LA) is critical for its practical adoption, as it directly enables the deployment of large transformer models on resource-constrained platforms like edge devices and mobile hardware. This gain in efficiency democratizes access to advanced AI capabilities by allowing complex models to run effectively on smartphones, embedded systems, and other low-power devices. To elaborate, LA enables faster inference speeds and lower energy consumption, which are essential for real-time applications and battery-powered systems. Moreover, the predictable linear scaling of efficient LA simplifies deployment planning and optimizes batching strategies, making it a viable solution for production environments operating under strict computational budgets.
+
+% This could be particularly beneficial for deploying LLMs on computationally constrained devices such as smartphones, laptops, and edge devices. Our attention module functions as a plug-and-play library, allowing it to replace attention heads in any Transformer architecture, and be integrated into trained Transformers that employ LA.

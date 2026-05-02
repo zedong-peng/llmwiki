@@ -1,0 +1,83 @@
+\section{Method}
+\label{sec3}
+We analyze LA to identify and reuse repeated computation patterns, thereby reducing the computational cost of both the forward and backward-passes. We will demonstrate this process with a causal mask applied; attention without a causal mask follows a similar procedure. Our method and its subsequent implementation are intrinsically linked. The computational pattern we devise is specifically designed to enable a highly parallelized implementation with minimal data movement, as we elaborate in Section~\ref{sec4}.
+
+\subsection{Forward-Pass}
+With $f(x) = a + bx$ as the attention kernel and causal mask applied, the output matrix $\mathbf{O}$ can be broken down to 
+\begin{gather}
+\mathbf{o}_{ij} = \dfrac{\sum_{n=1}^{i}{f(\mathbf{q}_i^T\mathbf{k_n} )\mathbf{v}_{nj}}}{\sum_{n=1}^{i}{f(\mathbf{q}_i^T\mathbf{k_n} )}} = \dfrac{\mathbf{f}_{ij}}{\mathbf{g}_i},\label{div}\\
+\mathbf{f}_{ij} \!= \!\sum_{n=1}^{i}\!\left(a + b\!\sum_{m=1}^{D} \!{\mathbf{q}_{im}\mathbf{k}_{n,m}}\right)\mathbf{v}_{nj},\quad
+ \mathbf{g}_{i} \!= \!\sum_{n=1}^{i}\left(a + b\sum_{m=1}^{D}\!{\mathbf{q}_{im}\mathbf{k}_{n,m}}\right).\label{fijgi}
+\end{gather}
+Changing the summation orders we get
+\begin{align}
+    \mathbf{f}_{ij} = a\sum_{n=1}^{i}{\mathbf{v}_{nj}} + b\sum_{m=1}^{D}{\sum_{n=1}^{i}{\mathbf{q}_{im}\mathbf{k}_{n,m}\mathbf{v}_{nj}}},\quad\quad
+    \mathbf{g}_{i} = a\sum_{n=1}^{i}{1} + b\sum_{m=1}^{D}{\sum_{n=1}^{i}{\mathbf{q}_{im}\mathbf{k}_{n,m}}}.\label{fg}
+\end{align}
+Factorizing the repeated computation we arrive at
+\begin{align}
+    \mathbf{f}_{ij} = x^{(1)}_{ij} + \sum_{m=1}^{D}{\mathbf{q}_{im}x^{(2)}_{ijm}},\quad
+    \mathbf{g}_{i} = y^{(1)}_i + \sum_{m=1}^{D}{\mathbf{q}_{im}y^{(2)}_{im}},\label{fglast}
+\end{align}
+where the $x, y$, are the identified repeated computation patterns and can be derived in linear time as
+\begin{align}
+    x^{(1)}_{1j} = a\,\mathbf{v}_{1j},\quad x^{(1)}_{ij}& = x^{(1)}_{i-1j} + a\,\mathbf{v}_{ij},\nonumber\\
+    x^{(2)}_{1jm} =b\,\mathbf{k}_{1m}\mathbf{v}_{1j},\quad x^{(2)}_{ijm}& = x^{(2)}_{i-1jm} + b\,\mathbf{k}_{im}\mathbf{v}_{ij},\nonumber\\
+    y^{(1)}_i = a\,i, \quad y^{(2)}_{1m} = b\,\mathbf{k}_{1m}, \quad &y^{(2)}_{im} = y^{(2)}_{i-1m} + b\,\mathbf{k}_{im}.\label{xy}
+\end{align}
+\par Equation~\ref{div} requires $O(ND)$ operations, while Equations~\ref{fg} and \ref{xy} both require $O(ND^2)$ operations. Therefore, the overall computational complexity of the forward-pass will be $O(ND^2)$. When using a differentiable programming library such as JAX or PyTorch, all operations must be tracked in the computational graph. Consequently, all intermediate variables from Eq.~\ref{xy} need to be stored, resulting in a high memory consumption of $O(ND^2)$. To reduce the memory consumption and to also improve runtime efficiency, we derive the analytical gradient of the LA attention head and manually implement the backward-pass, instead of relying on these libraries.
+
+\subsection{Backward-Pass}
+\label{custom_gradients}
+\par To maintain an overall linear time scaling during training, the backward-pass must also be calculated with a time complexity of $O(ND^2)$. Let us denote the dot product $\mathbf{q}_{i}.\mathbf{k}_{j}$ as $s_{ij}$, and write the attention $\mathbf{a}$ and output $\mathbf{o}$ with causal mask applied as
+\begin{gather}
+    \mathbf{o}_{ij} = \sum_{n=1}^{i}{\mathbf{a}_{in}\mathbf{v}_{nj}},\quad \mathbf{a}_{in} = \dfrac{f(s_{ij})}{\sum_{m=1}^{i}f(s_{im})} = \dfrac{f(s_{ij})}{\mathbf{g}_{i}},\quad f(x) = a + bx
+\end{gather}
+Taking the derivative with respect to $s_{il}$, we find $\dfrac{\partial\mathbf{o}_{ij}}{\partial s_{il}}$ as
+
+\begin{align}
+    \dfrac{\partial\mathbf{a}_{in}}{\partial s_{il}} &= \begin{cases}\dfrac{b\,(1-\mathbf{a}_{ij})}{\sum_{m=1}^{i}f(s_{im})}, n = l\vspace{5pt
+}\\\dfrac{b\,(-\mathbf{a}_{ij})}{\sum_{m=1}^{i}f(s_{im})}, n\neq l\end{cases}\\
+\dfrac{\partial\mathbf{o}_{ij}}{\partial s_{il}} &= \sum_{n=1}^{i}\dfrac{\partial\mathbf{a}_{in}}{\partial s_{il}}\mathbf{v}_{nj} = \dfrac{b\,(\mathbf{v}_{lj} - \sum_{n=1}^{i}\mathbf{a}_{in}\mathbf{v}_{nj})}{\sum_{m=1}^{i}f(s_{im})} = \dfrac{b}{\mathbf{g}_{i}}(\mathbf{v}_{lj} - \mathbf{o}_{ij}).\label{bound}
+\end{align}
+We now derive the partial derivative with respect to $\mathbf{Q},\mathbf{K},\mathbf{V}$
+\begin{align}
+    \dfrac{\partial\mathbf{o}_{ij}}{\partial \mathbf{q}_{ir}} &= 
+    \sum_{l=1}^{i} \dfrac{\partial s_{il}}{\partial \mathbf{q}_{ir}}\dfrac{\partial\mathbf{o}_{ij}}{\partial s_{il}} = \dfrac{\sum_{l=1}^{i}b\,\mathbf{k}_{l,r}}{\mathbf{g}_{i}}(\mathbf{v}_{lj} - \mathbf{o}_{ij})\\
+    \dfrac{\partial\mathbf{o}_{ij}}{\partial \mathbf{k}_{p,r}} &= 
+     \dfrac{\partial s_{ip}}{\partial \mathbf{k}_{p,r}}\dfrac{\partial\mathbf{o}_{ij}}{\partial s_{ip}} = \dfrac{b\,\mathbf{q}_{ir}}{\mathbf{g}_{i}}(\mathbf{v}_{p,j} - \mathbf{o}_{ij})\\
+    \dfrac{\partial\mathbf{o}_{ij}}{\partial \mathbf{v}_{p,j}} &= \mathbf{a}_{ip} = \dfrac{f(s_{ip})}{\mathbf{g}_{i}}.
+\end{align}
+During the backward-pass, given the gradient of the layer in front $\mathbf{\Omega}$, the gradient of the attention head $\nabla\mathbf{\Psi}$ is calculated as follows
+\begin{align}
+    \nabla_{\mathbf{q}_{ir}}\mathbf{\Psi} &= \sum_{j=1}^{D}\dfrac{\partial\mathbf{o}_{ij}}{\partial \mathbf{q}_{ir}} \mathbf{\Omega}_{ij} = \sum_{j=1}^{D}\dfrac{\sum_{l=1}^{i}b\,\mathbf{k}_{l,r}(\mathbf{v}_{lj} - \mathbf{o}_{ij})}{\mathbf{g}_{i}} \,\mathbf{\Omega}_{ij}\\ 
+    \nabla_{\mathbf{k}_{p,r}}\mathbf{\Psi} &=  \sum_{i=1}^{p}\sum_{j=1}^{D}\dfrac{\partial\mathbf{o}_{ij}}{\partial \mathbf{k}_{p,r}} \mathbf{\Omega}_{ij} = \sum_{i=1}^{p}\sum_{j=1}^{D}\dfrac{b\,\mathbf{q}_{ir}}{\mathbf{g}_{i}}(\mathbf{v}_{p,j} - \mathbf{o}_{ij})\,\mathbf{\Omega}_{ij}\\
+    \nabla_{\mathbf{v}_{p,j}}\mathbf{\Psi} &= \sum_{i=1}^{p} \dfrac{\partial\mathbf{o}_{ij}}{\partial \mathbf{v}_{p,j}} \mathbf{\Omega}_{ij} = \sum_{i=1}^{p}\dfrac{f(s_{ip})}{\mathbf{g}_{i}}\,\mathbf{\Omega}_{ij}
+\end{align}
+Changing the summation order and factorizing the repeated computation we get
+\begin{gather}
+    \nabla_{\mathbf{q}_{ir}}\mathbf{\Psi} =\sum_{j=1}^{D}\alpha_{ijr}^{Q}-\beta_{ir}^{Q}\,\mathbf{o}_{ij}\,\hat{\mathbf{\Omega}}_{ij},\label{back1}\quad\quad
+    \nabla_{\mathbf{k}_{ir}}\mathbf{\Psi} = \sum_{j=1}^{D}\alpha_{irj}^{K}\,\mathbf{v}_{ij} - \beta_{irj}^{K},\\
+    \nabla_{\mathbf{v}_{ij}}\mathbf{\Psi} = \alpha_{ij}^{V} + \sum_{j=1}^{D}\beta_{rj}^{V}\,\mathbf{k}_{ir},\quad\quad
+    \hat{\mathbf{\Omega}}_{ij} = \dfrac{\mathbf{\Omega}_{ij}}{\mathbf{g}_{i}}.\label{back2}
+\end{gather}
+where the $\alpha$ and $\beta$ are the factorized coefficients and are defined as
+\begin{gather}
+    \alpha_{1jr}^{Q} = b\,\mathbf{k}_{1r}\,\mathbf{v}_{1j},\quad \alpha_{ijr}^{Q} = \alpha_{i-1jr}^{Q} + b\,\mathbf{k}_{ir}\,\mathbf{v}_{ij},\nonumber\\
+    \beta_{1r}^{Q} = b\,\mathbf{k}_{1r},\quad \beta_{ir}^{Q} = \beta_{i-1r}^{Q} + b\,\mathbf{k}_{ir},\nonumber\\
+    \alpha_{Nrj}^{K} = b\,\mathbf{q}_{Nr}\,\hat{\mathbf{\Omega}}_{Nj},\quad \alpha_{irj}^{K} = \alpha_{i+1rj}^{K} + b\,\mathbf{q}_{ir}\,\hat{\mathbf{\Omega}}_{ij},\nonumber\\
+    \beta_{Nrj}^{K} = b\,\mathbf{q}_{Nr}\,\mathbf{o}_{Nj}\,\hat{\mathbf{\Omega}}_{Nj},\quad \beta_{irj}^{K} = \beta_{i+1rj}^{K} + b\,\mathbf{q}_{ir}\,\mathbf{o}_{ij}\,\hat{\mathbf{\Omega}}_{ij},\nonumber\\
+    \alpha_{Nj}^{V} = a\,\hat{\mathbf{\Omega}}_{Nj},\quad \alpha_{Nj}^{V} = \alpha_{i+1j}^{V} + a\,\hat{\mathbf{\Omega}}_{ij},\nonumber\\
+    \beta_{Nrj}^{V} = b,\ \mathbf{q}_{Nr}\,\hat{\mathbf{\Omega}}_{Nj},\quad \beta_{irj}^{V} = \beta_{i+1rj}^{V} + b,\ \mathbf{q}_{ir}\,\hat{\mathbf{\Omega}}_{ij}.\label{endd}
+\end{gather}
+
+
+\par Put into words, gradient of the output matrix $\mathbf{O}$ can be calculated by storing $\mathbf{Q}$, $\mathbf{K}$, $\mathbf{V}$, $\mathbf{O}$, and $\mathbf{g}_i$; resulting in a reduced memory consumption of $O(ND)$ elements. The time complexity is $O(ND^2)$ since we perform $O(D)$ operations for $1\leq i\leq N,\,1\leq j\leq D$ in Equation~\ref{endd}, which is the same time complexity as the forward-pass. 
+
+\subsection{Normalization}
+It has been suggested \cite{Qin2022-mp} that the lack of expressivity in other subquadratic attention mechanisms rises due to the possibility of their gradients either blowing up or vanishing. To prevent such behavior, we recommend normalizing the query and key vectors before the attention calculation. To be specific, given $\mathbf{Q}$ and $\mathbf{K}$, we first normalize $\mathbf{Q}$ and $\mathbf{K}$ row-wise as
+\begin{gather}
+    \mathbf{q}_i = \dfrac{\mathbf{q}_i}{||\mathbf{q}_i||}, \quad \mathbf{k}_i = \dfrac{\mathbf{k}_i}{||\mathbf{k}_i||}, \quad \forall 1 \leq i \leq N.
+\end{gather}
+
+

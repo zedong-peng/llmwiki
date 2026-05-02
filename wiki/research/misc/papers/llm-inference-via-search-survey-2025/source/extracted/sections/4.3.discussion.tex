@@ -1,0 +1,131 @@
+\section{Discussion}
+\label{sec:discussion}
+In this section, we analyze how search frameworks for LLM inference deviate from traditional search algorithms, where they apply according to technical constraints, performance and efficiency.
+
+\subsection{Deviations from Typical Search Algorithms}
+% In this section, we discuss the deviations LLMs bring to search algorithms.
+% \paragraph{Search algorithms without simulation becomes more applicable}
+
+\paragraph{Beyond Finite, Fixed Search Spaces}
+Classical BFS or DFS typically requires enumerating all successors at each depth, which can lead to massive memory usage in large or infinite search spaces. By contrast, \textbf{LMPP sampling} (based on LLM priors) can manage successor expansions more selectively, reducing the need to store every possibility at each level. Also, it is possible to handle tasks with an open and infinite action space.
+% \begin{remark}[Beyond Structured Problem Space]
+%     In a structured problem, the states are explicitly defined and discrete. Each state represents a specific, recognizable configuration of the elements involved in the search space. For example, in the 8-puzzle (a sliding tile puzzle), each arrangement of the tiles is a distinct state.
+
+%     However, ToT and its variants do not require clear definition of states which are discrete or enumerable; any paragraph, sentence, or idea could be considered a "state".
+% \end{remark}
+
+\paragraph{Making ``Uninformed'' Search Informed}
+Traditionally, BFS and DFS are considered \emph{uninformed}, exploring the search space without heuristics. LLM-based frameworks labeled as BFS or DFS often incorporate \textbf{LMPP sampling} or \textbf{LMPE+ evaluation}, effectively introducing heuristic knowledge from the LLM.
+% Therefore, ``BFS'' in an LLM context may function more like a \emph{priority BFS}, where some states are chosen preferentially based on LLM-informed criteria.
+Moreover, \textbf{anticipating dead ends} in DFS is feasible with LLM-based heuristics. Classic DFS only identifies dead ends when it exhausts neighbor nodes. With an LLM, the search can backtrack early if the model predicts an unpromising or “dead-end” scenario.
+% What is Dead End?
+% When a dead end is hit, backtrack occurs and another path will be explored
+% while BFS typically avoids dead ends by design through its breadth-level search pattern since the algorithm is complete with the guarantee to find the shortest path (in an unweighted graph) 
+
+\paragraph{Compromised Optimality in A*}
+A* requires an \emph{admissible} heuristic \(h(s)\) to guarantee optimality. However, if \(h(s)\) partially depends on a policy-generated state \(s_\text{llm}\) from \(\text{lmpr}_\text{policy}\), the heuristic may be overestimated. This breaks admissibility assumptions, meaning the final solution may no longer be strictly optimal.
+
+\paragraph{Terminology Deviation for Heuristic Search: Cost vs. Return/Value}
+Many early applications of search algorithms, such as Best-First Search and A*, focused on minimizing quantities like distance, travel time, or energy expenditure. Generally, the cost-based evaluation can be considered as minimization objectives or eliminating ``bad'' states (or unpromising actions).
+However, in modern applications involving LLM-integrated search, such as web navigation or document retrieval, heuristics often reflect \textit{value estimates} (positive polarity), especially when LLMEs tend to be defined to reflect the relevance or utility of states, which are better suited for maximization objectives or maintaining ``good'' states (or promising actions).
+% Relaxed definitions
+We highlight this point for rigidity. However, these terms can be abstractly defined without indicating real-world semantics. For example, in game design, moving to a node which end up losing a life point can be given a negative reward, while a reward from gaining a key can be granted as a negative cost.
+
+\paragraph{\red{RL vs. LMPE-Based Value Functions}}
+\red{In traditional RL, the value function is rigorously defined via the Bellman equation as the expected cumulative future reward (or cost) that one can obtain starting from a given state. This formulation inherently accounts for the uncertainty of future outcomes by computing a weighted average of rewards over all possible future trajectories \citep{sutton2018reinforcement}.}
+
+\red{In contrast, when LLMs are used in tree search, the ``value'' assigned to a node is often generated based on the model’s world knowledge and reasoning  \citep{yao2023tree}. This evaluation serves as a heuristic and is derived from the LLM’s internalized representations rather than being computed from a strict, recursive future-reward formulation. As a result, while both the RL value and the LLM-based evaluation score aim to measure the ``goodness'' or utility of a state, the latter does not necessarily adhere to the Bellman property \citep{bellman1966dynamic,watkins1989learning}.}
+
+\subsection{Applicability}
+
+%%%%% Uniformed Search
+\paragraph{Extending Uninformed Search to Dynamic Decision-Making}
+BFS and DFS were originally designed to explore predefined or easily generated state spaces (e.g., enumerating all children in a graph). This can be: \textbf{1) No Need for Transition}: Traditional implementations of DFS and BFS do not require an explicit, computed transition model because they inherently rely on the graph structure where edges already define state transitions. For example, one task is to solve a maze.
+\textbf{2) Only Successor Function}: In some applications, especially in implicit state-space search, a minimal form of transition function (or successor function) is still required to generate successors when the full graph is not explicitly available. 
+
+However, when applied to LLM inference, they can be adapted for:
+\textbf{3) Tasks That Require Dynamic Decision-Making}: These tasks are based on state-dependent actions (as seen in planning or reinforcement learning), e.g., solving the Game of 24 and completing crossword puzzles.
+
+% Typically under Deterministic Transition
+% When put into MDP definitions, BFS (breath) and DFS are typically designed for deterministic environments (e.g., pathfinding), where the outcome of each action is predictable and has no randomness involved. It is reflected on the transition:
+% \begin{equation}
+% T(s' \mid s, a) = 
+% \begin{cases} 
+% 1, & \text{if } s' \text{ is the determined outcome of } (s, a), \\
+% 0, & \text{otherwise}
+% \end{cases}
+% \end{equation}
+
+% These trees built via BFS and DFS are not considered planning algorithms because they lack predictive modeling components?
+%%%%%
+
+%%%%% Informed and Uninformed Search
+% \paragraph{Deliberate Use for Creative Tasks}
+% A*, BFS, DFS, and Best-First Search are generally applied to tasks that require solutions to meet strict validity criteria within well-defined constraints, such as physical robotic actions, pathfinding, or game moves (e.g., chess).
+
+% open-ended or creative tasks like article writing
+%%%%% 
+
+% TODO1: closed-loop; open-loop; along with the following paragraph, add a separate section to "task applicability" connecting task section and search section
+% \paragraph{Open-Loop Frameworks for Static Environment with Deterministic Transitions vs. Closed-Loop Frameworks for Dynamic Environments}
+\paragraph{Open-Loop vs.\ Closed-Loop Frameworks}
+This property is important to discuss the applicability of frameworks for planning.
+\textbf{1) Open-Loop (Offline)}: After executing $a_t$, the open-loop agent does not adapt its future actions based on the actual new state. Instead, it continues to follow a pre-planned sequence of actions, which are based on the simulated state during planning.
+For example,
+ToT-DFS and ToT-BFS \citep{yao2023tree} produce a predefined sequence of actions based on a search through a static search tree or graph. This sequence is intended to be executed exactly as planned.
+Ideally, open-loop planning requires that the environment will remain as anticipated throughout the execution. Such environments satisfies the following assumptions: 
+a) environments are static, 
+b)(no unforeseen events or changes will affect the execution (closed-world assumption), and 
+c) deterministic transitions.
+\textbf{2) Closed-Loop (Online)}:
+In contrast, after the closed-loop agent executes an action $a_t$, it observes the outcome in the real world (i.e., the resulting state) and can adjust its future action $a_{t+1}$ based on the new state $s_{t+1}$. The plan evolves dynamically as new information becomes available.
+MCTS-based frameworks, except for LATS \citep{zhou2024language}, can be open-loop because it generates a sequence of actions based on simulations and a static model of the environment at a given state. 
+However, the agent can operate in a closed-loop manner if MCTS is re-run at each new state:
+after a plan is generated for $s_t$, only $a_t$ is selected and executed. Instead of executing the rest $a_{t+1}, \ldots$, the agent re-runs MCTS from the new state $s_{t+1}$ to determine the next best action $a_{t+1}$.
+These frameworks are suitable for task execution in dynamic and interactive environments.
+
+\paragraph{\red{Many LIS Frameworks Requires Action Undoing}}
+\red{In many LIS frameworks, the agent has to revisit earlier states, including
+backtracking to an ancestor node in DFS \citep{yao2023tree}, selecting the next best candidate in Best-first search \citep{koh2024tree}, or retracing your steps after an environment-based simulation in MCTS \citep{zhou2024language}. Each of these processes relies on being able to recover the state reached by previous actions.
+This limits their applicability to environments where undoing actions is viable, as specified in Table~\ref{tab:task_unification}.}
+
+\subsection{Performance}
+Scaling test-time compute via search has generally enhanced the LLMs' power to a new level on reasoning tasks. \red{Nonetheless, there remain certain scenarios where performance is still suboptimal.}
+
+\paragraph{\red{Search Frameworks Perform Worst in Multiple Scenarios} } 
+\red{Empirical studies by \citet{parashar2025inference} also indicate that ToT and RAP perform even worse than CoT and self-consistency in various language reasoning tasks. Also, as demonstrated by \citet{snell2025scaling}, if a base LLM can already produce reasonable answers for simple questions, then sequential revision suffices to ensure performance, offering an efficient alternative to more complex re-ranking methods and search methods.}
+
+\paragraph{MCTS May Degenerate in Early Stages}
+\citet{chen-etal-2024-tree} observe that if all candidate steps receive equal (or zero) scores initially, MCTS lacks a clear basis for distinguishing among branches, potentially leading to suboptimal partial-plan selection.
+The performance is worse than iterative refinement \citep{madaan2023self}.
+
+
+\subsection{Efficiency}
+
+\paragraph{Compute and \red{Memory Efficiency}}
+As noted by \citet{chen-etal-2024-tree}, tree search can be 10--20 times slower than iterative refinement, especially if the evaluator (LMPE) has less than 90\% discrimination accuracy. High-accuracy LMPEs are essential to prune the search tree effectively, thereby reducing the number of iterations needed.
+\red{Long-horizon tasks can become particularly expensive when each LLM inference call is executed independently, despite many calls sharing identical prefixes. By leveraging Key-Value (KV) caching, both computational and memory overhead in transformer-based LLMs can be significantly reduced. \citet{yao2025deft} propose a tree attention, which leverage tree topology to reduce memory IO with tree-structured KV caches.}
+
+
+
+% \paragraph{LMPP Use in Some Frameworks Can Be Unnecessary}
+% Although exhaustive action retrieval is possible for expansion for some tasks, some frameworks (e.g., ToT), by design, always use LMPP expansion, even for games with small action space, such as Game of 24. This leads to less inference cost for evaluation. However, the potential cost of using LMPP sampling should be considered for whether the total inference cost is reduced. This obviously depends on specific tasks.
+
+\paragraph{LMPP Expansion and Path Simulation with Memory}
+Finally, maintaining a memory of explored nodes can avoid repeated sampling and simulation. If a given state \(s\) has already produced certain actions, those child nodes can be cached for subsequent expansions. Similarly, for simulation, previously simulated results can be stored for future simulation. By reusing these cached outcomes, the framework reduces redundant calls to LMPP or LMPT, thereby improving both inference cost.
+
+% The current expansion procedure (Procedure~\ref{alg:expansion}) omits explicit caching. 
+% Including a memory mechanism could further optimize performance, particularly for repetitive search spaces.
+
+\paragraph{Unnecessary LMPP Use in Some Cases}
+Some tasks possess a small, tractable action space (e.g., the Game of 24). In such scenarios, \emph{exhaustive} action retrieval may be cheaper than performing multiple LMPP inferences. Designers must weigh the inference costs of LMPP against potential benefits, as LLM-based sampling can be expensive relative to enumerating a finite set of actions. The potential cost of the following LMPE+ evaluation should also be considered.
+
+
+\subsection{\red{Future Work}}
+\paragraph{\red{Parallel Research on LLMs' Competence and Test-Time Computation} } 
+\red{Rather than relying on intensive test-time computation, optimization frameworks—such as Chain of Preference Optimization \citep{zhang2024chain}—have been proposed to train LLMs to develop tree-like reasoning, thereby reducing the need for real-time deliberation. In parallel with investigating the impact of base models and LMPRs on performance, further research is needed to both enhance LLMs’ capacity for autonomous multi-path thinking and identify complex tasks which most benefit from deliberate search during test-time computation.}
+
+\paragraph{\red{Devising Frameworks for Handling Irreversible Actions}}
+\red{Many prominent LIS frameworks do not incorporate mechanisms for managing irreversible actions. Instead, they circumvent this issue by working in simplified task environments where the effects of actions can be virtually simulated. For example, Tree of Thoughts (ToT)~\citep{yao2023tree} focuses on language reasoning, while \citet{koh2024tree} studies web navigation scenarios that involve only reversible actions. This approach is in line with abstract search methods (e.g., DFS or Best-first search on a graph), where action outcomes are computed via deterministic transition functions, eliminating the need to physically execute or reverse actions.}
+
+

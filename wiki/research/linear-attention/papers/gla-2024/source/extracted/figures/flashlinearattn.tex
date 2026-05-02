@@ -1,0 +1,156 @@
+\begin{figure}[t]
+%
+\centering  
+		\resizebox{\columnwidth}{!}{  
+\begin{tikzpicture}
+\scalefont{1.4} %
+\begin{axis}[%
+name=plot1,
+title={Running speed},
+scatter/classes={%
+1={mark=diamond*,draw=black},
+0={mark=o,draw=black}},
+%
+legend style={at={(5.5,-1.6)},   
+                anchor=north,legend columns=2,
+                column sep=0cm,
+                font=\normalsize,
+                row sep=0cm
+                },     
+    legend cell align=left,
+    tick label style={font=\large},
+    label style={font=\large},
+legend to name={mylegend},
+			ymajorgrids=true, %
+			xmajorgrids=true, %
+			grid style=dashed, %
+xmode=log,
+ymode=log,
+log basis x={2},
+ylabel={Time (ms)},
+xlabel={Sentence length},
+%
+%
+%
+%
+width=8cm,
+height=6cm,
+every axis plot/.append style={ultra thick}
+]
+\addplot[smooth,bcyan,tension={0.15}]
+coordinates{
+            (512,0.9)
+            (1024,2.0)
+            (2048,6.1)
+            (4096,20.6)
+            (8192,76.3)
+            (16384,291.4)
+            (32768,1160.3)
+            };
+\addplot[smooth,bgreen,tension={0.15}]
+coordinates{
+            (512,0.9)
+            (1024,1.3)
+            (2048,2.6)
+            (4096,5.2)
+            (8192,10.2)
+            (16384,20.6)
+            (32768, 40.8)
+            };
+\addplot[smooth,borange,tension={0.15}]
+coordinates{
+            (512,0.9)
+            (1024,1.8)
+            (2048,3.6)
+            (4096,7.0)
+            (8192,13.9)
+            (16384,27.8)
+            (32768, 54.5)
+            };
+\addplot[smooth,bred,tension={0.15}]
+coordinates{
+            (512,1.99)
+            (1024,3.96)
+            (2048,7.91)
+            (4096,15.71)
+            (8192,30.92)
+            (16384,61.79)
+            (32768, 122.55)
+            };
+\legend{FlashAttention-2 (CUDA), FlashLinearAttention (\textit{w/ m.} Triton),  FlashLinearAttention (\textit{w/o m.} Triton), Chunkwise Linear Attention (Pytorch) }
+\end{axis}  
+\begin{axis}[%
+at={(plot1.south east) },
+title={Memory footprint},
+scatter/classes={%
+1={mark=diamond*,draw=black},
+0={mark=o,draw=black}},
+%
+xmode=log,
+ymode=log,
+    ylabel near ticks, yticklabel pos=right,
+log basis x={2},
+log basis y={2},
+    tick label style={font=\large},
+    label style={font=\large},
+ylabel={GPU memory (GB)},
+xlabel={Sentence length},
+			ymajorgrids=true, %
+			xmajorgrids=true, %
+			grid style=dashed, %
+%
+%
+%
+%
+width=6cm,
+height=6cm,
+    every axis plot/.append style={ultra thick}
+]
+\addplot[smooth,bcyan,tension={0.15}]
+coordinates{
+%
+(1024, 0.6289067268371582)
+(2048, 1.2578129768371582)
+(4096, 2.515625476837158)
+%
+%
+%
+};
+\addplot[smooth,bgreen,tension={0.15}]
+coordinates{
+%
+(1024, 0.6875)
+(2048, 1.375)
+(4096, 2.75)
+%
+%
+%
+};
+\addplot[smooth,borange,tension={0.15}]
+coordinates{
+%
+(1024, 0.5625)
+(2048, 1.125)
+(4096, 2.25)
+%
+%
+%
+};
+\addplot[smooth,bred]
+coordinates{
+%
+(1024, 0.8125)
+(2048, 1.5625)
+(4096, 3.0625)
+%
+%
+%
+};
+\end{axis}  
+\ref{mylegend}
+\end{tikzpicture}   
+}
+\vspace{-6mm}
+\caption{Speed comparison on a single H100 GPU with batch size 32, number of heads 16, head dimension 64, and chunk size 64. Both x- and y-axes are on log scale. \textit{w/ m.} and \textit{w/o m.} denotes using \textsc{FlashLinearAttention} \textit{with} or \textit{without materialization} of hidden states in HBM.}\label{fig:flashlinearattn}
+\end{figure}
+

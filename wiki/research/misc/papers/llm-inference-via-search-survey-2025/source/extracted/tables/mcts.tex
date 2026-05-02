@@ -1,0 +1,58 @@
+\begin{algorithm*}
+\caption{MCTS for LLM-based Planning. Details are ignored for the following procedures: one at a pass or all at a pass for \textsc{Sample\_Actions} } 
+\label{alg:llm_mcts}
+\small
+\textbf{Input}: Initial state $s_1$, Number of roll-outs $K$, Depth limit $L$, action sampling size $N$, LLM-Profiled Roles: $\text{glm}_\text{actor}$, 
+$\text{Simulator}$ (e.g., $\text{glm}_\text{transition}$), $\text{glm}_\text{eval}$ \\
+\textbf{Output}: action $a$
+
+% Begin two-column layout inside full-width algorithm
+\noindent
+\begin{minipage}[t]{0.48\textwidth}
+    \begin{algorithmic}[1]
+        \For{$k \in \{0, \ldots, K-1 \}$}
+        \For{$t \in \{0, \ldots, L-1 \}$}
+            \If{$s_t$ not terminal}
+                \State $\mathbf{a}_t^{(0\ldots N)}$ $\gets$ \Call{Sample\_Actions}{$s_t, N$}                  
+                \State $\mathbf{s}_{t+1}^{(0\ldots N)}$ $\gets$ \Call{Simulate}{$a_t, s_t$} 
+
+                \State Add $\mathbf{s}_{t+1}^{(0\ldots N)}$ to children
+                
+                \State $V_t^{(0\ldots N)} \gets$ \Call{Evaluate}{$\mathbf{a}_t$}
+            \EndIf
+        \EndFor
+        \EndFor
+        \State \textbf{return} $a$
+
+        \Procedure{Evaluate}{$\mathbf{s}_t$, $\mathbf{a}_t$} 
+        % State-action value function
+        \State $\mathbf{a}_t \sim \text{glm}_\text{actor} \left(\mathbf{a} \mid s_t \right)$
+        \State \textbf{return} $\mathbf{a}_t$
+        \EndProcedure
+    \end{algorithmic}
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.48\textwidth}
+    \begin{algorithmic}[1]
+    \Procedure{Search}{$h, b, \mathcal{T}, N$}
+            \State $n \gets 0$
+            \While{$n < N$}
+                \State $s \sim b(s)$
+                \State \textsc{Simulate}($s, h, \text{False}, 0, \mathcal{T}$)
+                \State $n \gets n + 1$
+            \EndWhile
+            \State \textbf{return} $\arg \max_{a \in A} Q(h, a)$
+        \EndProcedure
+        \Procedure{Rollout}{$s, h, \text{done}, d$}
+            \If{$\gamma^d < \epsilon$ or $\text{done} = \text{True}$}
+                \State \textbf{return} 0
+            \EndIf
+            \State $a \sim \pi_\text{rollout}(h, \cdot)$
+            \State $(s', o, r, \text{done}) \sim \mathcal{G}(s, a)$
+            \State $h' \gets \textsc{PushBack}(h, [a^*, o]), d' \gets d + 1$
+            \State \textbf{return} $r + \gamma \cdot \textsc{Rollout}(s', h', \text{done}, d')$
+        \EndProcedure
+    \end{algorithmic}
+\end{minipage}
+% End of two-column layout inside full-width algorithm
+\end{algorithm*}

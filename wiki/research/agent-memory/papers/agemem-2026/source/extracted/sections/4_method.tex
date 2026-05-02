@@ -1,0 +1,141 @@
+\section{Method}
+
+We propose \textit{Agentic Memory (AgeMem)}, a unified memory framework that enables LLM agents to autonomously manage both LTM and STM in an end-to-end manner. 
+As illustrated in Figure~\ref{fig:framework} (right), AgeMem integrates memory management capabilities directly into the agent via a set of specialized tools, enabling the model to learn optimal strategies for unified memory management through three-stage progressive strategy.
+
+\subsection{Problem Formulation}
+\label{sec:problem_formu}
+
+% We formulate unified memory management for LLM-based agents as a reinforcement learning problem under a Markov Decision Process (MDP).
+
+\textbf{Unified RL formulation for AgeMem.} At each time step $t$, the agent observes a state $s_t \in \mathcal{S}$ composed of the conversation context (short-term memory) $C_t$, the long-term memory store $\mathcal{M}_t$, and the task specification $\mathcal{T}$: $s_t = (C_t, \mathcal{M}_t, \mathcal{T})$.
+The specification $\mathcal{T}$ includes the input query $q$, contextual information $I_q$, and (for training only) the expected answer $A_q$. This formulation enables the agent to ground its decision-making in both transient context and persistent knowledge.
+
+Given $s_t$, the agent selects an action $a_t \in \mathcal{A}$ from a hybrid action space that includes language generation as well as memory operations. The decision is governed by a parameterized policy $\pi_\theta$, defined as 
+$\pi_\theta(a_t | s_t) = P(a_t | s_t; \theta)$,
+where $\theta$ denotes the LLM parameters and $a_t = \pi_\theta(\cdot|s_t)$.
+For a trajectory $\tau = (s_1, a_1, \ldots, s_T, a_T)$, the cumulative reward is defined as:
+\begin{equation}
+R(\tau) = \sum w_i \cdot R_i\left(\tau\right) + P_{\text{penalty}}(\tau),
+\end{equation}
+where $R_i$ captures task performance and memory quality, and $P_{\text{penalty}}$ discourages redundant storage, excessive tool usage, and uncontrolled context expansion. The optimization objective is:
+\begin{equation}
+\theta^{*} = \arg\max_{\theta} \mathbb{E}_{\tau \sim \pi_\theta} [ R(\tau) ].
+\end{equation}
+This formulation treats memory management as an integral component of the agent’s policy, replacing handcrafted heuristics with a learnable mechanism.
+\\
+\textbf{Three-stage trajectory structure.} To capture long-horizon interactions and progressively train memory capabilities, each trajectory is divided into three consecutive stages: $\tau = (\tau^{(1)}, \tau^{(2)}, \tau^{(3)}),$
+with a total length of $T = T_1 + T_2 + T_3$. In Stage~1, the agent engages in casual interactions and may store useful information into LTM. Stage~2 introduces distracting or irrelevant content, requiring the agent to manage its STM through selective retention and compression. Stage 3 presents a task that depends on coordinated use of both retained context and earlier accumulated LTM. A key aspect of this design is that the long-term memory $\mathcal{M}_t$ persists across all stages, allowing early knowledge to influence later decisions. In contrast, the context $C_t$ is reset between Stages 1 and 2 to prevent information leakage across phases. The reset before Stage 2 ensures the agent cannot solve the final task via residual context, thereby forcing proper retrieval from LTM and enabling effective training of memory operations.
+
+At each step, we collect an experience tuple $e_t = (s_t, a_t, r_t, \log \pi_{\theta_{\text{old}}}(a_t | s_t))$,
+where $r_t$ is typically zero for intermediate steps and assigned after trajectory completion, and $\log \pi_{\theta_{\text{old}}}(a_t | s_t)$ denotes the $log$ probability under the old policy $\pi_{\theta_{\text{old}}}$. This representation enables step-wise credit assignment under GRPO~\citep{shao2024deepseekmath} and allows the agent to attribute long-term rewards to specific memory decisions across stages. By structuring trajectories in this staged yet continuous manner, the agent learns temporally coherent and task-adaptive memory policies essential for robust long-horizon reasoning.
+
+
+\subsection{Memory Management via Tool Interface}
+
+AgeMem exposes memory-related operations to the LLM agent through an explicit tool interface (Table~\ref{tab:tools}). The agent can modify its persistent LTM using \textsc{Add}, \textsc{Update}, and \textsc{Delete}, while exercising fine-grained control over STM through \textsc{Retrieve}, \textsc{Summary}, and \textsc{Filter}. Incorporating these tools into the action space transforms memory control from an external heuristic pipeline into an intrinsic component of decision-making. This design allows the agent to adaptively manage memory according to task structure, history, and context. Implementation details are provided in the Appendix~\ref{app:tools}.
+
+\begin{table}[t]
+\centering
+\caption{Memory management tools in AgeMem for manipulating long-term memory (LTM) and short-term memory (STM).}
+\label{tab:tools}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Tool} & \textbf{Target} & \textbf{Function} \\
+\midrule
+\textsc{Add}      & LTM & Add new knowledge to $\mathcal{M}_t$ \\
+\textsc{Update}   & LTM & Modify entries in $\mathcal{M}_t$ \\
+\textsc{Delete}   & LTM & Remove entries from $\mathcal{M}_t$ \\
+\midrule
+\textsc{Retrieve} & STM & Retrieve entries from $\mathcal{M}_t$ to $C_t$ \\
+\textsc{Summary}  & STM & Summarize segments in $C_t$ \\
+\textsc{Filter}    & STM & Filter out irrelevant segments from $C_t$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\subsection{Three-Stage Progressive RL Strategy}
+
+To learn unified and stable memory behaviors, we propose a progressive three-stage training strategy. 
+For each task instance $q \in \mathcal{T}$, the agent generates a complete trajectory:
+\begin{equation}
+\tau_k^{(q)} = \big(\tau_k^{(1)}, \, \tau_k^{(2)}, \, \tau_k^{(3)}\big), \quad k = 1, \dots, K,
+\end{equation}
+where $K$ denotes the number of independent rollouts, and each sub-trajectory $\tau_k^{(i)}$ corresponds to a specific training stage. 
+\\
+\textbf{Stage~1 (LTM construction).}  
+The agent is exposed to contextual information $I_q$ in a casual conversational setting. 
+The goal is to identify salient information and store it into LTM $\mathcal{M}_t$. 
+During the interaction, the short-term context $C_t$ evolves naturally, and the agent may invoke LTM-related tools when appropriate.
+Formally, this stage yields a sub-trajectory $\tau_k^{(1)} = \{e_t\}_{t=1}^{T_1}$,
+where each experience tuple $e_t$ follows the definition in Section~\ref{sec:problem_formu}.
+\\
+\textbf{Stage~2 (STM control under distractors).}  
+The short-term context is reset, while the constructed LTM $\mathcal{M}_t$ is retained. The agent is then presented with semantically related but irrelevant or misleading distractors. 
+The objective is to learn proactive STM control through tool-based operations, such as filtering or summarizing context, in order to suppress noise and preserve useful information.
+This process forms the sub-trajectory $\tau_k^{(2)} = \{e_t\}_{t=T_1+1}^{T_1+T_2}$,
+which emphasizes context filtering and compression capability.
+\\
+\textbf{Stage~3 (Integrated reasoning and memory coordination).}  
+Finally, the agent receives a formal query $q$ requiring both accurate reasoning and effective memory retrieval. 
+The agent must retrieve relevant knowledge from $\mathcal{M}_t$, appropriately manage the context $C_t$, and generate a final answer.
+This stage produces $\tau_k^{(3)} = \{e_t\}_{t=T_1+T_2+1}^{T}$,
+which evaluates the ability of agent to coordinate long-term memory, short-term context management, and task solution in an end-to-end manner.
+
+All three segments form a complete trajectory:
+\begin{equation}
+    \tau_k^{(q)}=(e_1, e_2, \ldots, e_T),\quad T = T_1 + T_2 + T_3,
+\end{equation}
+which is then used for policy optimization in the subsequent step-wise GRPO procedure. For a batch of $B$ tasks, we further aggregate all experiences from $K$ independent rollouts into a unified set $\mathcal{E} = \bigcup_{q=1}^{B} \bigcup_{k=1}^{K} \{ e_t \mid e_t \in \tau_k^{(q)} \}$, with a total size of $|\mathcal{E}| = B \times K \times \bar{T}$, where $\bar{T}$ denotes the average trajectory length. More detailed rollout processes are provided in the Appendix~\ref{app:algorithm}.
+
+\subsection{Step-wise GRPO for Unified Management}
+
+We adopt a step-wise variant of GRPO to connect long-range task rewards with memory decisions across all stages.
+For task $q$, let $G_q = \{\tau_1^{(q)},\ldots,\tau_K^{(q)}\}$ denote the group of parallel rollouts.
+Each trajectory yields a terminal reward $r_T^{(k,q)} = R(\tau_k^{(q)})$. We compute the group-normalized advantage for the terminal step as:
+\begin{equation}
+    A_T^{(k,q)} = \frac{r_T^{(k,q)} - \mu_{G_q}}{\sigma_{G_q} + \epsilon},
+\end{equation}
+where $\mu_{G_q}$ and $\sigma_{G_q}$ are the mean and standard deviation of rewards within $G_q$, $\epsilon$ prevents division by zero. This advantage is then \emph{broadcast} to all preceding steps of the same trajectory $A_t^{(k,q)} = A_T^{(k,q)}$,
+which assigns a consistent learning signal to all memory and reasoning actions along the trajectory, including those in Stage~1 and Stage~2. 
+In doing so, the final task outcome supervises every intermediate memory decision, enabling long-range credit assignment across heterogeneous stages. We then augment the experience set with advantages, $\mathcal{E} = \bigcup_{q,k}^{B,K} \{ (e_t, A_t) | e_t \in \tau_k^{(q)},A_t=A_t^{(k,q)} \}$. 
+
+Following GRPO, we maximize the expected objective over all experiences:
+\begin{equation}
+\begin{aligned}
+    J(\theta) &= \mathbb{E}_{(e_t, A_t) \sim \mathcal{E}} \big[\rho_t A_t - \beta D_{\text{KL}}[\pi_{\theta}\|\pi_{\text{ref}}] \big] \\
+    &= \frac{1}{|\mathcal{E}|} \sum_{q=1}^{B} \sum_{k=1}^{K} \sum_{t=1}^{T_k^{(q)}} \big[\rho_t^{(k,q)} A_t^{(k,q)} - \beta D_{KL}^{(k,q)} \big],
+\end{aligned}
+\end{equation}
+where the importance ratio 
+$\rho_t^{(k,q)} = \frac{\pi_\theta(a_t| s_t)}{\pi_{\theta_{\text{old}}}(a_t |s_t)}$ 
+controls the update magnitude under the new policy, 
+$D_{\text{KL}}^{(k,q)}$ denotes the KL divergence penalty between the current policy $\pi_\theta$ and a fixed reference $\pi_{\text{ref}}$, 
+and $\beta$ is a coefficient that balances exploration and training stability.
+
+\subsection{Reward Function Design}
+
+We design a composite reward that evaluates both downstream task performance and the quality of memory management. The total trajectory-level reward is defined as
+\begin{equation}
+R(\tau) = \mathbf{w}^\top \mathbf{R} + P_{\text{penalty}},
+\end{equation}
+where $\mathbf{w} = [w_{\text{task}}, w_{\text{context}}, w_{\text{memory}}]^\top$ are tunable coefficients, and $\mathbf{R} = [R_{\text{task}}, R_{\text{context}}, R_{\text{memory}}]^\top$ correspond to rewards for task completion, context management, and long-term memory management. The penalty term $P_{\text{penalty}}$ captures violations such as context overflow or exceeding the interaction limit. Below, we summarize each component, and precise formulas are provided in the Appendix~\ref{app:rewards}.
+\\
+\textbf{Task completion reward $R_{\text{task}}$.}  
+This term provides the primary learning signal by assessing whether the agent solves the task correctly. We obtain a scalar score using an LLM-based judge $S_{\text{judge}}(A_{\text{pred}}, A_q) \in [0,1]$, optionally applying a penalty when no answer is produced. This reward encourages accurate, complete task solutions and remains the dominant component to ensure alignment with task objectives.
+\\
+\textbf{Context management reward $R_{\text{context}}$.}  
+This component evaluates STM behavior, focusing on how effectively the agent controls the active context $C_t$. It combines three factors: (i) compression efficiency, promoting economical token usage; (ii) preventive actions, rewarding early summarization or filtering to avoid overflow; and (iii) information preservation, penalizing the loss of critical query-related content. Each factor is normalized, allowing the reward to balance context efficiency against retention of essential information.
+\\
+\textbf{Memory management reward $R_{\text{memory}}$.}
+This term evaluates LTM operations. It aggregates signals for: (i) storage quality, measured as the fraction of stored entries labeled as high-quality and reusable; (ii) maintenance, rewarding meaningful update or delete operations to mitigate memory staleness; and (iii) semantic relevance, computed using an LLM-based score between retrieved memories and the query. Together, these signals incentivize selective, high-value memory construction and responsible upkeep over time.
+\\
+\textbf{Penalty terms $P_{\text{penalty}}$.}  
+Penalties discourage undesirable behaviors such as exceeding the maximum number of dialogue turns or triggering context overflow. Penalty coefficients are chosen so that such violations lead to a substantial reduction in the final trajectory reward, encouraging the agent to maintain safe and efficient memory practices.
+% \\
+% \textbf{Practical considerations.}  
+% Weights $w_{\text{task}},w_{\text{context}},w_{\text{memory}}$ are chosen to prioritize task accuracy while still encouraging efficient and reusable memory behavior (we use a default configuration described in the Appendix). All component scores are normalized to comparable ranges to avoid dominance by scale alone. During training we evaluate ablations to validate sensitivity to these weights.
+
+% For completeness, we provide the full, implementable definitions of $R_{\text{task}}$, $R_{\text{context}}$, $R_{\text{memory}}$, and $P_{\text{penalty}}$ in Appendix~\ref{app:rewards}.
