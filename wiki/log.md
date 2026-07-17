@@ -3,11 +3,68 @@ title: Super Personal Wiki Log
 domain: root
 type: timeline
 status: active
-updated: 2026-04-24
+updated: 2026-07-17
 tags: [log]
 ---
 
 # Super Personal Wiki Log
+
+## [2026-07-17] repo | Split the DLM research base into a private subrepository
+
+- Created a standalone private repository for `wiki/research/dlm/` while preserving the same wiki path through a Git submodule.
+- Added a concise collaborator README and LaTeX ignore rules; `paper/main.pdf` remains the discussion entry point and `reference/` retains the private local literature collection.
+- Kept unrelated parent-repository worktree changes outside the subrepository commit.
+
+## [2026-07-17] simplify | Refocused the DLM foundation PDF for team discussion
+
+- Simplified `wiki/research/dlm/paper/main.tex` around the discussion chain: process object, learned target, sampler control, optimization surface, evidence contract, and research gate.
+- Removed the duplicated sampler pseudocode, merged the design-layer and optimization-surface tables, and tightened the theory/evaluation prose so the paper functions as a brainstorming base rather than an idea claim.
+- Reworked Figure 2 with wider TikZ spacing and whole-figure `\resizebox{\textwidth}{!}{...}` scaling to eliminate line, label, and box overlaps while preserving the detailed DLM lifecycle.
+- Recompiled the ICML-style PDF to five pages and re-rendered the key page; numeric citations and cross-references resolve cleanly.
+
+## [2026-07-16] research | Added flow matching, Mamba, and numeric citation coverage to DLM
+
+- Ran focused multi-source literature searches for Flow Matching, Discrete/Dirichlet Flow Matching, and Mamba-based diffusion over 2021--2026; recorded OpenAlex 504, OpenReview 429, DBLP proxy, and Crossref precision limitations.
+- Added a first-principles transport-versus-backbone synthesis, expanded the reading list and landscape, and retained seven additional verified PDF/text pairs for a total of 25 local paper sets.
+- Extended the ICML-style foundation with the Flow Matching objective, discrete/simplex flow families, earlier DiffuSeq and SSD-LM branches, and the correct interpretation of Mamba/Mamba-2 as denoiser backbones.
+- Switched the internal discussion draft to compact numeric citations and put a citation number beside every named work in Figure 3.
+- Recompiled the five-page PDF and inspected every page at high resolution; all diagrams and citations are readable with no overlaps, overfull boxes, or unresolved references.
+
+## [2026-07-16] polish | Tightened and normalized the DLM foundation paper
+
+- Reduced the ICML-style foundation from six pages to five by removing repeated scope, taxonomy, meeting, and conclusion prose while preserving the mathematical and evaluation core.
+- Unified TikZ node and edge typography, replaced forced resizing with shrink-only maximum-width constraints, and gave the timeline a natural column-scale width instead of enlarging it.
+- Kept the 15-step lifecycle diagram information-dense, fixed algorithm and table reading order, and balanced the final reference page.
+- Recompiled and inspected all five pages at high resolution; no overlaps, overfull boxes, unresolved citations, or unresolved references remain.
+
+## [2026-07-16] visual | Expanded the DLM lifecycle into a detailed TikZ process
+
+- Replaced the compact mask-corruption sketch in `wiki/research/dlm/paper/main.tex` with a full-width, 15-step DLM lifecycle diagram informed by the information density of the EPCC FPGA slide deck without copying its hardware flow.
+- Separated one-shot training corruption from iterative generation, and made the shared denoiser parameters, reverse time step, per-position outputs, commit/remask controller, budget and length rules, cache invalidation, termination branch, and feedback paths explicit.
+- Recompiled the ICML-style paper to six pages and visually inspected every rendered page; the new figure is readable at full-page scale with no overlaps or overfull boxes.
+
+## [2026-07-16] synth | Rebuilt the DLM ICML draft as a team research foundation
+
+- Replaced the inference-idea-first draft with a neutral five-page foundation covering continuous diffusion, discrete Markov diffusion, absorbing-mask posteriors, the MDLM objective, and a generic masked-DLM sampler.
+- Added readable TikZ diagrams for the diffusion interfaces, masking process, and field history, plus pseudocode, optimization formulations, theory limits, and a matched evaluation contract.
+- Replaced provisional or anonymous bibliography entries with verified foundational and recent references spanning D3PM, SEDD, MDLM, LLaDA, Block Diffusion, Dream, MDPO, SCUD, discrete fast solvers, variable length, and scaling comparisons.
+- Updated the DLM and paper indexes so background research is the active goal and no algorithmic direction is treated as selected.
+
+## [2026-07-16] reorg | Reorganized DLM research base for collaboration
+
+- Reduced `wiki/research/dlm/` to one root index and two active subtrees: `reference/` and `paper/`.
+- Moved literature/full texts under `reference/`; moved novelty audits, IdeaSpark run artifacts, and old briefings under `paper/legacy/`.
+- Added Mermaid-based history, process, taxonomy, control-loop, and research-decision visualizations.
+- Added a math/operations-research discussion guide and a 15-minute presentation outline for classmate meetings.
+- Render-checked 12 Mermaid diagrams with headless Chrome and stored the validation screenshot under `paper/legacy/`.
+- Added a LaTeX/TikZ foundation handout for DLM process basics and optimization-algorithm discussion, then converted the active writing target into an English ICML-style draft under `paper/main.tex`.
+
+## [2026-07-15] research | Built DLM optimization literature and idea base
+
+- Added `wiki/research/dlm/` with a field landscape, OR/optimization bridge, curated reading list, search provenance, and 18 locally retained full-text papers.
+- Ran three idea rounds: eliminated occupied MDP/search/remasking formulations, rejected a fixed-cardinality deadline decoder after a seven-step novelty audit, and rejected generic revision-aware cache control after focused collision search.
+- Preserved the IdeaSpark run artifacts and the independent scoop-check report; no candidate is labeled `live` without a defensible delta.
+- Added the DLM area to `wiki/research/index.md` and recorded connector limitations for future refreshes.
 
 ## [2026-04-24] ingest | Added Memory for Autonomous LLM Agents survey note
 
