@@ -1,0 +1,637 @@
+                                               Cost-Aware Retrieval-Augmentation Reasoning Models with
+                                                               Adaptive Retrieval Depth
+                                                             Helia Hashemi                                                    Victor Rühle                               Saravan Rajmohan
+                                                            Microsoft                                                       Microsoft                                        Microsoft
+                                                   Cambridge, MA, United States                                     Cambridge, United Kingdom                        Redmond, WA, United States
+                                                   heliahashemi@microsoft.com                                         virueh@microsoft.com                            rajmohan@microsoft.com
+                                         Abstract                                                                                        these models can only submit a query to a search engine and get a
+                                         Reasoning models have gained significant attention due to their                                 constant number of documents in response. However, some queries
+                                         strong performance, particularly when enhanced with retrieval aug-                              may require synthesis of more documents, or the LLM may need to
+                                                                                                                                         ask for deeper ranked documents since the presented top retrieved
+
+
+
+
+arXiv:2510.15719v1 [cs.CL] 17 Oct 2025
+                                         mentation. However, these models often incur high computational
+                                         costs, as both retrieval and reasoning tokens contribute substan-                               documents are not relevant. One may argue that we can always feed
+                                         tially to the overall resource usage. In this work, we make the follow-                         a large enough number of documents to the LLM in response to
+                                         ing contributions: (1) we propose a retrieval-augmented reasoning                               each query to mitigate this issue. Although increasing context size
+                                         model that dynamically adjusts the length of the retrieved docu-                                and processing more documents is likely to improve the model’s
+                                         ment list based on the query and retrieval results; (2) we develop                              average performance, it would come at a high computational cost,
+                                         a cost-aware advantage function for training of efficient retrieval-                            high latency, and may even result to some other issues, such as
+                                         augmented reasoning models through reinforcement learning; and                                  suffering from the loss-in-the-middle phenomenon [19].
+                                         (3) we explore both memory- and latency-bound implementations                                       To address these issues, we extend the recent open-source Search-
+                                         of the proposed cost-aware framework for both proximal and group                                R1 model [12] and develop reinforcement learning-based optimiza-
+                                         relative policy optimization algorithms. We evaluate our approach                               tion methods that enable LLMs to learn more dynamic interactions
+                                         on seven public question answering datasets and demonstrate sig-                                with search engines, called Dynamic Search-R1. We choose Search-
+                                         nificant efficiency gains, without compromising effectiveness. In                               R1 as a representative retrieval-augmented reasoning model due to
+                                         fact, we observed that the model latency decreases by ∼16-20%                                   its popularity in the literature [3, 18, 38, 44], but our work is generic
+                                         across datasets, while its effectiveness increases by ∼5% on average,                           enough to be applied to any retrieval-augmented reasoning model.
+                                         in terms of exact match.                                                                        In Dynamic Search-R1, the model not only generates reasoning
+                                                                                                                                         tokens within <think> and </think>, but also generates queries
+                                         Keywords                                                                                        that can be submitted to the search engine in <search> query
+                                                                                                                                         </search> that returns the top retrieved document and asks for
+                                         Retrieval-augmented reasoning, cost-aware LLM optimization, dy-
+                                                                                                                                         𝑘 more retrieved documents using <more info> 𝑘 </more info>,
+                                         namic retrieval augmentation
+                                                                                                                                         where 𝑘 can be any positive integer number. The model is trained
+                                         ACM Reference Format:                                                                           based on an outcome-based reward function that solely examines
+                                         Helia Hashemi, Victor Rühle, and Saravan Rajmohan. 2025. Cost-Aware                             the final answer and basically learns interactions with the search
+                                         Retrieval-Augmentation Reasoning Models with Adaptive Retrieval Depth.
+                                                                                                                                         engines through trial and error within a predefined rollout budget.
+                                         In . ACM, New York, NY, USA, 10 pages. https://doi.org/XXXXXXX.XXXXXXX
+                                                                                                                                         In order to prevent the model from repeatedly asking for more
+                                                                                                                                         information when is not necessary and to improve the efficiency of
+                                         1     Introduction                                                                              the model, we propose a cost-aware variant of Dynamic Search-R1
+                                         Retrieval-augmented generation (RAG) has been respected as a                                    for both Group Relative Policy Optimization (GRPO) and Proximal
+                                         standard technique for improving accuracy and factuality of large                               Policy Optimization (PPO) algorithms.
+                                         language models (LLMs) in addition to providing access to up-to-                                    We provide two implementations of the cost penalization func-
+                                         date information that was not available in their training data [16, 43].                        tions in our study. We study a memory-bound penalizer that focuses
+                                         Recently, LLMs capable of reasoning have proven successful in                                   on minimizing the number of tokens produced by the model, in-
+                                         interacting with search engines to acquire knowledge during their                               cluding both the generated tokens and the ones returned by the
+                                         reasoning process. Search-o1 [17] and Search-R1 [12] are examples                               search engine in response to the generated queries. Even though
+                                         of such models. Despite their success, the types of interactions they                           reducing the number of tokens generally reduces latency in LLMs,
+                                         have with search engines are limited and insufficient. In more detail,                          this assumption does not necessarily hold for Dynamic Search-R1.
+                                         Permission to make digital or hard copies of all or part of this work for personal or
+                                                                                                                                         The reason is that the tokens in its reasoning chain can come from
+                                         classroom use is granted without fee provided that copies are not made or distributed           both LLM generation and the retrieved documents and there is a
+                                         for profit or commercial advantage and that copies bear this notice and the full citation       substantial gap between them from an efficiency perspective: we
+                                         on the first page. Copyrights for components of this work owned by others than the
+                                         author(s) must be honored. Abstracting with credit is permitted. To copy otherwise, or          observe that the latency for token generation is over 600% more
+                                         republish, to post on servers or to redistribute to lists, requires prior specific permission   than the latency for token encoding in our experiments. This ob-
+                                         and/or a fee. Request permissions from permissions@acm.org.                                     servation has motivated us to further study a latency-bound cost
+                                         Conference’17, Washington, DC, USA
+                                         © 2025 Copyright held by the owner/author(s). Publication rights licensed to ACM.               function that distinguishes between generated and retrieved tokens
+                                         ACM ISBN 978-x-xxxx-xxxx-x/YYYY/MM                                                              during reasoning.
+                                         https://doi.org/XXXXXXX.XXXXXXX
+Conference’17, July 2017, Washington, DC, USA                                                                       Helia Hashemi, Victor Rühle, and Saravan Rajmohan
+
+
+   Experiments on seven diverse general and multi-hop question                           categories: reducing verbosity or achieving strict length limits and
+answering datasets suggest that Dynamic Search-R1 not only out-                          token-level precision. However, most prior work centers on general-
+performs Search-R1 in terms of answer quality, but also performs                         purpose generation or instruction-following, often overlooking ef-
+more efficiently when trained with a cost-aware advantage function                       ficiency concerns. L1 [1] and S1 [21] models are among few papers
+during the reinforcement learning (RL) process. We demonstrate                           that focus on controlling length in reasoning-oriented models. S1
+that this observation holds for LLMs of different sizes (i.e., 3B and                    attempts to regulate output length by requiring the model to omit
+7B parameters). We further provide insights into the impact of the                       specific tokens (e.g., “Wait” or “Final Answer”) when the output
+hyper-parameter value that controls the cost term in RL training.                        is either too short or too long. However, this rigid and manually
+                                                                                         designed method significantly harms performance relative to the
+2     Related Work                                                                       base model. L1 is a reasoning language model that produces output
+This section reviews prior work on retrieval-augmented generation                        that satisfies a length constraint given in its prompt. L1 has been
+and length penalization in text generation–the two areas mostly                          trained using Length Controlled Policy Optimization (LCPO), a
+related to our contribution on cost-aware retrieval-augmented rea-                       simple reinforcement learning method that optimizes for accuracy
+soning.                                                                                  and adherence to user-specified length constraints. It is important
+                                                                                         to note that both of these methods give the users a tool to control
+2.1     Retrieval-Augmented Generation                                                   output length at the cost of performance rather than searching for
+                                                                                         optimal number of tokens without performance loss. Also, none of
+Integrating search engines with LLMs has become a common strat-
+                                                                                         these methods are studied in the context of retrieval augmentation.
+egy for providing external information and partially addressing
+                                                                                         Although, they could be easily adopted, it is not clear how many
+the well-known hallucination issue. There are two primary ways
+                                                                                         tokens should be fixed for the limit as the retrieval depth could
+to integrate search engines with LLMs: (1) retrieval-augmented
+                                                                                         be different. There are efficient retrieval-augmented generation
+generation (RAG) [5] and (2) treating the search engines as tools
+                                                                                         models, but they mostly focus on context compression [8, 34] or
+[24]. RAG [15, 37, 42] typically involves a pipeline where a query
+                                                                                         retrieval acceleration through specific hardware design [23], which
+triggers a retrieval step, and the retrieved content is appended to the
+                                                                                         are all orthogonal to our work.
+query before being processed by the LLM. This common approach
+is called in-context augmentation. Fusion-in-decoder models [8, 10]
+provide another implementation of retrieval augmentation by en-                          3     Cost-Aware Dynamic Retrieval-Augmented
+coding passages independently with encoder-decoder LLMs. The                                   Reasoning
+“search-as-a-tool” paradigm enables LLMs to engage directly with
+                                                                                         Enabling reasoning models to acquire knowledge through retrieval
+search engines through prompting or fine-tuning. Methods such as
+                                                                                         has proven to be promising for knowledge-intensive tasks, espe-
+IRCoT [32] and ReAct [40] use prompting to support step-by-step
+                                                                                         cially where domain-specific or up-to-date information is required
+reasoning and iterative search interactions, whereas Toolformer
+                                                                                         that is not accurately captured by the LLM during its training.
+[24] enhances this capability via supervised fine-tuning. However,
+                                                                                         Although retrieval-augmented reasoning models could be power-
+these techniques are heavily reliant on large-scale, high-quality
+                                                                                         ful, they can be quite costly as well. The reason is that they may
+labeled data, which is challenging to acquire. Recent studies [6] sug-
+                                                                                         generate many reasoning tokens and consume many tokens from
+gest that reinforcement learning can help LLMs develop advanced
+                                                                                         retrieved documents that can add up and lead to inefficient and
+reasoning abilities using only outcome-based feedback. Application
+                                                                                         expensive models. We argue that we should give models the power
+of this work in the context of search engine interaction has been
+                                                                                         of searching for queries, and even beyond that, by performing more
+studied by Jin et al. [12]. They have introduced Search-R1, which re-
+                                                                                         actions on the search results, such as asking for more informa-
+lies on RL for incorporating search engines into a reasoning model.
+                                                                                         tion (e.g., similar to going to the next page in the search engine
+One key distinction of this work compares to others is that the
+                                                                                         result page). On the other hand, the reasoning models should be
+model able to reason and query the search engine in an iterative
+                                                                                         aware of the cost associated with each of these actions. Based on
+manner for a reasoning task. The model and optimization that we
+                                                                                         this motivation, we in the following introduce a cost-aware ap-
+proposed in this work is built on Search-R1, which is the most
+                                                                                         proach for training retrieval-augmented reasoning models through
+competitive baseline for this work. None of the reviewed literature
+                                                                                         reinforcement learning.
+performs dynamic augmentation as proposed in this work.1
+
+2.2     Text Generation with Length Penalization                                         3.1    Background: Training Retrieval-Augmented
+Controlling the output length of large language models (LLMs) is                                Reasoning Models with Reinforcement
+crucial for many generation tasks. Existing methods approach this                               Learning
+through architectural tweaks—like adjusting positional encodings
+                                                                                         Reasoning models that are capable of acquiring knowledge through
+for fixed-length outputs [2], modifying training objectives to en-
+                                                                                         retrieval can be formulated using reinforcement learning as follows:
+force length constraints [11, 29], or using instruction-style data
+labeled with target lengths [41]. These efforts typically fall into two
+                                                                                                                                     
+1 Note that there is a recent paper called ‘Dynamic RAG’ [30] which focuses on explor-
+                                                                                                    max E𝑥∼D,𝑦∼𝜋𝜃 (· |𝑥;R ) 𝑟𝜙 (𝑥, 𝑦)
+                                                                                                      𝜋𝜃
+ing ‘when to retrieve’ in RAG, which is fundamentally different from this work and is
+just a name similarity.
+                                                                                                           − 𝛽DKL [𝜋𝜃 (𝑦 | 𝑥; R) || 𝜋 ref (𝑦 | 𝑥; R)] ,           (1)
+Cost-Aware Retrieval-Augmentation Reasoning Models with Adaptive Retrieval Depth                                  Conference’17, July 2017, Washington, DC, USA
+
+
+where 𝜋𝜃 is the policy LLM, 𝜋 ref is the reference LLM, 𝑟𝜙 is the                       Cost-Aware Advantage Function for GRPO. In GRPO, the
+reward function, R is the retrieval model, and DKL denotes the KL-                 advantage function is defined as a group relative normalized func-
+divergence between the given two distributions. 𝑥 denotes input                    tion applied to the reward value obtained for each output. Let
+samples drawn from the dataset D, and 𝑦 represent the generated                    𝑜 1, 𝑜 2, · · · , 𝑜𝐺 denote a set of 𝐺 outputs sampled from the LLM be-
+outputs interleaved with search engine calling results, sampled                    ing trained. We define the cost-aware advantage function for output
+from the reference policy 𝜋 ref (𝑦 | 𝑥). This formulation explicitly               𝑜𝑖 as follows:
+incorporates retrieval interleaved reasoning via 𝜋𝜃 (· | 𝑥; R). This                                         𝑟𝑖 − mean({𝑟 1, 𝑟 2, · · · , 𝑟𝐺 })
+enables more effective reasoning where access to external knowl-                                        𝐴𝑖 =
+                                                                                                                 std({𝑟 1, 𝑟 2, · · · , 𝑟𝐺 })
+edge is required.                                                                                                                                     
+                                                                                                                    𝑐𝑖 − mean({𝑐 1, 𝑐 2, · · · , 𝑐𝐺 })
+   This generic RL approach can be implemented using different                                               −𝛼                                          (2)
+                                                                                                                        std({𝑐 1, 𝑐 2, · · · , 𝑐𝐺 })
+policy gradient methods. We build our experiments on the recent
+Search-R1 [12] method that implements this RL framework using                      where 𝑟𝑖 and 𝑐𝑖 denote the reward (benefit) and the cost associated
+Proximal Policy Optimization (PPO) [26] and Group Relative Pol-                    to output 𝑜𝑖 . The hyperparameter 𝛼 controls the weight of cost
+icy Optimization (GRPO) [6, 28]. The objective functions used in                   during optimization. A nice property of this group relative normal-
+Search-R1 are presented in Table 1. Additionally, Search-R1 masks                  ization for cost is that training queries are of different difficulty
+the tokens from the retrieval results to only update the model pa-                 levels, one may not need substantial reasoning, while others may
+rameters for the tokens it generated. These formulations are used                  need substantial step-by-step retrieval and reasoning. Therefore,
+as the foundation for our implementation.                                          absolute cost-aware methods would over-penalize the model for
+                                                                                   complex queries. However, the proposed cost-aware advantage
+3.2     Retrieval-Augmented Reasoning with                                         function normalizes the cost of 𝐺 sample outputs for the same
+                                                                                   query, ensuring that only an output with a high cost compared to
+        Adaptive Retrieval Depth                                                   its alternative solutions for the same query would be penalized.
+Search-R1 and other retrieval-augmented reasoning models, such                         Following [12], we use exact match of the final answer as a
+as OpenAI’s Deep Research2 or Search-o1 [17], assume that the                      simple outcome-based reward value. The cost 𝑐𝑖 can be computed
+LLM always has access to a constant number of retrieval results per                in different ways. We adopt the following two cost functions:
+query. Therefore, if the provided search results are not sufficient,                    • Memory-bound Cost: Given one input, the GPU memory
+the mode cannot simply ask for more lower ranked documents in                              required for generating two outputs would depend on the
+the search results, and its only choice is to reformulate its query.                       number of additional tokens generated and fed to the model.
+We enable the model to ask for more documents when needed by                               Therefore, the length of model outputs (i.e., the number of
+using the following prompt:                                                                tokens, including the tokens from retrieved documents) is
+        Answer the given question. You must start the output by generat-
+        ing reasoning tokens inside <think> and </think> and every time
+                                                                                           considered as a memory-bound cost function.
+        you get new information. After reasoning, if you lack some knowl-               • Latency-bound Cost: This cost function focuses on model’s
+        edge, you can call a search engine by <search> query </search>,                    latency for producing the output, using the following func-
+        and it will return the top searched result between <information>
+        and </information>. After each search you can optionally ask for                   tion:
+        more documents by <more info> num_docs </more info> where                                      |𝑦
+                                                                                                      ∑︁ 𝑖|                  |𝑦
+                                                                                                                             ∑︁𝑖|
+        num_docs is a positive integer indicating the number of additional re-
+        quested documents. Additional retrieved documents will be provided
+                                                                                                 𝑐𝑖 =       𝐼 (𝑦𝑖,𝑡 ) · 𝑐𝑔 +      (1 − 𝐼 (𝑦𝑖,𝑡 )) · 𝑐𝑒 (3)
+        between <information> and </information>. You can search as                                   𝑡 =1              𝑡 =1
+        many times as you want. If you find that no further external knowl-               where 𝐼 is an identity function indicating whether a token is
+        edge is needed, you can directly provide the answer inside <answer>
+        and </answer> without detailed illustrations. For example, <answer>               generated by the LLM or is provided by the search engine.
+        xxx </answer>. Question: {question}.                                              𝑐𝑔 and 𝑐𝑒 denote the average latency for each generated to-
+                                                                                          ken and each provided token for encoding (i.e., each token
+where question is replaced with the specific question during train-                       from retrieval results). The reason for this distinction is that
+ing and inference.                                                                        latency for generated token is much higher than each en-
+   In addition, we use Algorithm 1 for producing the rollouts for                         coded token. We ran multiple experiments with different
+both training and inference. Note that all retrieved results for both                     input and output sizes to profile latency introduced by input
+new queries and additional requested documents are masked using                           token consumption and output token generation. In the ex-
+the identity function 𝐼 in the PPO and GRPO objectives. See the                           periments, we used one A100 GPU with 80GB memory and
+equations in Table 1.                                                                     Qwen-2.5-7B [31] as a representative model. Experiments
+                                                                                          suggest that representing each input token takes 0.0568 mil-
+3.3     Cost-Aware Advantage Function for                                                 liseconds on average, while generating each output token
+        Improved Efficiency                                                               on average requires 0.4098 milliseconds. Therefore, gener-
+                                                                                          ating output tokens is 621% slower than consuming input
+In this section, we describe our approach for cost-aware reason-
+                                                                                          tokens. Of course these numbers depend on the GPU and the
+ing models that are capable of interactive multi-turn retrieval. We
+                                                                                          consumed model and the cost parameters mentioned above
+modify the advantage function used in RL optimization methods.
+                                                                                          should be assigned according to the specific experiment de-
+                                                                                          sign. That said, we observe relatively similar behavior across
+2 https://openai.com/index/introducing-deep-research/                                     LLMs and GPUs.
+Conference’17, July 2017, Washington, DC, USA                                                                                                              Helia Hashemi, Victor Rühle, and Saravan Rajmohan
+
+
+             Table 1: PPO and GRPO objectives for retrieval-augmented reasoning models, as defined by Search-R1 [12].
+
+                                                                                                                  PPO
+
+                                                  |𝑦|
+                       "                                                                                                                         #
+                                      1           ∑︁                  𝜋𝜃 (𝑦𝑡 |𝑥, 𝑦 <𝑡 ; R )                𝜋𝜃 (𝑦𝑡 |𝑥, 𝑦 <𝑡 ; R )
+  E𝑥 ∼D,𝑦∼𝜋old (·|𝑥 ;R) Í |𝑦|                              min                                 𝐴𝑡 , clip                            , 1 − 𝜖, 1 + 𝜖 𝐴𝑡
+                                                                      𝜋 old (𝑦𝑡 |𝑥, 𝑦 <𝑡 ; R )             𝜋 old (𝑦𝑡 |𝑥, 𝑦 <𝑡 ; R )
+                            𝑡 =1 𝐼 (𝑦𝑡 ) 𝑡 =1:𝐼 (𝑦𝑡 ) =1
+
+                                                                                                               GRPO
+                                  "       𝐺                            |𝑦𝑖 |
+                                      1 ∑︁          1                  ∑︁                𝜋𝜃 (𝑦𝑖,𝑡 |𝑥, 𝑦𝑖,<𝑡 ; R )
+  E𝑥 ∼D,{𝑦 }𝐺 ∼𝜋                                                                   min                              𝐴𝑖,𝑡 ,
+           𝑖 𝑖=1   old (·|𝑥 ;R)       𝐺 𝑖=1 Í |𝑦𝑖 | 𝐼 (𝑦𝑖,𝑡 )                            𝜋old (𝑦𝑖,𝑡 |𝑥, 𝑦𝑖,<𝑡 ; R )
+                                                𝑡 =1            𝑡 =1:𝐼 (𝑦𝑖,𝑡 )=1
+
+                                                                                                                                          !    !                      #
+                                                                                                 𝜋𝜃 (𝑦𝑖,𝑡 |𝑥, 𝑦𝑖,<𝑡 ; R )
+                                                                                          clip                              , 1 − 𝜖, 1 + 𝜖 𝐴𝑖,𝑡 − 𝛽D𝐾𝐿 [𝜋𝜃 | |𝜋 ref ]
+                                                                                                 𝜋old (𝑦𝑖,𝑡 |𝑥, 𝑦𝑖,<𝑡 ; R )
+
+
+
+Algorithm 1 LLM Response Rollout with Multi-Turn Search Engine Calls and Adaptive Retrieval Depth
+Require: Input query 𝑥, policy model 𝜋𝜃 , search engine R, maximum action budget 𝐵.
+Ensure: Final response 𝑦.
+ 1: Initialize rollout sequence 𝑦 ← ∅
+ 2: Initialize action count 𝑏 ← 0
+ 3: while 𝑏 < 𝐵 do
+ 4:     Initialize current action LLM rollout sequence 𝑦𝑏 ← ∅
+ 5:     while True do
+ 6:          Generate response token 𝑦𝑡 ∼ 𝜋𝜃 (· | 𝑥, 𝑦 + 𝑦𝑏 )
+ 7:          Append 𝑦𝑡 to rollout sequence 𝑦𝑏 ← 𝑦𝑏 + 𝑦𝑡
+ 8:          if 𝑦𝑡 in [</search>, </more info>, </answer>, <eos>] then break
+ 9:          end if
+10:     end while
+11:     𝑦 ← 𝑦 + 𝑦𝑏
+12:     if <search> </search> detected in 𝑦𝑏 then
+13:          Extract search query 𝑞 ← Parse(𝑦𝑏 , <search></search>)
+14:          Retrieve search results 𝑑 = R (𝑞)
+15:          Insert 𝑑 into rollout 𝑦 ← 𝑦 + <information>𝑑</information>
+16:     else if <more info> </more info> detected in 𝑦𝑏 then
+17:          Extract the number of requested documents 𝑘 ← Parse(𝑦𝑏 , <more info> </more info>)
+18:          Fetch the next 𝑘 documents 𝑑 from the cached retrieval results
+19:          Insert 𝑑 into rollout 𝑦 ← 𝑦 + <information>𝑑</information>
+20:     else if <answer> </answer> detected in 𝑦𝑏 then
+21:          return final generated response 𝑦
+22:     else
+23:          Ask for rethink 𝑦 ← 𝑦+ “My action is not correct. Let me rethink.”
+24:     end if
+25:     Increment action count 𝑏 ← 𝑏 + 1
+26: end while
+27: return final generated response 𝑦
+
+
+
+   Cost-Aware Advantage Function for PPO. The advantage                                                                      model 𝑣𝜙 shares the same architecture as the policy model, while the
+function for PPO is defined using a generalized advantage estima-                                                            regression head can be applied on any response token. To construct
+tion (GAE) [25] as follows:                                                                                                  token-level rewards 𝑟𝑡 that guide the RL training, the outcome-
+                                                                                                                             based reward 𝑟 discounted by the cost is applied only to the last
+                                  𝐴𝑡 = −𝑉𝜙 (𝑥, 𝑦 <𝑡 ; R) + 𝐺𝑡                                               (4)              token, and each token is penalized by a Kullback-Leibler term.
+                                                                                                                             Formally, the token-level reward 𝑟𝑡 for each response token 𝑦𝑡 is
+where 𝑣𝜙 is a value model that estimates the expected value func-
+tion of incomplete responses under an active policy and 𝐺𝑡 =
+Í |𝑦 | 𝑡 ′ −𝑡
+  𝑡 ′ =𝑡 𝛾    𝑟𝑡 ′ is the empirical return estimated by GAE. The value
+Cost-Aware Retrieval-Augmentation Reasoning Models with Adaptive Retrieval Depth                                        Conference’17, July 2017, Washington, DC, USA
+
+
+defined as follows:                                                                To build PopQA, authors randomly selected knowledge triples repre-
+                                                                                   senting 16 different types of relationships from Wikidata. Then they
+                            𝜋𝜃 (𝑦𝑡 |𝑥, 𝑦 <𝑡 ; R)                                   transformed these triples into natural language questions using
+              𝑟𝑡 = −𝛽 log                                                 (5)
+                            𝜋old (𝑦𝑡 |𝑥, 𝑦 <𝑡 ; R)                                 manually crafted templates for each relationship type. Acceptable
+                            + 1{𝑡 = |𝑦|} · max{𝑟𝜖, 𝑟 − 𝛼𝑐}                         answers to each question are the set of entities such that (Subject,
+                                                                                   Relation, Entities) is present in the knowledge graph. The dataset
+    We use exact match for the final answer to compute the outcome-                contains 14k QA pairs with fine-grained Wikidata entity ID.
+based reward value 𝑟 , therefore 𝑟 ∈ {0, 1}. Similar to the proposed                  HotpotQA [39] is a large-scale, crowdsourced dataset designed
+approach for GRPO, the cost value 𝑐 can be computed in two differ-                 to support multi-hop question answering over natural language
+ent ways: a memory-bound cost that focuses on the output length                    text, specifically Wikipedia. To construct the dataset, the authors
+(i.e., 𝑐 = |𝑦|) or a latency-bound cost that focuses on model’s la-                utilized a Wikipedia hyperlink graph, focusing on links from the
+tency, for which we can reuse Equation (3) for computing 𝑐. The                    first paragraphs of articles. They identified “bridge entities” that
+discounted reward value is bounded by zero (if the final answer is                 connect different articles and serve as pivots for multi-hop reason-
+wrong) or 𝜖 (if the final answer is correct). This ensures that ad-                ing. Additionally, HotpotQA introduces a novel class of comparison
+vantage function remains non-negative and regardless of the cost,                  questions, where systems must compare two entities along shared
+there is at least a small positive reward (i.e., 𝜖) for a correct answer.          attributes, such as determining who played for more teams or com-
+We set 𝜖 to 0.2 in our experiments. The hyper-parameter 𝛼 controls                 paring numerical values like ages. These questions present new
+the impact of cost on the advantage function. As is common in PPO                  challenges that go beyond span extraction and require models to
+training [27], mean squared error (MSE) is used to optimize the                    reason over multiple facts and perform basic arithmetic or semantic
+model parameters for the value function 𝑣𝜙 . Refer to Ivison et al.                comparisons. The dataset also supports yes/no variants of compari-
+[9] for more details.                                                              son questions to further test reasoning depth. The dataset contains
+                                                                                   112,779 example, 18,089 of which are single hop, and 56,814 of them
+4 Experiments                                                                      are easy multi-hop questions that are used for training. The rest of
+                                                                                   the dataset contains hard multi-hop examples divided in dev and
+4.1 Data                                                                           test sets. For experiments of this paper, we use the full-wiki part of
+We run our experiments on seven diverse question answering                         dataset.
+datasets. They range from general question answering datasets                         The 2WikiMultiHopQA dataset [7], provides comprehensive ex-
+(usually single shot) to multi-hop question answering datasets that                planations by integrating both structured and unstructured data.
+need reasoning and multiple rounds of retrieval. For general QA,                   To improve the explanation and evaluation of answers, they enrich
+we use Natural Questions, TriviaQA, and PopQA. For multi-hop                       each sample with additional information, including evidence that
+QA, we use HotpotQA, 2wiki, Musique, and Bamboodgle. They are                      clearly and concisely supports the outputs. The dataset contains
+explained below.                                                                   12,576 training and 12,576 test instances.
+   Natural Questions (NQ) [14] is a large-scale, real-world bench-                    To ensure that all questions require reasoning, Musique [33]
+mark for question answering that contains thousands of real user                   proposed a bottom-up approach that carefully selects pairs of single-
+queries issued to the Google search engine. An annotator was given                 hop questions which are composable and interdependent; meaning
+a question and a retrieved Wikipedia page and was asked to select                  that one reasoning step crucially depends on the outcome of another.
+a long answer (usually a paragraph) and a short answer (typically                  The test data has 1271 two-hop examples, 763 three-hop examples,
+one or more entities) if they exist on the page. They were instructed              425 four-hop examples.
+to submit “null” if no suitable answer is found. The dataset is widely                Bamboogle [22] is a dataset of 125 manually crafted two-hop
+used to evaluate the effectiveness of extractive open-domain QA                    questions. It is designed to pose a high level of difficulty that a
+systems. NQ has 307K training examples, 7.8K dev, and 7.8K test ex-                common internet search engine cannot answer its questions di-
+amples. Around 152,148 questions have a long answer and 110,724                    rectly, even though both supporting evidence pieces are available
+of them have a short answer. Short answers can be sets of spans                    on Wikipedia. The dataset is intended to evaluate how well a QA
+in the document (106,926), or yes or no (3,798). Long answers are                  system can handle diverse compositional questions, though it offers
+HTML bounding boxes.                                                               less statistical robustness due to its size.
+   TriviaQA [13] is a QA dataset that includes more than 650,000                      To ensure fair comparison and improve reproducibility, we use
+question–answer–evidence triples. The question-answer pairs come                   the pre-processing steps provided by the Search-R1 open-source
+from 14 trivia and quiz-league websites. Each question-answer pairs                repository.3 Therefore, all models and baselines share the same
+come with an average of six supporting evidence documents, with                    experimental setups and hyper-parameter setting strategies. It is
+the corresponding evidence documents later gathered automatically                  important to note that following previous work [12], we only use the
+from Wikipedia and the broader Web. Therefore, the supporting                      training data from NQ and HotpotQA as representatives of general
+documents may not include all the information necessary to fully                   and multi-hop QA datasets. Therefore, the results presented on NQ
+answer the questions. The information required to answer 40% of                    and HotpotQA are considered as in-domain experiments and all
+questions in the dataset are scattered over multiple sentences. There              other datasets are considered out-of-domain experiments.
+are in total 95,956 question-answer pairs in the dataset.
+   PopQA [20] is a large-scale, entity-centric open-domain QA
+dataset that includes entities across a broad spectrum of popularity.              3 https://github.com/petergriffinjin/search-r1
+Conference’17, July 2017, Washington, DC, USA                                                           Helia Hashemi, Victor Rühle, and Saravan Rajmohan
+
+
+Table 2: Main results. The best performance is set in bold. † /★ represents in-domain/out-domain datasets, meaning that only
+NQ and HotpotQA are used for training. Dynamic Search-R1 results are reported for the model with latency-bound cost
+penalization.
+
+                                                 General QA                                     Multi-Hop QA
+  Model                                                                                                                                         Avg.
+                                     NQ†        TriviaQA★ PopQA★               HotpotQA†     2wiki★ Musique★            Bamboogle★
+  Qwen2.5-7B
+  Direct Inference                   0.134        0.408        0.140             0.183        0.250        0.031              0.120            0.181
+  CoT                                0.048        0.185        0.054             0.092        0.111        0.022              0.232            0.106
+  IRCoT                              0.224        0.478        0.301             0.133        0.149        0.072              0.224            0.239
+  Search-o1                          0.151        0.443        0.131             0.187        0.176        0.058              0.296            0.206
+  RAG                                0.349        0.585        0.392             0.299        0.235        0.058              0.208            0.304
+  SFT                                0.318        0.354        0.121             0.217        0.259        0.066              0.112            0.207
+  R1                                 0.297        0.539        0.202             0.242        0.273        0.083              0.296            0.276
+  Search-R1 PPO                      0.480        0.638        0.457             0.433        0.382        0.196              0.432            0.431
+  Search-R1 GRPO                     0.395        0.560        0.388             0.326        0.297        0.125              0.360            0.350
+  Dynamic Search-R1 PPO              0.493        0.627        0.470             0.468        0.386        0.212              0.435            0.442
+  Dynamic Search-R1 GRPO             0.414        0.582        0.406             0.362        0.322        0.139              0.373            0.371
+  Qwen2.5-3B
+  Direct Inference                   0.106        0.288        0.108             0.149        0.244        0.020              0.024            0.134
+  CoT                                0.023        0.032        0.005             0.021        0.021        0.002              0.000            0.015
+  IRCoT                              0.111        0.312        0.200             0.164        0.171        0.067              0.240            0.181
+  Search-o1                          0.238        0.472        0.262             0.221        0.218        0.054              0.320            0.255
+  RAG                                0.348        0.544        0.387             0.255        0.226        0.047              0.080            0.270
+  SFT                                0.249        0.292        0.104             0.186        0.248        0.044              0.112            0.176
+  R1                                 0.226        0.455        0.173             0.201        0.268        0.055              0.224            0.229
+  Search-R1 PPO                      0.406        0.587        0.435             0.284        0.273        0.049              0.088            0.303
+  Search-R1 GRPO                     0.421        0.583        0.413             0.297        0.274        0.066              0.128            0.312
+  Dynamic Search-R1 PPO              0.411        0.598        0.451             0.317        0.292        0.085              0.116            0.324
+  Dynamic Search-R1 GRPO             0.437        0.598        0.429             0.315        0.294        0.092              0.134            0.328
+
+Table 3: Average response length (# tokens) and latency (milliseconds) of models for each query on the Natural Questions
+datasets. Qwen-2.5-7b-base is used as the base LLM in all the experiments. PPO is used for all optimizations.
+
+                                                              NQ                           HotpotQA                              Musique
+ Model                                           EM       # tokens   latency      EM       # tokens latency           EM        # tokens latency
+ Search-R1                                       0.480    1083       88.82        0.433    1273     96.29             0.196     1355     103.64
+ Dynamic Search-R1 w/o cost penalty              0.497    1387       102.98       0.469    1539     107.61            0.218     1592     115.36
+ Dynamic Search-R1 - Memory-bound                0.491    977        83.87        0.465    1064     91.10             0.215     1148     98.03
+ Dynamic Search-R1 - Latency-bound               0.493    991        70.43        0.468    1095     82.86             0.212     1171     87.62
+
+
+4.2     Baselines                                                               into the reasoning pipeline at inference with no training. RAG is
+We use 9 baselines in our experiments. Most of them are retrieval-              the retrieval-augmentation approach proposed by Lewis et al. [15].
+augmented methods and conduct reasoning. For a fair performance                 SFT is a supervised fine-tuning baseline [4] that fine-tunes the LLM
+comparison, they all use the same base LLMs. The main and most                  on various tasks paraphrased as instructions. R1 is a post-training
+competitive baseline for this work is search-R1 [12] with both PPO              approach based on the R1-Zero approach proposed by DeepSeek [6].
+and GRPO training. The ‘Direct Inference’ baseline generates an-                R1 also does not have access to search engine results. All models
+swers based on the LLM parametric knowledge with no reasoning                   are trained on the same data. All retrieval-augmented models also
+and no access to a search engine. The Chain-of-Thought (CoT) [36]               use the same retrieval model, i.e., E5 [35] which has shown strong
+baseline conducts inference-time CoT reasoning, still with no access            out-of-distribution performance.
+to a search engine. IRCoT [32] is a retrieval-augmented approach
+for multi-step QA that proposes an interleaving solution, where                 4.3      Results and Discussion
+the idea is to use retrieval to guide the chain-of-thought (CoT) and               Comparison with the Baselines. Table 2 contains results obtained
+use CoT reasoning to guide the retrieval. Search-o1 [17] is a frame-            by our cost-aware (latency-bound) optimization approach based
+work designed to enhance LLMs by incorporating an agent-based                   on Search-R1 [12] as well as the baselines. To have a fair compar-
+retrieval-augmented generation approach along with a specialized                ison, we made sure that all models use the same base language
+Reason-in-Documents module to refine retrieved content and elimi-               model. Following Jin et al. [12], we experiment with two model
+nate noisy information. It embeds an agentic search process directly            sizes: Qwen 2.5 [31] with 7 billion (top) and 3 billion parameters
+Cost-Aware Retrieval-Augmentation Reasoning Models with Adaptive Retrieval Depth                                Conference’17, July 2017, Washington, DC, USA
+
+
+
+
+                     (a) Latency-bound penalization                                                 (b) Memory-bound penalization
+
+Figure 1: The impact of parameter 𝛼 on Dynamic Search-R1 GRPO with latency-bound cost penalization. See the plots in color.
+
+
+(bottom). The results are in terms of exact match and the last column              (i.e., more retrieved documents) when it cannot find the information
+reports the macro average performance across all seven datasets.                   it needs in the retrieval results. We observe that the latency gap is
+As expected, the results obtained by models with the 7B LLM are                    much larger for the queries for which the model cannot generate
+substantially higher than the ones obtained by the 3B LLM. It is                   the correct answer, which indicates the model’s trial for getting
+important to highlight that these improvements are more signifi-                   relevant information as much as the budget 𝐵 (see Algorithm 1)
+cant for the multi-hop QA datasets that are more challenging and                   allows. Both memory- and latency-bound approaches significantly
+require reasoning. The results also suggest that there is no winner                improve efficiency metrics. The memory-bound method leads to the
+among PPO and GRPO for Dynamic Search-R1; for the 7B LLM,                          minimum number of tokens. The latency-bound method performs
+our PPO-based model performs better than the one optimized by                      faster, even though it produces slightly more tokens compared to
+GRPO, while GRPO shows a small advantage when the LLM has 3                        the memory-bound alternative. The reason for this observation is
+billion parameters. That said, the average GRPO improvement on                     that the latency-bound model generates fewer tokens and there
+3B is relatively marginal, while PPO improvement on the 7B LLM                     are more retrieved tokens in its reasoning chain. Therefore, since
+is substantial. This is also inline with findings in Search-R1 [12].               token generation is more expensive and time-consuming than to-
+We believe that it takes a model with relatively high capacity to                  ken encoding, the latency-bound approach leads to lower end-to-
+benefit from a trained value function as is done in PPO. Dynamic                   end latency. Note that all Dynamic Search-R1 methods perform
+Search-R1 outperforms all the baselines (including Search-R1) on                   comparably on the Natural Questions dataset, demonstrating that
+all datasets, except for TriviaQA for the 7 billion base LLM. The                  cost-aware penalization improves efficiency without compromising
+main reason for observed improvements over Search-R1 is the abil-                  effectiveness.
+ity of Dynamic Search-R1 in asking for more information from                           To better understand the impact of the parameter 𝛼 on the effi-
+the retrieval results. Another reason may be due to the cost-aware                 ciency and effectiveness of Dynamic Search-R1, we compute aver-
+objective, which discourages the model from repeating the same                     age exact match and latency for the Natural Questions dataset. The
+queries in case of retrieval failure (which happens quite frequently               curves are depicted in Figure 1a. Without loss of generality, this
+in Search-R1) and changing the query. As mentioned earlier, Dy-                    experiment only focuses on GRPO optimization and with Qwen 2.5
+namic Search-R1 results on this dataset are obtained based on our                  7B as the base LLM. According to the figure, increasing 𝛼 would
+cost-aware optimization with latency-bound assumption, which                       lead to a decrease in Exact Match and Latency, meaning that higher
+is even more efficient than Search-R1 (as we will see in the next                  𝛼 values hurt effectiveness but improves efficiency, that said the
+experiment).                                                                       performance drop for large enough 𝛼 would be significant which
+                                                                                   may not be desired. System designers can choose the right value of
+   The Impact of Cost Penalization. In the next set of experiments,                𝛼 based on their applications. In the main results presented in this
+we evaluate the impact of cost-awareness methods on Dynamic                        paper, we choose the highest value of alpha that does not lead to
+Search-R1 performance. For a fair comparison, we use one A100                      statistically significant (𝑝_𝑣𝑎𝑙𝑢𝑒 < 0.01 with McNemar test) perfor-
+GPU with 80 GB memory for this experiment and all models are                       mance drop compared to 𝛼 = 0 on the validation set. That resulted
+based on the Qwen 2.5 model with 7 billion parameters. For the                     in the empirical value of 𝛼 = 0.2. We also plot the impact of 𝛼 values
+sake of space, we conduct this ablation study on the PPO algorithm                 on the GRPO model with memory-bound penalization in Figure 1b.
+and for only three of our datasets; we select NQ, HotpotQA, and                    The observation is relatively similar to that of the latency-bound
+Musique to cover diverse datasets. That said, we made similar obser-               model.
+vations on all datasets. According to the results presented in Table 3,
+Dynamic Search-R1 without any efficiency-aware penalization pro-
+duces more tokens and is slower than Search-R1. This happens
+because Dynamic Search-R1 keeps asking for more information
+Conference’17, July 2017, Washington, DC, USA                                                          Helia Hashemi, Victor Rühle, and Saravan Rajmohan
+
+
+Table 4: Two case studies demonstrating latency-bound Dynamic Search-R1 model with a 7B Qwen 2.5 base LLM. Both of these
+examples are also studied in the Search-R1 paper [12].
+
+    Question: What type of profession does Chris Jericho and Gary Barlow have in common?
+    Ground-truth Answer: musician
+    <think> I need to find the profession that Chris Jericho and Gary Barlow have in common. </think>
+    <search> Chris Jericho and Gary Barlow common profession </search>
+    <information> Doc 2(Title: "Chris Jericho") ""Do You Wanna Start a War"" (2014) and ""Judas"" (2017) are comprised entirely or predominantly
+    of original compositions. He has also appeared on numerous TV shows over the years, having competed in the 2011 season of ""Dancing
+    With the Stars"", lasting until the sixth week. Prior to that, Jericho hosted the ABC game show ""Downfall"" and the Revolver Golden Gods
+    Awards. Christopher Keith Irvine was born on November 9, 1970, in Manhasset, New York, but grew up in Winnipeg. His father, ice hockey
+    player Ted Irvine, had been playing for the New York Rangers at the time of his birth. ... </information>
+    <think> Chris Jericho is a professional wrestler, musician, author, and actor. Now I need to find if Gary Barlow has any of these professions
+    in common. </think>
+    <search> Gary Barlow profession </search>
+    <information> Doc 1(Title: "Gary Barlow") hits, twelve number one singles and seven number one albums with Take That. Barlow has
+    received six Ivor Novello Awards from the British Academy of Songwriters, Composers and Authors, including the award for Outstanding
+    Services to British Music. He has sold over 50 million records worldwide. Barlow was born on 20 January 1971 in Frodsham, Cheshire, the
+    second son of Colin (died 15 October 2009) and Marjorie Barlow. In Barlow’s autobiography, he relates that his love of music began at an
+    early age, and calls himself ""one of those kids that’s forever dancing in front of the TV looking at ... </information>
+    <think> Gary Barlow is a singer, songwriter, musician, and record producer. The common profession between Chris Jericho and Gary
+    Barlow is musician. </think>
+    <answer> musician </answer>
+    Question: Where are Teide National Park and Garajonay National Park located?
+    Ground-truth Answer: Canary Islands, Spain
+    <think> I need to find out where Teide National Park and Garajonay National Park are located. </think>
+    <search> Teide National Park and Garajonay National Park location </search>
+    <information> Doc 1(Title: "Garajonay National Park") decided to take their own lives. Garajonay National Park Garajonay National Park (,
+    ) is located in the center and north of the island of La Gomera, one of the Canary Islands (Spain). It was declared a national park in 1981
+    and a World Heritage Site by UNESCO in 1986. It occupies 40 km (15 sq mi) and it extends into each of the six municipalities on the island.
+    Nearly 450,000 tourists visit the park every year. There is accommodation for tourists just outside the park’s boundary. The park is named
+    after the rock formation of Garajonay, the highest point ... </information>
+    <think> Garajonay National Park is located in the center and north of the island of La Gomera in Canary Islands, Spain. I need more
+    information to learn about Teide National Park. </think>
+    <more info> 1 </more info>
+    <information> Doc 1(Title: "Teide National Park") Teide National Park Teide National Park (, ) is a national park located in Tenerife (Canary
+    Islands, Spain). The national park is centered on Mount Teide, the highest mountain of Spain (3,718 meters high) in addition, the highest
+    volcano in the Atlantic Ocean islands and the third highest volcano in the world from its base in the ocean floor (7.500 meters high). Its
+    national park status was passed on 22 January 1954, making it the third oldest national park in Spain. Pico Viejo, also included within the
+    national park limits, is the second highest volcano in the Canary Islands with ... </information>
+    <think> I found out that Teide National Park is located in Tenerife in Canary Islands, Spain. They are both located in Canary Islands.
+    </think>
+    <answer> Canary Islands, Spain </answer>
+
+
+5     Case Studies                                                            6   Conclusions and Future Work
+We intentionally choose two questions presented in the Search-R1             This work introduced Dynamic Search-R1–a retrieval-augmented
+paper [12] that would highlight how Cost-aware Dynamic Search-               reasoning model that enables rich interactions between reasoning-
+R1 performs. Two case studies for the latency-bound 7B model                 powered LLMs and search engines, such as query generation and
+trained with PPO is presented in Table 4. Both of them are selected          asking for more documents deeper in the ranked list. It also explored
+from the HotPotQA dataset. For the first example in the table, our           cost-aware solutions for training Dynamic Search-R1 models that
+method produces less than half the number of tokens Search-R1                are efficient by introducing both memory- and latency-bound penal-
+produces (compare with Table 10 in [12]). In the second example,             ization functions. Extensive experiments on seven public datasets
+it uses the same number of retrieved documents as Search-R1 (see             demonstrate the effectiveness and efficiency of the proposed mod-
+Table 13 in [12]), but generates fewer tokens by shortening the rea-         els in various settings, highlighting significant improvements over
+soning chain and asking for more information instead of submitting           competitive baselines while performing faster with fewer reasoning
+a second search query.                                                       tokens.
+Cost-Aware Retrieval-Augmentation Reasoning Models with Adaptive Retrieval Depth                                              Conference’17, July 2017, Washington, DC, USA
+
+
+   In the future, we plan to apply this work to the broader agentic                       [17] Xiaoxi Li, Guanting Dong, Jiajie Jin, Yuyao Zhang, Yujia Zhou, Yutao Zhu, Peitian
+AI models, where a cost is associated with each agent and the                                  Zhang, and Zhicheng Dou. 2025. Search-o1: Agentic Search-Enhanced Large
+                                                                                               Reasoning Models. arXiv:2501.05366 [cs.AI] https://arxiv.org/abs/2501.05366
+optimization focuses on solving complex tasks with the lowest cost                        [18] Bang Liu, Xinfeng Li, Jiayi Zhang, Jinlin Wang, Tanjin He, Sirui Hong, Hongzhang
+possible. We also plan to extend our cost-aware approach to multi-                             Liu, Shaokun Zhang, Kaitao Song, Kunlun Zhu, Yuheng Cheng, Suyuchen Wang,
+                                                                                               Xiaoqiang Wang, Yuyu Luo, Haibo Jin, Peiyan Zhang, Ollie Liu, Jiaqi Chen, Huan
+modal tasks and further go beyond memory- and latency-bound                                    Zhang, Zhaoyang Yu, Haochen Shi, Boyan Li, Dekun Wu, Fengwei Teng, Xiaojun
+cost penalization, for example, by considering energy consumption                              Jia, Jiawei Xu, Jinyu Xiang, Yizhang Lin, Tianming Liu, Tongliang Liu, Yu Su,
+and CO2 emission.                                                                              Huan Sun, Glen Berseth, Jianyun Nie, Ian Foster, Logan Ward, Qingyun Wu,
+                                                                                               Yu Gu, Mingchen Zhuge, Xinbing Liang, Xiangru Tang, Haohan Wang, Jiaxuan
+                                                                                               You, Chi Wang, Jian Pei, Qiang Yang, Xiaoliang Qi, and Chenglin Wu. 2025.
+                                                                                               Advances and Challenges in Foundation Agents: From Brain-Inspired Intelligence
+References                                                                                     to Evolutionary, Collaborative, and Safe Systems. arXiv:2504.01990 [cs.AI] https:
+ [1] Pranjal Aggarwal and Sean Welleck. 2025. L1: Controlling How Long A Reasoning             //arxiv.org/abs/2504.01990
+     Model Thinks With Reinforcement Learning.                                            [19] Nelson F. Liu, Kevin Lin, John Hewitt, Ashwin Paranjape, Michele Bevilacqua,
+ [2] Bradley Butcher, Michael O’Keefe, and James Titchener. 2025. Precise length               Fabio Petroni, and Percy Liang. 2024. Lost in the Middle: How Language Models
+     control for large language models. Natural Language Processing Journal (2025).            Use Long Contexts. Trans. Assoc. Comput. Linguistics 12 (2024), 157–173.
+ [3] Mingyang Chen, Linzhuang Sun, Tianpeng Li, Haoze Sun, Yijie Zhou, Chenzheng          [20] Alex Mallen, Akari Asai, Victor Zhong, Rajarshi Das, Hannaneh Hajishirzi, and
+     Zhu, Haofen Wang, Jeff Z. Pan, Wen Zhang, Huajun Chen, Fan Yang, Zenan                    Daniel Khashabi. 2022. When not to trust language models: Investigating ef-
+     Zhou, and Weipeng Chen. 2025. ReSearch: Learning to Reason with Search for                fectiveness and limitations of parametric and non-parametric memories. arXiv
+     LLMs via Reinforcement Learning. arXiv:2503.19470 [cs.AI] https://arxiv.org/              preprint arXiv:2212.10511 7 (2022).
+     abs/2503.19470                                                                       [21] Niklas Muennighoff, Zitong Yang, Weijia Shi, Xiang Lisa Li, Li Fei-Fei, Hannaneh
+ [4] Hyung Won Chung, Le Hou, Shayne Longpre, Barret Zoph, Yi Tay, William Fedus,              Hajishirzi, Luke Zettlemoyer, Percy Liang, Emmanuel Candès, and Tatsunori
+     Yunxuan Li, Xuezhi Wang, Mostafa Dehghani, Siddhartha Brahma, Albert Web-                 Hashimoto. 2025. s1: Simple test-time scaling.
+     son, Shixiang Shane Gu, Zhuyun Dai, Mirac Suzgun, Xinyun Chen, Aakanksha             [22] Ofir Press, Muru Zhang, Sewon Min, Ludwig Schmidt, Noah A Smith, and Mike
+     Chowdhery, Alex Castro-Ros, Marie Pellat, Kevin Robinson, Dasha Valter, Sharan            Lewis. 2022. Measuring and narrowing the compositionality gap in language
+     Narang, Gaurav Mishra, Adams Yu, Vincent Zhao, Yanping Huang, Andrew Dai,                 models. arXiv preprint arXiv:2210.03350 (2022).
+     Hongkun Yu, Slav Petrov, Ed H. Chi, Jeff Dean, Jacob Devlin, Adam Roberts,           [23] Derrick Quinn, Mohammad Nouri, Neel Patel, John Salihu, Alireza Salemi, Sukhan
+     Denny Zhou, Quoc V. Le, and Jason Wei. 2022. Scaling Instruction-Finetuned                Lee, Hamed Zamani, and Mohammad Alian. 2025. Accelerating Retrieval-
+     Language Models.                                                                          Augmented Generation. In Proceedings of the 30th ACM International Confer-
+ [5] Yunfan Gao, Yun Xiong, Xinyu Gao, Kangxiang Jia, Jinliu Pan, Yuxi Bi, Yi Dai,             ence on Architectural Support for Programming Languages and Operating Systems,
+     Jiawei Sun, Haofen Wang, and Haofen Wang. 2023. Retrieval-augmented gen-                  Volume 1 (Rotterdam, Netherlands) (ASPLOS ’25). Association for Computing
+     eration for large language models: A survey. arXiv preprint arXiv:2312.10997 2            Machinery, New York, NY, USA, 15–32. doi:10.1145/3669940.3707264
+     (2023).                                                                              [24] Timo Schick, Jane Dwivedi-Yu, Roberto Dessì, Roberta Raileanu, Maria Lomeli,
+ [6] Daya Guo, Dejian Yang, Haowei Zhang, Junxiao Song, Ruoyu Zhang, Runxin                    Eric Hambro, Luke Zettlemoyer, Nicola Cancedda, and Thomas Scialom. 2023.
+     Xu, Qihao Zhu, Shirong Ma, Peiyi Wang, Xiao Bi, et al. 2025. Deepseek-r1:                 Toolformer: Language models can teach themselves to use tools. Advances in
+     Incentivizing reasoning capability in llms via reinforcement learning. arXiv              Neural Information Processing Systems 36 (2023), 68539–68551.
+     preprint arXiv:2501.12948 (2025).                                                    [25] John Schulman, Philipp Moritz, Sergey Levine, Michael I. Jordan, and Pieter
+ [7] Xanh Ho, Anh-Khoa Duong Nguyen, Saku Sugawara, and Akiko Aizawa. 2020.                    Abbeel. 2016. High-Dimensional Continuous Control Using Generalized Advan-
+     Constructing a multi-hop qa dataset for comprehensive evaluation of reasoning             tage Estimation. In The 4th International Conference on Learning Representations,
+     steps. arXiv preprint arXiv:2011.01060 (2020).                                            ICLR 2016.
+ [8] Sebastian Hofstätter, Jiecao Chen, Karthik Raman, and Hamed Zamani. 2023. FiD-       [26] John Schulman, Filip Wolski, Prafulla Dhariwal, Alec Radford, and Oleg Klimov.
+     Light: Efficient and Effective Retrieval-Augmented Text Generation. In Proceed-           2017. Proximal policy optimization algorithms. arXiv preprint arXiv:1707.06347
+     ings of the 46th International ACM SIGIR Conference on Research and Development           (2017).
+     in Information Retrieval (Taipei, Taiwan) (SIGIR ’23). Association for Computing     [27] John Schulman, Filip Wolski, Prafulla Dhariwal, Alec Radford, and Oleg Klimov.
+     Machinery, New York, NY, USA, 1437–1447. doi:10.1145/3539618.3591687                      2017. Proximal Policy Optimization Algorithms. arXiv preprint 1707.06347 (2017).
+ [9] Hamish Ivison, Yizhong Wang, Jiacheng Liu, Zeqiu Wu, Valentina Pyatkin,              [28] Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei
+     Nathan Lambert, Noah A. Smith, Yejin Choi, and Hannaneh Hajishirzi. 2024.                 Zhang, Mingchuan Zhang, YK Li, Y Wu, et al. 2024. Deepseekmath: Pushing
+     Unpacking DPO and PPO: Disentangling Best Practices for Learning from Pref-               the limits of mathematical reasoning in open language models. arXiv preprint
+     erence Feedback. In The Thirty-eighth Annual Conference on Neural Information             arXiv:2402.03300 (2024).
+     Processing Systems.                                                                  [29] Prasann Singhal, Tanya Goyal, Jiacheng Xu, and Greg Durrett. 2024. A Long
+[10] Gautier Izacard and Edouard Grave. 2021. Leveraging Passage Retrieval with                Way to Go: Investigating Length Correlations in RLHF.
+     Generative Models for Open Domain Question Answering. In Proceedings of the          [30] Weihang Su, Yichen Tang, Qingyao Ai, Zhijing Wu, and Yiqun Liu. 2024. DRAGIN:
+     16th Conference of the European Chapter of the Association for Computational              Dynamic Retrieval Augmented Generation based on the Real-time Information
+     Linguistics: Main Volume. Association for Computational Linguistics, Online,              Needs of Large Language Models. In Proceedings of the 62nd Annual Meeting of
+     874–880. doi:10.18653/v1/2021.eacl-main.74                                                the Association for Computational Linguistics (Volume 1: Long Papers), Lun-Wei
+[11] Renlong Jie, Xiaojun Meng, Lifeng Shang, Xin Jiang, and Qun Liu. 2023. Prompt-            Ku, Andre Martins, and Vivek Srikumar (Eds.). Association for Computational
+     Based Length Controlled Generation with Reinforcement Learning.                           Linguistics, Bangkok, Thailand, 12991–13013. doi:10.18653/v1/2024.acl-long.702
+[12] Bowen Jin, Hansi Zeng, Zhenrui Yue, Jinsung Yoon, Sercan Arik, Dong Wang,            [31] Qwen Team. 2025. Qwen2.5 Technical Report. arXiv:2412.15115
+     Hamed Zamani, and Jiawei Han. 2025. Search-R1: Training LLMs to Reason and           [32] Harsh Trivedi, Niranjan Balasubramanian, Tushar Khot, and Ashish Sabharwal.
+     Leverage Search Engines with Reinforcement Learning.                                      2022. Interleaving retrieval with chain-of-thought reasoning for knowledge-
+[13] Mandar Joshi, Eunsol Choi, Daniel S Weld, and Luke Zettlemoyer. 2017. Triviaqa:           intensive multi-step questions. arXiv preprint arXiv:2212.10509 (2022).
+     A large scale distantly supervised challenge dataset for reading comprehension.      [33] Harsh Trivedi, Niranjan Balasubramanian, Tushar Khot, and Ashish Sabharwal.
+     arXiv preprint arXiv:1705.03551 (2017).                                                   2022. MuSiQue: Multihop Questions via Single-hop Question Composition.
+[14] Tom Kwiatkowski, Jennimaria Palomaki, Olivia Redfield, Michael Collins, Ankur             Transactions of the Association for Computational Linguistics 10 (2022), 539–554.
+     Parikh, Chris Alberti, Danielle Epstein, Illia Polosukhin, Jacob Devlin, Kenton      [34] Sourav Verma. 2024. Contextual Compression in Retrieval-Augmented Gener-
+     Lee, et al. 2019. Natural questions: a benchmark for question answering research.         ation for Large Language Models: A Survey. arXiv:2409.13385 [cs.CL] https:
+     Transactions of the Association for Computational Linguistics 7 (2019), 453–466.          //arxiv.org/abs/2409.13385
+[15] Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin,    [35] Liang Wang, Nan Yang, Xiaolong Huang, Binxing Jiao, Linjun Yang, Daxin Jiang,
+     Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel,                  Rangan Majumder, and Furu Wei. 2024. Text Embeddings by Weakly-Supervised
+     et al. 2020. Retrieval-augmented generation for knowledge-intensive nlp tasks.            Contrastive Pre-training. arXiv:2212.03533 [cs.CL]
+     Advances in neural information processing systems 33 (2020), 9459–9474.              [36] Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, Fei Xia, Ed Chi,
+[16] Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin,         Quoc V Le, Denny Zhou, et al. 2022. Chain-of-thought prompting elicits reasoning
+     Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel,                  in large language models. Advances in neural information processing systems 35
+     Sebastian Riedel, and Douwe Kiela. 2020. Retrieval-augmented generation for               (2022), 24824–24837.
+     knowledge-intensive NLP tasks. In Proceedings of the 34th International Conference   [37] Guangzhi Xiong, Qiao Jin, Xiao Wang, Yin Fang, Haolin Liu, Yifan Yang, Fangyuan
+     on Neural Information Processing Systems (Vancouver, BC, Canada) (NIPS ’20).              Chen, Zhixing Song, Dengyu Wang, Minjia Zhang, et al. 2025. RAG-Gym: Opti-
+     Curran Associates Inc., Red Hook, NY, USA, Article 793, 16 pages.                         mizing Reasoning and Search Agents with Process Supervision. arXiv preprint
+Conference’17, July 2017, Washington, DC, USA                                                                          Helia Hashemi, Victor Rühle, and Saravan Rajmohan
+
+
+     arXiv:2502.13957 (2025).                                                                arXiv:2410.04343 (2024).
+[38] Zhenghai Xue, Longtao Zheng, Qian Liu, Yingru Li, Xiaosen Zheng, Zejun Ma, and     [43] Hamed Zamani, Fernando Diaz, Mostafa Dehghani, Donald Metzler, and Michael
+     Bo An. 2025. SimpleTIR: End-to-End Reinforcement Learning for Multi-Turn Tool-          Bendersky. 2022. Retrieval-Enhanced Machine Learning. In Proceedings of the 45th
+     Integrated Reasoning. arXiv:2509.02479 [cs.LG] https://arxiv.org/abs/2509.02479         International ACM SIGIR Conference on Research and Development in Information
+[39] Zhilin Yang, Peng Qi, Saizheng Zhang, Yoshua Bengio, William W Cohen, Ruslan            Retrieval (Madrid, Spain) (SIGIR ’22). Association for Computing Machinery, New
+     Salakhutdinov, and Christopher D Manning. 2018. HotpotQA: A dataset for di-             York, NY, USA, 2875–2886. doi:10.1145/3477495.3531722
+     verse, explainable multi-hop question answering. arXiv preprint arXiv:1809.09600   [44] Kaiyan Zhang, Yuxin Zuo, Bingxiang He, Youbang Sun, Runze Liu, Che Jiang,
+     (2018).                                                                                 Yuchen Fan, Kai Tian, Guoli Jia, Pengfei Li, Yu Fu, Xingtai Lv, Yuchen Zhang,
+[40] Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan,           Sihang Zeng, Shang Qu, Haozhan Li, Shijie Wang, Yuru Wang, Xinwei Long,
+     and Yuan Cao. 2023. React: Synergizing reasoning and acting in language models.         Fangfu Liu, Xiang Xu, Jiaze Ma, Xuekai Zhu, Ermo Hua, Yihao Liu, Zonglin Li,
+     In International Conference on Learning Representations (ICLR).                         Huayu Chen, Xiaoye Qu, Yafu Li, Weize Chen, Zhenzhao Yuan, Junqi Gao, Dong
+[41] Weizhe Yuan, Ilia Kulikov, Ping Yu, Kyunghyun Cho, Sainbayar Sukhbaatar, Jason          Li, Zhiyuan Ma, Ganqu Cui, Zhiyuan Liu, Biqing Qi, Ning Ding, and Bowen
+     Weston, and Jing Xu. 2024. Following Length Constraints in Instructions.                Zhou. 2025. A Survey of Reinforcement Learning for Large Reasoning Models.
+[42] Zhenrui Yue, Honglei Zhuang, Aijun Bai, Kai Hui, Rolf Jagerman, Hansi Zeng,             arXiv:2509.08827 [cs.CL] https://arxiv.org/abs/2509.08827
+     Zhen Qin, Dong Wang, Xuanhui Wang, and Michael Bendersky. 2024. Infer-
+     ence scaling for long-context retrieval augmented generation. arXiv preprint
+

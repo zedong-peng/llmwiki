@@ -1,0 +1,1188 @@
+                                              EviMem: Evidence-Gap-Driven Iterative Retrieval for Long-Term
+                                                                Conversational Memory
+
+                                                              Yuyang Li1∗ Yime He2∗ Zeyu Zhang2 Dong Gong2†
+                                                               1
+                                                                 The Australian National University 2 UNSW Sydney
+                                                                  ∗
+                                                                      Equal contribution. † Corresponding author: dong.gong@unsw.edu.au.
+
+
+
+
+                                                               Abstract                                 feedback between stages (Hu et al., 2025). Queries
+                                                                                                        are constructed before any evidence is examined
+
+
+
+
+arXiv:2604.27695v1 [cs.CV] 30 Apr 2026
+                                             Long-term conversational memory requires                   and cannot adapt to retrieval outcomes (Pereira
+                                             retrieving evidence scattered across multiple              et al., 2023; Gao et al., 2023). Semantic drift and
+                                             sessions, yet single-pass retrieval fails on               forced top-K selection introduce noise that com-
+                                             temporal and multi-hop questions. Existing
+                                                                                                        pounds for multi-hop and temporal questions.
+                                             iterative methods refine queries via gener-
+                                             ated content or document-level signals, but                   Several recent methods address this by introduc-
+                                             none explicitly diagnoses the evidence gap—                ing iterative retrieval. IRCoT (Trivedi et al., 2023)
+                                             what is missing from the accumulated re-
+                                                                                                        uses each reasoning step as a re-query. Iter-RetGen
+                                             trieval set—leaving query refinement untar-
+                                             geted. We present EviMem, combining IRIS                   (Shao et al., 2023) uses the model’s generated out-
+                                             (Iterative Retrieval via Insufficiency Signals),           put as context for subsequent retrieval. FLARE
+                                             a closed-loop framework that detects evidence              (Jiang et al., 2023) triggers re-retrieval when gen-
+                                             gaps through sufficiency evaluation, diagnoses             eration confidence drops below a threshold. Self-
+                                             what is missing, and drives targeted query                 RAG (Asai et al., 2024) emits reflection tokens to
+                                             refinement, with LaceMem (Layered Archi-                   score individual passages. CRAG (Yan et al., 2024)
+                                             tecture for Conversational Evidence Mem-                   classifies individual documents as correct, ambigu-
+                                             ory), a coarse-to-fine memory hierarchy sup-
+                                                                                                        ous, or incorrect to trigger corrective retrieval. Yet
+                                             porting fine-grained gap diagnosis. On Lo-
+                                             CoMo, EviMem improves Judge Accuracy                       their sufficiency signals operate at a finer granular-
+                                             over MIRIX on temporal (73.3%→81.6%) and                   ity than the retrieval set as a whole: FLARE eval-
+                                             multi-hop (65.9%→85.2%) questions at 4.5×                  uates per-token generation confidence; Self-RAG
+                                             lower latency. Code: https://github.com/                   and CRAG assess individual passage quality via re-
+                                             AIGeeksGroup/EviMem.                                       flection/evaluator tokens; IRCoT validates reason-
+                                                                                                        ing steps; Iter-RetGen uses the intermediate gener-
+                                         1   Introduction                                               ation as the next query without explicit sufficiency
+                                            LLM-based agents increasingly rely on long-                 evaluation; ReAct-style agents decide next actions
+                                         term memory to reason over interaction histo-                  from local observations. None of these explicitly
+                                         ries spanning multiple sessions (Park et al., 2023;            assess whether the accumulated evidence set, con-
+                                         Zhong et al., 2023). While direct lookups, “What               sidered as a whole and in a tiered form (EXACT /
+                                         is Bob’s favorite restaurant?”, can be resolved via            INFERRABLE / PARTIAL ), is sufficient to answer
+
+                                         single-pass retrieval, questions requiring tempo-              the question. EviMem targets this collection-level,
+                                         ral reasoning (“When did Alice change her career               tiered sufficiency gap directly. Without a holistic
+                                         plans?”) or multi-hop synthesis (“What dance                   model of evidence sufficiency, these systems can-
+                                         piece did Jon’s team perform to win first place?”)             not produce targeted follow-up queries addressing
+                                         demand evidence scattered across conversations                 diagnosed gaps; they refine blindly. This limitation
+                                         that share no overlapping keywords. For such ques-             is amplified in long-term conversational memory,
+                                         tions, single-pass retrieval systematically fails to           where evidence is temporally structured, entity-
+                                         surface all relevant facts.                                    dense, and distributed across sessions with no sur-
+                                                                                                        face similarity—a setting these methods were not
+                                            This failure reflects a well-documented architec-
+                                                                                                        designed for.
+                                         tural limitation: conventional retrieval pipelines op-
+                                         erate as open-loop, single-pass sequences with no                 We introduce EviMem, a conversational memory
+system that closes the retrieval loop via explicit          ciency evaluation. LaceMem’s atomic tuple
+evidence-gap diagnosis—identifying what specific            structure allows IRIS to diagnose evidence com-
+evidence is missing from the accumulated set, oper-         pleteness at the right granularity. Ablations con-
+ationalized through a sufficiency evaluation mecha-         firm incremental contributions from each com-
+nism. EviMem comprises two mutually enabling                ponent: the iterative loop, dual-layer sufficiency
+components. The retrieval component, IRIS (Iter-            classification, temporal specialization, and en-
+ative Retrieval via Insufficiency Signals), centers         tity tracking.
+on sufficiency evaluation as its primary operation.      3. Competitive accuracy at a fraction of the la-
+After each retrieval iteration, an LLM evaluates the        tency. EviMem matches or exceeds main com-
+accumulated evidence set as a whole, classifying it         petitor, MIRIX, accuracy at 9.54s average la-
+into three tiers—EXACT, INFERRABLE, or PAR-                 tency versus 42.71s, a 4.5× reduction, via re-
+TIAL—and producing a natural-language diagno-               placing multi-agent orchestration with a focused
+sis of missing information. This diagnosis—rather           iterative loop that allocates computation adap-
+than retrieved content or a draft answer—drives             tively by question difficulty.
+targeted query refinement. Dual-path retrieval (one
+                                                         2   Related Work
+anchored to the original question, one using the
+refined query) prevents semantic drift, while per-       Long-term Conversational Memory. Standard
+entity fact tracking detects sparse entity coverage.     RAG (Lewis et al., 2021) treats memory as a
+If evidence remains insufficient after all iterations,   static collection with flat semantic matching, which
+IRIS explicitly abstains instead of hallucinating.We     is insufficient for temporal continuity across ses-
+validate the classifier’s reliability, commitment pre-   sions. Persistent memory systems such as Mem-
+cision, and confidence discriminability in §4.4.         oryBank (Zhong et al., 2023) and Generative
+                                                         Agents (Park et al., 2023) support long-term con-
+   The memory component, LaceMem (Layered Ar-
+                                                         sistency, while recent work adds structural pri-
+chitecture for Conversational Evidence Memory),
+                                                         ors: A-Mem (Xu et al., 2025) for agent-controlled
+provides the substrate enabling IRIS’s sufficiency
+                                                         memory selection, MAGMA (Jiang et al., 2026)
+evaluation. A compact Index layer of semantic
+                                                         for multi-graph reasoning, and TReMu (Ge et al.,
+tuples supports fast search; a sparse Edge layer
+                                                         2025) for neuro-symbolic temporal reasoning in
+enables multi-hop expansion; and a Raw layer pre-
+                                                         multi-session dialogue. LiCoMemory and its Cog-
+serves full conversational detail for grounded gener-
+                                                         niGraph component (Huang et al., 2025) extend
+ation. This coarse-to-fine hierarchy balances struc-
+                                                         this direction with hierarchical indexing and tem-
+tured rigidity and summarization loss (Hu et al.,
+                                                         poral weighting, enabling more fine-grained fact
+2025). Crucially, IRIS relies on LaceMem’s atomic
+                                                         organisation and time-aware retrieval across ses-
+tuples for fine-grained sufficiency evaluation, while
+                                                         sions. LaceMem shares this structural philosophy
+LaceMem alone cannot recover distributed multi-
+                                                         but pairs it with IRIS’s iterative evidence-gap loop:
+session evidence—making the two components mu-
+                                                         rather than issuing a single query against the or-
+tually enabling.
+                                                         ganised memory, IRIS evaluates whether the accu-
+   We evaluate on the LoCoMo benchmark (Ma-              mulated evidence suffices and diagnoses exactly
+harana et al., 2024), a long-term conversational         what remains missing, driving targeted follow-up
+memory dataset spanning five categories. Our main        retrieval. These structured approaches increase ex-
+findings are:                                            pressiveness but incur higher inference overhead
+1. Evidence-gap-driven iteration disproportion-          from multi-step graph traversal (Hu et al., 2025).
+   ately benefits complex questions. EviMem              LaceMem preserves relational structure with a
+   achieves 81.6% Judge Accuracy on temporal             coarse-to-fine hierarchy—compact tuples, graph
+   reasoning (from 73.3% for the multi-agent base-       edges, and raw dialogue—while favoring parallel
+   line MIRIX (Wang and Chen, 2025) and 58.8%            retrieval over sequential traversal.
+   for single-pass retrieval) and 85.2% on multi-        Iterative and Adaptive Retrieval. Several meth-
+   hop questions (from 65.9% and 81.4%), con-            ods move beyond single-pass RAG, differing in
+   firming that explicit evidence-gap diagnosis is       what drives iteration. Content-driven approaches
+   most valuable where single-pass retrieval is          use generated output as the signal: IRCoT (Trivedi
+   most likely to fail.                                  et al., 2023) uses chain-of-thought steps, Iter-
+2. Coarse-to-fine memory enables effective suffi-        RetGen (Shao et al., 2023) uses draft answers, and
+FLARE (Jiang et al., 2023) uses generation con-
+fidence. Evaluation-driven approaches assess re-
+trieval quality: Self-RAG (Asai et al., 2024) eval-
+uates individual passage relevance via reflection
+tokens, and CRAG (Yan et al., 2024) classifies in-
+dividual documents to trigger corrective retrieval.
+However, all evaluate either generated content or
+individual documents—none assesses whether the
+accumulated evidence set suffices to answer the
+question. IRIS fills this gap: it evaluates accu-
+mulated evidence as a whole for sufficiency and
+produces an explicit diagnosis of what information
+remains missing, driving targeted query refinement.
+Structured Memory and Experience Storage.
+ReasoningBank (Ouyang et al., 2025) high-
+lights the value of structured experience stor-
+age via memory-aware test-time scaling. Hip-
+poRAG (Gutiérrez et al., 2024) uses single-
+step PageRank over knowledge graphs, and
+GraphRAG (Edge et al., 2024) pre-indexes commu-          Figure 1: LaceMem memory architecture. Dialogue
+nity summaries for query-focused summarization;          is organized into three layers: Index (semantic tuples
+neither includes an iterative evidence-gap loop.         for search), Edge (graph links for multi-hop expansion),
+                                                         and Raw (verbatim dialogue for grounding).
+Knowledge graph systems (Rasmussen et al., 2025)
+capture entity relations but struggle with temporal      links to its source turn, enabling retrieval of full
+nuance, while flat vector stores (Packer et al., 2023;   context during generation.
+Chhikara et al., 2025) lack compositional structure.
+                                                            This atomic representation is essential for
+MIRIX (Wang and Chen, 2025) organizes memory
+                                                         evidence-gap detection, allowing IRIS’s sufficiency
+into six typed components managed by specialized
+                                                         evaluation to identify missing individual facts, e.g,
+agents and serves as our primary baseline (§4).
+                                                         session summaries or document chunks not pro-
+3     Methodology                                        vided.
+3.1    LaceMem: Layered Memory Architecture              Edge Layer (Expansion). Index tuples are
+                                                         linked into a sparse graph via two complemen-
+   Long-term conversational memory must balance
+                                                         tary edge types: (1) same-source edges connect
+fast search over large dialogue histories, associa-
+                                                         tuples from the same dialogue turn, preserving lo-
+tive expansion for multi-hop connections, and faith-
+                                                         cal coherence; and (2) semantic similarity edges
+ful grounding in verbatim dialogue. LaceMem ad-
+                                                         link related tuples across turns based on embedding
+dresses this with a three-layer coarse-to-fine hierar-
+                                                         similarity. This graph enables multi-hop expansion
+chy (Figure 1): a compact Index layer for search,
+                                                         from initially retrieved tuples, supporting associa-
+a sparse Edge layer for expansion, and a Raw
+                                                         tive recall across sessions that share no surface-
+layer for grounding. Retrieval proceeds top-down:
+                                                         level similarity.
+search over Index tuples, expansion via Edge con-
+nections, and detailed grounding from the Raw            Raw Layer (Grounding). Each speaker turn is
+layer when needed.                                       stored verbatim with speaker identity and times-
+                                                         tamp, without summarization or rewriting. Once
+Index Layer (Search). Each speaker turn is fac-
+                                                         IRIS retrieves relevant Index tuples and expands via
+torized by an LLM into atomic semantic tuples
+                                                         Edge connections, the linked raw records provide
+(subject, predicate, object, event_time),
+                                                         full conversational context for grounded answer
+with temporal expressions normalized to calen-
+                                                         generation.
+dar dates. Multiple tuples may arise from one
+turn, and subjective statements are normalized into      Co-design with IRIS. LaceMem and IRIS are
+speaker-grounded relations (e.g., “X is beautiful”       co-designed: each LaceMem layer addresses a spe-
+→ “speaker thinks X is beautiful”). Each tuple           cific need of the evidence-gap loop, and together
+they enable capabilities neither could provide alone.     Algorithm 1: IRIS Iterative Retrieval Loop
+The Index layer’s atomic tuples give tier-level suf-      (see Appendix A for the full version)
+ficiency evaluation the granularity required to de-         Input: Question q, Memory M, Entity set E, Max
+tect which specific facts are missing, a precision                 iterations k
+                                                            Output: Evidence Dall , Confidence c, Evidence tier
+that session summaries (GraphRAG) or passage                         t
+chunks (HippoRAG) cannot match. The Edge layer               ′
+                                                          1 q ← q; Dall ← ∅; Fe ← ∅ ∀ e ∈ E;
+
+turns sufficiency-identified seeds into multi-hop ex-     2 for i ← 1 to k do
+                                                                 // Dual-path retrieval:
+pansions without a separate query planner. This           3      Danc ← Retrieve(q, ki ) ;         // Anchor:
+tight integration between memory structure and re-                original question, preserves coverage
+trieval logic distinguishes LaceMem from retrieval-       4      Dref ← Retrieve(q ′ , ki ) ; // Refinement:
+                                                                  diagnosis-driven query, targets gaps
+method-agnostic memory systems.
+                                                          5      D(i) ← Dedup(Danc ∪ Dref ∪
+                                                                  GraphExpand(Danc ∪ Dref ));
+3.2     IRIS: Iterative Retrieval via Insufficiency
+                                                          6      Dall ← Dall ∪ D(i) ;          // Accumulate
+        Signals                                                   evidence across iterations
+   IRIS transforms the conventional open-loop                     // Track per-entity fact coverage for
+retrieval into a closed-loop process driven by                        under-represented entities
+                                                          7       foreach e ∈ E do
+evidence-gap detection: at each iteration, it eval-       8            Fe ← Fe ∪ {d ∈ D(i) | e ∈ d}
+uates whether accumulated evidence is sufficient
+                                                                  // Evaluate accumulated evidence as a
+and, if not, diagnoses what is missing. After each                    whole; m diagnoses what is missing
+retrieval iteration, an LLM classifies accumulated        9       (t, c, m) ← EvalSufficiency(Dall , q);
+evidence into three tiers—EXACT, INFERRABLE,             10       Calibrate c based on t, τ (q), and entity coverage
+                                                                    {|Fe |};
+or PARTIAL—and produces a natural-language di-
+                                                                  // Stop when evidence is sufficient or
+agnosis of what information remains missing. This                     budget exhausted
+diagnosis guides targeted query refinement for the       11       if Sufficient(t, c) or i = k then break;
+next iteration. The loop continues until sufficient               // Use missing-information diagnosis m
+evidence is gathered or the maximum iteration limit                  to refine the next query
+                                                         12       q′ ←
+is reached, after which the system either generates
+                                                                   LLM_Refine(q, q ′ , m, Strategy(τ (q), i), FE );
+an answer or abstains. Algorithm 1 outlines the iter-
+ative loop; the full specification with all thresholds   13   return Dall , c, t;
+and constants is in Algorithm 2.
+3.2.1    Preprocessing                                   gressively across iterations to widen search scope
+                                                         when early attempts prove insufficient.
+    Before entering the loop, we extract named en-
+tities from question q (via pattern matching and         Entity Tracking. For each entity e ∈ E, a fact
+LLM-based extraction) to obtain entity set E, and        buffer Fe accumulates all retrieved facts mention-
+detect temporal intent τ (q) via rule-based keyword      ing e across iterations. This per-entity view detects
+matching. Temporal questions trigger stricter confi-     a failure mode invisible to query-level evaluation:
+dence thresholds and specialized answer generation       in multi-entity questions, aggregate evidence may
+(§3.2.3).                                                appear sufficient even though facts about a particu-
+                                                         lar entity are critically sparse.
+3.2.2    Iterative Retrieval Loop
+                                                         Sufficiency Evaluation. The central operation
+   Each iteration executes five phases, described as     of IRIS: an LLM evaluates whether accumulated
+follows.                                                 evidence Dall suffices to answer q, producing a
+Dual-Path Retrieval. To balance coverage and             three-tier classification:
+focus, each iteration retrieves along two parallel          • EXACT: a precise, direct answer exists in the
+paths: the anchor path uses the original question q           evidence.
+to maintain global coverage, while the refinement           • INFERRABLE: sufficient clues exist for rea-
+path uses the diagnosis-driven query qi′ for gap-             sonable inference.
+targeted search (in iteration 1, q1′ = q). Retrieved        • PARTIAL: related evidence is present but in-
+facts from both paths are merged, deduplicated, and           sufficient.
+expanded via one-hop graph traversal over Lace-          Along with the tier, the evaluator produces a con-
+Mem’s Edge layer. The retrieval budget grows pro-        fidence score c ∈ [0, 1] and a natural-language
+                                                                                                                                                                                                         Reasoning & Generation
+                                                                                           IRIS Iterative Retrieval Loop
+                        Anchor Path                                                                                                                                                                       Multi-Hop
+                        (Original Query)               Iteration i=1                                        Iteration i=2                                             Iteration i=3                       Reasoning
+     Question q                        q (original)                                                                                                                                                        Chain C
+                                                                                           q (original)                                             q (original)
+
+                                                                                                                                                                                                           Adaptive
+                                           Retrieve                                          Retrieve                                                 Retrieve                                             Answer
+                                            (q, ki)                                           (q, ki)                                                  (q, ki)                                            Generation
+
+                                                                                                                                                                                                            Not
+                                                        Merge                                                Merge                                                    Merge                               Mentioned
+                                                          &                                                    &                                                        &                                 Detection
+                                                                                                                                     q'' (re-
+                           q' = q                       Expand              q' (refined)                     Expand                                                   Expand
+                                                                                                                                    refined)
+
+                                           Retrieve                                          Retrieve                                                 Retrieve
+                                            (q', ki)                                          (q', ki)                                                 (q', ki)                                                         Answer
+   Preprocessing                                                                                                                                                                                                            +
+                        Refinement Path                                                                                                                                               YES (Exit Loop)
+                                                                                                                                                                                                                       Confidence
+                        (Diagnosis-Driven Query)
+
+    Entity Extraction                                                         Query                                                     Query
+                                                                              Refine                                                    Refine
+           →ℰ
+                                                                                                                                                                                                        Query Refine Context
+                                                                                                                                   NO                            NO
+   Temporal Detection                                                                                                                                                                                   Original       Current
+        → τ(q)                                                                     Sufficiency Evaluation & Termination                                                                                 Question       Query
+
+                                                                                                  Sufficiency Evaluation                                                       NO                       Missing         Entity
+                                               Accumulate         Entity                                                                         Termination
+                                                                                                                                                                                                        Info m         Context ε
+       Dall ← ∅                                  Facts           Tracking                  EXACT         INFERRABLE      PARTIAL                   Decision
+                                                  Dall              Fe                                                                           (Sufficient?)
+    Fe ← ∅ ∀ e ∈ ℰ                                                                                                                                                             YES
+                                                                                                          Missing Info
+                                                                                                                                                                                                        Iteration      Strategy
+
+
+
+
+Figure 2: EviMem with IRIS iterative retrieval pipeline. At each iteration, dual-path retrieval gathers evidence,
+sufficiency evaluation diagnoses gaps, and query refinement targets missing information. Retrieve in both paths and
+sufficiency evaluation operations are based on LaceMem.
+
+
+description m of what information remains miss-                                                                             description m from the sufficiency evaluator, which
+ing. The INFERRABLE tier bridges strict exact-                                                                              specifies what the system still needs rather than
+ness and necessary inferential leaps, critical for                                                                          blindly rephrasing.
+temporal and multi-hop questions where complete                                                                                The refinement prompt anchors on the original
+evidence is rare.                                                                                                           question to prevent drift, incorporates the gap di-
+Confidence calibration design. The three tem-                                                                               agnosis m, applies a question-type–specific search
+poral confidence adjustments (EXACT floor 0.85,                                                                             strategy, and injects entity hints when they are un-
+INFERRABLE cap 0.75, PARTIAL cap 0.50) are                                                                                  derrepresented. Strategy selection is rule-based;
+structural anchors relative to IRIS’s convergence                                                                           only the final query generation uses the LLM.
+thresholds. The EXACT floor equals the tempo-                                                                               3.2.3 Answer Generation
+ral convergence threshold (τtemporal = 0.85), guar-                                                                         “Not Mentioned” Detection. If evidence re-
+anteeing that verbatim evidence always triggers                                                                             mains absent after all iterations—either no tier is
+termination regardless of the LLM’s raw confi-                                                                              activated or confidence stays extremely low—IRIS
+dence. The INFERRABLE cap sits just above the                                                                               abstains instead of generating a hallucinated an-
+inferrable threshold (τinf = 0.70), permitting termi-                                                                       swer, converting silent failure into faithful refusal.
+nation on inferred answers but not forcing it. The
+                                                                                                                            Multi-Hop Reasoning Chain. When evidence
+PARTIAL cap falls strictly below both thresholds,
+                                                                                                                            is classified as INFERRABLE or PARTIAL, the
+ensuring partial evidence never terminates the loop.
+                                                                                                                            system generates an explicit reasoning chain that
+Each value implements a specific convergence guar-
+                                                                                                                            decomposes the question into sequential inference
+antee: EXACT always stops, INFERRABLE may
+                                                                                                                            steps (e.g. “Identify Jon’s team → Find compe-
+stop, PARTIAL never stops. Entity tracking adds
+                                                                                                                            tition result → Find dance piece performed”) to
+a safeguard: if any entity lacks sufficient support-
+                                                                                                                            guide answer generation.
+ing facts, the system downgrades the tier and caps
+confidence to prevent premature termination.                                                                                Tier-Adaptive Answer Generation. The final
+                                                                                                                            answer is generated by an LLM conditioned on
+Termination. The loop terminates when suffi-
+                                                                                                                            the question, accumulated evidence, and the rea-
+ciency reaches EXACT or INFERRABLE with
+                                                                                                                            soning chain (if available). The prompt adapts
+confidence above a threshold, or when the maxi-
+                                                                                                                            to the evidence tier: with EXACT evidence the
+mum iteration count k is reached.
+                                                                                                                            model answers directly; with inferred evidence it
+Query Refinement. When evidence gaps remain,                                                                                may qualify its response. For temporal questions
+IRIS generates a refined query for the next iteration.                                                                      with EXACT evidence, precise date/time formats
+Unlike conventional query rewriting that operates                                                                           are enforced. This tier-adaptive prompting avoids
+solely on the original question, IRIS’s refinement is                                                                       unnecessary hedging while allowing appropriate
+diagnostic: it is driven by the missing-information                                                                         qualification when evidence is partial.
+3.3    Complexity Analysis                               iterations with base retrieval size ktop = 10, confi-
+   IRIS incurs between 2 and 3k+3 LLM calls              dence thresholds θ = 0.7 (general) and θ = 0.85
+per question (with k=3 maximum iterations). In           (temporal), and entity fact threshold δ = 2. Tem-
+the best case, evidence is sufficient at iteration 1,    perature is 0.3 for all LLM calls. All evaluations
+requiring only one sufficiency check and one an-         are zero-shot on the full LoCoMo benchmark.
+swer generation. In the worst case, each iteration       4.2   Main Results
+adds a sufficiency check and query refinement, plus
+                                                         4.2.1 Overall Performance
+optional reasoning construction and final genera-
+tion. Sufficiency checks and refinements use a              Table 1 presents results across all five categories.
+lightweight LLM; only the final answer generation           EviMem achieves the highest overall scores
+uses a full-scale model. Dual-path retrieval per-        and leads G-EVAL in four of five categories.
+forms two embedding lookups per iteration, for at        MIRIX retains higher Judge Accuracy on single-
+most 2k retrieval operations.                            hop, open-domain, and adversarial questions, re-
+                                                         flecting stronger parametric knowledge, while
+4     Experiments                                        EviMem’s largest gains appear in lexical overlap
+4.1    Setup                                             (F1, ROUGE-L, +56% relative vs. MIRIX), con-
+                                                         firming that iterative retrieval improves answer pre-
+Benchmark. We evaluate on the LoCoMo bench-              cision and recall.
+mark (Maharana et al., 2024), the standard testbed
+for long-term conversational memory. LoCoMo              4.2.2 Category Analysis
+comprises 10 multi-session conversations (aver-          Temporal and multi-hop questions benefit most
+age 588.2 turns, 16,618.1 tokens) with 1,986             from evidence-gap-driven retrieval. Both cat-
+question–answer pairs spanning five categories:          egories require evidence distributed across ses-
+(1) Single-hop — answerable from a single ses-           sions with no surface overlap—precisely the setting
+sion; (2) Multi-hop — requiring synthesis across         where single-pass retrieval fails and IRIS’s iterative
+sessions; (3) Temporal — involving time-related          gap-filling adds the most value.
+reasoning; (4) Open-domain — requiring external          Open-domain questions reveal a retrieval-first
+knowledge; and (5) Adversarial — unanswerable            trade-off. MIRIX achieves higher Judge Accu-
+questions testing hallucination avoidance. Gold-         racy on open-domain questions, despite EviMem’s
+standard answers with evidence dialog IDs are pro-       superior F1. MIRIX’s multi-agent design blends
+vided for all categories.                                parametric knowledge with retrieved facts when ev-
+Metrics. We report G-EVAL (Liu et al., 2023)             idence is sparse, while IRIS enforces strict ground-
+(1–5 Likert scale via GPT-4 chain-of-thought) and        ing and abstains when conversational evidence is
+Judge Accuracy as primary correctness metrics,           insufficient.
+supplemented by token-level F1, ROUGE-L (Lin,            Gains scale with retrieval difficulty. Single-hop
+2004), and BERTScore (Zhang et al., 2020).               questions show modest gains, while multi-hop and
+Baselines. We compare against two systems:               temporal categories, requiring cross-session evi-
+(1) Single-pass uses the same LaceMem memory             dence, see the largest improvements. It confirms
+(§3.1) with one-pass retrieval and direct answer         the benefits of evidence-gap–driven retrieval on
+generation, isolating the contribution of IRIS’s iter-   harder tasks.
+ative loop. (2) MIRIX (Wang and Chen, 2025) is a         4.2.3 Architectural Comparison with MIRIX
+multi-agent memory system that decomposes mem-              MIRIX routes queries to specialized memory
+ory into six typed components (Episodic, Semantic,       modules via LLM tool-calling, relying on the
+Procedural, etc.) managed by a Meta Memory Man-          model to autonomously detect information gaps—a
+ager via LLM tool-calling; we use it as our primary      meta-cognitive task current models handle incon-
+external baseline.                                       sistently. When initial retrieval misses key facts, it
+Implementation Details. All experiments use              often proceeds with incomplete information. IRIS
+GPT-4o for answer generation and GPT-4o-mini             instead makes gap detection explicit: sufficiency
+for entity extraction, sufficiency evaluation, and       evaluation diagnoses missing evidence and guides
+query refinement. Retrieval uses Ada-002 embed-          targeted re-retrieval. This loop uses 2–6 LLM calls
+dings with cosine similarity. IRIS runs up to k = 3      per question (each with a distinct role), compared
+              Category       System              G-EVAL Judge Acc     F1     ROUGE-L BERTScore
+              Overall        MIRIX                2.75    75.9%     0.113      0.108       0.840
+                             Single-pass          2.24    66.4%     0.127      0.121       0.844
+                             EviMem (Ours)        2.81    76.5%     0.177      0.170       0.852
+                               vs. MIRIX         +2.2%    +0.8%     +56.6%    +57.4%       +1.4%
+                               vs. Single-pass   +25.4%   +15.2%    +39.4%    +40.5%       +0.9%
+              Single-hop     MIRIX                2.93    69.6%     0.130      0.112       0.843
+                             Single-pass          2.51    61.3%     0.173      0.155       0.851
+                             EviMem (Ours)        2.98    68.2%     0.205      0.187       0.857
+              Multi-hop      MIRIX                2.46    65.9%     0.099      0.091       0.832
+                             Single-pass          2.67    81.4%     0.151      0.138       0.838
+                             EviMem (Ours)        2.89    85.2%     0.260      0.239       0.857
+              Temporal       MIRIX                2.69    73.3%     0.082      0.073       0.833
+                             Single-pass          1.87    58.8%     0.069      0.061       0.839
+                             EviMem (Ours)        3.08    81.6%     0.135      0.124       0.845
+              Open-domain MIRIX                   3.24    91.6%     0.132      0.132       0.846
+                          Single-pass             2.60    75.5%     0.164      0.162       0.852
+                          EviMem (Ours)           3.17    85.9%     0.192      0.191       0.857
+              Adversarial    MIRIX                1.92    57.9%     0.083      0.082       0.835
+                             Single-pass          1.17    43.4%     0.023      0.024       0.830
+                             EviMem (Ours)        1.94    55.1%     0.081      0.083       0.840
+
+        Table 1: Performance across all five LoCoMo categories. G-EVAL ranges from 1–5 (higher is better).
+
+
+to MIRIX’s variable tool-calling chains, yielding          LaceMem variants. All use the full IRIS itera-
+4.5× lower latency (9.54s vs. 42.71s).                     tive loop; only memory structure changes:
+                                                           1. Raw Only: retrieves verbatim dialogue records
+4.3     Ablation Study
+                                                              via BM25; no structured indexing or graph ex-
+   We conduct two additive ablation studies to                pansion.
+isolate the contributions of the iterative retrieval       2. + Index Layer: adds the semantic Index layer
+framework (IRIS) and the layered memory struc-                (entity–predicate–object tuples with embedding
+ture (LaceMem). The first progressively adds IRIS             retrieval) but disables Edge-layer expansion.
+components on top of single-pass retrieval over the        3. LaceMem (Full): adds the Edge layer for rela-
+full LaceMem architecture (Table 2). The second               tional graph traversal, enabling multi-hop ex-
+varies LaceMem’s layered structure while holding              pansion across memory nodes.
+IRIS fixed at its full configuration (Table 3).
+                                                           4.3.2 Results and Analysis
+4.3.1     System Variants                                    Tables 2 and 3 show category-wise results for
+IRIS variants. We define five variants in order            the IRIS and LaceMem ablations, respectively.
+of increasing capability:                                  Effect of iterative retrieval (IRIS). The ba-
+1. Single-pass (LaceMem only): one-pass re-                sic iterative loop yields the largest single-step
+   trieval with graph expansion and direct answer          gain on temporal questions (Judge Accuracy:
+   generation; no iteration.                               58.8% → 82.7%), confirming that closed-loop re-
+2. + Basic Loop: adds iterative retrieval with             trieval is essential when evidence is distributed
+   single-level sufficiency evaluation and query re-       across sessions. Tiered sufficiency further im-
+   finement.                                               proves multi-hop accuracy (80.1% → 87.3%) by
+3. + Tiered Sufficiency: introduces three-tier ev-         preventing premature termination via the IN -
+   idence classification (EXACT / INFERRABLE /             FERRABLE tier. Temporal adaptation improves
+    PARTIAL) with approximate reasoning.                   lexical precision on time-sensitive questions (multi-
+4. + Temporal Adaptation: adds temporal ques-              hop F1: 0.107 → 0.281) at the cost of conservatism
+   tion detection & adaptive confidence thresholds.        elsewhere. The final component group—entity
+5. EviMem (Full): further adds entity tracking,            tracking, dual-path retrieval, and “not mentioned”
+   anchor/refinement dual-path retrieval, and “not         detection—contributes the largest single-hop F1
+   mentioned” detection.                                   gain (0.081 → 0.205) and raises adversarial accu-
+             Category       Variant                G-EVAL Judge Acc    F1     ROUGE-L BERTScore
+             Single-hop     Single-pass             2.51    61.3%     0.173    0.155      0.851
+                            + Basic Loop            2.63    61.8%     0.121    0.110      0.836
+                            + Tiered Sufficiency    2.73    65.7%     0.077    0.068      0.823
+                            + Temporal Adapt.       2.72    64.3%     0.081    0.072      0.824
+                            EviMem (Full)           2.98    68.2%     0.205    0.187      0.857
+             Multi-hop      Single-pass             2.67    81.4%     0.151    0.138      0.838
+                            + Basic Loop            2.68    80.1%     0.136    0.124      0.835
+                            + Tiered Sufficiency    3.09    87.3%     0.107    0.096      0.825
+                            + Temporal Adapt.       2.65    79.4%     0.281    0.255      0.850
+                            EviMem (Full)           2.89    85.2%     0.260    0.239      0.857
+             Temporal       Single-pass             1.87    58.8%     0.069    0.061      0.839
+                            + Basic Loop            3.09    82.7%     0.061    0.055      0.825
+                            + Tiered Sufficiency    3.03    83.7%     0.067    0.059      0.821
+                            + Temporal Adapt.       3.00    79.6%     0.070    0.063      0.822
+                            EviMem (Full)           3.08    81.6%     0.135    0.124      0.845
+             Open-domain Single-pass                2.60    75.5%     0.164    0.162      0.852
+                         + Basic Loop               2.76    76.4%     0.129    0.128      0.841
+                         + Tiered Sufficiency       3.02    82.0%     0.114    0.115      0.835
+                         + Temporal Adapt.          2.90    79.4%     0.122    0.124      0.836
+                         EviMem (Full)              3.17    85.9%     0.192    0.191      0.857
+             Adversarial    Single-pass             1.17    43.4%     0.023    0.024      0.830
+                            + Basic Loop            1.48    48.3%     0.047    0.051      0.826
+                            + Tiered Sufficiency    1.86    51.7%     0.038    0.040      0.818
+                            + Temporal Adapt.       1.84    50.3%     0.041    0.043      0.819
+                            EviMem (Full)           1.94    55.1%     0.081    0.083      0.840
+
+Table 2: IRIS additive ablation by question category. Each row adds one component group to the row above. All
+variants use the full LaceMem memory.
+
+
+racy from 50.3% to 55.1%.                                  re-query, with all six retrieval metrics consistently
+                                                           positive (full per-iteration breakdown in Appendix
+Effect of memory structure (LaceMem). The
+                                                           Table 9). By iteration 3 the recall gap narrows but
+Index layer improves multi-hop Judge Accuracy
+                                                           nDCG remains higher (+0.5%), indicating that the
+from 16.7% to 43.2% via atomic tuple matching,
+                                                           diagnosis signal continues to improve ranking qual-
+but without the Edge layer introduces fragmenta-
+                                                           ity. While these retrieval-level gains are modest in
+tion (Open-domain: 57.4% → 42.3%; Adversarial:
+                                                           isolation, the sufficiency evaluator amplifies them
+29.8% → 14.8%). Adding the Edge layer resolves
+                                                           into the substantially larger end-to-end improve-
+this: multi-hop accuracy reaches 85.2%, temporal
+                                                           ments reported in Tables 1–2: a small increase in
+81.6%, and adversarial recovers to 55.1%, confirm-
+                                                           gold-evidence recall translates, through more accu-
+ing that graph-based expansion is necessary for
+                                                           rate tier classification and earlier termination, into
+assembling coherent evidence sets.
+                                                           +15.2% Judge Accuracy over single-pass retrieval.
+Joint effects. The two ablations show that IRIS
+                                                           Mechanisms behind non-monotone ablation tra-
+and LaceMem are mutually reinforcing: itera-
+                                                           jectories. Adding tiered sufficiency causes Multi-
+tive gap-filling requires fine-grained structured evi-
+                                                           hop F1 to fall from 0.151 to 0.107 while Judge
+dence, while the layered memory realises its poten-
+                                                           Accuracy rises from 80.1% to 87.3%: the IN -
+tial only under evidence-gap-driven retrieval.
+                                                           FERRABLE tier produces semantically correct but
+Diagnosis-driven vs. generic re-query. To iso-             inference-bridged answers (“Based on facts A and
+late the contribution of the diagnosis signal from         B, the answer is C”) that diverge from gold anno-
+iteration itself, we compare IRIS’s refinement             tations’ concise phrasing. The subsequent jump
+against a generic re-query baseline that generates         to 0.281 under Temporal Adaptation reflects Lo-
+a new query at each iteration without access to            CoMo’s multi-hop question distribution: many
+the gap diagnosis. At iteration 2, on questions un-        such questions involve temporal reasoning, and ex-
+resolved after iteration 1, diagnosis-driven refine-       plicit calendar anchoring aligns answers with gold
+ment improves Recall@5 by +2.6%, Recall@10                 formatting. The drop-then-recovery pattern holds
+by +2.0%, and nDCG@10 by +2.2% over generic                across all ten conversations (10/10).
+             Category       Variant          G-EVAL Judge Acc      F1     ROUGE-L BERTScore
+             Single-hop     Raw Only           2.69      20.3%    0.172     0.162       0.853
+                            + Index Layer      2.86      24.6%    0.197     0.183       0.855
+                            LaceMem (Full)     2.98      68.2%    0.205     0.187       0.857
+             Multi-hop      Raw Only           1.82      16.7%    0.108     0.107       0.838
+                            + Index Layer      2.89      43.2%    0.273     0.250       0.860
+                            LaceMem (Full)     2.89      85.2%    0.260     0.239       0.857
+             Temporal       Raw Only           2.98      45.8%    0.135     0.129       0.847
+                            + Index Layer      3.07      44.8%    0.137     0.126       0.848
+                            LaceMem (Full)     3.08      81.6%    0.135     0.124       0.845
+             Open-domain Raw Only              3.58      57.4%    0.239     0.239       0.864
+                         + Index Layer         3.14      42.3%    0.192     0.193       0.858
+                         LaceMem (Full)        3.17      85.9%    0.192     0.191       0.857
+             Adversarial    Raw Only           2.40      29.8%    0.140     0.144       0.849
+                            + Index Layer      1.91      14.8%    0.084     0.086       0.841
+                            LaceMem (Full)     1.94      55.1%    0.081     0.083       0.840
+
+Table 3: LaceMem ablation by question category. All variants use the full IRIS iterative loop; only the memory
+structure varies.
+
+
+   The Open-domain drop under Index-only                pendent substitution experiments on the full Lo-
+(57.4% → 42.3%) reflects loss of relational con-        CoMo benchmark: (i) replace all five internal
+text: raw-text retrieval returns conversational pas-    LLM calls (answer generation, sufficiency eval-
+sages where preferences are naturally co-located,       uation, query refinement, entity extraction, and
+while atomic tuples without Edge connections pro-       reasoning chain) with DeepSeek-V3.2; (ii) re-
+duce isolated facts that cannot support synthesis       place the text-embedding-3-small index with
+questions like “What kind of person is X?”. The         BAAI/bge-m3, an open-weights multilingual em-
+fragmentation does not harm Single-hop or Multi-        bedding model.
+hop, where precise fact targeting dominates, but           Each configuration is judged twice (GPT-4o-
+degrades Open-domain by removing aggregate de-          mini and DeepSeek-V3.2) to control for evaluator-
+scriptions. The Edge layer restores performance         side bias. Under the GPT-4o judge, the LLM-
+(85.9%) by reconnecting same-source tuples; the         backbone swap costs 1.2 pp (76.5% → 75.3%) and
+pattern holds across all ten conversations (10/10       the embedding swap 1.0 pp (76.5% → 75.5%); un-
+drop without Edge).                                     der the DeepSeek judge, 3.9 pp and 2.1 pp respec-
+Independent judge validation. To address po-            tively (Appendix Table 10). The two judges agree
+tential self-preference bias from using GPT-4o as       on the qualitative pattern: backbone substitution is
+both answer generator and judge, we re-evaluate all     slightly costlier than embedding substitution, and
+EviMem outputs on the full LoCoMo benchmark             cross-family agreement stays above 90% in every
+using DeepSeek-V3.2. The two judges agree on            cell (90.6% / 92.5% / 91.5%). The per-category
+90.6% of decisions and their accuracy estimates         profile is preserved (each category shifts by ≤ 4 pp;
+differ by only 1.3 pp (GPT-4o 76.5% vs. DeepSeek        Appendix Table 11), and bge-m3 actually improves
+75.2%). The sign of the gap varies across cate-         Multi-hop accuracy by +3.8 pp over the OpenAI
+gories (DeepSeek is more lenient on three of five       embedding. EviMem’s improvements therefore
+categories; see Appendix Table 11), indicating no       depend on neither a specific LLM family nor a
+systematic self-preference bias. The largest dis-       specific embedding model.
+agreement occurs on Multi-hop (agreement 83.3%),         Iterative graph expansion. IRIS performs multi-
+where DeepSeek is more strict about synthesis-           hop reasoning through iteration, not through fixed-
+style answers; since all baselines share the same        depth graph traversal. Each round’s sufficiency
+judge, the relative ranking between EviMem and           diagnosis identifies a missing evidence direction;
+baselines is unaffected.                                 the refined query selects fresh seed nodes; Edge
+LLM backbone and embedding robustness.                   expansion adds their immediate neighbours to the
+To evaluate EviMem’s sensitivity to LLM back-            cumulative pool. Across three rounds, this reaches
+bone and embedding choice, we run two inde-              deeper into the graph than any single fixed-radius
+                                                       System / Variant        Avg    Single   Multi   Temp.   Open    Adv.
+                                                       MIRIX                  42.71   38.59    42.64   43.79   40.71   48.92
+                 Binary Prec. Recall EXACT             EviMem (Full)           9.54    8.56    12.11    9.07   10.72    8.63
+   Overall        65.0    89.0   62.4    94.6          IRIS ablation (full LaceMem)
+   Single-hop     79.4    91.2   82.3    76.9            Single-pass           2.13    2.21     1.99    2.21    2.59    2.10
+   Multi-hop      48.7    95.5   44.8    98.8            + Basic Loop          5.73    5.14     7.34    5.04    6.99    5.18
+                                                         + Tiered Suff.        8.04    7.50    10.24    7.68    9.72    7.02
+   Temporal       65.4    96.2   63.3    100.0           + Temporal Adapt.     7.84    7.35     9.37    8.20    8.77    6.95
+   Open-domain    74.3    92.3   76.0    98.8
+   Adversarial    57.1    72.2   42.8    37.5          LaceMem ablation (full IRIS)
+                                                         Raw Only              4.83    4.79     5.06    5.58    4.35    5.44
+                                                         + Index Layer         6.58    5.89     6.10    6.64    6.06    8.34
+Table 4: Sufficiency classifier agreement with
+the oracle on the full LoCoMo benchmark (%).
+                                                      Table 5: Inference latency (s/question) overall and by question
+Binary Agr. collapses tiers into sufficient vs. in-
+                                                      category. The category variants are Single-hop, Multi-hop, Tem-
+sufficient; EXACT Prec. is the precision of EX -
+                                                      poral, Open-domain, Adversarial.
+ACT commitments.
+
+
+
+traversal while keeping every step semantically                sion@0.85 = 97.9%; at the INFERRABLE threshold,
+tight: each hop follows a direction the sufficiency            Precision@0.7 = 91.3%. PR-AUC is 0.907 (vs.
+signal has already validated. Static multi-hop ex-             0.774 random). IRIS therefore terminates only on
+pansion, in contrast, lacks this per-hop diagnostic            evidence it has correctly identified as sufficient.
+guidance. Table 3 confirms Edge expansion’s im-               Failure analysis: adversarial and open-domain
+portance: enabling it raises Multi-hop Judge Accu-            categories. We classify wrong answers on Cat 5
+racy from 43.2% to 85.2% and Adversarial accu-                (Adversarial, N =446) and Cat 4 (Open-domain,
+racy from 14.8% to 55.1%.                                     N =841) into three types: commission errors
+4.4   Sufficiency Classifier Validation                       (wrong non-abstention answer), false abstentions
+                                                              (“not mentioned” when an answer exists), and
+   To verify that IRIS’s tiered sufficiency signal
+                                                              missed abstentions (answers when it should ab-
+is reliable independently of downstream answer
+                                                              stain). Commission errors dominate both cate-
+quality, we construct an oracle from LoCoMo’s
+                                                              gories, with the dominance more pronounced on
+annotated evidence field (the dia_ids containing
+                                                              Cat 4; false abstentions form a smaller share (Cat 4
+each answer). An iteration is labelled EXACT if
+                                                              < Cat 5), and missed abstentions are negligible.
+every annotated dia_id is covered, INFERRABLE
+                                                                 IRIS rarely commits errors at high confidence:
+if the retrieved facts can still support inference of
+                                                              only 0.5% (Cat 4) and 1.3% (Cat 5) of commissions
+the gold answer, and PARTIAL or NONE otherwise.
+                                                              occur at EXACT or with confidence ≥ 0.85, con-
+Grounding the oracle in retrieval coverage decou-
+                                                              sistent with the 94.6% EXACT precision in §4.4.
+ples the classifier’s judgement from the generator:
+                                                              False abstentions are equally constrained: 85.2%
+the same retrieved evidence yields the same oracle
+                                                              (Cat 4) and 92.6% (Cat 5) occur only after the three-
+label.
+                                                              iteration budget is exhausted, and all sit at the PAR -
+   When the classifier declares evidence sufficient,
+                                                              TIAL tier, identifying abstention as the loop’s ter-
+it agrees with the oracle in 89.0% of cases. When
+                                                              minal fallback.
+it commits to the strictest EXACT tier (the only sig-
+                                                                 Adversarial questions in LoCoMo almost al-
+nal that terminates iteration in IRIS), its precision
+                                                              ways have a real answer (only 2 of 446 are gold
+against the oracle reaches 94.6%, rising to 95.5%
+                                                              “Not mentioned”); the challenge is retrieval preci-
+on Multi-hop questions where evidence is spread
+                                                              sion, not absence detection. Many Cat 4 near-miss
+across sessions. The classifier is therefore reliable
+                                                              cases (ROUGE-L > 0.4, judge = 0) reflect partial
+in its broad sufficiency judgement and near-perfect
+                                                              retrieval: IRIS assembles some of the required evi-
+when it commits to its strongest termination signal.
+                                                              dence but misses a completing detail, producing a
+Threshold-level commitment reliability. IRIS’s                plausible but incomplete answer.
+termination rule is threshold-based, so we evaluate
+the classifier at the decision boundaries it actually          4.5     Efficiency Analysis
+uses. Confidence is highly monotonic with oracle                 Table 5 reports latency per question overall and
+sufficiency (Spearman ρ = 0.93). At the EXACT                 by category. EviMem is 4.5× faster than MIRIX
+termination threshold, commitments reach Preci-               (9.54s vs. 42.71s) while maintaining comparable
+or higher accuracy. Each IRIS component adds                    and Jonathan Larson. 2024. From local to global: A
+moderate overhead over Single-pass (2.13s), with                graph RAG approach to query-focused summariza-
+                                                                tion. arXiv preprint arXiv:2404.16130.
+incremental cost from the iterative loop. Latency
+scales with question complexity: single-hop ques-             Luyu Gao, Xueguang Ma, Jimmy Lin, and Jamie Callan.
+tions converge quickly (8.56s), while multi-hop                 2023. Precise zero-shot dense retrieval without rel-
+require more iterations (12.11s), allocating compu-             evance labels. In Proceedings of the 61st Annual
+                                                                Meeting of the Association for Computational Lin-
+tation proportional to difficulty.                              guistics (Volume 1: Long Papers), pages 1762–1777.
+5   Conclusion                                                Yubin Ge, Salvatore Romeo, Jason Cai, Raphael Shu,
+   We present EviMem, including LaceMem’s                       Yassine Benajiba, Monica Sunkara, and Yi Zhang.
+                                                                2025. Tremu: Towards neuro-symbolic temporal rea-
+coarse-to-fine memory hierarchy with IRIS’s                     soning for llm-agents with memory in multi-session
+evidence-gap–driven iterative retrieval. LaceMem                dialogues. In Findings of the Association for Compu-
+structures dialogue history into Index, Edge, and               tational Linguistics: ACL 2025, pages 18974–18988.
+Raw layers for efficient search, expansion, and               Bernal Jiménez Gutiérrez, Yiheng Zhu, Zhiwei Huang,
+grounding. IRIS iteratively retrieves by evaluating             Shivani Kamez, and Huan Sun. 2024. HippoRAG:
+evidence sufficiency, diagnosing gaps, and refining             Neurobiologically inspired long-term memory for
+queries. On LoCoMo, EviMem achieves 81.6%                       large language models. In Advances in Neural Infor-
+                                                                mation Processing Systems, volume 37.
+Judge Accuracy on temporal questions (vs. 73.3%
+MIRIX, 58.8% single-pass) and 85.2% on multi-                 Yuyang Hu, Shichun Liu, Yanwei Yue, Guibin Zhang,
+hop (vs. 65.9% MIRIX), while running 4.5× faster                Boyang Liu, Fangyi Zhu, Jiahang Lin, Honglin
+than MIRIX. Additive ablations show all compo-                  Guo, Shihan Dou, Zhiheng Xi, and 1 others. 2025.
+                                                                Memory in the age of ai agents. arXiv preprint
+nents contribute incrementally. The key insight                 arXiv:2512.13564.
+is that making evidence insufficiency explicit en-
+ables targeted gap-filling missed by single-pass and          Zhengjun Huang, Zhoujin Tian, Qintian Guo, Fangyuan
+                                                                Zhang, Yingli Zhou, Di Jiang, Zeying Xie, and Xi-
+implicit-feedback methods.                                      aofang Zhou. 2025. Licomemory: Lightweight and
+                                                                cognitive agentic memory for efficient long-term rea-
+Limitations                                                     soning. arXiv preprint arXiv:2511.01448.
+   While EviMem demonstrates strong perfor-
+                                                              Dongming Jiang, Yi Li, Guanpeng Li, and Bingzhe
+mance, one limitation warrants future exploration.              Li. 2026. Magma: A multi-graph based agen-
+LaceMem’s layered memory is currently con-                      tic memory architecture for ai agents. Preprint,
+structed from a complete conversation snapshot,                 arXiv:2601.03236.
+following the standard offline evaluation protocol
+                                                              Zhengbao Jiang, Frank F. Xu, Luyu Gao, Zhiqing Sun,
+of LoCoMo. Although the architecture’s modu-                    Qian Liu, Jane Dwivedi-Yu, Yiming Yang, Jamie
+lar design—with separate Index, Edge, and Raw                   Callan, and Graham Neubig. 2023. Active retrieval
+layers—is naturally amenable to incremental up-                 augmented generation. In Proceedings of the 2023
+dates, extending memory construction to an online,              Conference on Empirical Methods in Natural Lan-
+                                                                guage Processing, pages 7969–7992.
+streaming setting where new dialogue turns are
+ingested and indexed in real time remains an im-              Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio
+portant direction for practical deployment.                     Petroni, Vladimir Karpukhin, Naman Goyal, Hein-
+                                                                rich Küttler, Mike Lewis, Wen tau Yih, Tim Rock-
+                                                                täschel, Sebastian Riedel, and Douwe Kiela. 2021.
+                                                                Retrieval-augmented generation for knowledge-
+References                                                      intensive nlp tasks. Preprint, arXiv:2005.11401.
+Akari Asai, Zeqiu Wu, Yizhong Wang, Avirup Sil, and
+  Hannaneh Hajishirzi. 2024. Self-RAG: Learning to            Chin-Yew Lin. 2004. ROUGE: A package for auto-
+  retrieve, generate, and critique through self-reflection.     matic evaluation of summaries. In Text Summariza-
+  In Proceedings of the Twelfth International Confer-           tion Branches Out, pages 74–81, Barcelona, Spain.
+  ence on Learning Representations.                             Association for Computational Linguistics.
+
+Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet           Yang Liu, Dan Iter, Yichong Xu, Shuohang Wang,
+  Singh, and Deshraj Yadav. 2025. Mem0: Building                Ruochen Xu, and Chenguang Zhu. 2023. G-eval:
+  production-ready ai agents with scalable long-term            Nlg evaluation using gpt-4 with better human align-
+  memory. arXiv preprint arXiv:2504.19413.                      ment. Preprint, arXiv:2303.16634.
+
+Darren Edge, Ha Trinh, Newman Cheng, Joshua
+  Bradley, Alex Chao, Apurva Mody, Steven Truitt,
+Adyasha Maharana, Dong-Ho Lee, Sergey Tulyakov,            Wanjun Zhong, Lianghong Guo, Qiqi Gao, and Yan-
+  Mohit Bansal, Francesco Barbieri, and Yuwei Fang.         lin Wang. 2023. Memorybank: Enhancing large
+  2024. Evaluating very long-term conversational            language models with long-term memory. arXiv
+  memory of llm agents. Preprint, arXiv:2402.17753.         preprint arXiv:2305.10250.
+Siru Ouyang, Jun Yan, I-Hung Hsu, Yantei Chen,
+   Ke Jiang, Zifeng Wang, Rujun Han, Long T Le,            A   Detailed IRIS Algorithm
+   Samira Daruki, Xiangru Tang, and 1 others. 2025.           Algorithm 2 provides the full specification of the
+   Reasoningbank: Scaling agent self-evolving with rea-
+   soning memory. arXiv preprint arXiv:2509.25140.         IRIS iterative retrieval loop summarised in Algo-
+                                                           rithm 1, including all confidence constants, entity-
+Charles Packer, Vivian Fang, Shishir_G Patil, Kevin        aware adjustments, termination thresholds, and the
+  Lin, Sarah Wooders, and Joseph_E Gonzalez. 2023.
+  Memgpt: Towards llms as operating systems. arXiv
+                                                           query-refinement prompt template.
+  preprint arXiv:2310.08560.
+                                                           B   Case Study
+Joon Sung Park, Joseph C. O’Brien, Carrie J. Cai,
+                                                              We present four pipeline traces showing each
+  Meredith Ringel Morris, Percy Liang, and Michael S.
+  Bernstein. 2023. Generative agents: Interactive simu-    step of IRIS.
+  lacra of human behavior. In In the 36th Annual ACM
+  Symposium on User Interface Software and Technol-        C   Per-Iteration Retrieval Metrics
+  ogy (UIST ’23), UIST ’23, New York, NY, USA.                Table 9 reports the full per-iteration retrieval
+  Association for Computing Machinery.
+                                                           metrics summarised in §4.3, comparing diagnosis-
+Jayr Pereira, Robson Fidalgo, Roberto Lotufo, and Ro-      driven refinement against the generic re-query base-
+   drigo Nogueira. 2023. Visconde: Multi-document          line on the full LoCoMo benchmark.
+   qa with gpt-3 and neural reranking. In European
+  Conference on Information Retrieval, pages 534–543.      D   Robustness and Judge Validation
+   Springer.
+                                                             Tables 10 and 11 report the robustness and judge-
+Preston Rasmussen, Pavlo Paliychuk, Travis Beauvais,
+  Jack Ryan, and Daniel Chalef. 2025. Zep: a tempo-        validation experiments referenced in §4.3. Each
+  ral knowledge graph architecture for agent memory.       row is judged twice (GPT-4o-mini and DeepSeek-
+  arXiv preprint arXiv:2501.13956.                         V3.2): the GPT-4o columns serve the backbone-
+Zhihong Shao, Yeyun Gong, Yelong Shen, Minlie              and-embedding substitution analysis, while the
+  Huang, Nan Duan, and Weizhu Chen. 2023. En-              DeepSeek columns and cross-judge agreement sup-
+  hancing retrieval-augmented large language models        port the independent judge validation.
+  with iterative retrieval-generation synergy. In Find-
+  ings of the Association for Computational Linguistics:
+  EMNLP 2023, pages 9248–9274.
+Harsh Trivedi, Niranjan Balasubramanian, Tushar Khot,
+  and Ashish Sabharwal. 2023. Interleaving retrieval
+  with chain-of-thought reasoning for knowledge-
+  intensive multi-step questions. In Proceedings of the
+  61st Annual Meeting of the Association for Compu-
+  tational Linguistics (Volume 1: Long Papers), pages
+  10014–10037.
+Yu Wang and Xi Chen. 2025. Mirix: Multi-agent mem-
+  ory system for llm-based agents. arXiv preprint
+  arXiv:2507.07957.
+Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Jun-
+ tao Tan, and Yongfeng Zhang. 2025. A-mem:
+ Agentic memory for llm agents. arXiv preprint
+ arXiv:2502.12110.
+Shi-Qi Yan, Jia-Chen Gu, Yun Zhu, and Zhen-Hua Ling.
+  2024. Corrective retrieval augmented generation.
+  arXiv preprint arXiv:2401.15884.
+Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q.
+  Weinberger, and Yoav Artzi. 2020. Bertscore:
+  Evaluating text generation with bert. Preprint,
+  arXiv:1904.09675.
+ Algorithm 2: IRIS — Detailed Iterative Retrieval Loop with Confidence Constants and Thresholds
+   Input: Question q, Memory M, Entity set E, Max iterations k, Entity fact threshold δ
+   Output: Evidence Dall , Confidence c, Evidence tier t
+    ′
+ 1 q ← q;;
+ 2 Dall ← ∅;;
+ 3 Fe ← ∅ ∀ e ∈ E;
+ 4 for i ← 1 to k do
+        // Phase 1: Dual-Path Retrieval — anchor preserves coverage, refinement targets gaps
+ 5      kret ← 10 + 3(i − 1) ;                                    // Progressive widening of retrieval scope
+ 6      Danc ← Retrieve(q, kret ) ;                                            // Anchor path: original question
+ 7      Dref ← Retrieve(q ′ , kret ) ;                            // Refinement path: diagnosis-driven query
+        D(i) ← Dedup Danc ∪ Dref ∪ GraphExpand(Danc ∪ Dref ) ;                  // Expand via LaceMem Edge layer
+                                                                 
+ 8
+
+ 9      Dall ← Dall ∪ D(i) ;                                         // Accumulate evidence across iterations
+         // Phase 2: Entity Tracking — monitor per-entity fact coverage
+10       foreach entity e ∈ E do
+11           Fe ← Fe ∪ {d ∈ D(i) | Contains(d, e)};
+
+         // Phase 3: Sufficiency Evaluation — assess accumulated evidence as a whole
+12       (t, c, m) ← EvalSufficiency(Dall , q) ;    // t ∈ {exact, inferrable, partial}; m = missing info
+13                  True then
+         if τ (q) =                                  // Temporal questions require stricter thresholds
+                    max(c, 0.85) if t = EXACT
+                    
+14             c ← min(c, 0.75) if t = INFERRABLE ;
+                    
+                    min(c, 0.50) if t = PARTIAL
+
+15       if ∃ e ∈ E : |Fe | < δ then                   // Downgrade if any entity lacks sufficient evidence
+16             t ← PARTIAL;
+17             c ← min(c, 0.6);
+18             m ← m ⊕ “need more about: {e | |Fe | < δ}”;
+
+         // Phase 4: Termination — stop when sufficient or budget exhausted
+19       if Sufficient(t, c) or i = k then break;
+         // Phase 5: Diagnosis-Driven Query Refinement — use m to generate next query
+         // Step 5a: Strategy selection (rule-based, no LLM call)
+20       if τ (q) = True then
+21             s ← TemporalStrategy(i) ;                    // Temporal-specific refinement strategy
+22       else
+23             s ← GeneralStrategy(i) ;             // e.g., keywords → different angle → synonyms
+         // Step 5b: Entity context injection (only for under-represented entities)
+24       ε ← “”;
+25       if ∃ e ∈ E : |Fe | < δ then
+26             ε ← “Need more about: {e (|Fe |) | |Fe | < δ}. Include entity names in query.”;
+         // Step 5c: Prompt assembly and LLM query generation
+                    Original question: q
+                    Current search query: q ′
+                    Missing information: m
+27       prompt ← Iteration: i / k                                               ;
+                    Strategy: s
+                    Entity context: ε                          (only if ε ̸= “”)
+                    Generate an improved search query. Return ONLY the query.
+28       q ′ ← LLM(prompt);
+29   return Dall , c, t;
+ Question              How do Jon and Gina both like to destress? (Cat. 4, General)
+ Ground Truth          by dancing
+ Entity Extraction     Regex match → Entities: [Jon, Gina]; Type: GENERAL
+ Iter 1: Retrieval     Query: “How do Jon and Gina both like to destress?”
+                       Index → 10 facts; Edge → +15 facts
+                       Top facts:
+                       Gina advises take breaks and dance to destress
+                       Jon is collaborating with Gina
+                       Gina supports Jon
+                       Per-entity: Jon → 8 facts; Gina → 12 facts
+ Iter 1: Sufficiency   Prompt → LLM:
+                       Question: How do Jon and Gina both like to destress?
+                       Retrieved Facts: [25 facts total]
+                       Evaluate: EXACT/INFERRABLE/PARTIAL/CONFIDENCE/MISSING
+                       LLM Response:
+                       PARTIAL: yes, CONFIDENCE: 0.4
+                       MISSING: how Jon destresses; only Gina’s method found
+                       Entity check: Jon has 8 facts < threshold → downgrade, c = 0.4
+ Iter 1: Refinement    Prompt → LLM:
+                       Original: How do Jon and Gina both like to destress?
+                       Missing: how Jon destresses
+                       Strategy: Focus on keywords, entity names, key concepts.
+                       IMPORTANT: Need more about: Jon (only 8 facts)
+                       LLM Response: “Jon stress relief relaxation hobby”
+ Iter 2: Retrieval     Refined query → 26 new facts via Edge expansion
+                       Key: Dancing helps Jon de-stress, Jon finds stress relief in dancing (Edge), Gina
+                       uses_for_stress_relief dance (Edge)
+                       Per-entity: Jon → 40 facts; Gina → 25 facts
+ Iter 2: Sufficiency   LLM Response:
+                       EXACT: no
+                       INFERRABLE: yes
+                       CONFIDENCE: 0.8
+                       MISSING: none
+                       ⇒ INFERRABLE, c = 0.8 ≥ 0.7 → Terminate
+ Reasoning Chain       Prompt → LLM:
+                       Analyze if multi-hop reasoning is needed.
+                       Question: How do Jon and Gina both like to destress?
+                       Entities: Gina, Jon; Facts: [15 facts]
+                       LLM Response: TYPE: MULTI-HOP
+                       Step 1: Identify how Gina destresses
+                       Step 2: Identify how Jon destresses
+                       Step 3: Connect their methods
+ Answer     Genera-    Prompt → LLM:
+ tion                  Answer directly and confidently. Do NOT use hedging phrases.
+                       Reasoning steps: 1. Gina’s method 2. Jon’s method 3. Connect
+                       Question: How do Jon and Gina both like to destress?
+                       Relevant Facts: [49 unique facts]
+                       LLM Response:
+                       Answer: Jon and Gina both like to destress by dancing. c = 0.8 Correct
+
+Table 6: Case B: Multi-Hop Entity Tracking (2 Iterations). Iteration 1 finds Gina’s method but insufficient facts
+for Jon. Entity-aware refinement targets Jon, and iteration 2 discovers the shared stress-relief method via Edge
+expansion.
+ Question              When is Jon’s group performing at a festival? (Cat. 2, Temporal)
+ Ground Truth          February, 2023
+ Entity Extraction     Regex match → Entities: [Jon]; Type: TEMPORAL
+ Iter 1: Retrieval      Query: “When is Jon’s group performing at a festival?”
+                        Index → 8 facts; Edge → 41 facts
+                        Key: Jon performed_at festival (no date)
+ Iter 1: Sufficiency    Prompt → LLM:
+                        Question: When is Jon’s group performing at a festival?
+                        Retrieved Facts:
+                       - Jon performed_at festival
+                       - Jon loves performing
+                       - Jon is rehearsing for upcoming show
+                        ... [20 facts total]
+                        IMPORTANT: This is a TEMPORAL question asking for specific dates/times.
+                       - EXACT_MATCH: Has precise date/time
+                       - INFERRABLE: Has temporal clues for inference
+                       - PARTIAL_MATCH: Related but insufficient
+                        Evaluate: EXACT/INFERRABLE/PARTIAL/CONFIDENCE/MISSING
+                       LLM Response:
+                        EXACT: no
+                        INFERRABLE: no
+                        PARTIAL: yes
+                        CONFIDENCE: 0.3
+                        MISSING: Specific date or time of Jon’s performance at the festival
+ Iter 1: Refinement     Prompt → LLM:
+                        Original question: When is Jon’s group performing at a festival?
+                        Current search query: When is Jon’s group performing at a festival?
+                        Missing information: specific date or time of Jon’s performance
+                        Iteration: 1/3
+                        Strategy: Focus on DATE, TIME, and temporal keywords (when, started, launched,
+                        opened).
+                        Generate an improved search query. Return ONLY the query.
+                       LLM Response:
+                       “Jon group festival performance date February”
+ Iter 2: Retrieval     Refined query retrieves 6 new facts via Edge expansion
+                       Key: Jon group is_performing_at festival (time: 2023-02)
+ Iter 2: Sufficiency   LLM Response:
+                       EXACT: no
+                       INFERRABLE: yes
+                       CONFIDENCE: 0.75
+                       MISSING: none
+                       ⇒ INFERRABLE, c = 0.75 (capped for temporal) → Terminate
+ Answer     Genera-     Prompt → LLM:
+ tion                  The facts contain temporal clues that allow REASONABLE INFERENCE.
+                        Make a careful inference:
+                       - If “as of February 2023”, the event likely happened in/around February 2023
+                       - Be clear but concise. Use “in” or “around” if inferring timeframe
+                       - Do NOT be overly cautious with phrases like “it is likely that”
+                        Question: When is Jon’s group performing at a festival?
+                        Relevant Facts:
+                       - Jon group is_performing_at festival (time: 2023-02)
+                       - Jon performed_at festival
+                        ... [46 unique facts]
+                       Answer (be concise and direct):
+                       LLM Response:
+                       Answer: February 2023 c = 0.75 Correct
+
+Table 7: Case C: Temporal Inference (2 Iterations). Iteration 1 retrieves the event without a date. Query refinement
+targets temporal keywords, and iteration 2 finds the temporal tuple via Edge expansion.
+ Question              Why did Jon decide to start his dance studio? (Cat. 4, General)
+ Ground Truth          He lost his job and decided to start his own business to share his passion.
+ Entity Extraction     Regex match → Entities: [Jon]; Type: GENERAL
+ Iter 1: Retrieval     Query: “Why did Jon decide to start his dance studio?”
+                       Index → 10 facts; Edge → +20 facts
+                       Key facts:
+                       Jon wants_to_start dance studio
+                       Jon is_following_passion_for dance
+                       Jon is_turning_love_of dance_into_business
+                       Jon wants studio to be a place of support
+ Iter 1: Sufficiency   Prompt → LLM:
+                       Question: Why did Jon decide to start his dance studio?
+                       Retrieved Facts: [30 facts including passion-related tuples]
+                       Evaluate: EXACT/INFERRABLE/PARTIAL/CONFIDENCE/MISSING
+                       LLM Response:
+                       INFERRABLE: yes, CONFIDENCE: 0.55
+                       MISSING: what triggered the decision beyond passion
+                       ⇒ c = 0.55 < 0.7 → continue
+ Iter 1: Refinement    Prompt → LLM:
+                       Original: Why did Jon decide to start his dance studio?
+                       Missing: what triggered the decision beyond passion
+                       Strategy: Focus on keywords, entity names, key concepts.
+                       LLM Response: “Jon reason start dance studio job loss career change”
+ Iter 2: Retrieval     Refined query → +35 new facts via Edge expansion
+                       Key: Jon lost job (Edge), Jon transitioned from secure 9-5 job (Edge)
+ Iter 2: Sufficiency   LLM Response:
+                       EXACT: no
+                       INFERRABLE: yes
+                       CONFIDENCE: 0.8
+                       MISSING: none
+                       ⇒ INFERRABLE, c = 0.8 ≥ 0.7 → Terminate
+ Reasoning Chain       Prompt → LLM:
+                       Analyze if multi-hop reasoning is needed.
+                       Question: Why did Jon decide to start his dance studio?
+                       Entities: Jon; Facts: [15 facts]
+                       LLM Response: TYPE: MULTI-HOP
+                       Step 1: Identify Jon’s background and job loss
+                       Step 2: Connect job loss to dance passion
+                       Step 3: Identify studio motivations
+ Answer     Genera-    Prompt → LLM:
+ tion                  Answer directly and confidently. Do NOT use hedging phrases.
+                       Reasoning steps: 1. Job loss 2. Dance passion 3. Studio motivations
+                       Question: Why did Jon decide to start his dance studio?
+                       Relevant Facts: [65 unique facts]
+                       LLM Response:
+                       Answer: “Jon lost his job as a banker and decided to follow his passion for dancing by starting his
+                       own dance studio.” c = 0.8 Correct
+
+Table 8: Case D: Multi-Hop Reasoning Chain (2 Iterations). Iteration 1 finds passion-related facts but misses the
+job-loss trigger (c = 0.55). Query refinement targets “job loss career change”, and iteration 2 discovers the causal
+link via Edge expansion.
+          Variant                  Iter        N      R@5 R@10 R@20 nDCG@5 nDCG@10 nDCG@20
+                                   1          1,982    50.0     56.8        59.7          42.4          44.8           45.7
+          Generic re-query         2           578     28.1     33.8        38.3          23.9          25.8           27.0
+                                   3           486     29.3     34.0        38.0          24.6          26.1           27.2
+                                  1           1,982    50.0     56.8        59.7          42.4          44.8           45.7
+          Diagnosis-driven (IRIS) 2            578     30.7     35.8        39.8          26.3          28.0           29.2
+                                  3            486     29.1     33.8        38.1          25.0          26.6           27.8
+
+Table 9: Per-iteration retrieval metrics for diagnosis-driven refinement vs. generic re-query on the full LoCoMo
+benchmark. N is the number of questions reaching that iteration; iter ≥2 contains only those unresolved by earlier
+iterations. Iteration 1 numbers are identical because the diagnosis signal is unavailable until iteration 2. Bold cells
+highlight the iteration 2 row where diagnosis-driven retrieval beats generic re-query on all six metrics.
+
+
+
+
+ Configuration                                     Judge Acc (GPT-4o) Judge Acc (DeepSeek)                     ∆ vs. baseline   Cross-judge Agreement
+ OpenAI emb. + GPT-4o backbone (baseline)                    76.5%                        75.2%                     ref.               90.6%
+ OpenAI emb. + DeepSeek backbone                             75.3%                        71.3%                −1.2 / −3.9 pp          92.5%
+ bge-m3 emb. + GPT-4o backbone                               75.5%                        73.1%                −1.0 / −2.1 pp          91.5%
+
+Table 10: Robustness of EviMem to LLM backbone and embedding substitution. Each row reports overall Judge
+Accuracy on the full LoCoMo benchmark under both GPT-4o-mini and DeepSeek-V3.2 judges; the last column
+reports cross-judge agreement within each cell. Both substitution axes degrade overall accuracy by at most 1.2 pp
+under the GPT-4o judge.
+
+
+
+
+                                        GPT-4o-mini judge                          DeepSeek-V3.2 judge
+                    Category      Baseline + DS bk + bge-m3                    Baseline + DS bk + bge-m3
+                    Single-hop         68.2           66.2           65.2          70.4          67.0          68.0
+                    Multi-hop          85.2           85.9           89.0          72.9          71.6          73.8
+                    Temporal           81.6           81.6           83.7          81.6          79.5          82.7
+                    Open-domain        85.9           85.3           84.4          88.4          85.5          87.0
+                    Adversarial        55.1           51.5           52.0          59.6          51.3          54.0
+
+Table 11: Per-category Judge Accuracy (%) for the three robustness configurations under both judges. Baseline =
+OpenAI embedding + GPT-4o backbone; + DS bk = OpenAI embedding + DeepSeek-V3.2 backbone; + bge-m3
+= bge-m3 embedding + GPT-4o backbone. The category-level profile is preserved across configurations (each
+category shifts by ≤ 4 pp under either judge); bge-m3 improves Multi-hop by +3.8 pp under the GPT-4o judge.
+E     Prompt Templates
+  This appendix lists the four LLM prompts used by IRIS and our evaluation pipeline. Placeholders are
+shown in {braces}; system messages and tier-specific variants are noted inline.
+    P ROMPT T EMPLATE FOR S UFFICIENCY E VALUATION (IRIS)
+
+    System: You are a helpful assistant that evaluates information sufficiency.
+    User:
+    Question: {question}
+
+    Retrieved Facts:
+    {facts}
+
+    [If TEMPORAL question, append:]
+    IMPORTANT: This is a TEMPORAL question asking for specific dates/times.
+    - EXACT_MATCH: Has precise date/time (e.g., "January 19, 2023")
+    - INFERRABLE: Has temporal clues that allow reasonable inference
+      * "as of February 2023" -> event likely in February 2023
+      * "after opening in January" -> subsequent events after January
+    - PARTIAL_MATCH: Has related but insufficient temporal information
+    - Vague terms like "recently" are PARTIAL, not EXACT.
+
+    Evaluate if these facts can answer the question:
+    1. EXACT_MATCH:    Can answer precisely?            (yes/no)
+    2. INFERRABLE:     Can reasonably infer the answer? (yes/no)
+    3. PARTIAL_MATCH: Related but insufficient?         (yes/no)
+    4. CONFIDENCE:     0.0-1.0
+    5. MISSING:        what specific information is missing? (or "none")
+
+    Respond in EXACTLY this format:
+    EXACT: yes/no
+    INFERRABLE: yes/no
+    PARTIAL: yes/no
+    CONFIDENCE: 0.0-1.0
+    MISSING: <missing information or "none">
+P ROMPT T EMPLATE FOR Q UERY R EFINEMENT (IRIS)
+
+System: You are a helpful assistant that refines search queries.
+User:
+Original question:    {original_question}
+Current search query: {current_query}
+Missing information: {missing_info}
+Iteration:            {iteration}/{max_iterations}
+
+Strategy: {strategy}
+
+[Strategy is rule-based on (question_type, iteration):
+  TEMPORAL,    iter 1: Focus on DATE, TIME, temporal keywords
+                       (when, started, launched, opened).
+  TEMPORAL,    iter 2: Search for specific DATE FORMATS and
+                       temporal relations (as of, after, before).
+  TEMPORAL,    iter 3+: Try broader temporal context: related
+                        events, milestones, timeframes.
+  NON-TEMPORAL,iter 1: Focus on specific keywords, entity names,
+                       and key concepts.
+  NON-TEMPORAL,iter 2: Try different angle: related events,
+                       attributes, or contextual information.
+  NON-TEMPORAL,iter 3+: Use synonyms, broader concepts, or
+                        implied relationships.]
+
+Generate an improved search query to find the missing information.
+Keep it concise and focused. Return ONLY the query (no explanation).
+P ROMPT T EMPLATE FOR A NSWER G ENERATION (IRIS)
+
+System: You are a helpful assistant that answers questions based on provided facts.
+User:
+{tier_adaptive_instruction}
+{reasoning_chain_context}     (if multi-hop reasoning was built)
+
+Question: {question}
+
+Relevant Facts:
+{facts}
+
+Answer (be concise and direct):
+tier_adaptive_instruction (selected by (tier, is_temporal)):
+TEMPORAL + EXACT:
+  Answer with the PRECISE date/time. Use formats like
+  "January 19, 2023" or "2023-01-19". Do NOT use vague
+  terms like "around" or "approximately".
+
+TEMPORAL + INFERRABLE:
+  Make a careful inference from temporal clues. Use "in"
+  or "around" if inferring timeframe; do NOT overuse
+  "it is likely that" or "based on the facts".
+
+NON-TEMPORAL + EXACT (or INFERRABLE, conf>=0.75):
+  Answer directly and confidently. Do NOT hedge with
+  "likely", "it seems", "probably", "based on the facts".
+
+NON-TEMPORAL + INFERRABLE (or PARTIAL, conf>=0.50):
+  Answer based on reasonable inference. Use "Based on
+  the facts, [answer]" or state the answer with brief
+  reasoning. Avoid overusing uncertainty markers.
+
+LOW CONFIDENCE:
+  Answer based on available facts. If key information is
+  missing, state it concisely.
+P ROMPT T EMPLATE FOR LLM- AS -J UDGE E VALUATION
+
+
+You are an impartial judge evaluating if an AI assistant's
+answer is correct.
+
+**Question**:     {question}
+**Ground Truth**: {truth}
+**Prediction**: {prediction}
+
+**Evaluation Criteria**:
+1. The prediction must convey the same core information
+   as the ground truth.
+2. Different wording is acceptable if the meaning is
+   preserved.
+3. For dates: "May 7, 2023" and "7 May 2023" are
+   equivalent.
+4. If prediction says "I don't know" but ground truth
+   exists, it is WRONG.
+5. Partial answers that miss the key point are WRONG.
+
+**Output Format**:
+Return ONLY a JSON object:
+{"score": 1 or 0, "reason": "Brief explanation"}
+

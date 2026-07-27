@@ -1,0 +1,2214 @@
+                                         Consistent Estimators for Learning to Defer to an Expert
+                                                                          Hussein Mozannar ∗                David Sontag †
+
+
+
+                                                                                               Abstract
+
+
+
+
+arXiv:2006.01862v3 [cs.LG] 25 Jan 2021
+                                                       Learning algorithms are often used in conjunction with expert decision makers in practical
+                                                   scenarios, however this fact is largely ignored when designing these algorithms. In this paper
+                                                   we explore how to learn predictors that can either predict or choose to defer the decision to a
+                                                   downstream expert. Given only samples of the expert’s decisions, we give a procedure based on
+                                                   learning a classifier and a rejector and analyze it theoretically. Our approach is based on a novel
+                                                   reduction to cost sensitive learning where we give a consistent surrogate loss for cost sensitive
+                                                   learning that generalizes the cross entropy loss. We show the effectiveness of our approach on a
+                                                   variety of experimental tasks.
+
+
+                                         1        Introduction
+                                             Machine learning systems are now being deployed in settings to complement human decision
+                                         makers such as in healthcare [HAA+ 17, RBC+ 19], risk assessment [GC19a] and content moderation
+                                         [LHL16]. These models are either used as a tool to help the downstream human decision maker:
+                                         judges relying on algorithmic risk assessment tools [GC19b] and risk scores being used in the ICU
+                                         [FHH+ 17], or instead these learning models are solely used to make the final prediction on a selected
+                                         subset of examples [MPZ18, RBC+ 19]. A current application of the latter setting is Facebook’s and
+                                         other online platforms content moderation approach [Vin19, JBGB19]: an algorithm is used to filter
+                                         easily detectible inappropriate content and the rest of the examples are screened by a team of human
+                                         moderators. Another motivating application arises in health care settings, for example deep neural
+                                         networks can outperform radiologists in detecting pneumonia from chest X-rays [IRK+ 19], however,
+                                         many obstacles are limiting complete automation, an intermediate step to automating this task will
+                                         be the use of models as triage tools to complement radiologist expertise. Our focus in this work is to
+                                         give theoretically sound approaches for machine learning models that can either predict or defer the
+                                         decision to a downstream expert to complement and augment their capabilities.
+                                             The learned model should adapt to the underlying human expert in order to achieve better
+                                         performance than deploying the model or expert individually. In situations where we have limited
+                                         data or model capacity, the gains from allowing the model to focus on regions where the expert is less
+                                         accurate are expected to be more significant. However, even when data or model capacity are not
+                                         concerns, the expert may have access to side-information unavailable to the learner due to privacy
+                                         concerns for example, the hard task is then to identify when we should defer without having access
+                                         to this side-information. We will only assume in this work that we are allowed access to samples of
+                                         the experts decisions or to costs of deferring, we believe that this is a reasonable assumption that
+                                             ∗
+                                                 Massachusetts Institute of Technology. Email: mozannar@mit.edu
+                                             †
+                                                 Massachusetts Institute of Technology. Email: dsontag@csail.mit.edu
+
+
+                                                                                                   1
+can be achieved in practical settings. Inspired by the literature on rejection learning [CDM16b], our
+approach will be to learn two functions: a classifier that can predict the target and a rejector which
+decides whether the classifier or the expert should predict.
+    We start by formulating a natural loss function for the combined machine-expert system in
+section 3 and show a reduction from the expert deferral setting to cost sensitive learning. With this
+reduction in hand, we are able to give a novel convex surrogate loss that upper bounds our system loss
+and that is furthermore consistent in section 4. This surrogate loss settles the open problem posed
+by [NCHS19] for finding a consistent loss for multiclass rejection learning. Our proposed surrogate
+loss and approach requires only adding an additional output layer to existing model architectures
+and changing the loss function, hence it necessitates minimal to no added computational costs. In
+section 5, we show the limitations of approaches in the literature from a consistency point-of-view
+and then provide generalization bounds for minimizing the empirical loss. To show the efficacy of our
+approach, we give experimental evidence on image classification datasets CIFAR-10 and CIFAR-100
+using synthetic and human experts based on CIFAR10H [PBGR19], on a hate speech and offensive
+language detection task [DWMW17], and on classification of chest X-rays with synthetic experts in
+section 6. To summarize, the contributions of this paper are the following:
+
+    • We formalize the expert deferral setup and analyze it theoretically giving a generalization
+      bound for solving the empirical problem.
+
+    • We propose a novel convex consistent surrogate loss LCE (7) for expert deferral easily integrated
+      into current learning pipelines.
+
+    • We provide a detailed experimental evaluation of our method and baselines from the literature
+      on image and text classification tasks.
+
+
+2    Related Work
+    Learning with a reject option, rejection learning, has long been studied starting with [Cho70]
+who investigated the trade-off between accuracy and the rejection rate. The framework of rejection
+learning assumes a constant cost c of deferring and hence the problem becomes to predict only if
+one is 1 − c confident. Numerous works have proposed surrogate losses and uncertainty estimation
+methods to solve the problem [BW08, RTA+ 18, NCHS19, JKGG18]. [CDM16b, CDM16a] proposed
+a different approach by learning two functions: a classifier and a rejection function and analyzed
+the approach giving a kernel based algorithm in the binary setting. [NCHS19] tried to extend their
+approach to the multiclass setting but failed to give a consistent surrogate loss and hence resorted to
+confidence based methods.
+    Recent work has started to explore models that defer to downstream experts, [MPZ18] considers
+an identical framework to the one considered here however their approach does not allow the model
+to adapt to the underlying expert and the loss used is not consistent and requires an uncertainty
+estimate of the expert decisions. On the other hand, [DKGGR19] gives an approximate procedure
+to learn a linear model that picks a subset of the training data on which to defer and uses a nearest
+neighbor algorithm to defer on new examples, the approach used is only feasible for small dataset
+sizes and does not generalize beyond ridge regression. [RBC+ 19] considers binary classification with
+expert deferral, their approach is to learn a classifier ignoring the expert and obtain uncertainty
+estimates for both the expert and classifier and then defer based on which is higher, we detail the
+
+
+                                                   2
+limitations of this approach in section 5. Concurrent work [WHK20] learns a model with the mixtures
+of expert loss first introduced in [MPZ18] and defers based on estimated model and expert confidence
+as in [RBC+ 19]. Work on AI-assisted decision making has focused on the reverse setting considered
+here: the expert chooses to accept or reject the decision of the classifier instead of a learned rejector
+[BNK+ 19, BNK+ 20]. Additionally, the fairness in machine learning community has started to
+consider the fairness impact of having downstream decision makers [MPZ18, CCD+ 19, GC19a, DI18]
+but in slightly different frameworks than the ones considered here and work has started to consider
+deferring in reinforcement learning [MDSGR20].
+    A related framework to our setting is selective classification [EYW10] where instead of setting a
+cost for rejecting to predict one sets a constraint on the probability of rejection; here is no assumed
+downstream expert. Approaches range from deferring based on confidence scores [GEY17], learning
+a deep network with two heads, one for predicting and the other for deferring [GEY19] and learning
+with portfolio theory inspired loss functions [ZWL+ 19]. Finally, our work bears resemblance to
+active learning with weak (the expert) and strong labelers (the ground truth) [ZC15].
+
+
+3    Problem Formulation
+     We are interested in predicting a target Y ∈ Y = {1, · · · , K} based on covariates X ∈ X where
+X, Y ∼ P. We assume that we have query access to an expert M that has access to a domain Z
+that may contain additional information than X to classify instances according to the target Y.
+Querying the expert implies deferring the decision which incurs a cost lexp (x, y, m) that depends
+on the target y, covariate x and the expert’s prediction m. On the other hand, predicting without
+querying the expert implies that a classifier makes the final decision and incurs a cost l(x, y, ŷ) where
+ŷ is the prediction of the classifier. Our goal is to build a predictor Ŷ : X → Y ∪ {⊥} that can either
+predict or defer the decision to the expert denoted by ⊥. We can now formulate a natural system
+loss function L for the system consisting of the classifier in conjunction with the expert:
+                                                                  predict                  defer
+                                                             z }| {                      z }| {
+              L(Ŷ ) = E(x,y)∼P,m∼M |(x,y) [ l(x, y, Ŷ (x)) IŶ (x)6=⊥ + lexp (x, y, m) IŶ (x)=⊥ ]   (1)
+                                             |     {z      }              |     {z     }
+                                                classifier cost             expert cost
+
+
+    Our strategy for learning the predictor Ŷ will be to learn two separate functions h : X → Y
+(classifier) and r : X → {0, 1} (rejector) and hence we write our loss as:
+
+              L(h, r) = E(x,y)∼P,m∼M |(x,y) [ l(x, y, h(x))Ir(X)=0 + lexp (x, y, m)Ir(x)=1 ]           (2)
+
+ Figure 1 illustrates our expert deferral setting with it’s different components. The above formulation
+is a generalization of the learning with rejection framework studied by [CDM16b] as by setting
+lexp (x, y, m) = c for a constant c > 0 the two objectives coincide. In [MPZ18], the loss proposed
+assumes that the classifier and expert costs are the logistic loss between the target and their
+predictions in the binary target setting.
+     While our treatment extends to general forms of expert and classifier costs, we will pay particular
+attention in our theoretical analysis when the costs are the misclassification error with the target.
+Formally, we define a 0−1 loss version of our system loss:
+
+                   L0−1 (h, r) = E(x,y)∼P,m∼M |(x,y) [ Ih(x)6=y Ir(x)=0 + Im6=y Ir(x)=1 ]              (3)
+
+                                                         3
+Figure 1: The expert deferral pipeline, the rejector first r(x) decides who between the classifier h(x)
+and expert M (z) should predict and then whoever makes the final prediction incurs a specific cost.
+
+
+One may also assume a constant additive cost function c(x) for querying the expert depending on
+the instance x making lexp (x, y, m) = Im6=y + c(x); such additive costs can be easily integrated into
+our analysis.
+    Our approach will be to cast this problem as a cost sensitive learning problem over an augmented
+label space that includes the action of deferral. Let the random costs c ∈ RK+1  +     where for i ∈ [K],
+c(i) is the i0 th component of c represents the cost of predicting i ∈ Y while c[K + 1] represents
+the cost of deferring to the expert. The goal of this setup is to learn a predictor h : X → [K + 1]
+minimizing the cost sensitive loss L(h)
+                                      e   := E[c(h(x))]. For example, giving an instance (x, y), our
+loss (2) is obtained by setting c(i) = l(x, y, i) for i ∈ [K] and c(K + 1) = lexp (x, y, m).
+    For the majority of this paper we assume access to samples S = {(xi , yi , mi )}ni=1 where
+{(xi , yi )}ni=1 are drawn i.i.d. from the unknown distribution P and mi is drawn from the dis-
+tribution of the random variable M |(X = xi , Y = yi ) and access to the realizations of lexp and l
+when required .
+
+
+4    Proposed Surrogate Loss
+    It is clear that the system loss function (2) is not only non-convex but also computationally
+hard to optimize. The usual approach in machine learning is to formulate upper bounding convex
+surrogate loss functions and optimize them in hopes of approximating the minimizers of the original
+loss [BJM06]. Work from rejection learning [CDM16b, NCHS19] suggested learning two separate
+functions h and r and provided consistent convex surrogate loss functions only for the binary setting.
+We extend their proposed surrogates for our expert deferral setting for binary labels with slight
+modifications in appendix C. Consistency is used to prove that a proposed surrogate loss is a good
+candidate and is often treated as a necessary condition. The issue with the proposed surrogates in
+[CDM16b] for rejection learning is that when extended to the multiclass setting, it is impossible for
+them to be consistent as was shown by [NCHS19]. Aside the consistency issue, [NCHS19] found that
+simple baselines can outperform the proposed losses in practice.
+    The construction of our proposed surrogate loss for the multiclass expert deferral setting will
+be motivated via two ways, the first is through a novel reduction to cost sensitive learning and the
+second is inspired by the Bayes minimizer for the 0−1 system loss (3). Let gi : X → R for i ∈ [K + 1]
+and define h(x) = arg maxi∈[K+1] gi , motivated by the success of the cross entropy loss, our proposed
+
+
+
+
+                                                   4
+surrogate for cost-sensitive learning L
+                                      e CE takes the following form:
+
+                                                             K+1                                                 
+                                                             X                                    exp(gi (x))
+  e CE (g1 , · · · , gK+1 , x, c(1), · · · , c(K + 1)) = −
+  L                                                                 ( max c(j) − c(i)) log       P                    (4)
+                                                             i=1
+                                                                    j∈[K+1]                       k exp(gk (x))
+
+
+The loss Le CE is a novel surrogate loss for cost sensitive learning that generalizes the cross entropy
+loss when the costs correspond to multiclass misclassification. The following proposition shows that
+the loss is consistent, meaning it’s minimizer over all measurable functions agrees with the Bayes
+solution.
+Proposition 1. L   e CE is convex in g and is a consistent loss function for L:
+                                                                             e
+                      h                  i
+  let ge = arg inf g E Le CE (g, c)|X = x , then: arg maxi∈[K+1] gei = arg mini∈[K+1] E[c(i)|X = x]
+
+
+     Proof of Proposition 1 can be found in Appendix C; L e CE is a simpler consistent alternative to
+the surrogates derived in [CGHS19] for cost sensitive learning.
+     Now we consider when the system loss function is L0−1 (3), our approach is to treat deferral as a
+new class and construct a new label space Y ⊥ = Y ∪⊥ and a corresponding distribution P(Y ⊥ |X = x)
+such that minimizing the misclassification loss on this new space will be equivalent to minimizing
+our system loss L0−1 . The Bayes optimal classifier on Y ⊥ is clearly h⊥ = arg maxy⊥ ∈Y ⊥ P(Y ⊥ =
+y ⊥ |X = x), and we need it to match the decision of the Bayes solution hB , rB of L0−1 (3):
+
+                                            hB , rB = arg inf L0−1 (h, r)                                             (5)
+                                                              h,r
+
+where the infimum is over all measurable functions. Denote by ηy (x) = P(Y = y|X = x), it is clear
+that for x ∈ X the best classifier is the same as the Bayes solution for standard classification since
+if we don’t defer we have to do our best. Now we only reject the classifier if it’s expected error is
+higher than the expected error of the expert which we formalize in the below proposition:
+Proposition 2. The minimizers of the loss L0−1 (3) are defined point-wise for all x ∈ X as:
+
+                                       hB (x) = arg max ηy (x)
+                                                       y∈Y
+                                        B
+                                       r (x) = Imaxy∈Y ηy (x)≤P(Y =M |X=x)                                            (6)
+
+    Proof of the above proposition can be found in Appendix C and equation (6) give us sufficient
+conditions for consistency to check our proposed loss. Let gy : X → R for y ∈ Y and define
+h(x) = arg maxy∈Y gy , similarly let g⊥ : X → R and define r(x) = Imaxy∈Y gy (x)≤g⊥ the proposed
+surrogate loss for L0−1 (2) in the multiclass setting is then:
+                                                            !                                     !
+                                          exp(gy (x))                           exp(g⊥ (x))
+      LCE (h, r, x, y, m) = − log P                           − Im=y log P                          (7)
+                                     y 0 ∈Y∪⊥ exp(gy 0 (x))                y 0 ∈Y∪⊥ exp(gy 0 (x))
+
+The proposed surrogate LCE is in fact consistent and upper bounds L0−1 as the following theorem
+demonstrates.
+Theorem 1. The loss LCE is convex in g, upper bounds L0−1 and is consistent: inf h,r Ex,y,m [LCE (h, r, x, y, m)]
+is attained at (h∗CE , rCE
+                        ∗ ) such that hB (x) = h∗ (x) and r B (x) = r ∗ (x) for all x ∈ X .
+                                                CE                   CE
+
+
+                                                             5
+Proof Sketch. Please refer to appendix C for the detailed proof. First the infimum over functions
+h, r can be replaced by a point-wise infimum as:
+
+inf Ex,y,m [LCE (h, r, x, y, m)] = Ex     inf       Ey|x Em|x,y [LCE (h(x), r(x), x, y, m)]
+h,r                                     h(x),r(x)
+
+Now let us expand the inner expectation:
+                                                                                                       !
+                                                          X                        exp(gy (x))
+       Ey|x Em|x,y [LSH (h(x), r(x), x, y, m)] = −              ηy (x) log   P                                 (8)
+                                                          y∈Y                 y 0 ∈Y∪⊥ exp(gy 0 (x))
+                                                                                                           !
+                                                                                       exp(g⊥ (x))
+                                                     − P(Y = M |X = x) log         P
+                                                                                    y ∈Y∪⊥ exp(gy 0 (x))
+                                                                                     0
+
+
+
+   For ease of notation denote the RHS of equation (8) as LCE (g1 , · · · , g|Y| , g⊥ ), note that it is a a
+convex function, hence we will take the partial derivatives with respect to each argument and set
+them to 0. For any g⊥ and i ∈ Y we have :
+
+                                   exp(gi∗ (x))                ηi (x)
+                              P                      =                                                         (9)
+                                     e exp(gy 0 (x))
+                                y 0 ∈Y
+                                                       1 + P(Y = M |X = x)
+
+The optimal h∗ for any g⊥ should satisfy equation (9) for every i ∈ Y. Plugging h∗ and taking the
+derivative with respect to g⊥ we get:
+
+                                         ∗ (x))
+                                  exp(g⊥                 P(Y = M |X = x)
+                              P              ∗       =
+                                y 0 ∈Y exp(gy 0 (x))   1 + P(Y = M |X = x)
+
+since exponential is an increasing function we get that the optimal h∗ and r∗ in fact agrees with the
+Bayes solution.
+
+    When the costs c(1), · · · , c(K + 1) are in accordance with our expert deferral setting the loss
+e CE reduces to LCE . Now stepping back and looking more closely at our loss LCE , we can see that
+L
+the loss on examples where the expert makes a mistake becomes the cross entropy loss with the
+target. On the other hand, when the expert agrees with the target, the learner faces two opposing
+decisions whether to defer or predict the target. We can encourage or hinder the action of deferral
+by modifying the loss with an additional parameter α ∈ R+ as LαCE (h, r, x, y, m):
+                                                                                           !
+                α                                                        exp(gy (x))
+               LCE (h, r, x, y, m) = − (α · Im=y + Im6=y ) log P
+                                                                    y 0 ∈Y∪⊥ exp(gy 0 (x))
+                                                                            !
+                                                          exp(g⊥ (x))
+                                      − Im=y log P                                              (10)
+                                                     y 0 ∈Y∪⊥ exp(gy 0 (x))
+
+
+Note that L1CE = LCE . The effect of α is to re-weight examples where the expert is correct to
+discourage the learner of fitting them and instead focus on examples where the expert makes a
+mistake. In practice, one would treat α as an additional hyperparameter to optimize for.
+
+
+
+                                                           6
+5     Theoretical analysis
+   In this section we focus on the zero-one system loss function L0−1 and try to understand previous
+proposed solutions in the literature in comparison with our method from a theoretical perspective.
+
+5.1    Failure of Confidence Scores Method
+    Let us first remind ourselves of the Bayes solution for the system loss:
+
+                    hB (x) = arg max ηy (x),    rB (x) = Imaxy∈Y ηy (x)≤P(Y =M |X=x)
+                                  y∈Y
+
+The form of the Bayes solution above suggests a very natural approach: 1) learn a classifier minimizing
+the misclassification loss with the target and obtain confidence scores for predictions, 2) obtain
+confidence scores for expert agreement with the target, this can be done by learning a model where
+the target is whether the expert agrees with the task label and extracting confidence scores from this
+model [RBS+ 19], and finally 3) compare who between the classifier and the expert is more confident
+and accordingly defer. We refer to this as the confidence score method (Confidence), this approach
+leads to a consistent estimator for both the rejector and classifier and was proposed by [RBC+ 19].
+    In fact this is the standard approach in rejection learning [BW08, RTA+ 18, NCHS19], a host
+of different methods exist for estimating a classifier’s confidence on new examples including trust
+scores [JKGG18], Monte-Carlo dropout for neural networks [GG16] among many others. However,
+the key pitfall of this method in the expert deferral setup it that it does not allow h to adapt to
+the expert’s strengths and weaknesses. When we restrict our search space to a limited class of
+functions H and R this approach can easily fail. We now give a toy example where learning the
+classifier independently fails which motivates the need to jointly learn both the classifier and rejector.
+
+    Assume that there exists two sub-populations
+in the data denoted A = 1 and A = 0 where
+P(A = 1) ≥ P(A = 0) from which X ∈ Rd is
+generated from and conditional on the target
+and population, X|(Y = y, A = 0) is normally
+distributed according to N (µy,0 , Σ) and X|(Y =
+y, A = 1) consists of two clusters: cluster (1)
+is normally distributed but the means are not
+well separated and cluster (2) is only separable
+by a complex non-linear boundary; the data is
+illustrated in Figure 2. Finally we assume the
+expert to be able to perfectly classify group A =
+1, on cluster (1) the expert is able to compute
+the complex nonlinear boundary and on cluster
+                                                    Figure 2: Setting of two groups, red and blue,
+(2) the expert has side-information Z that allows
+                                                    the task is binary classification with labels {o, +},
+him to separate the classes which is not possible
+                                                    the expert fits the red majority group, hence the
+from only X. Our hypothesis spaces H and G
+                                                    classifier should attempt to fit the blue group with
+will be the set of all d−dimensional hyperplanes.
+                                                    the rejector (black line) separating the groups.
+If we start by learning h, then the resulting
+hyperplane will try to minimize the average error
+
+
+                                                    7
+across both groups, this will likely result into a hyperplane that separates neither group as the data
+is not linearly separable, especially on group A = 1. If we assume that the boundary between the
+groups is linear as shown, then we can achieve the error of the Bayes solution within our hypothesis
+space: the optimal behavior in this setting is clearly to have h fit group A = 0, note here the Bayes
+solution corresponds to a hyperplane via linear discriminant analysis for 2 classes on A = 0, and the
+rejector r separating the groups as illustrated in Figure 2. This example illustrates the complexities
+of this setting, due to model capacity there are significant gains to be achieved from adapting to
+the expert by focusing only group A = 0. Setting aside model capacity, the nonlinear boundary of
+cluster (1) is sample intensive to learn as we only have access to finite data. Finally, cluster (2)
+cannot be separated even with infinite data, the side information of the expert is needed, and so the
+hard task is to identify the region of cluster (2). This serves to illustrates the complexities of the
+setup and the importance of learning the classifier and rejector jointly.
+
+5.2   Inconsistency of mixtures of experts loss and Realizable-consistency
+    So far we have focused on classification consistency to verify the soundness of proposed approaches,
+however, we usually have specific hypothesis classes H, R in mind, and if the Bayes predictor is
+not in our class then consistency might not guarantee much [BDLSS12]. For example, for binary
+classification with half-spaces, any predictor learned with a convex surrogate loss can have arbitrarily
+high error if the best half-space has non-zero error [BDLSS12]. The previous example illustrated in
+Figure 2 shows an the mode of failure that exists in the expert deferral setup even in the realizable
+setting. Therefore, a more relevant requirement to our example is that the minimizers of a proposed
+surrogate loss and the original loss agree for given hypothesis classes in the realizable setting; this is
+formally defined with the below notion.
+
+Definition 1 (realizable (H, R)-consistency). A surrogate loss Lsurr is realizable (H, R)-consistent
+if for all distributions P and experts M for which there exists h∗ , r∗ ∈ H × R that have zero error
+L(h∗ , r∗ ) = 0, we have ∀ > 0, ∃δ > 0 such that if (ĥ, r̂) satisfies
+
+                      Lsurr (ĥ, r̂) − inf h∈H,r∈R Lsurr (h, r) ≤ δ, then: L(ĥ, r̂) ≤ 
+
+     A similar notion was introduced for classification by [LS13] and by [CDM16b] for rejection
+learning, however here we have the the added dimension of the expert.
+     Note that the expert deferral setting considered here can be thought of as a hard mixture of
+two experts problem where one of the experts is fixed [JJ94, SMM+ 17, MPZ18]. This observation
+motivates a natural mixture of experts type loss, let gy : X → R for y ∈ Y, h(x) = arg maxy∈Y gy ,
+ri : X → R for i ∈ {0, 1} and r(x) = arg maxi∈{0,1} ri (x), the mixture of experts loss is defined as:
+
+                                                        !
+                                    exp(gy (x))                   exp(r0 (x))                  exp(r1 (x))
+ Lmix (g, r, x, y, m) = − log   P                           P                       + Im6=y P
+                                 y 0 ∈Y exp(gy 0 (x))           i∈{0,1} exp(ri (x))          i∈{0,1} exp(ri (x))
+                                                                                                             (11)
+
+The above loss extends [MPZ18] approach to the multiclass setting. As the next proposition
+demonstrates, Lmix is in general not classification consistent, however, it is realizable (H, R)-
+consistent for classes closed under scaling which include linear models and neural networks.
+
+
+                                                        8
+Proposition 3. Lmix is realizable (H, R)-consistent for classes closed under scaling but is not
+classification consistent.
+
+    Proof of proposition 3 can be found in Appendix C. Note that integrating more information about
+M in Lmix would not make the loss consistent, the inconsistency arises from the parameterization in
+g, setting the classifier loss to simply be Ih(x)6=y would make Lmix consistent at the cost of losing
+the convexity and differentiability in g. While Lmix is indeed realizable consistent however it is
+not convex in both g and r, hence it is not clear how to efficiently optimize it. Setting aside
+computational feasibilities, it is also not immediately clear which between consistency and realizable
+(H, R)-consistency will be more practically relevant. In our experimental section we show how the
+mismatch between the model and expert loss and their actual errors causes this method to learn the
+incorrect behavior which hints that classification consistency is crucial.
+
+5.3   Generalization Bound For Joint Learning
+    In this subsection we analyze the sample complexity to jointly learn a rejector and classifier. The
+goal is to find the minimizer of the empirical version of our system loss when our hypothesis space
+for h and r are H, R respectively:
+                                                          n
+               ∗    ∗                                 1   X
+              ĥ , r̂ = arg min       LS0−1 (h, r) :=           Ih(xi )6=yi Ir(xi )=0 + Imi 6=yi Ir(xi )=1   (12)
+                            h∈H,r∈G                  n
+                                                          i=1
+
+By going after the system loss directly, we can approximate the population minimizers h∗ , r∗ over
+H × R of L0−1 (3). The optimum h∗ may not necessarily coincide with the optimal minimizer of
+the misclassification loss with the target which is why learning jointly is critical. We now give a
+generalization bound for our empirical minimization procedure for a binary target.
+
+Theorem 2. For any expert M and data distribution P over X × Y, let 0 < δ < 12 , then with
+probability at least 1 − δ, the following holds for the empirical minimizers (ĥ∗ , r̂∗ ):
+
+                   L0−1 (ĥ∗ , r̂∗ ) ≤ L0−1 (h∗ , r∗ ) + Rn (H) + Rn (R) + RnP(M 6=Y )/2 (R)
+                                        s
+                                          log 2δ
+                                                                                  
+                                                     P(M 6= Y )        nP(M 6= Y )
+                                     +2           +             exp −                                        (13)
+                                           2n             2                 8
+
+    Proof of the above theorem can be found in Appendix C. We can see that the performance of
+our empirical minimizer is controlled by the Rademacher complexity Rn (R) and Rn (H) of both the
+classifier and rejector model classes and the error of the expert. Note that when P(M 6= Y ) = 0
+we recover the bound proved in Theorem 1 [CDM16b] for rejection learning when c = 0; this gives
+evidence that deferring to an expert is a more sample intensive problem then rejection learning.
+Both our loss LCE and the confidence scores approach lead to consistent estimators, however, as we
+will later show in our experiments, one differentiating factor will be that of sample complexity. We
+can already see in the bound (13), that we pay the complexity of the rejector and classifier model
+classes, however, our approach combines the rejector and classifier in one model to avoid these added
+costs.
+
+
+
+
+                                                          9
+6        Experiments
+   We provide code to reproduce our experiments 1 . In Appendix A we give a detailed guide on
+implementing our method. Additional experimental details and results are left to Appendix B.
+
+6.1       Synthetic Data
+    As a first toy example to showcase that our proposed loss LαCE is able to adapt to the underlying
+expert behavior, we perform experiments in a Gaussian mixture setup akin to the example in
+section 5. The covariate space is X = Rd and target Y = {0, 1}, we assume that there exists two
+sub-populations in the data denoted A = 1 and A = 0. Furthermore, X|(Y = y, A = a) is normally
+distributed according to N (µy,a , Σy,a ). The expert follows the Bayes solution for group A = 1
+which here corresponds to a hyperplane. Our hypothesis spaces H and R will be the set of all
+d−dimensional hyperplanes.
+    Setup: We perform 200 trials where on each trial we generate: random group proportions
+P(A = 1) ∼ U (0, 1) fixing P(Y = 1|A = a) = 0.5, random means and variances for each Gaussian
+component X|Y = y, A = a ∼ N (µy,a , Σy,a ) where µy,a ∼ U (0, 10)d and similarly for the diagonal
+components of Σy,a (i, i) ∼ U (0, 10) keeping non-diagonal components 0 with dimension d = 10; we
+generate in total 1000 samples each for training and testing. We compare against oracle behavior
+and two baselines: 1) An oracle baseline (Oracle) that trains only on A = 0 data and trains the
+rejector to separate the groups with knowledge of group labels and 2) the confidence score baseline
+(Confidence) that trains a linear model on all the data and then trains a different linear model on all
+the data where labels are the expert’s agreement with the target and finally compares which of the
+two is more confident according to the probabilities assigned by the corresponding models and 3)
+our implementation of the approach in [MPZ18] (MixOfExp).
+    Results: We train a multiclass logistic regression model with our loss LαCE with α ∈ {0, 0.5, 1}
+and record in table 1 the difference in accuracy between our method and baselines for the best
+performing α. We can see that our method with α = 0 outperforms the confidence baseline by 6.39
+on average in classification accuracy and matches the oracle method with 0.22 positive difference
+which shows the success of our method. When trained with loss L1CE or L.5      CE the model matches
+the confidence baseline, the reason being is that with α 6= 0 the model will still try to fit the target
+Y but the model class here is not rich enough to allow the model to reasonably fit the target and
+adapt to the expert.
+
+Table 1: Comparison of our methods with the confidence score baseline, oracle baseline and our
+implementation of [MPZ18] method. We compute a 95% confidence interval for the average difference
+between the baselines and our method.
+
+
+                      Difference in system accuracy         Average   95% interval
+                      L0CE -Confidence [RBC+ 19]             6.39        [3.71,9.06]
+                      L0CE -Oracle                           0.22       [-1.71,2.15]
+                      L0CE - MixOfExp [MPZ18]                2.01        [0.14,4.06]
+
+    1
+        https://github.com/clinicalml/learn-to-defer
+
+
+
+
+                                                       10
+6.2    CIFAR-10
+    As our first real data experimental evaluation we conduct experiments on the celebrated CIFAR-
+10 image classification dataset [KH+ 09] consisting of 32 × 32 color images drawn from 10 classes
+split into 50,000 train and 10,000 test images.
+    Synthetic Expert. We simulate multiple synthetic experts of varying competence in the
+following way: let k ∈ [10], then if the image belongs to the first k classes the expert predicts
+perfectly, otherwise the expert predicts uniformly over all classes. The classifier and expert costs are
+assumed to be the misclassification costs.
+    Base Network. Our base network for classification will be the Wide Residual Networks
+(WideResNets) [ZK16] which with data augmentation and hyperparameter tuning can achieve a
+96.2% test accuracy. Since our goal is not to achieve better accuracies but to show the merit of our
+approach for a given fixed model, we disadvantage the model by not using data augmentation and a
+smaller network size. The WideResNet with 28 layers minimizing the cross-entropy loss achieves
+90.47% test accuracy with training until fitting the data in 200 epochs; this will be our benchmark
+model. We use SGD with momentum and a cosine annealing learning rate schedule.
+    Proposed Approach: Following section 4, we parameterize h and r (specifically g⊥ ) by a
+WideResNet with 11 output units where the first 10 units represent h and the 110 th unit is g⊥ and
+minimize the proposed surrogate LαCE (7). We also experimented with having h be a WideResNet
+with 10 output units and g⊥ a WideResNet with a single output unit and observed identical results.
+We show results for α ∈ {0.5, 1}.
+    Baselines: We compare against three baselines. The first baseline trains the rejector to recognize
+if the image is in the first k classes and accordingly defers, we call this baseline "LearnedOracle";
+this rejector is a learned implementation of what the optimal rejector should do. The second baseline
+is the confidence score method [RBC+ 19] and the third is the mixture-of-experts loss of [MPZ18],
+details of the implementation of this final baseline are left to Appendix B.5.
+    Results. In figure 7a we plot the accuracy of the combined algorithm and expert system versus
+k, the number of classes the expert can predict perfectly. We can see that the model trained with
+  CE and LCE outperforms the baselines by 1.01% on average for the confidence score baseline and
+L0.5        1
+
+by 1.94 on average for LearnedOracle. To look more closely at the behavior of our method, we
+plot in figure 3b the accuracy on the non-deferred examples versus the coverage, the fraction of the
+examples non-deferred, for each k. We can see that that the model trained with L1CE dominates
+all other baselines giving better coverage and accuracy for the classifier’s predictions. This gives
+evidence that our loss allows the model to only predict when it is highly confident.
+    Why do we outperform the baselines?
+    1) Sample complexity: The Confidence baseline [RBC+ 19] requires training two networks while
+ours only requires one, when data is limited our approach gives significant improvements in comparison.
+We experiment with increasing training set sizes while keeping the test set fixed and training our
+model with L1CE and the Confidence baseline. Figure 4 plots system accuracy versus training set size
+when training with expert k = 5. We can see when data is limited our approach massively improves
+on the baseline, for example with 2000 training points, Confidence achieves 62.33% accuracy while
+our method achieves 70.12%, a 7.89 point increase.
+    2) Taking into consideration both expert and model confidence: the LearnedOracle baseline ignores
+model confidence entirely and only focuses on the region where the expert is correct. While this
+is the behavior of the Bayes classifier in this setup, when dealing with a limited model class and
+limited data, this no longer is the correct behavior. For this reason, our model outperforms the
+
+
+                                                  11
+           100                                                                                                       100
+
+
+
+
+                                                                                 Accuracy on non-deferred examples
+            99              LearnedOracle                                                                             99
+            98           Confidence [RBC+ 19]
+                                                                                                                      98
+                                 L.5
+                                   CE
+            97                                                                                                        97
+                                 L1CE
+            96            MixOfExp [MPZ18]                                                                            96
+
+
+Accuracy
+            95                                                                                                        95
+            94                                                                                                        94
+            93                                                                                                        93
+            92                                                                                                        92
+            91                                                                                                        91
+            90                                                                                                        90
+            89
+            88                                                                                                       88
+                 0   1     2 3 4 5 6 7 8 9                                 10                                              0    10 20 30 40 50 60 70 80 90 100
+                         k (classes expert can predict)                                                                        Coverage (ratio of examples predicted)
+
+                                    (a)                                                                                                      (b)
+
+Figure 3: Left figure shows overall system accuracy of our method and baselines (k is the number of
+classes the expert can predict) and right figure compares the accuracy on the non-deferred examples
+versus the coverage for every k
+
+
+LearnedOracle baseline.
+    3) Consistency: the mixtures of experts loss of [MPZ18] fails in this setup and learns never to
+defer. The reason is that when training, the loss of the classifier will converge to zero and validation
+classifier accuracy will still improve in the mean-time, however the loss of the expert remains constant,
+thus we never defer.
+                                                            94
+                                                            89
+                                                            85
+
+
+
+
+                                          System accuracy
+                                                            82
+                                                            79
+                                                            76
+                                                            73
+                                                            70
+                                                            67
+                                                            64
+                                                            61                                                             Confidence
+                                                            58                                                               L1CE
+                                                            55
+                                                                 1   2 3      5     8 10    20                                          50
+                                                                     Dataset size (in thousands)
+
+Figure 4: Varying training set size when training with expert k = 5 for Confidence baseline and our
+method L1CE .
+
+
+
+
+                                                                                12
+6.3    CIFAR-100
+    We repeat the experiments described above on the CIFAR-100 dataset [KH+ 09]. A 28 layer
+WideResNet achieves a 79.28 % test accuracy when training with data augmentation (random crops
+and flips). The simulated experts also operate in a similar fashion, for k ∈ {10, 20, · · · , 100}, if the
+image is in the first k classes, the expert predicts the correct label with probability 0.94 to simulate
+SOTA performance on CIFAR-100 with 93.8% test accuracy [KBZ+ 19], otherwise the expert predicts
+uniformly at random.
+    Compared against the confidence score baseline, the model trained with L1CE outperforms it by
+a 1.60 difference in test accuracy for 30 ≤ k ≤ 90 on average and otherwise performs on par. This
+gives again gives evidence for the efficacy of our method, full experimental results are available in
+appendix B.3.
+
+6.4    CIFAR10H and limited expert data
+    Obtaining expert labels for entire datasets may in fact be prohibitively expensive as standard
+dataset sizes have grown into million of points [DDS+ 09]. Therefore it is more realistic to expect that
+the expert has labeled only a fraction of the data. In the following experiments we assume access to
+fully labeled data Sl = {(xi , yi , mi )}m
+                                         i=1 and data without expert labels Su = {(xi , yi )}i=m+1 . The
+                                                                                             n
+
+goal again is to learn a classifier h and rejector r from the two datasets Sl and Su .
+    Data: To experiment in settings where we have limited expert data, we use the dataset CIFAR10H
+[PBGR19] initially developed to improve model robustness. CIFAR10H contains for each data point
+in the CIFAR-10 test set fifty crowdworker annotations recorded as counts for each of the 10 classes.
+The training set of CIFAR-10 will constitute Su , and we randomly split the test set in half where
+one half constitutes Sl and the other is for testing; we randomize the splitting over 10 trials.
+    Expert: We simulate the behavior of an average human annotator by sampling from the class
+counts for each data point. The performance of our simulated expert has an average classification
+accuracy of 95.22 with a standard deviation of 0.18 over 100 runs. The performance of the expert is
+non uniform over the classes, for example on the class cat the expert has 91.0% accuracy while on
+horse a 97.8% accuracy.
+    Proposed Approach: Our method will be to learn fm : X → {0, 1} to predict whether the
+expert errs from data Sel = {(xi , Iyi 6=mi )}m
+                                              i=1 , using fm we label Su with the expert disagreement
+labels to use in our loss function an obtain Ŝu . Note since our loss function does not care which label
+the expert predicts but whether he errs or not, our task simplifies to binary classification instead
+of classification over the target Y. Finally we train using our loss LCE on Ŝu ∪ Sl ; we refer to our
+method as "LCE impute"
+
+Table 2: Comparing our proposed methods on CIFAR10H and a baseline based on confidence scores
+recording system accuracy, coverage and classifier accuracy on non-deferred examples.
+
+
+                Method                        System        Coverage         Classifier
+                LCE impute                  96.29±0.25     51.67±1.46       99.2 ± 0.08
+                LCE 2-step                  96.03±0.21     60.81±0.87      98.11 ± 0.22
+                Confidence [RBC+ 19]        95.09±0.40     79.48±5.93      96.09 ± 0.42
+
+
+
+
+                                                   13
+    Results. We compare against a confidence score baseline where we train a classifier on Su
+and then model the expert on Sl . Results are shown in table 2 and we can see that our method
+outperforms the confidence method by 1.2 points on system accuracy and an impressive 3.1 on data
+points where the classifier has to predict. To show the effect of imputing expert labels on Su , we
+train first our model using LCE on Su and then fine tune to learn deferral on Sl , we refer to this as
+"LCE 2-step". It is possible that further approaches inspired by SOTA methods in semi supervised
+learning methods give further improvements [OOR+ 18, BCG+ 19].
+
+6.5    Hate Speech and Offensive Language Detection
+    We conduct experiments on the dataset created by [DWMW17] consisting of 24,783 tweets
+annotated as hate speech, offensive language or neither. We create a synthetic expert that has
+differing error rates according to the demographic of the tweet’s author as described in what follows.
+    Expert. [BGO16] developed a probabilistic language model that can identify if a tweet is in
+African-American English (AAE), this model was used by [DBW19] to audit for racial bias in
+classifiers. We use the same model and predict that a tweet is in AAE if the probability predicted
+is higher than 0.5. Our expert model is as follows: if the tweet is in AAE then with probability p
+we predict the correct label and otherwise predict uniformly at random. On the other hand if the
+tweet is not in AAE, we predict with probability q the correct label. We experiment with 3 different
+expert probabilities for p and q: 1) a fair expert with {p = 0.9, q = 0.9}, 2) a biased expert towards
+AAE tweets {p = 0.75, q = 0.9} and 3) a biased expert towards non AAE tweets {p = 0.9, q = 0.75}.
+    Our Approach. For our model we use the CNN developed in [Kim14] for text classification
+with 100 dimensional Glove embeddings [PSM14] and 300 filters of sizes {3, 4, 5} using dropout. This
+CNN achieves a 89.5% average accuracy on the classification task, comparable to the 91% achieved
+by [DWMW17] with a feature heavy linear model. We randomly split the dataset with a 60, 10, 30%
+split into a training, validation and test set respectively; we repeat the experiments for 5 random
+splits. We used a grid search over the validation set to find α.
+    Results. We compare against two baselines: the first is Confidence, the second is an oracle
+baseline that trains first a model on the classification task and then implements the Bayes rejector
+rB (x) equipped with the knowledge of p, q and the tweet’s demographic group. Both our model
+trained with L1CE and the confidence score baseline achieve similar accuracy and coverage with
+the oracle baseline performing only slightly better across the three experts. For the AAE biased
+expert, our model trained with L1CE achieves 92.91±0.17 system accuracy, Confidence 92.42±0.40
+and Oracle 93.22±0.11. This suggests that both approaches are performing optimally in this setting.
+    Racial Bias. A major concern in this setting is whether the end to end system consisting of the
+classifier and expert is discriminatory. We define the discrimination of a predictor as the difference
+in the false positive rates of AAE tweets versus non AAE tweets where false positives indicate
+tweets that were flagged as hate speech or offensive when they were not. Surprisingly, the confidence
+score baseline with the fair expert doubles the discrimination of the overall system compared to the
+classifier acting on it’s own: the classifier has a discrimination of 0.226 on all the test data, the fair
+expert a discrimination of 0.03 while the confidence score baseline has a discrimination of 0.449. This
+again reiterates the established fact that fairness does not compose [DI18]. In fact, the end-to-end
+system can be less discriminatory even if the individual components are more discriminatory, for
+the second expert that has higher error rates on non AAE tweets with discrimination of 0.084, the
+discrimination of the confidence score method reduces to 0.151. While our method does not achieve
+significantly lower discrimination than the baseline, however integrating fairness constraints for the
+
+                                                   14
+end-to-end system becomes easier as we can adapt the classifier. Complete experimental results can
+be found in Appendix B.4.
+
+6.6     Synthetic Experts on CheXpert
+6.6.1    Setup
+     Task. CheXpert is a large chest radiograph dataset that contains over 224 thousand images of
+65,240 patients automatically labeled for the presence of 14 observations using radiology reports
+[IRK+ 19]. In addition to the automatically labeled training set, [IRK+ 19] make publicly accessible
+a validation set of 200 patients labeled by a consensus of 3 radiologists and hide a further testing set
+of 500 patients labeled by 8 radiologists. We focus here on the detection of only the 5 observations
+that make up the "competition tasks" [IRK+ 19]: Atelectasis, Cardiomegaly, Consolidation, Edema,
+and Pleural Effusion. This is a multi-task problem, we have 5 separate binary tasks, we will learn to
+defer on an individual task basis.
+     Expert. We create a simulated expert as follows: if the chest X-ray contains support devices
+(the presence of support devices is part of the label) then the expert is correct with probability p on
+all tasks independently and if the X-ray does not contain support devices, then the expert is correct
+with probability q. We vary q ∈ {0.5, 0.7} and p ∈ {0.7, 0.8, 0.9, 1} to obtain different experts, we
+let p ≥ q as one can think that a patient that has support devices might have a previous medical
+history that the expert is aware of and can use as side-information.
+     Data. We use the downsampled resolution version of CheXpert [IRK+ 19] and split the training
+data set with an 80-10-10 split on a patient basis for training, validation and testing respectively,
+no patients are shared among the splits. Images are normalized and resized to be compatible
+with pre-trained ImageNet models, we use data augmentation in the form of random resized crops,
+horizontal flips and random rotations of up to 15° while training. Note that a small subset of the
+training data has an uncertainty label "U" instead of a binary label that implies that the automatic
+annotator is uncertain, we ignore these points on a task basis while training and testing.
+     Baselines. We implement two baselines: a threshold confidence baseline that learns a threshold
+to maximize system AU-ROC on just the confidence of the classifier model to defer (ModelConfidence),
+this is the post-hoc thresholding method in [MPZ18], and the Confidence baseline [RBC+ 19]. We
+use temperature scaling [GPSW17] to ensure calibration of all baselines on the validation set.
+     Model. Following [IRK+ 19], we use the DenseNet121 architecture for our model with pre-trained
+weights on ImageNet, the loss for the baseline models is the average of the binary cross entropy for
+each of the tasks. We train the baseline models using Adam for 4 epochs. For our approach we train
+for 3 epochs using the cross entropy loss and then train for one epoch using LαCE with α chosen to
+maximize the area under the receiver operating characteristic curve (AU-ROC) of the combined
+system on the validation set for each of the 5 tasks (each task is treated separately). We also observe
+similar results if we train for the first three epochs with L1CE and then train for one epoch with a
+validated choice of α.
+     Experimental setup. In a clinical setting there might be a cost associated to querying a
+radiologist, this then imposes a constraint on how often we can query the radiologist i.e. our model’s
+coverage (fraction of examples where algorithm predicts). We constrain our method and the baselines
+to achieve c% coverage for c ∈ [100] to simulate the spectrum between complete automation and
+none.
+We achieve this for our method by first sorting the test set based on g⊥ (x)−max(g0 (x), g1 (x)) := q(x)
+
+
+                                                  15
+across all patients x in the test set, then to achieve coverage c, we define τ = q(xc ) where q(xc ) is
+the c’th percentile of the outputs q(x), then we let r(x) = 1 ⇐⇒ q(x) ≥ τ . The definition of τ
+ensures that we obtain exactly c% coverage.
+    For ModelConfidence we achieve this by letting q(x) = 1 − max(g0 (x), g1 (x)) (g is the result of a
+separate trained model than the one for our method), this is the natural classifier’s probability of
+error from the softmax output, and for the Confidence we let q(x) be the difference between the
+radiologists confidence and the classifier’s confidence.
+
+6.6.2    Results
+    Results. In Figure 5a we plot the overall system (expert and algorithm combined) AU-ROC
+for each desired coverage for the methods and in Figure 5b we plot the overall system area under
+the precision-recall curve (AU-PR) versus the coverage; this is for the expert with q = 0.7 and
+p = 1. We can see that the curve for our method dominates the baselines over the entire coverage
+range for both AU-ROC and AU-PR, moreover the curves are concave and we can achieve higher
+performance by combining expert and algorithm than using both separately. Our method is able
+to achieve a higher maximum AU-ROC and AU-PR than both baselines: the difference between
+the maximum attainable AU-ROC of our method and Confidence is 0.043, 0.029, 0.016, 0.022 and
+0.025 respectively for each of the five tasks. There is a clear hierarchy between the 3 compared
+methods: our method dominates Confidence and Confidence in turn dominates ModelConfidence, in
+fact ModelConfidence is a special case of the Confidence baseline, since the expert does not have
+uniform performance over the domain there are clear gains in modeling the expert.
+    This hierarchy continues to hold as we change the expert behavior as we vary the probabilities p
+and q, in Table 3 we show for each of the 5 tasks the difference between the average AU-ROC across
+all coverages (average value of the curves shown in Figure 5a) for our method and the Confidence
+baseline for different expert probabilities and the difference between the maximum achievable AU-
+ROC. A positive average difference serves to show the degree of dominance of our method over the
+Confidence baseline, note that the difference alone cannot imply dominance of the curves however
+dominance is still observed. Our method improves on the baselines as the difference between q and
+p increases, this difference encodes the non-uniformity of the expert behavior over the domain.
+
+Table 3: Average difference in AU-ROC across all coverage and difference between maximum
+achievable AU-ROC between our method and the Confidence baseline for each of the 5 tasks and
+different toy expert probabilities p and q; each entry is (average difference ± standard deviation;
+difference of maximums). The difference between our method and the ModelConfidence is roughly
+twice the values noted in table 3, only at Expert (0.7, 0.7) does Confidence and ModelConfidence
+achieve the same performance since the expert has uniform error over the domain.
+
+
+ Expert (p, q)   Cardiomegaly              Edema           Consolidation          Atelectasis        Pleural Effusion
+ (0.5,0.7)       0.032±0.024; 0.002   0.015±0.012; 0.007   0.015±0.008; 0.007   0.017±0.009; 0.007   0.007±0.003 ;0.007
+ (0.5,0.9)       0.032±0.017; 0.014   0.026±0.016; 0.024   0.010±0.005; 0.015   0.016±0.008; 0.026   0.012±0.010; 0.004
+ (0.5,1)         0.022±0.012; 0.029   0.013±0.009; 0.019   0.007±0.008; 0.012   0.013±0.006; 0.020   0.010±0.008; 0.012
+ (0.7,0.7)       0.024±0.018; 0.005   0.011±0.009; 0.010   0.011±0.010; 0.009   0.006±0.006; 0.008   0.001±0.001; 0.003
+ (0.7,0.9)       0.032±0.020; 0.024   0.010±0.007; 0.010   0.007±0.007; 0.017   0.014±0.008; 0.017   0.010±0.006; 0.006
+ (0.7,1)         0.027±0.014; 0.042   0.016±0.010; 0.027   0.007±0.007; 0.019   0.013±0.007; 0.022   0.014±0.010; 0.027
+ (0.8,1)         0.017±0.009; 0.023   0.011±0.008; 0.012   0.001±0.004; 0.007   0.012±0.006; 0.009   0.010±0.006; 0.018
+
+
+
+
+                                                            16
+                  Cardiomegaly                Edema                Consolidation              Atelectasis            Pleural Effusion
+         0.95
+
+         0.90
+
+         0.85
+AU-ROC          Expert
+         0.80                Classifier
+
+         0.75      ours =0.1 0.929         ours =0.4 0.929          ours =0.2 0.906          ours =0.1 0.907          ours =0.1 0.940
+                   Confidence 0.887        Confidence 0.902         Confidence 0.887         Confidence 0.885         Confidence 0.913
+                   ModelConfidence 0.866   ModelConfidence 0.892    ModelConfidence 0.865    ModelConfidence 0.873    ModelConfidence 0.898
+         0.70
+            0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00
+                     Coverage                 Coverage                 Coverage                 Coverage                 Coverage
+                          (a) AU-ROC vs coverage for expert q = 0.7, p = 1, maximum AU-ROC is noted.
+                  Cardiomegaly                Edema                Consolidation              Atelectasis            Pleural Effusion
+          0.9     ours =0.1 0.674                                  ours =0.2 0.508          ours =0.1 0.693
+                  Confidence 0.671                                 Confidence 0.495         Confidence 0.655
+          0.8     ModelConfidence 0.626                            ModelConfidence 0.445    ModelConfidence 0.597
+          0.7
+          0.6
+  AP
+          0.5                Classifier
+          0.4   Expert                     ours =0.4 0.841                                                            ours =0.1 0.909
+          0.3                              Confidence 0.829                                                           Confidence 0.855
+                                           ModelConfidence 0.812                                                      ModelConfidence 0.826
+          0.2
+            0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00
+                     Coverage                 Coverage                 Coverage                 Coverage                 Coverage
+                             (b) AU-PR vs coverage for expert q = 0.7, p = 1, maximum AU-PR is noted.
+
+   Figure 5: Plot of AU-ROC of the ROC curve (a) for each level of coverage (0 coverage means only
+   the expert predicting and 1 coverage is only the classifier predicting) and of the area under the
+   precision-recall curve (AU-PR) (b) for each of the 5 tasks comparing our method with the baselines
+   on the training derived test set for the toy expert with q = 0.7, p = 1. We report the maximum
+   AU-ROC and AU-PR achieved on each task, error bars are standard deviations derived from 10 runs
+   (averaging over the expert’s randomness).
+
+
+    6.6.3          Further Analysis
+   Sample Complexity Training data for chest X-rays is a valuable resource that may not be
+   abundantly available when trying to deploy a machine learning model in a new clinical setting
+   where for example the imaging mechanism may differ. It is important to see the effectiveness of the
+   proposed approaches when training data size is limited, this furthermore helps us understand the
+   comparative sample complexity of our method versus the baselines.
+       Experimental details. We restrict the training data size for our model and baselines while
+   keeping the same validation and testing data as previously; the validation data is used only for
+   calibration of models and optimizing over choice of α. We train using the same procedure as before
+   and report the maximum achievable AU-PR and AU-ROC. The expert we defer to is the synthetic
+   expert described above with q = 0.7 and p = 1.
+       Results. In Figure 6 we plot the average of the maximum achievable AU-ROC 6a and AU-PR
+   6b across the 5 tasks for the different methods as we vary the the training set size. We observe
+   that our method consistently outperforms the baselines and continues to take advantage of further
+
+
+                                                                      17
+              0.93
+                                                                           0.74
+              0.92                                                         0.73
+              0.91                                                         0.72
+                                                                           0.71
+
+
+
+mean AU-ROC                                                   mean AU-PR
+               0.9                                                          0.7
+                                                                           0.69
+              0.89
+                                                                           0.68
+              0.88                                                         0.67
+                                                                           0.66
+              0.87                                                         0.65
+                           ModelConfidence                                 0.64
+                             Confidence                                    0.63
+              0.85           LαCE (ours)                                   0.62
+                                                                           0.61
+                     0 5 10   25         50        75         100                 0 5 10   25         50        75         100
+                      Training data size (as % of original set)                    Training data size (as % of original set)
+
+                                    (a)                                                          (b)
+
+Figure 6: Left figure shows the average of the maximum achievable AU-ROC for the 5 tasks (average
+over the tasks) when the changing the size of the training data (as a % of the original set) and right
+figure shows the same for AU-PR
+
+
+data as the baselines performance starts to saturate. If we look at the AU-ROC and AU-PR of
+the expert on deferred examples, we observe negligible differences as the training set size increases
+for each method, however if we look at classifier performance on the non-deferred examples, we
+start to observe a significant difference in AU-ROC and AU-PR for our method while the baselines
+lag behind. In Figure 11 (found in Appendix B.6) we plot the classifier AU-ROC on non-deferred
+examples versus the coverage for each of the 5 tasks, we can see for example on Cardiomegaly, our
+method at full training data obtains an AU-ROC that is at least 0.2 points greater than that of
+ModelConfidence at coverage levels less than 50%. One expects ModelConfidence to achieve the
+best performance when looking at non-deferred examples, and this in fact is true when we look at
+accuracy, however for AU-ROC, what happens is that the ModelConfidence baseline never defers on
+negative predicted examples due to the class imbalance which makes the model very confident in
+it’s negative predictions. Thus, any positive labeled example that the model mistakenly labels as
+negative with high confidence will cause the AU-ROC to be reduced at low coverage levels. This
+also allows us to see that our method, and to an extent the Confidence baseline, make very different
+deferral decisions that factor in the expert.
+
+Impact of input noise In our previous experimental setup, the input domain of the classifier X ,
+the chest X-ray, is assumed to be sufficient to perfectly predict the label Y as our golden standard
+is the prediction of expert radiologists from just looking at the X-ray. Therefore, given enough
+training data and a sufficiently rich model class, a learned classifier from X will be able to perfectly
+predict the target and won’t need to defer to any expert to achieve better performance. In this set
+of experiments, we perform two studies: the first we hide the left part of the chest X-ray on both
+training and testing examples to obtain a new input domain Xe. This now limits the power of any
+learned classifier even in the infinite data regime as the left part of the X-ray may hide crucial parts
+
+
+                                                             18
+                 (a) Original X-ray                           (b) X-ray with hidden left part
+
+Figure 7: Left figure (a) shows the chest X-ray of a patient with Cardiomegaly, the right figure (b)
+shows that same X-ray but now with the left part hidden which is used as input to the models.
+
+
+of the input. Figure 7 shows this noise applied to a patient’s X-ray, the size of the rectangular region
+was chosen to cover one side of the chest area, we later experiment with varying the scale of the
+noise. In the second experiment, we train with the original chest X-rays but evaluate with noisy
+X-rays with noise in the form of erasing a randomly placed rectangular region of the X-ray. This
+second experiment is meant to the illustrate the robustness of the different methods to input noise.
+    Experimental details. The noise in the second set of experiments consists of a 2:1 (height:width)
+randomly located rectangular region of scale (area) that we vary from 0.1 to 0.66. The expert is the
+synthetic expert model with q = 0.7 and p = 1.
+    Results. In Figure 9 we plot the AU-ROC and AU-PR of the different methods as we vary
+coverage when training and testing while hiding the left section of the X-rays. We can first observe
+that the maximum achievable performance for the different methods is significantly reduced, however
+the gap between the different methods is still observed. In Figure 8 we plot the average maximum
+AU-ROC and AU-PR across the 5 tasks as we vary the area of the rectangular region. While the
+performance of all the methods degrade with the scale of the noise, the gap between the methods
+remains constant in terms of AU-PR but diminishes in terms of AU-ROC as the performance of the
+baselines remains steady.
+
+
+
+
+                                                  19
+                  0.93                                                                                0.74
+                  0.92                                                                                0.73
+                                                                                                      0.71
+                  0.91
+                                                                                                      0.69
+
+
+
+    mean AU-ROC                                                                          mean AU-PR
+                   0.9
+                                                                                                      0.67
+                  0.89
+                                                                                                      0.65
+                  0.88                                                                                0.63
+                  0.87                                                                                0.61
+                                  ModelConfidence                                                     0.59
+                                    Confidence
+                  0.85                                                                                0.57
+                                    LαCE (ours)
+                                                                                                      0.55
+                              0      0.1 0.2 0.33                         0.5       0.66                           0     0.1 0.2 0.33                  0.5            0.66
+                                          Noise scale                                                                         Noise scale
+                                                 (a)                                                                              (b)
+
+    Figure 8: Left figure shows the average of the maximum achievable AU-ROC for the 5 tasks (average
+    over the tasks) when the changing the scale of the noise (size of rectangular region) and right figure
+    shows the same for AU-PR.
+
+
+                     Cardiomegaly                          Edema                    Consolidation                       Atelectasis                Pleural Effusion
+         0.95
+         0.90
+         0.85
+         0.80
+         0.75 Expert
+AU-ROC
+                              Classifier
+         0.70
+         0.65
+         0.60      ours =0.1 0.871          ours =0.4 0.887          ours =0.2 0.843          ours =0.1 0.844          ours =0.1 0.891
+         0.55      Confidence 0.831         Confidence 0.859         Confidence 0.837         Confidence 0.833         Confidence 0.874
+                   ModelConfidence 0.783    ModelConfidence 0.834    ModelConfidence 0.785    ModelConfidence 0.795    ModelConfidence 0.832
+         0.50
+            0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00
+                      Coverage                 Coverage                 Coverage                 Coverage                 Coverage
+                                                 (a) AU-ROC vs coverage when hiding left part of X-ray.
+                     Cardiomegaly                          Edema                    Consolidation                       Atelectasis                Pleural Effusion
+          0.7                              0.9                              0.50                             0.7                             1.0
+                     ours =0.1 0.511                   ours =0.4 0.771              ours =0.2 0.377                    ours =0.1 0.558             ours =0.1 0.847
+                     Confidence 0.489                  Confidence 0.751      0.45   Confidence 0.382                   Confidence 0.545            Confidence 0.820
+          0.6        ModelConfidence 0.407 0.8         ModelConfidence 0.713        ModelConfidence 0.313 0.6          ModelConfidence 0.463 0.9   ModelConfidence 0.758
+                                                           0.40
+          0.5                      0.7                     0.35                      0.5                      0.8
+  AU-PR                                                    0.30
+          0.4                      0.6                     0.25                      0.4                      0.7
+                                                           0.20
+          0.3                      0.5                                               0.3                      0.6
+                                                           0.15
+          0.2                      0.4                     0.10                      0.2                      0.5
+            0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00
+                     Coverage                 Coverage                 Coverage                 Coverage                 Coverage
+                                                  (b) AU-PR vs coverage when hiding left part of X-ray.
+
+   Figure 9: Plots of AU-ROC and AU-PR as we vary coverage when training and testing with chest
+   X-rays that have their left section hidden. The expert model is q = 0.7 and p = 1.
+
+                                                                                       20
+7    Conclusion
+    In this work we explored a framework where the learning model can choose to defer to an expert
+or predict. We analyzed the framework theoretically and proposed a novel surrogate loss via a
+reduction to multiclass cost sensitive learning. Through experiments on image and text classification
+tasks, we showcased that our approach not only achieves better accuracy than confidence score
+baselines but does so with better sample complexity and computational cost. We hope that our
+method will inspire machine learning practitioners to integrate downstream decision makers into their
+learning algorithms. Future work will explore how to defer in settings where we have limited expert
+data, learning from biased expert data and learning to defer to multiple experts simultaneously.
+
+
+Acknowledgements
+    This work was supported by NSF CAREER award #1350965.
+
+
+References
+[BCG+ 19]    David Berthelot, Nicholas Carlini, Ian Goodfellow, Nicolas Papernot, Avital Oliver,
+             and Colin Raffel. Mixmatch: A holistic approach to semi-supervised learning. arXiv
+             preprint arXiv:1905.02249, 2019.
+
+[BDLSS12]    Shai Ben-David, David Loker, Nathan Srebro, and Karthik Sridharan. Minimiz-
+             ing the misclassification error rate using a surrogate convex loss. arXiv preprint
+             arXiv:1206.6442, 2012.
+
+[BGO16]      Su Lin Blodgett, Lisa Green, and Brendan O’Connor. Demographic dialectal variation
+             in social media: A case study of African-American English. In Proceedings of the 2016
+             Conference on Empirical Methods in Natural Language Processing, pages 1119–1130,
+             Austin, Texas, November 2016. Association for Computational Linguistics.
+
+[BJM06]      Peter L Bartlett, Michael I Jordan, and Jon D McAuliffe. Convexity, classification, and
+             risk bounds. Journal of the American Statistical Association, 101(473):138–156, 2006.
+
+[BNK+ 19]    Gagan Bansal, Besmira Nushi, Ece Kamar, Daniel S Weld, Walter S Lasecki, and
+             Eric Horvitz. Updates in human-ai teams: Understanding and addressing the perfor-
+             mance/compatibility tradeoff. In Proceedings of the AAAI Conference on Artificial
+             Intelligence, volume 33, pages 2429–2437, 2019.
+
+[BNK+ 20]    Gagan Bansal, Besmira Nushi, Ece Kamar, Eric Horvitz, and Daniel S Weld. Optimizing
+             ai for teamwork. arXiv preprint arXiv:2004.13102, 2020.
+
+[BW08]       Peter L Bartlett and Marten H Wegkamp. Classification with a reject option using a
+             hinge loss. Journal of Machine Learning Research, 9(Aug):1823–1840, 2008.
+
+[CCD+ 19]    Ran Canetti, Aloni Cohen, Nishanth Dikkala, Govind Ramnarayan, Sarah Scheffler,
+             and Adam Smith. From soft classifiers to hard decisions: How fair can we be? In
+             Proceedings of the Conference on Fairness, Accountability, and Transparency, pages
+             309–318. ACM, 2019.
+
+                                                 21
+[CDM16a]    Corinna Cortes, Giulia DeSalvo, and Mehryar Mohri. Boosting with abstention. In
+            Advances in Neural Information Processing Systems, pages 1660–1668, 2016.
+
+[CDM16b]    Corinna Cortes, Giulia DeSalvo, and Mehryar Mohri. Learning with rejection. In
+            International Conference on Algorithmic Learning Theory, pages 67–82. Springer, 2016.
+
+[CGHS19]    Minmin Chen, Ramki Gummadi, Chris Harris, and Dale Schuurmans. Surrogate
+            objectives for batch policy optimization in one-step decision making. In Advances in
+            Neural Information Processing Systems, pages 8825–8835, 2019.
+
+[Cho70]     C Chow. On optimum recognition error and reject tradeoff. IEEE Transactions on
+            information theory, 16(1):41–46, 1970.
+
+[DBW19]     Thomas Davidson, Debasmita Bhattacharya, and Ingmar Weber. Racial bias in hate
+            speech and abusive language detection datasets. arXiv preprint arXiv:1905.12516,
+            2019.
+
+[DDS+ 09]   Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li Fei-Fei. Imagenet: A
+            large-scale hierarchical image database. In 2009 IEEE conference on computer vision
+            and pattern recognition, pages 248–255. Ieee, 2009.
+
+[DI18]      Cynthia Dwork and Christina Ilvento. Fairness under composition. arXiv preprint
+            arXiv:1806.06122, 2018.
+
+[DKGGR19] Abir De, Paramita Koley, Niloy Ganguly, and Manuel Gomez-Rodriguez. Regression
+          under human assistance. arXiv preprint arXiv:1909.02963, 2019.
+
+[DMS15]     Giulia DeSalvo, Mehryar Mohri, and Umar Syed. Learning with deep cascades. In
+            International Conference on Algorithmic Learning Theory, pages 254–269. Springer,
+            2015.
+
+[DWMW17] Thomas Davidson, Dana Warmsley, Michael Macy, and Ingmar Weber. Automated
+         hate speech detection and the problem of offensive language. In Eleventh international
+         aaai conference on web and social media, 2017.
+
+[EYW10]     Ran El-Yaniv and Yair Wiener. On the foundations of noise-free selective classification.
+            Journal of Machine Learning Research, 11(May):1605–1641, 2010.
+
+[FHH+ 17]   Joseph Futoma, Sanjay Hariharan, Katherine Heller, Mark Sendak, Nathan Brajer,
+            Meredith Clement, Armando Bedoya, and Cara O’Brien. An improved multi-output
+            gaussian process rnn with real-time validation for early sepsis detection. In Machine
+            Learning for Healthcare Conference, pages 243–254, 2017.
+
+[FHT01]     Jerome Friedman, Trevor Hastie, and Robert Tibshirani. The elements of statistical
+            learning, volume 1. Springer series in statistics New York, 2001.
+
+[GC19a]     Ben Green and Yiling Chen. Disparate interactions: An algorithm-in-the-loop anal-
+            ysis of fairness in risk assessments. In Proceedings of the Conference on Fairness,
+            Accountability, and Transparency, pages 90–99. ACM, 2019.
+
+
+
+                                               22
+[GC19b]     Ben Green and Yiling Chen. The principles and limits of algorithm-in-the-loop decision
+            making. Proceedings of the ACM on Human-Computer Interaction, 3(CSCW):1–24,
+            2019.
+[GEY17]     Yonatan Geifman and Ran El-Yaniv. Selective classification for deep neural networks.
+            In Advances in neural information processing systems, pages 4878–4887, 2017.
+[GEY19]     Yonatan Geifman and Ran El-Yaniv. Selectivenet: A deep neural network with an
+            integrated reject option. arXiv preprint arXiv:1901.09192, 2019.
+[GG16]      Yarin Gal and Zoubin Ghahramani. Dropout as a bayesian approximation: Representing
+            model uncertainty in deep learning. In international conference on machine learning,
+            pages 1050–1059, 2016.
+[GPSW17]    Chuan Guo, Geoff Pleiss, Yu Sun, and Kilian Q Weinberger. On calibration of modern
+            neural networks. In Proceedings of the 34th International Conference on Machine
+            Learning-Volume 70, pages 1321–1330. JMLR. org, 2017.
+[HAA+ 17]   Kanza Hamid, Amina Asif, Wajid Abbasi, Durre Sabih, et al. Machine learning with
+            abstention for automated liver disease diagnosis. In 2017 International Conference on
+            Frontiers of Information Technology (FIT), pages 356–361. IEEE, 2017.
+[IRK+ 19]   Jeremy Irvin, Pranav Rajpurkar, Michael Ko, Yifan Yu, Silviana Ciurea-Ilcus, Chris
+            Chute, Henrik Marklund, Behzad Haghgoo, Robyn Ball, Katie Shpanskaya, et al. Chex-
+            pert: A large chest radiograph dataset with uncertainty labels and expert comparison.
+            In Proceedings of the AAAI Conference on Artificial Intelligence, volume 33, pages
+            590–597, 2019.
+[JBGB19]    Shagun Jhaver, Iris Birman, Eric Gilbert, and Amy Bruckman. Human-machine collab-
+            oration for content regulation: The case of reddit automoderator. ACM Transactions
+            on Computer-Human Interaction (TOCHI), 26(5):1–35, 2019.
+[JGP16]     Eric Jang, Shixiang Gu, and Ben Poole. Categorical reparameterization with gumbel-
+            softmax. arXiv preprint arXiv:1611.01144, 2016.
+[JJ94]      Michael I Jordan and Robert A Jacobs. Hierarchical mixtures of experts and the em
+            algorithm. Neural computation, 6(2):181–214, 1994.
+[JKGG18]    Heinrich Jiang, Been Kim, Melody Guan, and Maya Gupta. To trust or not to trust
+            a classifier. In Advances in neural information processing systems, pages 5541–5552,
+            2018.
+[KBZ+ 19]   Alexander Kolesnikov, Lucas Beyer, Xiaohua Zhai, Joan Puigcerver, Jessica Yung,
+            Sylvain Gelly, and Neil Houlsby. Large scale learning of general visual representations
+            for transfer. arXiv preprint arXiv:1912.11370, 2019.
+[KH+ 09]    Alex Krizhevsky, Geoffrey Hinton, et al. Learning multiple layers of features from tiny
+            images. Citeseer, 2009.
+[Kim14]     Yoon Kim. Convolutional neural networks for sentence classification. arXiv preprint
+            arXiv:1408.5882, 2014.
+
+                                               23
+[LH16]      Ilya Loshchilov and Frank Hutter. Sgdr: Stochastic gradient descent with warm restarts.
+            arXiv preprint arXiv:1608.03983, 2016.
+[LHL16]     Daniel Link, Bernd Hellingrath, and Jie Ling. A human-is-the-loop approach for
+            semi-automated content moderation. In ISCRAM, 2016.
+[LS13]      Phil Long and Rocco Servedio. Consistency versus realizable h-consistency for multiclass
+            classification. In International Conference on Machine Learning, pages 801–809, 2013.
+[MDSGR20] Vahid Balazadeh Meresht, Abir De, Adish Singla, and Manuel Gomez-Rodriguez.
+          Learning to switch between machines and humans. arXiv preprint arXiv:2002.04258,
+          2020.
+[MMT16]     Chris J Maddison, Andriy Mnih, and Yee Whye Teh. The concrete distribution: A
+            continuous relaxation of discrete random variables. arXiv preprint arXiv:1611.00712,
+            2016.
+[MPZ18]     David Madras, Toni Pitassi, and Richard Zemel. Predict responsibly: Improving fairness
+            and accuracy by learning to defer. In Advances in Neural Information Processing
+            Systems, pages 6150–6160, 2018.
+[MRT18]     Mehryar Mohri, Afshin Rostamizadeh, and Ameet Talwalkar. Foundations of machine
+            learning. MIT press, 2018.
+[NCHS19]    Chenri Ni, Nontawat Charoenphakdee, Junya Honda, and Masashi Sugiyama. On
+            possibility and impossibility of multiclass classification with rejection. arXiv preprint
+            arXiv:1901.10655, 2019.
+[OOR+ 18]   Avital Oliver, Augustus Odena, Colin A Raffel, Ekin Dogus Cubuk, and Ian Goodfellow.
+            Realistic evaluation of deep semi-supervised learning algorithms. In Advances in Neural
+            Information Processing Systems, pages 3235–3246, 2018.
+[PBGR19]    Joshua C Peterson, Ruairidh M Battleday, Thomas L Griffiths, and Olga Russakovsky.
+            Human uncertainty makes classification more robust. In Proceedings of the IEEE
+            International Conference on Computer Vision, pages 9617–9626, 2019.
+[PSM14]     Jeffrey Pennington, Richard Socher, and Christopher D Manning. Glove: Global
+            vectors for word representation. In Proceedings of the 2014 conference on empirical
+            methods in natural language processing (EMNLP), pages 1532–1543, 2014.
+[RBC+ 19]   Maithra Raghu, Katy Blumer, Greg Corrado, Jon Kleinberg, Ziad Obermeyer, and
+            Sendhil Mullainathan. The algorithmic automation problem: Prediction, triage, and
+            human effort. arXiv preprint arXiv:1903.12220, 2019.
+[RBS+ 19]   Maithra Raghu, Katy Blumer, Rory Sayres, Ziad Obermeyer, Bobby Kleinberg, Sendhil
+            Mullainathan, and Jon Kleinberg. Direct uncertainty prediction for medical second
+            opinions. In International Conference on Machine Learning, pages 5281–5290, 2019.
+[RTA+ 18]   Harish G Ramaswamy, Ambuj Tewari, Shivani Agarwal, et al. Consistent algorithms
+            for multiclass classification with an abstain option. Electronic Journal of Statistics,
+            12(1):530–554, 2018.
+
+                                                24
+[SMM+ 17]   Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le, Geoffrey
+            Hinton, and Jeff Dean. Outrageously large neural networks: The sparsely-gated
+            mixture-of-experts layer. arXiv preprint arXiv:1701.06538, 2017.
+
+[Vin19]     James Vincent. Ai won’t relieve the misery of facebook’s human moderators, February
+            2019.
+
+[WHK20]     Bryan Wilder, Eric Horvitz, and Ece Kamar. Learning to complement humans. arXiv
+            preprint arXiv:2005.00582, 2020.
+
+[ZC15]      Chicheng Zhang and Kamalika Chaudhuri. Active learning from weak and strong
+            labelers. In Advances in Neural Information Processing Systems, pages 703–711, 2015.
+
+[ZK16]      Sergey Zagoruyko and Nikos Komodakis. Wide residual networks. arXiv preprint
+            arXiv:1605.07146, 2016.
+
+[ZWL+ 19]   Liu Ziyin, Zhikang Wang, Paul Pu Liang, Ruslan Salakhutdinov, Louis-Philippe
+            Morency, and Masahito Ueda. Deep gamblers: Learning to abstain with portfolio
+            theory. arXiv preprint arXiv:1907.00208, 2019.
+
+
+
+
+                                              25
+A     Practitioner’s guide to our approach
+A.1    General implementation
+    Given a dataset of tuples S = {(xi , yi , mi )}ni=1 where xi represents the covariates, yi is the target
+and mi are the expert labels, we want to construct a classifier h : X → Y and rejector function
+r : X → {−1, 1}. Our method for predicting on a new example x ∈ X given expert context z ∈ Z
+that only the expert can observe, a function class H where h ∈ H : X → R|Y|+1 (an example would
+be the set of deep networks with |Y| + 1 output units) , and an expert M : Z → Y is summarized
+below in Algorithm 1.
+ Algorithm 1: Our proposed method for prediction on a new example x ∈ X with expert
+ input z ∈ Z
+   Input: training data S = {(xi , yi , mi )}ni=1 , function class H, example x, Expert M and
+     expert input z
+   g1 , · · · , g|Y| , g⊥ ← arg ming∈H i∈S LαCE (g, xi , yi , mi )
+                                      P
+   prediction = 0
+   r(x) ← sign(− maxy∈Y gy (x) + g⊥ (x))
+   if r(x) = 0 then
+         h(x) ← arg maxy∈Y gy (x)
+         prediction ← h(x)
+   else
+         m ← M (z) (expert query)
+         prediction ← m
+   end
+   Return: prediction
+    Where the loss LαCE used in algorithm is the following:
+                                                                                              !
+                                                                          exp(gy (x))
+                LαCE (h, r, x, y, m) = − (α · Im=y + Im6=y ) log P
+                                                                     y 0 ∈Y∪⊥ exp(gy 0 (x))
+                                                                             !
+                                                           exp(g⊥ (x))
+                                       − Im=y log P
+                                                      y 0 ∈Y∪⊥ exp(gy 0 (x))
+
+Practically, integrating an expert decision maker into a machine learning model amounts to two
+modifications in training: increasing the output size of the function class in consideration by an
+additional output unit representing deferral and training with the loss LαCE instead of the cross
+entropy loss. We show how to implement LαCE in PyTorch below:
+def deferral_loss_L_CE ( outputs , t a r g e t , e x p e r t , k _ c l a s s e s , a l p h a ) :
+    ’’’
+    o u t p u t s : model o u t p u t s
+    target : target labels
+    e x p e r t : e x p e r t agreement l a b e l s f o r b a t c h
+    k_classes : cardinality of target Y
+    ’’’
+    batch_size = outputs . s i z e ( ) [ 0 ]
+    defer_position =
+
+                                                     26
+      o u t p u t s = t o r c h . nn . f u n c t i o n a l . softmax ( outputs , dim=1)
+      l o s s = −e x p e r t ∗ t o r c h . l o g 2 ( o u t p u t s [ range ( b a t c h _ s i z e ) , k _ c l a s s e s ] )
+                   − ( a l p h a ∗ e x p e r t + (1− e x p e r t ) ) ∗
+                   t o r c h . l o g 2 ( o u t p u t s [ range ( b a t c h _ s i z e ) , l a b e l s ] )
+      return t o r c h .sum( l o s s ) / b a t c h _ s i z e
+
+
+A.2     Choice of α
+    The choice of the hyperparameter α has sizable influence on system performance. Naive validation
+over α requires re-training on the entire training set from scratch over the search space. We find that
+a simple validation strategy often works as well as re-training from scratch especially in scenarios
+where there is little gain in adapting to the expert but there are major gains in being able to defer
+correctly.
+    The strategy first requires splitting the training set into two sets ST 1 and ST 2 where ST 1 is larger
+than ST 2 (e.g. an 80-20 split), access to a validation set SV and a set of possible values A for α (an
+evenly spaced grid over [0, 10] is more than sufficient). The strategy then proceeds in two steps:
+
+    • Step 1:Train on ST 1 with L1CE (i.e. setting α = 1) to maximize system performance on SV .
+      One may find more success instead training on ST 1 with the cross-entropy loss (however with
+      the model having an extra output) to maximize classifier performance on SV rather than
+      system performance. Call the resulting model of this first step M1
+
+    • Step 2: For each α ∈ A, fine-tune on ST 2 starting from model M1 to maximize system
+      performance on SV measuring it with the rejector r(x) = I{− maxy∈Y gy (x) + g⊥ (x) ≥ τ }
+      where the threshold τ is chosen to maximize performance on SV post-hoc. The resulting model
+      M10 and τ ∗ that obtains best system performance across all choices of α and choices of τ is the
+      final model.
+
+
+    • Inference time: Use the rejector defined by r(x) = I{− maxy∈Y gy (x) + g⊥ (x) ≥ τ ∗ } and
+      proceed as in Algorithm 1.
+
+    Note that system performance here refers to metrics measured with respect to the machine+expert
+system with deferral while classifier performance refers to metrics measured as if the system never
+deferred.
+
+
+B     Experimental Details and Results
+    All experiments were run on a Linux system with an NVIDIA Tesla K80 GPU on PyTorch 1.4.0.
+
+B.1    CIFAR-10
+    Implementation Details. We employ the implementation in https://github.com/xternalz/
+WideResNet-pytorch for the Wide Residual Networks. To train, we run SGD with an initial learning
+rate of 0.1, Nesterov momentum at 0.9 and weight decay of 5e-4 with a cosine annealing learning rate
+schedule [LH16]. We train for a total of 200 epochs for all experiments, at this point the network has
+
+
+
+                                                               27
+perfectly fit the training set, we found that early stopping based on a validation set did not make
+any difference and similarly training for more than 200 epochs also did not hurt test accuracy.
+    Expert Accuracy. In Table 4 we show the accuracy of the expert on the deferred examples
+versus the classes the expert can predict k. We can see that our method L.5     CE has higher expert
+accuracy than all other baselines except at k = 1, 2 where coverage is very high. This contrasts
+with Figure 3b that shows the classifier accuracy on non-deferred accuracy where L.5    CE had lower
+accuracy for each expert level compared to Confidence and LCE . Hence there is a clear trade-off
+                                                                  1
+
+between choosing the hyper-parameter α < 1 and α = 1. For α < 1, the model will prefer to always
+defer to the expert if it is correct, this is advantageous in this setup as the expert is perfect on a
+subset of the data and uniformly random on the other. However, for α = 1, the model will compare
+the confidence of the expert and the model essentially performing the computation of the Bayes
+rejector rB as shown by the consistency of the loss L1CE ; note that for α 6= 1 the loss LCE is no
+longer consistent.
+
+Table 4: Accuracy of the expert on deferred examples shown for the methods and baselines proposed
+with varying expert competence (k) on CIFAR-10.
+
+
+  Method / Expert (k)       1      2           3          4         5         6         7         8         9      10
+  L1CE                   73.65   86.01       73.66   87.41      88.81      94.7     96.67    98.72     98.65      100
+  L.5
+    CE                   86.44   90.96       92.65   91.67      93.71     96.32     97.61    98.77     99.24      100
+  Confidence             87.5    92.74       88.88    88.3       92.8     94.56     96.76    98.89     98.89      100
+  OracleReject            85.3   90.49       88.23   91.13      89.33     93.61     95.45    96.82     98.45      100
+
+
+
+    Increasing data size. In table 5 we show the accuracy of the classifier and the coverage of the
+system for our method compared to the baseline Confidence for expert k = 5. We can see that when
+data is limited, our method retains high classification accuracy for the classifier versus the baseline.
+This is due in fact to the low coverage of our method compared to Confidence, as data size grows the
+coverage our method increases as now the classifier’s performance improves and the system can now
+safely defer to it more often. On the other hand, the baseline remains at almost constant coverage,
+not adapting to growing data sizes.
+
+Table 5: Accuracy of the classifier on non-deferred examples shown for our method L1CE and baseline
+Confidence with varying training set size for expert k = 5 on CIFAR-10.
+
+
+  Method / Data size (thousands)         1           2          3         5         8        10        20          50
+  L1CE (classifier)                    62.84       71.51      72.63     75.03      80.1     82.11     86.44     95.42
+  Confidence (classifier)              50.31        59         66.3     70.12     80.33     78.67     87.01      92.45
+  L1CE (coverage)                       25.7       35.87      40.42     49.62     46.38     46.51      50        71.35
+  Confidence (coverage)                69.32       72.93      71.99     75.05     73.09     65.9      74.16     72.12
+
+
+
+B.2      CIFAR-10H
+   Class-wise Accuracy of Expert. Table 6 shows the average accuracy of the synthetic CIFAR10H
+[PBGR19] expert on each of the 10 classes. We can see that the expert has very different accuracies
+
+                                                         28
+for the classes which gives an opportunity for an improvement.
+    Results. Table 7 shows full experimental results for the CIFAR-10H results.
+
+          Table 6: Accuracy of the CIFAR10H [PBGR19] expert on each of the 10 classes
+
+
+  Class           1            2             3         4          5      6       7      8        9       10
+  Accuracy     95.15     97.23              94.75    91.58     90.51   94.90   96.22   97.91   97.33   96.74
+
+
+
+      Table 7: Complete results of table 2 comparing our proposed approaches and baseline.
+
+
+  Method         System Accuracy                    Coverage      Classifier Accuracy    Expert Accuracy
+  LCE impute          96.29±0.25                  51.67±1.46            99.2 ± 0.08            93.18 ± 0.48
+  LCE 2-step          96.03±0.21                  60.81±0.87           98.11 ± 0.22             92.77 ± 0.58
+  Confidence          95.09±0.40                  79.48±5.93           96.09 ± 0.42             90.94 ± 1.34
+
+
+
+B.3    CIFAR-100
+    Results. In figure 10 we plot the accuracy of the combined algorithm and expert system versus
+k, the number of classes the expert can predict. We can see that our method dominates the baseline
+over all k. In table 8 we show expert, classifier and system accuracy along with coverage of both
+methods. Our approach L1CE obtains both better expert and classifier accuracy however gets lower
+coverage than Confidence.
+
+                                   94            Confidence
+                                   92            L1CE (ours)
+                                   90
+
+
+                        Accuracy
+                                   88
+                                   86
+                                   84
+                                   82
+                                   80
+                                   78
+                                        0    10 20 30 40 50 60 70 80 90 100
+                                               k (classes expert can predict)
+
+Figure 10: Comparison of the developed method L1CE on CIFAR-100 versus the confidence baseline.
+k is the number of classes the expert can predict
+
+
+
+
+                                                             29
+Table 8: Accuracy of the expert on deferred examples shown for the methods and baselines proposed
+with varying expert competence (k) on CIFAR-100.
+
+
+ Method / Expert (k)           10     20        30        40         50        60         70        80     90       100
+ L1CE (system)             78.67     79.43     81.02     82.09    83.8       85.15       87.58    90.23   91.81    94.59
+ Confidence (system)       78.48     79.37     79.67     80.75    81.92      83.67       85.15    88.63   90.31   94.74
+ L1CE (coverage)           89.19     82.44     84.79     71.66    74.52      65.72       62.23    59.37   52.15    49.07
+ Confidence (coverage)     99.17     95.47     93.96     86.64    86.71      80.67       79.56    75.36   72.39   63.32
+ L1CE (classifier)         82.35     84.03     84.07     85.29    86.44      87.78       90.13    91.89   92.4     94.59
+ Confidence (classifier)   78.99     80.66     81.79     84.75    84.62      87.30       88.75    90.97   92.07   94.97
+ L1CE (expert)             47.36     57.8      68.87     73.99    76.06      79.65       83.37    87.79   91.16   94.57
+ Confidence (expert)       18.07     52.09     51.49     54.79     64.4      68.55       71.13    82.11   85.70    94.30
+
+
+
+B.4    Hate Speech experiments
+   Implementation details. We train all models with Adam for 15 epochs and select the best
+performing model on the validation set.
+   Results. Table 9 shows complete results of our method, baselines, expert and classifier. The
+performance of our method and the baselines all achieve comparable results.
+
+Table 9: Detailed results for our method and baselines on the hate speech detection task [DWMW17].
+sys: system accuracy, class: classifier accuracy, disc: system discrimination, AAE-biased: Expert 2
+that has higher error rate for AAE group, non-AAE biased: Expert 3 that has higher error for non
+AAE tweets
+
+
+ Method/Expert                          Fair                                               AAE-biased
+                        sys            class              disc                sys                class             disc
+ L1CE (ours)       93.36 ± 0.16     95.60 ± 0.44       0.294 ±0.03        92.91 ± 0.17     94.67 ± 0.61     0.37 ± 0.06
+ Confidence        93.22 ±0.11      94.49 ± 0.12       0.45 ± 0.02        92.42 ± 0.40     94.56 ± 0.40      0.41 ± 0.02
+ Oracle            93.57 ±0.11       94.87 ±0.22        0.32 ±0.02        93.22 ±0.11      94.49 ±0.12     0.449 ±0.024
+ Expert                89.76             –                0.031              84.28                 –              0.071
+ Classifier            88.26           88.26              0.226              88.26               88.26            0.226
+
+
+ Method/Expert                             non-AAE biased
+                              sys                class                         disc
+ L1CE (ours)           90.42 ± 0.38          94.04 ±0.81           0.231 ±0.04
+ Confidence             90.60 ±0.13          93.68 v0.24            0.15 ±0.03
+ Oracle                91.09 ± 0.12          92.57 ±0.15            0.15 ±0.02
+ Expert                     80.4                   –                          0.084
+ Classifier                88.26                 88.26                        0.226
+
+B.5    Baseline Implementation
+   Description of [MPZ18] approach. A different approach to our method, is to try directly to
+approximate the system loss (1), this was the road taken by [MPZ18] in their differentiable model
+
+                                                         30
+method. Let us introduce the loss used in [MPZ18]:
+
+            L(h, r, M ) = E(x,y)∼P,m∼M |(x,y) [(1 − r(x, h(x)))l(y, h(x)) + r(x, h(x))l(y, m)]          (14)
+
+where h : X → ∆|Y|−1 (classifier), r : X × ∆|Y|−1 → {0, 1} (rejector) and the expert M : Z → ∆|Y|−1 .
+[MPZ18] considers only binary labels and uses the logistic loss for l(., .) and thus requires the
+expert to produce uncertainty estimates for it’s predictions instead of only a label; we can extend
+this to the multiclass setting by using the cross entropy loss for l. It is clear that the loss (14)
+is non-convex in r, hence to optimize it [MPZ18] estimates the gradient through the Concrete
+relaxation [MMT16, JGP16]. However, in the code of [MPZ18] found at https://github.com/
+dmadras/predict-responsibly, the authors replace r(x) by it’s estimated probability from it’s
+model. [MPZ18] considers an additional parameter γdef er found in the code, however it is not clear
+what effect this parameter has as we found it’s description in the paper did not match the code. In
+detail, let r0 , r1 : X → R and r(x) = arg maxi∈{0,1} ri , the loss [MPZ18] considers is:
+
+                                                                                                                
+                                             exp(r0 (x))                            exp(r1 (x))
+L(h,
+e r, M ) = E(x,y)∼P,m∼M |(x,y)                                  l(y, h(x)) +                           l(y, m)
+                                      exp(r0 (x)) + exp(r1 (x))              exp(r0 (x)) + exp(r1 (x))
+                                                                                                         (15)
+All terms in loss (15) are on the same scale which is crucial for the model to train well. We explicitly
+have two functions r0 and r1 defining r even though r is binary; this is for ease of implementation.
+    Another key detail of [MPZ18] approach, is that the classifier is independently trained of the
+rejector by stopping the gradient from r to backpropagate through h. This no longer allows h to
+adapt to the expert, h is trained with the cross entropy loss on it’s own concurrently with r.
+    CIFAR-10 details. In our CIFAR-10 setup, the dataset S contains only the final prediction m of
+the expert M , thus to compute l(y, m) we set l(y, m) = − log(1 − ) if y = m and l(y, m) = − log( |Y|     1
+                                                                                                             )
+if y 6= m (simulating a uniform prediction in accordance with our expert behavior) with  = 10 .          −12
+
+One could instead train a network to model the expert’s prediction, we found this approach to fail
+as there is a big amount of noise in the labels caused by the expert’s random behavior.
+    Results on CIFAR-10. For expert k < 8, we found that the [MPZ18] baseline to almost never
+defer to the expert and when k = 8, 9 at the end of training (200 epochs) the rejector never defers
+but the optimal system is found in the middle of training (∼100 epochs). The optimal systems
+achieve 46.27 and 40.22 coverage, 98.81 and 98.89 expert accuracy on deferred examples and 89.38
+and 89.40 classifier accuracy on non-deferred examples respectively for k = 8, 9. The classifier alone
+for the optimal systems achieve ∼86 classification accuracy on all of the validation set for both
+experts, notice that there is not much difference between the classification accuracy on all the data
+and non-deferred examples, while for our method and other baselines there is a considerable increase.
+This indicates that the rejector is only looking at the expert loss and ignoring the classifier
+    What is causing this behavior is that as the classifier h trains, it’s loss l(y, h(x)) eventually goes
+to 0, however the loss of the expert l(y, m) is either 0 or equal to − log(0.1), hence the rejector
+will make the easier decision to never defer. At initial epochs, we have a non-trivial rejector as the
+classifier h is still learning, and the coverage progressively grows till 100% over training. Essentially,
+what [MPZ18] approach is trying to do is choosing between the lower cost between expert and
+classifier: a cost-sensitive learning problem at it’s heart. Therefore, one can use the losses developed
+here to tackle the problem better; we leave this to future investigations. Another potential fix is to
+learn the classifier and rejector on two different data sets.
+
+
+                                                     31
+Table 10: System accuracy of our implementation of [MPZ18] and our method and baselines with
+varying expert competence (k) on CIFAR-10.
+
+
+ Method / System accuracy (k)     1       2       3       4       5       6       7       8      9       10
+ L.5
+  CE                            90.92   91.01   91.94   92.69   93.66   96.03   97.11   98.25    99     100
+ L1CE                           90.41   91.00   91.47   92.42    93.4   95.06   96.49   97.30   97.70   100
+ Confidence                     90.47   90.56   90.71   91.41   92.52   94.15    95.5   97.35   98.05   100
+ OracleReject                   89.54   89.51   89.48   90.75   90.64   93.25   95.28   96.52   98.16   100
+ [MPZ18]                        90.40   90.40   90.40   90.40   90.40   90.40   90.40   94.48   95.09   100
+
+
+
+
+B.6   CheXpert Experiments
+
+
+
+
+                                                  32
+                    Cardiomegaly               Edema                 Consolidation              Atelectasis             Pleural Effusion
+         0.95
+         0.90
+         0.85
+         0.80
+         0.75
+AU-ROC   0.70
+         0.65
+         0.60      ours =0.1 0.939          ours =0.4 0.964          ours =0.2 0.772          ours =0.1 0.765          ours =0.1 0.963
+         0.55      Confidence 0.843         Confidence 0.846         Confidence 0.754         Confidence 0.778         Confidence 0.950
+                   ModelConfidence 0.843    ModelConfidence 0.845    ModelConfidence 0.814    ModelConfidence 0.700    ModelConfidence 0.984
+         0.50
+            0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00
+                      Coverage                 Coverage                 Coverage                 Coverage                 Coverage
+                 (a) classifier AU-ROC on non-deferred examples vs coverage for expert q = 0.7, p = 1 with 100% of
+                 training data.
+                    Cardiomegaly               Edema                 Consolidation              Atelectasis             Pleural Effusion
+           1.0
+                    ours =0.1 0.729         ours =0.4 0.820           ours =0.2 0.707          ours =0.1 0.671           ours =0.1 0.961
+                    Confidence 0.735        Confidence 0.804          Confidence 0.715         Confidence 0.658          Confidence 0.956
+           0.9      ModelConfidence 0.735   ModelConfidence 0.803     ModelConfidence 0.685    ModelConfidence 0.648     ModelConfidence 0.926
+
+           0.8
+  AU-ROC
+           0.7
+
+           0.6
+
+           0.5
+             0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00
+                      Coverage                 Coverage                 Coverage                 Coverage                 Coverage
+                 (b) classifier AU-ROC on non-deferred examples vs coverage for expert q = 0.7, p = 1 with 10% of
+                 training data.
+
+    Figure 11: Plot of classifier AU-ROC on non-deferred examples versus coverage for (a) for systems
+    learned with 100% of training data (b) and learned with 10% of training data. Noise at low coverage
+    is due to reduced data size.
+
+
+
+
+                                                                        33
+C     Deferred Proofs and Derivations
+C.1     Section 4
+C.1.1    Binary Setting
+   As we eluded to in the body of the paper, we can extend the losses introduced by [CDM16b] to
+our setting for binary labels. Let Y = {−1, +1} and r, h : X → R where we defer if r(x) ≤ 0, for
+generality we assume lexp (x, y, m) = max(c, Im6=y ) as this allows to treat rejection learning as an
+immediate special case. Following the derivation in [CDM16b], let u → φ(−u) and u → ψ(−u) be
+two convex function upper bounding Iu≤0 and let α, β > 0, then:
+
+Lc (h, r, x, y, m) = Ih(x)y≤0 Ir(x)>0 + max(c, Im6=y )Ir(x)≤0
+          
+≤ max Imax{h(x)y,−r(x)}≤0 , max(c, Im6=y )Ir(x)≤0
+(a)       n                                         o
+ ≤ max I α2 (h(x)y−r(x))≤0 , max(c, Im6=y )Iβr(x)≤0
+(b)
+                                  
+                −α
+ ≤ max{φ           (h(x)y − r(x)) , max(c, Im6=y )ψ (−βr(x))}                                        (16)
+                 2
+                           
+        −α
+≤φ           (h(x)y − r(x)) + max(c, Im6=y )ψ (−βr(x))                                               (17)
+          2
+
+step (a) is by noting that max(a, b) ≥ a+b 2 , step (b) since φ(u) and ψ(u) upper bound Iu≤0 . Both
+the right hand sides of equations (16) and (17) are convex functions of both h and r. When φ and ψ
+are both the exponential loss we obtain the following loss with β(x, y, m) : X × Y 2 → R+ :
+                                     α                
+          LSH (h, r, x, y, m) := exp    (r(x) − h(x)y) + (c + Im6=y ) exp (−β(x, y, m)r(x))
+                                      2
+we will see that it will be necessary that β is no longer constant for the loss to be consistent while in
+the standard case it sufficed to have β constant [CDM16b]. The following proposition shows that for
+an appropriate choice of β and α we can make LSH consistent.
+Proposition
+q               4. Let c(x) = c − cP(Y 6= M |X = x) + P(Y 6= M |X = x), for α = 1 and β =
+  1−c(x)                                                        ∗     ∗                    B          ∗
+   c(x) , inf h,r Ex,y,m [LSH (h, r, x, y, m)] is attained at (hSH , rSH ) such that sign(h ) = sign(hSH )
+                      ∗ ).
+and sign(rB ) = sign(rSH
+Proof. Denote η(x) = P(Y = 1|X = x) and q(x, y) = P(M = 1|X = x, Y = y), we have:
+
+inf Ex,y,m [LSH (h, r, x, y, m)] = inf Ex Ey|x Em|x,y [LSH (h, r, x, y, m)]
+h,r                                h,r
+
+                                = Ex       inf       Ey|x Em|x,y [LSH (h(x), r(x), x, y, m)]
+                                         h(x),r(x)
+
+Now we will expand the inner expectation:
+
+Ey|x Em|x,y [LSH (h(x), r(x), x, y, m)]                                                              (18)
+                    α                  
+= η(x)q(x, 1)(exp       (r(x) − h(x)) + c exp (−βr(x)))
+                      2     α                
++ (1 − η(x))q(x, −1)(exp         (r(x) + h(x)) + (1) exp (−βr(x)))
+                               2
+
+                                                            34
+                          α             
++ η(x)(1 − q(x, 1))(exp    (r(x) − h(x)) + (1) exp (−βr(x)))
+                         2     α               
++ (1 − η(x))(1 − q(x, −1))(exp     (r(x) + h(x)) + c exp (−βr(x)))
+                                 2
+The Bayes optimal solution for our original loss in the binary setting is:
+                1
+hB (x) = η(x) −
+                2
+                1     1
+rB (x) = |η(x) − | − ( − c − P(M 6= Y |X = x))
+                2     2
+   Case 1: if η(x) = 0, writing v = r(x), u = h(x) then term (18) becomes:
+                 α                                             α         
+    q(x, −1)(exp     (v + u) + 1 exp (−βv)) + (1 − q(x, −1))(exp     (v + u) + c exp (−βv))
+                   2                                               2
+then to minimize the above it is necessary that the optimal solutions are such that u∗ < 0, v ∗ > 0
+which agree with the sign of the original Bayes solution.
+   Case 2: if η(x) = 1, then term (18) becomes:
+                  α                                           α        
+      q(x, 1)(exp    (v − u) + c exp (−βv)) + (1 − q(x, 1))(exp    (v − u) + (1) exp (−βv))
+                   2                                             2
+then to minimize the above it is necessary that the optimal solutions are such that u∗ > 0, v ∗ > 0
+which agree with the sign of the original Bayes solution.
+    Case 3: η(x) ∈ (0, 1), for ease of notation denote the RHS of equation (18) as Lψ (u, v), note
+that Lψ (u, v) is a convex function of both u and v and therefore to find the optimal solution it
+suffices to take the partial derivatives with respect to each and set them to 0.
+    For u:
+∂ψ (u, v)
+          =0
+   ∂u
+         α      α                           α           
+ ⇐⇒ −η(x)   exp    (v − u∗ ) + (1 − η(x)) exp     (v + u∗ ) = 0
+          2     2                             2
+         α       −α ∗                 α     α 
+ ⇐⇒ −η(x) exp        u + (1 − η(x)) exp         u∗ = 0
+          2        2                  2       2
+         1       η(x)
+ ⇐⇒ u∗ = log(           )
+        α      1 − η(x)
+
+we note that u∗ has the same sign as the minimizer of the exponential loss and hence has the same
+sign as hB (x).
+    Plugging u∗ and taking the derivative with respect to v:
+
+
+∂ψ (u∗ , v)
+            =0
+    ∂v
+             α   α                             α            
+ ⇐⇒ η(x) exp        (v ∗ − u∗ ) + (1 − η(x)) exp    (v ∗ + u∗ )
+             2    2                               2
+− βc(η(x)q(x, 1) + (1 − η(x))(1 − q(x, −1)) exp(−βv ∗ )
+− (1 − η(x))q(x, −1)β exp(−βv ∗ ) − η(x)(1 − q(x, 1))β exp(−βv ∗ ) = 0
+
+                                                 35
+          α     α                             α            
+ ⇐⇒ η(x)    exp    (v ∗ − u∗ ) + (1 − η(x)) exp    (v ∗ + u∗ )
+          2      2                               2
+− β(c − cP(M 6= Y |X = x) + P(M 6= Y |X = x)) exp(−βv ∗ ) = 0
+
+Appealing to the proof of Theorem 1 in [CDM16a] we obtain that:
+                                                  s                !
+                                   1        c(x)β          1
+                           v∗ =         log
+                                α/2 + β       α     η(x)(1 − η(x))
+
+   Furthermore by the proof of Theorem 1 in [CDM16a], the sign of v ∗ matches that of rB (x) if
+and only if:                               s
+                                      β      1 − c(x)
+                                        =
+                                      α        c(x)
+
+
+
+C.1.2   Multiclass setting
+    Proposition 1. L     e CE is convex and is a consistent loss function for L:
+                                                                              e
+                       h                  i
+   let ge = arg inf g E Le CE (g, c)|X = x , then: arg maxi∈[K+1] gei = arg mini∈[K+1] E[c(i)|X = x]
+
+Proof. Writing the expected loss:
+
+           inf Ex,c [L
+                     e CE (g, x, c)] = inf Ex Ec|x [L
+                                                    e CE (g, x, c)] = Ex inf Ec|x [L
+                                                                                   e CE (g(x), x, c)]
+            g                           g                                  g(x)
+
+Now we will expand the inner expectation:
+                                                                                                      
+               e CE (g(x), x, c)] = −
+                                            X                                          exp(gy (x))
+         Ec|x [L                                  E[max c(j) − c(y)|X = x] log        P
+                                        y∈[K+1]
+                                                     j                                 k exp(gk (x))
+
+
+The loss L
+         e CE is convex in the predictor, so it suffices to differentiate with respect to each gy for
+y ∈ Y and set to 0.
+     ⊥
+
+
+
+∂LCE
+      =0
+ ∂gy∗
+                                exp(gy∗ (x))                  X
+ ⇐⇒ E[max c(j) − c(y)|X = x] − P                                    E[max c(j) − c(i)|X = x] = 0
+       j                        k exp(gk (x))             i∈[K+1]
+                                                                       j
+
+     exp(gy∗ (x))        E[maxj c(j) − c(y)|X = x]
+ ⇐⇒ P              =P
+     k exp(gk (x))    i∈[K+1] E[maxj c(j) − c(i)|X = x]
+
+From this we can deduce:
+                                                   exp(gy∗ (x))
+h(x) = arg max gy∗ (x) = arg max P                             ∗
+           y∈[K+1]                y∈[K+1]       y∈[K+1] exp(gy (x))
+
+
+
+                                                         36
+                      E[maxj c(j)|X = x] − E[c(y)|X = x]
+     = arg max        P
+            y∈[K+1]     i∈[K+1] E[maxj c(j) − c(i)|X = x]
+
+                               hB (x)
+     = arg min E[c(y)|X = x] = e
+            y∈[K+1]
+
+
+
+
+    Proposition 2. The minimizers of the loss L0−1 (3) are defined point-wise for all x ∈ X as:
+
+                                      hB (x) = arg max ηy (x)
+                                                    y∈Y
+                                       B
+                                      r (x) = Imaxy∈Y ηy (x)≤P(Y =M |X=x)                                  (19)
+
+Proof. When we don’t defer, the loss incurred by the model is the misclassification loss in the
+standard multiclass setting and hence by standard arguments [FHT01] we can define hB point-wise
+regardless of r:
+
+                                hB (x) = arg inf Ey [Ih6=y ] = arg max ηy (x)
+                                                h                    y∈Y
+
+Now for the rejector, we should only defer if the expected loss of having the expert predict is less
+than the error of the classifier hB defined above, define rB : X → {0, +1} as:
+
+                                   rB (x) = IE[IM 6=Y |X=x]≤E[IhB (x)6=Y |X=x]
+                                           = IP(Y 6=M )≤(1−maxy∈Y ηy (x))
+                                           = IP(Y =M )≥maxy∈Y ηy (x)
+
+
+
+     Theorem 2. The loss LCE is a convex upper bound of L0−1 and is consistent:
+inf h,r Ex,y,m [LCE (h, r, x, y, m)] is attained at (h∗CE , rCE
+                                                             ∗ ) such that hB (x) = h∗ (x) and r B (x) =
+                                                                                     CE
+ ∗ (x) for all x ∈ X .
+rCE
+
+Proof. The fact that LCE is convex is immediate as Im=y ≥ 0 and the cross entropy loss is convex.
+   Now we show that LCE is an upper bound of L0−1 :
+
+          L0−1 (h, r, x, y, m) = Ih(x)6=y Ir(x)=0 + Im6=y Ir(x)=1
+                                                 !                                       !
+          (a)                  exp(gy (x))                             exp(g⊥ (x))
+           ≤ − log P                               − Im=y log P                                            (20)
+                          y 0 ∈Y∪⊥ exp(gy 0 (x))                  y 0 ∈Y∪⊥ exp(gy 0 (x))
+
+                                                                                              exp(g (x))
+To justify inequality (a), consider first if r(x) = 0, then if Ih(x)6=y = 1 we know that P 0      y
+                                                                                                               ≤
+                                                                                        y ∈Y∪⊥ exp(gy 0 (x))
+
+                 P exp(gy (x))
+2 giving − log             exp(g 0 (x)) ≥ 1, moreover all the terms in the RHS of (a) are always positive.
+1
+                    0
+                   y ∈Y∪⊥      y
+                                                            exp(g (x))
+    On the other hand if r(x) = 1, then again P 0          y
+                                                                        ≤ 21 as we decided to reject and
+                                                 y ∈Y∪⊥ exp(gy 0 (x))
+                            exp(gy (x))
+since also giving − log P 0     exp(g 0 (x)) ≥ 1. Finally note that L0−1 (h, r, x, y, m) ≤ 1.
+                             y ∈Y∪⊥        y
+    We will now show that the optimal rejector minimizing the upper bound (20) is in fact consistent.
+
+
+
+                                                       37
+    Denote qm (x, y) = P(M = m|X = x, Y = y) and ηy (x) = P(Y = y|X = x), we have:
+
+            inf Ex,y,m [LCE (h, r, x, y, m)] = inf Ex Ey|x Em|x,y [LCE (h, r, x, y, m)]
+             h,r                                  h,r
+
+                                                = Ex      inf       Ey|x Em|x,y [LCE (h(x), r(x), x, y, m)]
+                                                        h(x),r(x)
+
+Let us expand the inner expectation:
+
+Ey|x Em|x,y [LCE (h(x), r(x), x, y, m)]
+        "                                    !                                                     !#
+                         exp(gy (x))              X                            exp(g⊥ (x))
+= Ey|x − log P                                 −      Im=y log           P
+                    y 0 ∈Y∪⊥ exp(gy 0 (x))        m∈Y                     y 0 ∈Y∪⊥ exp(gy 0 (x))
+                                                 !
+      X                        exp(gy (x))
+=−        ηy (x) log P
+     y∈Y                  y 0 ∈Y∪⊥ exp(gy 0 (x))
+                                                                      !
+   X          X                                     exp(g⊥ (x))
+−       ηy (x)       qm (x, y)Im=y log P
+    y∈Y         m∈Y                            y 0 ∈Y∪⊥ exp(gy 0 (x))
+                                                     !                                                          !
+(a)    X                         exp(gy (x))             X                                  exp(g⊥ (x))
+=−          ηy (x) log P                               −      ηy (x)qy (m, y) log     P
+       y∈Y                  y 0 ∈Y∪⊥ exp(gy 0 (x))       y∈Y                           y 0 ∈Y∪⊥ exp(gy 0 (x))
+                                                     !
+(b)    X                         exp(gy (x))
+=−          ηy (x) log P
+       y∈Y                  y 0 ∈Y∪⊥ exp(gy 0 (x))
+                                                           !
+                                         exp(g⊥ (x))
+− P(Y = M |X = x) log P                                                                                             (21)
+                                    y 0 ∈Y∪⊥ exp(gy 0 (x))
+
+In step (a) all terms that differed on y and m disappear, in step (b) we have:
+                X                     X
+                    ηy (x)qy (m, y) =    P(M = y, Y = y|X = x) = P(Y = M |X = x)
+                   y∈Y                    y∈Y
+
+    For ease of notation denote the RHS of equation (21) as LCE (g1 , · · · , g|Y| , g⊥ ), note that it is a
+a convex function, hence we will take the partial derivatives with respect to each argument and set
+them to 0.
+    For any g⊥ , and for i ∈ Y we have :
+
+∂LCE (g1∗ , · · · , g|Y|∗ , g⊥ )
+                                 =0
+            ∂gi∗
+             exp(gi∗ (x))                   ηi (x)
+ ⇐⇒ P                      ∗      =                                                                                 (22)
+          y 0 ∈Ye exp(gy 0 (x))     1 + P(Y = M |X = x)
+
+The optimal h∗ for any g⊥ should satisfy equation (22) for every i ∈ Y, however since exponential is
+an increasing function we get that the optimal h∗ in fact agrees with the Bayes solution as:
+
+                                         exp(gy∗ (x))
+arg max gy∗ (X) = arg max P                ∗
+    y∈Y                  y∈Y      y∈Y exp(gy (x)) + exp(g⊥ (x))
+
+
+                                                            38
+                                          ηy (x)
+                   = arg max                          = hB (x)
+                            y∈Y   1 + P(Y = M |X = x)
+
+    Plugging h∗ and taking the derivative with respect to the optimal g⊥
+                                                                       ∗:
+
+
+
+∂LCE (g1∗ , · · · , g|Y|
+                     ∗ , g∗ )
+                          ⊥
+          ∗           =0
+      ∂g⊥
+              ∗ (x))
+       exp(g⊥                P(Y = M |X = x)
+ ⇐⇒ P             ∗ (x)) = 1 + P(Y = M |X = x)
+     y 0 ∈Y exp(g y0
+
+Note note that r∗ (x) = 1 only if P(Y = M |X = x) ≥ maxy∈Y ηy (x) which agrees with rB (x)
+
+C.2     Section 5
+    Proposition 3. Lmix is realizable (H, R)-consistent for classes closed under scaling but is not
+classification consistent.
+
+Proof. We first prove that Lmix is realizable (H, R)-consistent. Let P and M be such that there
+exists h∗ , r∗ ∈ H × R that have zero error L(h∗ , r∗ ) = 0. Assume that (ĥ, r̂) satisfy
+
+                            E[Lmix (ĥ, r̂, x, y, m)] −     inf     E[Lmix (h, r, x, y, m)] ≤ δ
+                                                          h∈H,r∈R
+
+    Let u > 0, we have:
+
+E[L(ĥ, r̂, x, y, m)]
+≤ 2E[Lmix (ĥ, r̂, x, y, m)]       (factor of 2 is upper bound)
+                  ∗     ∗
+≤ 2E[Lmix (uh , ur , x, y, m)] + 2δ           (by assumption and closed under scaling)
+= 2E[Lmix (uh , ur , x, y, m)|r = 1]P(r∗ = 1) + 2E[Lmix (uh∗ , ur∗ , x, y, m)|r∗ = 0]P(r∗ = 0) + 2δ
+                  ∗     ∗             ∗
+                                     !
+                   exp(ugy (x))            exp(ur0 (x))                   exp(ur1 (x))
+= 2E[− log P                           P                      + Im6=y P                      |r∗ = 0]P(r∗ = 0)
+               y 0 ∈Y exp(ugy (x))
+                               0
+                                         i∈{0,1} exp(uri (x))           i∈{0,1} exp(uri (x))
+                                     !
+                  exp(ugy (x))             exp(ur0 (x))
++ 2E[− log P                           P
+               y 0 ∈Y exp(ugy 0 (x))    i∈{0,1} exp(uri (x))
+               exp(ur1 (x))
++ Im6=y P                         |r∗ = 1]P(r∗ = 1) + 2δ                                             (23)
+             i∈{0,1} exp(uri (x))
+
+Let us examine each term in the RHS of (23), when r∗ = 1 we have r1 (x) > r0 (x) hence:
+
+                                                      exp(ur0 (x))
+                                            lim P                        =0
+                                                    i∈{0,1} exp(uri (x))
+                                           u→∞
+
+
+Furthermore it most be that Im6=y = 0 as we decided to defer.
+
+
+
+
+                                                             39
+    When r∗ = 0, we have r0 (x) ≥ r1 (x) hence:
+
+                                                         exp(ur1 (x))
+                                            lim P                           =0
+                                                       i∈{0,1} exp(uri (x))
+                                           u→∞
+
+
+moreover we have h∗ (x) = y by optimality of (h∗ , r∗ ) (as we did not defer) and realizability thus:
+                                                                 !
+                                              exp(ugy (x))
+                               lim log P                           =0
+                                           y 0 ∈Y exp(ugy 0 (x))
+                              u→∞
+
+
+   We can conclude that taking the limit as u → ∞ on the RHS of (23) and applying the monotone
+convergence theorem (swap of expectation and limit) we get:
+
+                                                E[L(ĥ, r̂, x, y, m)] ≤ 2δ
+
+taking δ = /2 completes the proof.
+    We now move to looking at the Bayes solution of Lmix , denote qm (x, y) = P(M = m|X = x, Y =
+y), we have:
+
+             inf Ex,y,m [Lmix (h, r, x, y, m)] = Ex         inf       Ey|x Em|x,y [Lmix (h(x), r(x), x, y, m)]
+             h,r                                          h(x),r(x)
+
+Let us expand the inner expectation:
+
+Ey|x Em|x,y [Lmix (h(x), r(x), x, y, m)] =                                                             (24)
+                                           !
+   X                     exp(gy (x))             exp(r0 (x))                             exp(r1 (x))
+−      ηy (x) log P                          P                     + P(Y 6= M |X = x) P
+   y∈Y                y 0 ∈Y exp(gy 0 (x))     i∈{0,1} exp(ri (x))                     i∈{0,1} exp(ri (x))
+
+
+   Denote the RHS of (24) by Lmix (g1 , · · · , g|Y| , r0 , r1 ), it is a convex function in gi for all i ∈ Y,
+consider any r0 , r1 , we have :
+
+                     ∂Lmix (g1∗ , · · · , g|Y|∗ , r0 , r1 )            exp(gi∗ (x))
+                                                            = 0 ⇐⇒               ∗       = ηi (x)                (25)
+                                    ∂gi∗
+                                                                   P
+                                                                    y 0 ∈Y exp(gy 0 (x))
+
+Since the optimal h∗ for any r0 , r1 does not depend on the form of r0 and r1 we conclude that (25)
+gives the optimal choice of h. We now need to find the optimal choice of r0 (x) and r1 (x) to minimize
+Lmix (g1∗ , · · · , g|Y|∗ , r0 , r1 ) which takes the following form:
+
+
+                                                     exp(r0 (x))                             exp(r1 (x))
+ Lmix (g1∗ , · · · , g|Y|∗ , r0 , r1 ) = H(hB (x)) P                   + P(Y 6= M |X = x) P
+                                                   i∈{0,1} exp(ri (x))                     i∈{0,1} exp(ri (x))
+
+where H(X) is the Shannon entropy of the random variable X, here by H(hB (x)) we refer to the
+entropy of the probabilistic form of hB (x) according to (25) . Clearly the optimal r0∗ and r1∗ have
+
+
+
+
+                                                              40
+the following behavior for a given x ∈ X :
+                 (
+                   r0 (x) = ∞, r1 (x) = −∞ if H(hB (x)) < P(Y 6= M |X = x)
+                   r0 (x) = −∞, r1 (x) = ∞ if H(hB (x)) ≥ P(Y 6= M |X = x)
+
+This does not have the form of rB (x), as this rejector compares the entropy of hB (x) instead of it’s
+confidence to the probability of error of the expert which will not always be in accordance.
+
+   Theorem 2. For any expert M and data distribution P over X × Y, let 0 < δ < 12 , then with
+probability at least 1 − δ, the following holds for the empirical minimizers (ĥ∗ , r̂∗ ):
+
+                      L0−1 (ĥ∗ , r̂∗ ) ≤ L0−1 (h∗ , r∗ ) + Rn (H) + Rn (R) + RnP(M 6=Y )/2 (R)
+                                           s
+                                             log ( 2δ ) P(M 6= Y )
+                                                                                        
+                                                                            nP(M 6= Y )
+                                        +2             +             exp −
+                                                2n             2                8
+
+
+Proof. Let LH,R be the family of functions defined as LH,R = {(x, y, m) → L(h, r, x, y, m); h ∈
+H, r ∈ R} with L(h, r, x, y, m) := Ih(x)6=y Ir(x)=−1 + Im6=y Ir(x)=1 . Let Rn (LH,R ) be the Rademacher
+complexity of LH,R , then since L(h, r, x, y, m) ∈ [0, 1], by the standard Rademacher complexity
+bound (Theorem 3.3 in [MRT18]), with probability at least 1 − δ/2 we have:
+                                                                              s
+                                                                                log ( 2δ )
+                       L0−1 (ĥ∗ , r̂∗ ) ≤ LS0−1 (ĥ∗ , r̂∗ ) + 2Rn (LH,R ) +
+                                                                                  2n
+
+We will now relate the complexity of LH,R to the individual classes:
+                                       m
+                                1 X
+Rn (LH,R ) = E [        sup             i Ih(xi )6=yi Ir(xi )=−1 + i Imi 6=yi Ir(xi )=1 ]
+                   (h,r)∈H×R m i=1
+                         m
+       "                                                #
+(a)                   1 X
+≤ E         sup            i Ih(xi )6=yi Ir(xi )=−1
+         (h,r)∈H×R m i=1
+                        m
+      "                                           #
+                    1 X
++ E        sup            i Imi 6=yi Ir(xi )=1
+        (h,r)∈H×R m i=1
+                         m                                                 m
+      "                                   #          "                                       #
+(b)                  1 X                                              1 X
+≤ E         sup            i Ih(xi )6=yi + E            sup                 i Ir(xi )=−1
+         (h,r)∈H×R m i=1                               (h,r)∈H×R m i=1
+                        m
+      "                                           #
+                    1 X
++ E        sup            i Imi 6=yi Ir(xi )=1
+        (h,r)∈H×R m i=1
+                                                         m
+                                   "                                               #
+    1            1                                   1 X
+≤ Rn (H) + Rn (R) + E                   sup                 i Imi 6=yi Ir(xi )=1                (26)
+    2            2                   (h,r)∈H×R m         i=1
+
+    step (a) follows ashthe supremum is a subadditive function ,istep (b) is the application of Lemma
+                                    1 Pm
+2 in [DMS15] to E sup(h,r)∈H×R m        i=1 i Ih(xi )6=yi Ir(xi )=−1 which says that the Rademacher
+
+
+
+                                                                41
+complexity of a product of two indicators functions is upper bounded by the sum of the complexities
+of each class, now  P we will take a closer look at the last term in the RHS of inequality (26).
+Denote nSm = j∈S Iyj 6=mj and define the random variable Sm = {i : yi 6= mi }, we have that
+nSm ∼ Binomial(n, P(M 6= Y )) and E[nSm |Sm ] = nP(M 6= Y ), hence:
+                      m
+   "                                             #
+                   1 X
+E        sup              i Imi 6=yi Ir(xi )=1
+     (h,r)∈H×R m i=1
+                                                        
+                                  m
+                      1         X
+ = E  sup                                  i Ir(xi )=1 
+         (h,r)∈H×R    m
+                         i=1 s.t. yi 6=mi
+                                                  
+            S                     nS
+                                   m
+          n                  1  X
+ = E m           sup                 i Ir(xi )=1  (by relabeling)
+          m (h,r)∈H×R nSm
+                                 i=1
+                                                            
+                  S                      nS
+                                          m
+ (a)            n                   1   X
+ = E E  m            sup                  i Ir(xi )=1 |Sm 
+                m (h,r)∈H×R nSm
+                                         i=1
+         S             
+ (b)      nm
+ =E           R̂Sm (R)
+          m
+                              S                                                    S                     
+ (c)            nP(A)          n                          nP(A)             nP(A)    n                nP(A)
+ = P(nSm <              )E m R̂Sm (R)|nSm <                       + P(nSm ≥       )E m R̂Sm (R)|nSm ≥
+                    2           m                           2                 2      m                  2
+ (d) P(M 6= Y )
+                                                
+                               nP(M 6= Y )
+ ≤                  exp −                           + RnP(M 6=Y )/2 (R)
+            2                          8
+
+In step (a) we conditioned on the dataset Sm , in step (b) we used the definition of the empirical
+Rademacher complexity R̂Sm (R) on Sm , step (c) we introduce the event A = {M 6= Y }, step (d)
+follows from a Chernoff bound on nSm and since the Rademacher complexity is bounded by 1 and is
+non-increasing with respect to sample size.
+    We can now proceed with inequality (26):
+            (a) 1
+                                                               
+                         1         P(M 6= Y )       nP(M 6= Y )
+Rn (LH,R ) ≤     Rn (H) + Rn (R) +            exp −               + RnP(M 6=Y )/2 (R)
+               2         2            2                 8
+
+
+step (a) follows as the Rademacher complexity of indicator functions based on a certain class is
+equal to half the Rademacher complexity of the class [MRT18].
+    The final step is to note by Hoeffding’s inequality we have with probability at least 1 − δ/2:
+                              s
+                                log ( 2δ )
+LS (h∗ , r∗ ) ≤ L(h∗ , r∗ ) +
+                                  2n
+
+    Now since (ĥ∗ , ĥ∗ ) are the empirical minimizers we have that LS (ĥ∗ , r̂∗ ) ≤ LS (h∗ , r∗ ), collecting
+all the inequalities we obtain the following generalization bound with probability at least 1 − δ:
+
+
+
+
+                                                      42
+                                                s
+                                                    log ( 2δ )
+L(ĥ∗ , r̂∗ ) ≤ L(h∗ , r∗ ) + Rn (H) + Rn (R) + 2
+                                                      2n
+                                                
+                P(M 6= Y )           nP(M 6= Y )
+              +              exp −                 + RnP(M 6=Y )/2 (R)
+                    2                    8
+
+
+
+
+                                                     43
+

@@ -1,0 +1,593 @@
+                                               Distilling a Small Utility-Based Passage Selector to Enhance
+                                                             Retrieval-Augmented Generation
+                                                           Hengran Zhang                                                       Keping Bi∗                                   Jiafeng Guo∗
+                                               State Key Laboratory of AI Safety,                             State Key Laboratory of AI Safety,                 State Key Laboratory of AI Safety,
+                                              Institute of Computing Technology,                              ICT, Chinese Academy of Sciences                  Institute of Computing Technology,
+                                                 Chinese Academy of Sciences                                  University of Chinese Academy of                     Chinese Academy of Sciences
+                                               University of Chinese Academy of                                            Sciences                              University of Chinese Academy of
+                                                            Sciences                                                    Beijing, China                                        Sciences
+                                                         Beijing, China                                              bikeping@ict.ac.cn                                    Beijing, China
+                                                  zhanghengran22z@ict.ac.cn                                                                                             guojiafeng@ict.ac.cn
+
+
+
+
+arXiv:2507.19102v2 [cs.IR] 9 Oct 2025
+                                                            Jiaming Zhang                                               Shuaiqiang Wang                                       Dawei Yin
+                                                            Baidu Inc                                                     Baidu Inc                                           Baidu Inc
+                                                          Beijing, China                                                Beijing, China                                      Beijing, China
+                                                   zhangjiaming04@baidu.com                                       wangshuaiqiang@baidu.com                                yindawei@acm.org
+
+                                                                                                                             Xueqi Cheng
+                                                                                                              State Key Laboratory of AI Safety,
+                                                                                                             Institute of Computing Technology,
+                                                                                                                Chinese Academy of Sciences
+                                                                                                              University of Chinese Academy of
+                                                                                                                           Sciences
+                                                                                                                        Beijing, China
+                                                                                                                         cxq@ict.ac.cn
+
+                                        Abstract                                                                                        generation and utility judgments from teacher LLMs, using a slid-
+                                        Retrieval-augmented generation (RAG) enhances large language                                    ing window method that dynamically selects useful passages. Our
+                                        models (LLMs) by incorporating retrieved information. Standard re-                              experiments demonstrate that utility-based selection provides a
+                                        trieval process prioritized relevance, focusing on topical alignment                            flexible and cost-effective solution for RAG, significantly reducing
+                                        between queries and passages. In contrast, in RAG, the empha-                                   computational costs while improving answer quality. We present
+                                        sis has shifted to utility, which considers the usefulness of pas-                              the distillation results using Qwen3-32B as the teacher model for
+                                        sages for generating accurate answers. Despite empirical evidence                               both relevance ranking and utility-based selection, distilled into
+                                        showing the benefits of utility-based retrieval in RAG, the high                                RankQwen1.7𝐵 and UtilityQwen1.7𝐵 . Our findings indicate that for
+                                        computational cost of using LLMs for utility judgments limits the                               complex questions, utility-based selection is more effective than
+                                        number of passages evaluated. This restriction is problematic for                               relevance ranking in enhancing answer generation performance.
+                                        complex queries requiring extensive information. To address this,                               We will release the relevance ranking and utility-based selection
+                                        we propose a method to distill the utility judgment capabilities of                             annotations for the MS MARCO dataset, supporting further re-
+                                        LLMs into smaller, more efficient models. Our approach focuses                                  search in this area. Our code and datasets can be found at https:
+                                        on utility-based selection rather than ranking, enabling dynamic                                //github.com/Trustworthy-Information-Access/UtilitySelection.
+                                        passage selection tailored to specific queries without the need for
+                                        fixed thresholds. We train student models to learn pseudo-answer                                CCS Concepts
+                                                                                                                                        • Information systems → Question answering; Novelty in
+                                        ∗ Keping Bi and Jiafeng Guo are the corresponding authors.                                      information retrieval; Top-k retrieval in databases.
+
+                                        Permission to make digital or hard copies of all or part of this work for personal or           Keywords
+                                        classroom use is granted without fee provided that copies are not made or distributed           Relevance Ranking, Utility-based Selection, RAG
+                                        for profit or commercial advantage and that copies bear this notice and the full citation
+                                        on the first page. Copyrights for components of this work owned by others than the
+                                        author(s) must be honored. Abstracting with credit is permitted. To copy otherwise, or          ACM Reference Format:
+                                        republish, to post on servers or to redistribute to lists, requires prior specific permission   Hengran Zhang, Keping Bi, Jiafeng Guo, Jiaming Zhang, Shuaiqiang Wang,
+                                        and/or a fee. Request permissions from permissions@acm.org.
+                                                                                                                                        Dawei Yin, and Xueqi Cheng. 2025. Distilling a Small Utility-Based Pas-
+                                        SIGIR-AP ’25, Xi’an, China.
+                                        © 2025 Copyright held by the owner/author(s). Publication rights licensed to ACM.
+                                                                                                                                        sage Selector to Enhance Retrieval-Augmented Generation. In Proceedings
+                                        ACM ISBN 979-8-4007-2218-9/2025/12.                                                             of the 2025 Annual International ACM SIGIR Conference on Research and
+                                        https://doi.org/10.1145/3767695.3769496                                                         Development in Information Retrieval in the Asia Pacific Region (SIGIR-AP
+ SIGIR-AP ’25, December 7–10, 2025, Xi’an, China.                                                                                     Hengran Zhang et al.
+
+
+ ’25), December 7–10, 2025, Xi’an, China. ACM, New York, NY, USA, 9 pages.          There have been several studies on distilling the zero-shot list-
+ https://doi.org/10.1145/3767695.3769496                                         wise ranking capability of LLMs (e.g., ChatGPT, GPT-4) into smaller
+                                                                                 efficient rankers [17, 22–24, 32], such as RankVicuna [22] and
+ 1           Introduction                                                        RankMistral [17]. The distilled student rankers ingest a large num-
+                                                                                 ber of retrieval results using a sliding window-based bubble sort
+                 Generation Performance with Different Top-k Retrieval results   approach. The window is moved from lower to higher positions,
+                                                                                 popping the most relevant results to the head, until all the results are
+            50
+                                                                                 ranked. This approach, however, cannot be applied to utility-based
+                                                                                 selection due to the inherent differences. State-of-the-art (SOTA)
+            45                                                                   utility judgment methods are based on pseudo answers that are gen-
+
+
+Score (%)
+                     NQ-EM                                                       erated from a group of input documents [42, 44]. This requires the
+                     NQ-F1
+            40       HotpotQA-EM
+                     HotpotQA-F1
+                                                                                 student model to also inherit the answer generation capability from
+                                                                                 the teacher model. Moreover, to ensure decent pseudo-answer qual-
+                                                                                 ity, results that are more likely to be useful are needed, indicating
+            35                                                                   that the initial passages fed to the model should be of high ranks.
+                                                                                 This argues for a dedicated approach for distilling small utility-
+            30 5 10 15 20              40           60       80         100
+                                                                                 based passage selectors and utility judgments of a large number of
+                                                                                 passages.
+                                            Top-k
+                                                                                    To this end, we propose a distilling approach that jointly learn
+ Figure 1: Different answer generation performance (genera-
+                                                                                 pseudo-answer generation and utility judgments from teacher LLMs.
+ tor: Llama-3.1-8B-Instruct) directly with different top-𝑘 re-
+                                                                                 For utility judgments with the student selector on a long initial
+ trieval results (retriever: BM25).
+                                                                                 ranking list, we propose a sliding window method that moves from
+                                                                                 higher to lower positions. At each step, the selector generates
+    Retrieval-augmented generation (RAG) leverages retrieved infor-              pseudo answers based on the selected useful results, and slides
+ mation as external knowledge to empower large language models                   to the next window, which is comprised of the so-far selected use-
+ (LLMs) to answer questions. The criterion for measuring whether                 ful results and the unseen passages. New selected useful results
+ a result is helpful for RAG has shifted from relevance to utility               will be prepended to the selected result pool, and duplicates in the
+ [14, 30, 42, 44]. Relevance typically focuses on the topical match-             pool will be deleted, maintaining an ordered list of selected useful
+ ing between a query and retrieved passages [28, 29]. Utility, in                results. This process is repeated until all the candidate results are
+ contrast, emphasizes the usefulness of a passage in facilitating the            judged. This process ensures that the final selected useful results
+ generation of an accurate and comprehensive answer to the ques-                 are based on the information of the entire candidate results. It also
+ tion [43]. Empirical results demonstrate that using retrieval results           incurs a smaller cost than the above-mentioned ranking distillation
+ judged as having utility by LLMs in RAG can enhance the quality                 due to smaller overlap between windows.
+ of subsequent answer generation [42, 44].                                          Following the current works for relevance ranking distillation
+    Due to the high computation cost, using LLMs for utility judg-               [17, 23, 32], we also utilize the dataset of 100k queries, sampled from
+ ments usually takes 10 to 20 passages as context [42, 44]. This is              the MS MARCO training set by [32] for training. We employ Qwen3-
+ insufficient for weaker retrievers that rank useful passages at lower           32B [34] as teacher model to generate both relevance ranking and
+ positions, and when complex questions require many useful docu-                 utility-based selection outputs. These outputs are then distilled into
+ ments to generate comprehensive answers. Although it is promising               Qwen3-1.7B, yielding RankQwen1.7𝐵 (for relevance ranking) and
+ to scale utility judgments to a large number of candidate passages              UtilityQwen1.7𝐵 (for utility-based selection). To evaluate RAG per-
+ for RAG, using LLMs to do so is cost-prohibitive. Therefore, we                 formance, we utilize two QA datasets from BEIR [35]: NQ [15], and
+ propose to distill the utility judgment capability of LLMs to smaller           HotpotQA [41], on two kinds of top-100 initial candidate passages
+ models that are efficient to do so.                                             retrieved by two retrievers, i.e., BM25 [26] and BGE-base-en-v1.5
+    In this paper, we focus on utility-based selection rather than               [40]. Following extensive experimentation, we found that: (1) For
+ ranking when distilling smaller models. There are two reasons:                  simple questions, such as those in the NQ dataset, relevance rank-
+ 1) Ke et al. [14] find that for effective RAG, the ranking of input             ing (by adjusting various thresholds) demonstrated no statistically
+ passages is less critical than effectively filtering out low-quality            significant difference in optimal answer generation performance
+ passages. 2) The number of passages that should be selected for                 compared to directly using utility-based selection. (2) However, for
+ different questions can vary. As shown in Figure 1, the optimal                 complex questions, exemplified by the HotpotQA dataset, relevance
+ number of passages used for simple questions (i.e., in NQ) and                  ranking proved insufficient; utility-based selection was more effec-
+ complex questions (i.e., in HotpotQA) is different. If we conduct               tive in helping large language models (LLMs) identify document
+ utility ranking, a fixed threshold is usually used, which introduces a          sets pertinent to answering the query. (3) Our utility-based selection
+ hyperparameter to tune and can be suboptimal. In contrast, utility-             method adaptively determines the number of useful passages based
+ based selection mechanisms can dynamically determine how many                   on the query and the passages. A key consequence is that selecting
+ passages to retain. Consequently, our goal is to distill a small utility-       fewer documents per query enables more unprocessed passages
+ based selector from LLMs that are competent in zero-shot utility-               to be handled within each sliding window iteration. This results
+ based selection.                                                                in fewer window iterations for utility-based selection compared to
+Distilling a Small Utility-Based Passage Selector to Enhance Retrieval-Augmented Generation                                           SIGIR-AP ’25, December 7–10, 2025, Xi’an, China.
+
+
+relevance ranking, dramatically reducing the computational cost                          the availability of ground-truth answers. In this work, we extend
+of LLM inference. Using merely 30% of the computational time,                            utility-based selection to a significantly larger scale of retrieval
+this approach yields higher-quality passages and, consequently,                          candidates.
+superior answers. Additionally, we will release the Qwen3-32B rel-
+evance ranking and utility-based selection annotations for the 100k                      3        Utility-based Selection Distillation
+MS MARCO dataset, providing a high-quality dataset for future                            Unlike relevance emphasizes topical matching between query and
+research in relevance ranking and utility-based selection.                               passage, utility focuses on the usefulness in generating an answer,
+                                                                                         which is more important in RAG. However, directly using powerful
+2     Related Work                                                                       LLMs to judge the utility of large-scale passages is computation-
+In this section, we briefly review existing studies on LLM-based                         ally expensive. Moreover, ranking approach needs a threshold to
+ranking and utility in Retrieval-Augmented Generation (RAG).                             determine the number of passages to generate an answer, which
+                                                                                         is not query-specific. Therefore, we propose a novel utility-based
+2.1     LLM-based Ranking                                                                selection distillation approach. Specifically, utility-based distillation
+                                                                                         approach trains student selectors to learn pseudo-answer genera-
+Ranking models frequently utilize a cross-encoder architecture, en-
+                                                                                         tion and utility judgment from teacher LLMs jointly. After distil-
+abling fine-grained, token-level interactions between the query and
+                                                                                         lation, the student model employs a front-to-back sliding window
+the document text [10]. Ranking approaches are categorized based
+                                                                                         strategy to dynamically select optimal passage sets from large-scale
+on how they model the relationship between a query and docu-
+                                                                                         candidates, which accounts for the dependency of pseudo-answers
+ments: pointwise [19, 20], pairwise [4, 21], and listwise [5, 9, 39, 45].
+                                                                                         on input passages.
+In the era of pre-trained language models (PLMs), owing to input
+length constraints, listwise ranking methods are typically imple-                             <|system|>You are the utility selector, an intelligent assistant that can select the passages that
+mented using pointwise inputs during training while employing                                 have utility in answering the question.
+listwise loss functions. This approach cannot be considered authen-                           <|assistant|> Yes, I am the utility selector.
+                                                                                              <|user|>I will provide you with {num} passages, each indicated by number identifier [].
+tic listwise learning, as it inherently fails to capture query-document                       Select the passages that have utility in answering the question: {query}.
+interactions during inference. The widespread adoption of Large                               <|assistant|>Okay, please provide the passages.
+Language Models (LLMs) has spurred significant advancements                                   <|user|> [1] {content}
+within the ranking domain, especially zero-shot listwise ranking                              <|assistant|>Received passage [1].
+[17, 23–25]. RankVicuna [22] and RankGPT [32] pioneered the ap-                               …
+plication of using LLMs for zero-shot listwise ranking. RankZephyr                            <|user|> [20] {content}
+                                                                                              <|assistant|>Received passage [20].
+[23] explored distilling the powerful listwise ranking capabilities
+                                                                                              <|user|> Question: {query}
+of high-performing LLMs into smaller, more efficient models. Cur-
+                                                                                              Utility Requirement: A passage has utility only if it is both relevant to the question
+rently, the primary distillation signal involves relevance ranking                            AND useful for generating a correct and reasonable answer.
+sequence generated by LLM. Unlike these works, this work ex-                                  Firstly, provide the answer to the question based on the provided {num} passages or your
+                                                                                              own knowledge without sources, which can help judge passages utility. Then, select the
+plores novel methods to distill the utility-based selection capability                        passages that have utility in answering the question.
+of LLMs into smaller models.                                                                  Output Format STRICTLY:
+                                                                                              Answer: [Your generated answer here]
+2.2     Utility in RAG                                                                        My selection: [[i],[j],...]
+                                                                                              Only respond to the answer and the selected list, do not say any word or explain.
+Retrieval-Augmented Generation (RAG) typically involves two
+stages: retrieval and generation. While relevance serves as the                          Figure 2: The prompt for utility-based selection. The bold
+primary optimization objective for the retriever, the ultimate goal                      is the special part for utility-based selection compared to
+in RAG shifts towards optimizing end-task question answering                             relevance ranking.
+(QA) performance using outputs from effective retrievers, with less
+direct emphasis on retrieval metrics themselves [43]. Consequently,
+significant research has focused on the importance of retrieval
+                                                                                         3.1         Prompt Design
+utility – the measure of a passage’s contribution to generating a                        Figure 2 shows the prompt utilized for utility-based selection. The
+correct answer – within RAG systems [12, 30, 42–44]. Zhang et al.                        relevance ranking prompt is the same as Sun et al. [32].
+[44] was the first to propose directly using large language models
+(LLMs) to judge the utility of retrieved passages, demonstrating                         3.2         Sliding Window for Utility-Based Selection
+that LLM-generated pseudo-answers can effectively assist utility                         To overcome LLM token limitations during passage re-ranking,
+assessment. Zhang et al. [42] further introduced an approach based                       prior work often employs a sliding window strategy processed in
+on Schutz’s theory of relevance to iteratively enhance LLM-based                         back-to-front order [32], as shown in Figure 3 (a). This approach
+utility judgments. However, these methods are constrained by their                       typically starts re-ranking the last 𝑤 passages (window size), then
+reliance on utility judgments for only a small number of retrieval                       slides backwards by stride size 𝑠, re-ranking passages from position
+candidates per query. In contrast, Shi et al. [30] proposed quan-                        (𝑀 − 𝑤 − 𝑠) to (𝑀 − 𝑠) and repeats until reaching the beginning
+tifying utility score probabilistically, using either the likelihood                     of the list, where 𝑀 is the number of candidate passages. This
+of the ground-truth answer or performance differences on down-                           back-to-front progression is effective for relevance permutation
+stream tasks. This probabilistic approach, however, relies heavily on                    generation.
+SIGIR-AP ’25, December 7–10, 2025, Xi’an, China.                                                                         Hengran Zhang et al.
+
+
+
+
+Figure 3: This diagram depicts an 8 passage selection (𝑀 = 8) process using a sliding window 𝑤 = 4, stride 𝑠 = 2: (a) relevance
+ranking and (b) utility-based selection. Greed part means the windows, and the arrow indicates the direction of the window
+sliding. Passages shown in red are those that have undergone re-ranking or preselected passages. White passages denote
+unprocessed passages. For utility-based selection, 𝑠 documents (within the dashed-border box) from the preselected queue are
+placed into the processing window for utility-based selection. Documents selected within the current window are prepended to
+the head of the preselected queue.
+
+   However, utility-based selection presents a distinct challenge:      4.1     Datasets and Evaluation
+the generation of high-quality pseudo-answers, essential for es-        RAG. We use the two subsets of BEIR, i.e., NQ [15], which con-
+timating passage utility, is sensitive to the quality of the input      sists of real questions issued to the Google search engine, and
+passages provided to the LLM. Feeding lower-quality passages in         HotpotQA [41], which consists of 7405 QA pairs requiring multi-
+the process can degrade pseudo-answer generation and subsequent         hop reasoning gathered via Amazon Mechanical Turk. We used
+utility judgments for all passages. To address this dependency and      the queries with ground truth answers from queries on NQ and
+ensure robust pseudo-answer generation, we propose a forward-           then filtered 2,255 queries for RAG evaluation. We process the top-
+propagating sliding window strategy, processing passages from           100 candidate documents retrieved by two retrievers, i.e., BM25
+front to back.                                                          [26] and BGE-base-en-v1.5 [40] through distinct pathways: 1) Re-
+   As depicted in Figure 3 (b), our method operates as follows: For     ranking via our RankQwen1.7𝐵 model; 2) Utility-based selection via
+the first window (positions 1 to 𝑤), the LLM judges the utility of      our UtilityQwen1.7𝐵 model. Subsequently, the top-𝑘 passages from
+the 𝑤 passages within the current window and selects passages           the re-ranked list and all passages selected by the UtilityQwen1.7𝐵
+that have utility. Selected passages are prepended to the preselected   served as evidence for answer generation using the same underly-
+queue. The original queue content is duplicated and positioned after    ing generator. RAG performance was evaluated on two aspects: 1)
+the new selections. The window slides forward by a stride size 𝑠.       Evidence Selection: Measured by recall, precision, and micro-F1
+Specifically, the first 𝑠 passages from the current preselected queue   score. 2) Answer Generation: Measured by Exact Match (EM) and
+are carried forward as input into the next window, which propa-         F1 score.
+gates high-utility context in the sequence. The next window now
+                                                                        Ranking. We adopt consistent datasets and metrics with Sun et al.
+consists of these first 𝑠 propagated passages from the preselected
+                                                                        [32] for ranking performance. Specifically, we leveraged test col-
+queue, followed by the next 𝑤 − 𝑠 unprocessed passages from the
+                                                                        lections from the TREC 2019 and 2020 Deep Learning Tracks [7].
+original list (maintaining their sequence). The LLM then performs
+                                                                        These tracks employed the MS MARCO v1 passage corpus [1], com-
+utility-based selection within this new window context. Repeat
+                                                                        prising approximately 8.8 million passages. To further evaluate
+until all 𝑀 passages have been processed. The final preselected
+                                                                        RankQwen’s generalization capability beyond the MS MARCO v1
+queue represents the utility-based selection results.
+                                                                        dataset, we assessed it on the BEIR benchmark [35] following Sun
+                                                                        et al. [32]: TREC-COVID [37], NFCorpus [3], Touche [2], DBPedia
+                                                                        [11], SCIDOCS [6], SciFact [38], TREC-News [31], Roubsust04 [36].
+                                                                        All ranking models re-rank the top-100 passages retrieved by BM25
+                                                                        using pyserini 1 and use nDCG@10 as evaluation metrics.
+4    Experiment Setup
+                                                                        4.2     Implementation Details
+We distill the relevance ranking and utility-based selection capa-
+bilities from larger 32B LLMs into compact 1.7B models, yield-          LLMs. We employ the state-of-the-art open-source Qwen3-32B [34]
+ing RankQwen1.7𝐵 and UtilityQwen1.7𝐵 . We conduct comparative           model as the teacher for both relevance ranking and utility-based
+analyses of both RankQwen1.7𝐵 and UtilityQwen1.7𝐵 on Retrieval-         selection functions. Through generative distillation, we transfer
+Augmented Generation (RAG) datasets. Additionally, we evaluate          these capabilities to a compact Qwen3-1.7B student architecture,
+RankQwen1.7𝐵 in established experiments to compare its ranking          yielding the specialized models RankQwen1.7𝐵 and UtilityQwen1.7𝐵 .
+performance with prior works [18, 19, 26, 27, 40]. This section in-
+troduces the datasets and implementation details used in this work.     1 https://github.com/castorini/pyserini
+Distilling a Small Utility-Based Passage Selector to Enhance Retrieval-Augmented Generation                            SIGIR-AP ’25, December 7–10, 2025, Xi’an, China.
+
+
+In our RAG pipeline, we integrate the distilled models with two                          as BGE, the UtilityQwen1.7𝐵 model shows a larger performance
+distinct generators to examine robustness: Llama-3.1-8B-Instruct                         margin compared to RankQwen1.7𝐵 . This improvement may be
+[8] and Qwen2.5-7B-Instruct [33]. To ensure reproducibility, the                         because better initial retrieval candidates enable UtilityQwento
+temperature for all LLMs in this study was set to 0.                                     generate higher-quality pseudo-answers, which further enhances
+Teacher Model Annotation. We employed Qwen2.5-32B as anno-                               its utility judgment performance. (iv) Given the same re-ranked
+tators for relevance ranking and utility-based selection. The anno-                      results, Llama-3.1-8B-Instruct achieves peak performance using
+tated queries were derived from 100K training queries sourced from                       only the top 5 passages. Conversely, Qwen2.5-7B-Instruct performs
+the MS MARCO v1 passage ranking dataset, originally curated by                           optimally across various top-𝑘 values, indicating potentially dis-
+Sun et al. [32]. For each query, the top 20 candidate passages were                      tinct passage digestion capabilities. Crucially, utility-based selection
+retrieved using BM25 via Pyserini [16]. Qwen3-32B then re-ranked                         demonstrates superior robustness. It consistently outperforms fixed
+these passages to generate teacher orderings and select passages                         top-𝑘 approaches across diverse generators, datasets, and initial
+with utility according to the prompt in Figure 2, which were later                       retrieval lists. Therefore, our approach provides a robust alternative
+distilled into smaller ranker and selector, respectively. Following                      by dynamically selecting the most useful passages. It achieves an-
+RankZephyr [23], we also enhanced the relevance ranking annota-                          swer quality comparable to or exceeding the best-performing fixed
+tions’ quality and robustness by excluding malformed generations                         top-𝑘 cutoff for any given configuration, while entirely eliminating
+from the training data. This exclusion targeted examples exhibiting                      the need for manual 𝑘-selection. These findings demonstrate that
+improper list formatting, missing document identifiers, or repetitive                    UtilityQwen1.7𝐵 offers a superior and more adaptable paradigm
+elements.                                                                                for passage selection in RAG, particularly for complex information
+Distillation Training Details. Using the axolotl library2 on eight                       needs, by explicitly optimizing for the collective utility of passages
+NVIDIA A800 80GB GPUs, we trained the 1.7B parameter Qwen                                in supporting accurate answer generation.
+3 model [34] for three epochs on both ranking and selection data
+generated by Qwen3-32B. Training employed bfloat16 precision, an                         6     Further Analysis
+effective batch size of 64, and a learning rate of 5 × 10−6 . Mirroring                  We further analyze the (1) ranking performance of RankQwen1.7𝐵
+RankZephyr [23], we also incorporated noisy embeddings, a method                         used in our experiments, (2) the impact of distillation training and
+demonstrated to enhance instruction fine-tuning [13].                                    the LLM backbone, (3) a statistics study on utility-based selection,
+Inference Details. For both relevance ranking and utility-based                          and (4) the inference efficiency of both relevance ranking and utility-
+selection tasks, we employed two retrievers, BM25 [26] and BGE-                          based selection.
+base-en-v1.5 [40], to retrieve the initial top-100 (𝑀 = 100) candidate
+lists. During inference, two sliding window strategies were applied                      6.1     Ranking Performance
+to both tasks, respectively. The window size was set to 20 (𝑤 = 20),                     To validate the ranking efficacy of our RankQwen1.7𝐵 , we compre-
+with a stride size of 10 (𝑠 = 10).                                                       hensively compare different ranking model performance across
+                                                                                         the TREC and BEIR datasets, comprising: (1) Retrievers: BM25
+5    Experimental Results                                                                [26] and BGE-base-en-v1.5 [40]; (2) Supervised cross-encoders:
+We propose a novel utility-based selection distillation approach                         monoBERT [18], monoT5 [19], and Cohere Rerank-v23 ; (3) Un-
+ to transfer the capability for utility judgment into smaller, more                      supervised cross-encoder: UPR [27]; (4) Zero-shot LLM listwise
+ efficient models, and conducted a comparative analysis between                          re-ranking; (5) Relevance ranking distillation, as shown in Table 2.
+ relevance ranking (top-𝑘 passages are used to answer generation)                        We can observe that: (i) Zero-Shot LLM Superiority: Large language
+ and utility-based selection for answer generation on RAG. The                           models (LLMs) operating in a zero-shot listwise ranking paradigm
+ RAG performance, presented comprehensively in Table 1, reveal                           (e.g., GPT-4) demonstrably outperform supervised cross-encoder
+ four key insights: (i) Evidence performance: Our utility-based se-                      baselines (e.g., monoT5-3B) on both the TREC and BEIR bench-
+ lection achieves best performance among different generators and                        mark, indicating the profound semantic understanding capabilities
+ different initial retrieval candidate lists. (ii) Answer generation per-                inherent in LLMs, enabling highly effective relevance ranking with-
+ formance: For simple questions, such as those in the NQ dataset,                        out task-specific training. (ii) Our distilled model, RankQwen1.7𝐵 ,
+ relevance ranking (by adjusting various thresholds) demonstrated                        notably surpasses the ChatGPT by 5.5% in terms of nDCG@10
+ no statistically significant difference in optimal answer generation                    on BEIR average. RankQwen1.7𝐵 establishes a new state-of-the-art
+ performance compared to directly using utility-based selection.                         ranker among open source distillation efficient listwise rankers
+ However, for complex questions, exemplified by the HotpotQA                             and highlights the exceptional ranking aptitude of the Qwen3
+ dataset, relevance ranking proved insufficient; utility-based selec-                    backbone upon which RankQwen1.7𝐵 is built. (iii) Discussion on
+ tion was more effective in helping large language models (LLMs)                         Reasoning LLMs for Ranking: Qwen3-series models support an
+ identify document sets pertinent to answering the query. This sub-                      optional reasoning process (thinking) during generation. We con-
+ stantial improvement stems from the inherent requirement of multi-                      ducted relevance ranking annotations under two configurations:
+-hop reasoning: generating an answer often necessitates identifying                      1) Qwen3-32B with reasoning process and 2) Qwen3-32B without
+ a set of complementary passages, i.e., set-based utility-based se-                      reasoning process. For efficiency, we distilled only the final ranking
+ lection, that collectively provide the necessary evidence, which is                     sequences from both configurations into the student ranker, rather
+ beyond relevance. (iii) With a better initial retrieval candidate, such                 than simulating intermediate reasoning steps. Both distilled rankers
+2 https://github.com/OpenAccess-AI-Collective/axolotl                                    3 https://cohere.com/rerank
+SIGIR-AP ’25, December 7–10, 2025, Xi’an, China.                                                                                                           Hengran Zhang et al.
+
+
+Table 1: Selected evidence performance (%) and answer generation performance (%) using relevance ranking (RankQwen1.7𝐵 )
+and utility-based selection (UtilityQwen1.7𝐵 ) models with different generators and different Top-100 retrieval results. † means
+that the performance of answer generation corresponding to the passages selected by Top-𝑘 of RankQwen1.7𝐵 is significantly
+different from that of the passages selected by UtilityQwen1.7𝐵 on the paired t-test (p<0.05). “Llama3.1” and “Qwen2.5” are the
+“Llama-3.1-8B-Instruct” and “Qwen2.5-7B-Insrtuct”, respectively. Underline and Bold indicate the best performance within
+each group and overall.
+                                                                  Retriever: BGE                                                      Retriever: BM25
+                                                      HotpotQA                        NQ                               HotpotQA                             NQ
+   Generator Evidence
+                                              Evidence      Answer         Evidence      Answer              Evidence           Answer         Evidence         Answer
+                                              Micro-F1 EM         F1       Micro-F1 EM          F1           Micro-F1 EM              F1       Micro-F1 EM             F1
+                RankQwen1.7𝐵 (Top-5)          41.70      38.39†   49.68†   28.44      48.03     59.93        38.48           37.81†   48.97†   24.14        45.32      56.61
+                RankQwen1.7𝐵 (Top-10)         34.55      36.92†   48.21†   23.52      47.72†    59.34†       31.84           36.83†   47.91†   19.71        45.01      56.27
+                RankQwen1.7𝐵 (Top-15)         29.93      36.81†   48.08†   20.31      47.72†    59.23†       29.29           36.45†   47.65†   16.87        45.14      56.22
+                RankQwen1.7𝐵 (Top-20)         26.58      36.43†   47.49†   17.97      46.92†    58.30†       24.64           35.84†   46.84†   14.84        44.61      55.35†
+   Llama3.1     RankQwen1.7𝐵 (Top-40)         23.31      35.33†   46.02†   15.67      46.47†    58.16†       20.80           35.69†   46.36†   12.89        43.50      54.27†
+                RankQwen1.7𝐵 (Top-60)         20.67      34.63†   45.29†   13.83      46.12†    57.43†       17.97           34.31†   44.90†   11.35        41.55†     52.39†
+                RankQwen1.7𝐵 (Top-80)         18.55      33.71†   44.29†   12.36      45.35†    56.01†       15.83           33.54†   43.99†   10.13        41.02†     51.90†
+                RankQwen1.7𝐵 (Top-100)        16.83      32.92†   43.62†   11.18      45.59†    56.53†       14.16           32.75†   43.09†    9.15        38.36†     49.57†
+                UtilityQwen1.7𝐵               60.58      41.59    53.56    30.54      49.31     60.86        57.03           39.00    50.57    28.80        45.06      56.83
+                RankQwen1.7𝐵 (Top-5)          41.70      42.13†   53.98†   28.44      48.03     60.17        38.48           39.97†   51.53†   24.14        44.88      56.61
+                RankQwen1.7𝐵 (Top-10)         34.55      42.36†   54.15†   23.52      48.12     60.54        31.84           39.69†   50.98†   19.71        44.97      57.07
+                RankQwen1.7𝐵 (Top-15)         29.93      42.27†   54.00†   20.31      47.85     60.56        29.29           39.32†   50.70†   16.87        44.70      56.85
+                RankQwen1.7𝐵 (Top-20)         26.58      42.21†   53.86†   17.97      47.89     60.55        24.64           39.58†   50.87†   14.84        44.52      56.77
+    Qwen2.5     RankQwen1.7𝐵 (Top-40)         23.31      42.47†   54.25†   15.67      47.01     59.80        20.80           39.43†   50.80†   12.89        44.21      56.46
+                RankQwen1.7𝐵 (Top-60)         20.67      41.61†   53.48†   13.83      47.23     59.55†       17.97           38.76†   49.87†   11.35        43.55      55.69
+                RankQwen1.7𝐵 (Top-80)         18.55      41.22†   52.98†   12.36      46.25†    58.72†       15.83           38.12†   49.14†   10.13        43.10      55.17†
+                RankQwen1.7𝐵 (Top-100)        16.83      40.53†   52.21†   11.18      46.74†    58.95†       14.16           37.42†   48.24†    9.15        42.26†     53.79†
+                UtilityQwen1.7𝐵               60.58      43.59    55.73    30.54      48.07     60.95        57.03           41.00    52.57    28.80        44.61      57.00
+
+Table 2: Results (nDCG@10) (%) on TREC and BEIR. All ranking models re-rank the top-100 BM25 passages. Underline and
+Bold indicate the best performance within each group and overall. ∗ means the results are copied from the original paper.
+ Method                                                   DL19    DL20     Covid NFCorpus Touche DBPedia SciFact Signal News Robust04 Avg
+ BM25∗ [26]                                               50.58   47.96    59.47        30.75        44.22           31.80      67.89      33.05   39.52       40.70        43.42
+ BGE-base-en-v1.5 [40]                                    70.60   71.70    78.10        37.30        25.70           40.70      74.10      28.90   44.20       44.70        51.60
+ monoBERT(340M)∗ [18]                                     70.50   67.28    70.01       36.88         31.75           41.87      71.36      31.44   44.62       49.35        47.16
+ monoT5(220M)∗ [19]                                       71.48   66.99    78.34       37.38         30.82           42.42      73.40      31.67   46.83       51.72        49.07
+ monoT5(3B)∗ [19]                                         71.83   68.89    80.71       38.97         32.41           44.45      76.57      32.55   48.49       56.71        51.36
+ Cohere Rerank-v2∗                                        73.22   67.08    81.81       36.36         32.51           42.51      74.44      29.60   47.59       50.78        49.45
+ UPR(FLAN-T5-XL)∗ [27]                                    53.85   56.02    68.11       35.04         19.69           30.91      72.69      31.91   43.11       42.43        42.99
+ LLM Zero-shot Inference (Permutation generation)
+ ChatGPT∗ [32]                                            65.80   62.91    76.67        35.62        36.18       44.47         70.43       32.12 48.85         50.62 49.37
+ GPT-4∗ [32]                                              75.59   70.56    85.51        38.47        38.57       47.12         74.95       34.40 52.89         57.55 53.68
+ Qwen31.7𝐵                                                60.32   55.83    65.65        33.61        45.47       39.05         64.36       32.53 43.29         40.44 45.55
+ Qwen332𝐵                                                 73.33   70.35    85.48        38.77        32.27       44.97         77.71       32.08 50.67         60.65 52.82
+ LLM Distillation Training
+ RankMistral7𝐵 ∗ [17]                                     71.73   68.07    78.00        33.10        27.46           37.71      66.22      30.04   37.10       39.54        43.65
+ PE-Rank7𝐵 ∗ [17]                                         70.48   63.54    77.72        36.39        33.06           40.05      69.38      33.74   49.70       47.40        48.43
+ RankQwen1.7𝐵 (Teacher: Qwen3-32B 𝑤/ think)               70.89   68.83    85.49        38.82        37.63           41.76      74.31      32.98   48.04       56.93        52.00
+ RankQwen1.7𝐵 (Teacher: Qwen3-32B 𝑤/𝑜 think)              71.36   69.13    83.61        38.19        38.11           42.27      74.64      33.87   48.56       57.64        52.11
+
+achieved better ranking performance compared to other rankers.                        high-performance ranking foundation essential for the subsequent
+The non-reasoning ranking sequences distillation slightly outper-                     in-depth analysis in this work.
+formed the reasoning variant. Based on this efficiency-performance
+tradeoff, all LLMs in this study operate without reasoning processes
+unless explicitly noted. In summary, these results provide a robust,
+Distilling a Small Utility-Based Passage Selector to Enhance Retrieval-Augmented Generation                                        SIGIR-AP ’25, December 7–10, 2025, Xi’an, China.
+
+
+Table 3: Different evidence selection and answer generation performance (%) on the top-100 BM25 retrieval results using
+utility-based selection approach. The generator is the Llama-3.1-8B-Instruct. Bold represents the best performance.
+                                                                                   HotpotQA                                                             NQ
+
+ Model                                                                    Evidence                              Answer                    Evidence                      Answer
+                                                              Recall Precision Micro-F1                         EM       F1 Recall Precision Micro-F1                   EM           F1
+ Qwen3-32B (Teacher Model)                                     71.37           69.29        70.32 42.55 54.63 68.74                           21.50         32.76 46.25 58.74
+ Qwen3-1.7B (Student Model 𝑤/𝑜 Distillation)                   51.68           39.61        44.85 33.09 43.88 61.42                            9.47         16.41 41.91 52.94
+ UtilityQwen1.7𝐵 (Student Model 𝑤/ Distillation)                 58.68         55.47          57.03 39.00 50.57               67.20           18.32         28.80 45.06 56.83
+
+6.2     Impact of Distillation Training                                                                                  Distribution of Selected Passage Count
+                                                                                                                     Average Numbers: 11.31   0.20                Average Numbers: 4.98
+To validate the effectiveness of distillation training, we performed                                   0.08
+
+
+                                                                                        Distribution
+utility-based selection on the top-100 BM25 retrieval results for                                      0.06                                   0.15
+NQ and HotpotQA directly using both the teacher model (Qwen3-                                          0.04                                   0.10
+32B) and the student model (Qwen3-1.7B) without distillation train-                                    0.02                                   0.05
+ing. The experimental results are summarized in Table 3. We ob-                                        0.00 0                                 0.00 0
+serve that the student model fine-tuned via generation distillation                                  25     50     75             25     50    75 100
+                                                                                                      NQ (N=2255)                HotpotQA (N=7405)
+achieves a substantial improvement in both the quality of the se-                         Figure 4: Distribution of selected passage count of
+lected passages list and the answer generation performance.                               UtilityQwen1.7𝐵 on the NQ and HotpotQA datasets with
+Table 4: Different evidence selection and answer genera-                                  BM25 retrieval results. “N” means the query numbers of the
+tion performance (%) on the top-100 BGE retrieval results                                 datasets.
+of the HotpotQA dataset. The generator is the Llama-3.1-
+                                                                                          were then used for downstream answer generation, with results
+8B-Instruct. “Ranking (𝑘)" means the top-𝑘 re-ranked (from
+                                                                                          presented in Table 4. Our key observations are: 1) utility-based se-
+re-ranked top-100 first retrieval results) documents are used
+                                                                                          lection using the teacher model significantly outperforms threshold-
+to answer questions. Underline and Bold indicate the best
+                                                                                          based document selection via relevance ranking in terms of answer
+performance within each group and overall. “F1” in evidence
+                                                                                          generation quality. This further underscores the efficacy of the
+evaluation is “Micro-F1”.
+                                                                                          utility-based approach for evidence selection. 2) The performance
+                                             Evidence               Answer                gap between utility-based selection and relevance ranking observed
+ LLM                Method           Recall Precision F1          EM      F1              with Qwen3-32B is more pronounced than the corresponding gap
+                                                                                          between UtilityQwen1.7𝐵 and RankQwen1.7𝐵 . This suggests that
+                    Ranking (5)   72.97       29.19      41.70    38.39   49.68
+                    Ranking (10) 75.52        22.40      34.55    36.92   48.21           utility-based selection benefits more substantially from stronger
+                    Ranking (15) 77.46        18.55      29.93    36.81   48.08           LLM backbones, indicating its greater potential for improvement
+                    Ranking (20) 78.83        15.98      26.58    36.43   47.49           in RAG applications compared to traditional ranking methods.
+ RankQwen1.7𝐵       Ranking (40) 80.09        13.64      23.31    35.33   46.02
+                    Ranking (60) 81.10        11.84      20.67    34.63   45.29           6.4              Statistics of Utility-Based Selection
+                    Ranking (80) 81.91        10.46      18.55    33.71   44.29
+                    Ranking (100) 82.55        9.37      16.83    32.92   43.62           Figure 4 shows the distribution of passage counts selected as useful
+                                                                                          by UtilityQwen1.7𝐵 from the top-100 BM25 results. UtilityQwen1.7𝐵
+                    Ranking (5)   80.91       32.36      46.24    40.12   52.03           selects a varying number of useful passages across different queries,
+                    Ranking (10) 82.10        24.51      37.75    39.07   50.70
+                                                                                          with significantly more passages chosen for NQ queries.
+                    Ranking (15) 82.83        20.09      32.33    38.26   49.61
+                    Ranking (20) 83.31        17.18      28.49    38.07   49.39
+                                                                                             We further analyze the distribution of selected passage ranks
+ Qwen3-32B          Ranking (40) 83.85        14.61      24.88    37.16   48.44           from the initial retrieval, as shown in Figure 5. Key observations
+                    Ranking (60) 84.30        12.65      22.00    36.15   47.12           include: (1) Our utility-based selection approach retrieves passages
+                    Ranking (80) 84.67        11.16      19.71    34.83   45.86           across diverse initial ranks, indicating that useful passages may
+                    Ranking (100) 84.96        9.98      17.86    34.17   45.24           appear at varying positions. This suggests that a fixed threshold
+ UtilityQwen1.7𝐵 Selection           63.73 57.73         60.58 41.59 53.56                may be suboptimal for handling different queries. (2) The average
+ Qwen3-32B       Selection           78.56 72.18         75.24 46.39 59.20                rank of selected passages is smaller with BGE than with BM25,
+                                                                                          implying that improved initial ranking (e.g., via BGE) positions
+                                                                                          utility passages closer to the top.
+6.3     Impact of LLM Backbone
+To evaluate the performance ceiling of relevance ranking versus                           6.5              Inference Efficiency
+utility-based selection in our experimental setup, we directly em-                        Inference efficiency of large language models (LLMs) is a critical
+ployed the teacher model (Qwen3-32B) to perform both relevance                            practical consideration in RAG deployments. Even after distilling
+ranking and utility-based selection on the top-100 BGE-base-en-                           the ranking or selection capabilities from a 32B model to a 1.7B
+v1.5 retrieval results for HotpotQA. The selected document sets                           model, the inference latency remains significantly higher than that
+  SIGIR-AP ’25, December 7–10, 2025, Xi’an, China.                                                                                               Hengran Zhang et al.
+
+
+                                                Distribution of Selected Passage Rank in Initial Retrieval
+                        Average Rank: 39.67                Average Rank: 34.49 0.04       Average Rank: 38.07                                Average Rank: 31.59
+               0.03                            0.06                                                                     0.08
+                                                                               0.03
+
+Distribution
+                                                                                                                        0.06
+               0.02                            0.04                            0.02                                     0.04
+               0.01                            0.02                            0.01                                     0.02
+               0.00 0      50            100 0.00 0               50       100 0.00 0             50                100 0.00 0                50       100
+                        NQ(BM25)                            HotpotQA(BM25)                      NQ(BGE)                                  HotpotQA(BGE)
+  Figure 5: Distribution of selected passage rank in initial retrieval of UtilityQwen1.7𝐵 on the NQ and HotpotQA datasets with
+  initial BM25/BGE retrieval results.
+  Table 5: Analysis of inference efficiency on the HotpotQA                     essential for complex QA tasks (e.g., HotpotQA), where synthesiz-
+  datasets with Top-100 BGE retrieval results. “Avg.win_num”                    ing information across multiple documents is paramount. (3) Our
+  represents the average number of windows for each query                       distilled model employs a front-to-back sliding window strategy
+  during the sliding window process. For fair comparison, all                   to adaptively select minimal high-utility passage sets from large-
+  the experiments are conducted on eight NVIDIA A800 80GB                       scale candidates (top-100), dynamically skipping low-utility regions.
+  GPUs. The generator is the Llama-3.1-8B-Instruct.                             Adaptive selection yields higher-quality answers with fewer pas-
+        Method                      Avg.win_num            Time    Answer-F1    sages, accelerating inference. This reduces computational costs by
+                                                                                70% while improving answer quality. Additionally, we will release
+        Qwen3-32B (Ranking)                          9.0   23.3h       52.03
+                                                                                the Qwen3-32B relevance ranking and utility-based selection anno-
+        Qwen3-32B (Selection)                        6.1    6.9h       59.20
+                                                                                tations for the 100k MS MARCO dataset, providing a high-quality
+        RankQwen1.7𝐵                                 9.0   11.2h       49.68
+                                                                                dataset for future research in relevance ranking and utility-based
+        UtilityQwen1.7𝐵                              6.4    3.4h       53.36
+                                                                                selection. For future work, extending utility distillation to tasks
+                                                                                beyond QA (e.g., summarization, fact verification) is promising in
+  of a 110M cross-encoder model. Therefore, we conducted a compar-
+                                                                                the future.
+  ative analysis of the inference efficiency between RankQwen1.7𝐵
+  and UtilityQwen1.7𝐵 . As shown in the Table 5, we can observe that:
+  (1) Distillation necessity: Qwen3-32B incurs significantly higher              Acknowledgments
+  costs than Qwen3-1.7B, underscoring the importance of distillation             This work was funded by the National Natural Science Founda-
+  for practical deployment. (2) Efficiency of utility-based selection:           tion of China (NSFC) under Grant No. 62302486, the Innovation
+  This approach significantly reduces context window consumption                 Funding of ICT CAS under Grant No. E361140, the CAS Special
+  and achieves approximately 30% lower inference latency than rele-              Research Assistant Funding Project, the project under Grants No.
+  vance ranking. Notably, even Qwen3-32B for utility-based selection             JCKY2022130C039, the Strategic Priority Research Program of the
+  requires less computational cost than RankQwen1.7𝐵 . Furthermore,              CAS under Grants No. XDB0680102, and the NSFC Grant No. 62441229.
+  utility-based selection demonstrates more stable performance com-
+  pared to the relevance ranking approach.
+                                                                                 References
+                                                                                 [1] Payal Bajaj, Daniel Campos, Nick Craswell, Li Deng, Jianfeng Gao, Xiaodong Liu,
+  7             Conclusion                                                           Rangan Majumder, Andrew McNamara, Bhaskar Mitra, Tri Nguyen, et al. 2016.
+  Retrieval-augmented generation (RAG) demands a paradigm shift                      Ms marco: A human generated machine reading comprehension dataset. arXiv
+                                                                                     preprint arXiv:1611.09268 (2016).
+  from relevance to utility—where passages are valued not merely                 [2] Alexander Bondarenko, Maik Fröbe, Meriem Beloucif, Lukas Gienapp, Yamen
+  for topical alignment but for their usefulness to enable complete,                 Ajjour, Alexander Panchenko, Chris Biemann, Benno Stein, Henning Wachsmuth,
+                                                                                     Martin Potthast, et al. 2020. Overview of Touché 2020: argument retrieval.
+  accurate answers. Utility-based RAG faces a critical scalability bot-              In Experimental IR Meets Multilinguality, Multimodality, and Interaction: 11th
+  tleneck: the high cost of using LLMs for utility judgments limits                  International Conference of the CLEF Association, CLEF 2020, Thessaloniki, Greece,
+  practical deployment to ∼20 passages per query, significantly hin-                 September 22–25, 2020, Proceedings 11. Springer, 384–395.
+                                                                                 [3] Vera Boteva, Demian Gholipour, Artem Sokolov, and Stefan Riezler. 2016. A
+  dering performance over large-scale passages. Since ranking re-                    full-text learning to rank dataset for medical information retrieval. In Advances in
+  quires a fixed strategy to determine passage count, we propose                     Information Retrieval: 38th European Conference on IR Research, ECIR 2016, Padua,
+  distilling the utility-based selection capability from larger models               Italy, March 20–23, 2016. Proceedings 38. Springer, 716–722.
+                                                                                 [4] Chris Burges, Tal Shaked, Erin Renshaw, Ari Lazier, Matt Deeds, Nicole Hamilton,
+  into smaller, efficient models. Key contributions and findings: (1)                and Greg Hullender. 2005. Learning to rank using gradient descent. In Proceedings
+  We propose a novel utility-based selection distillation method that                of the 22nd international conference on Machine learning. 89–96.
+                                                                                 [5] Zhe Cao, Tao Qin, Tie-Yan Liu, Ming-Feng Tsai, and Hang Li. 2007. Learning
+  trains efficient student models (e.g., Qwen3-1.7B) to jointly learn                to rank: from pairwise approach to listwise approach. In Proceedings of the 24th
+  pseudo-answer generation and utility assessment from teacher                       international conference on Machine learning. 129–136.
+  LLMs (Qwen3-32B). This bypasses the need for direct LLM infer-                 [6] Arman Cohan, Sergey Feldman, Iz Beltagy, Doug Downey, and Daniel S Weld.
+                                                                                     2020. SPECTER: Document-level representation learning using citation-informed
+  ence during deployment. (2) We empirically validate that utility-                  transformers. In 58th Annual Meeting of the Association for Computational Lin-
+  driven passage selection (unlike traditional relevance ranking) is                 guistics, ACL 2020. Association for Computational Linguistics (ACL), 2270–2282.
+Distilling a Small Utility-Based Passage Selector to Enhance Retrieval-Augmented Generation                                  SIGIR-AP ’25, December 7–10, 2025, Xi’an, China.
+
+
+ [7] Nick Craswell1, Bhaskar Mitra1, Emine Yilmaz2, Daniel Campos1, and Ellen M.               3, 4 (2009), 333–389.
+     Voorhees3. 2019. OVERVIEW OF THE TREC 2019 DEEP LEARNING TRACK.                      [27] Devendra Singh Sachan, Mike Lewis, Mandar Joshi, Armen Aghajanyan, Wen-tau
+     https://trec.nist.gov/pubs/trec28/papers/OVERVIEW.DL.pdf (2019).                          Yih, Joelle Pineau, and Luke Zettlemoyer. 2022. Improving passage retrieval with
+ [8] Abhimanyu Dubey, Abhinav Jauhri, Abhinav Pandey, Abhishek Kadian, Ahmad                   zero-shot question generation. arXiv preprint arXiv:2204.07496 (2022).
+     Al-Dahle, Aiesha Letman, Akhil Mathur, Alan Schelten, Amy Yang, Angela Fan,          [28] Tefko Saracevic, Paul Kantor, Alice Y Chamis, and Donna Trivison. 1988. A
+     et al. 2024. The llama 3 herd of models. arXiv e-prints (2024), arXiv–2407.               study of information seeking and retrieving. I. Background and methodol-
+ [9] Luyu Gao, Zhuyun Dai, and Jamie Callan. 2021. Rethink training of BERT                    ogy. Journal of the American Society for Information science 39, 3 (1988),
+     rerankers in multi-stage retrieval pipeline. In Advances in Information Retrieval:        161–176. https://www.researchgate.net/publication/245088184_A_Study_in_
+     43rd European Conference on IR Research, ECIR 2021, Virtual Event, March 28–April         Information_Seeking_and_Retrieving_I_Background_and_Methodology
+     1, 2021, Proceedings, Part II 43. Springer, 280–286.                                 [29] Linda Schamber and Michael Eisenberg. 1988. Relevance: The Search for a
+[10] Jiafeng Guo, Yixing Fan, Xiang Ji, and Xueqi Cheng. 2019. Matchzoo: A learning,           Definition. (1988).
+     practicing, and developing system for neural text matching. In Proceedings of        [30] Weijia Shi, Sewon Min, Michihiro Yasunaga, Minjoon Seo, Rich James, Mike
+     the 42Nd international ACM SIGIR conference on research and development in                Lewis, Luke Zettlemoyer, and Wen-tau Yih. 2023. Replug: Retrieval-augmented
+     information retrieval. 1297–1300.                                                         black-box language models. arXiv preprint arXiv:2301.12652 (2023).
+[11] Faegheh Hasibi, Fedor Nikolaev, Chenyan Xiong, Krisztian Balog, Svein Erik           [31] Ian Soboroff, Shudong Huang, and Donna Harman. 2019. TREC 2019 News Track
+     Bratsberg, Alexander Kotov, and Jamie Callan. 2017. DBpedia-entity v2: a test             Overview. In TREC. 4, 18 (2019).
+     collection for entity search. In Proceedings of the 40th international ACM SIGIR     [32] Weiwei Sun, Lingyong Yan, Xinyu Ma, Shuaiqiang Wang, Pengjie Ren, Zhumin
+     conference on research and development in information retrieval. 1265–1268.               Chen, Dawei Yin, and Zhaochun Ren. 2023. Is ChatGPT good at search? investigat-
+[12] Gautier Izacard, Patrick Lewis, Maria Lomeli, Lucas Hosseini, Fabio Petroni,              ing large language models as re-ranking agents. arXiv preprint arXiv:2304.09542
+     Timo Schick, Jane Dwivedi-Yu, Armand Joulin, Sebastian Riedel, and Edouard                (2023).
+     Grave. 2023. Atlas: Few-shot learning with retrieval augmented language models.      [33] Qwen Team. 2024. Qwen2.5: A Party of Foundation Models. https://qwenlm.
+     Journal of Machine Learning Research 24, 251 (2023), 1–43.                                github.io/blog/qwen2.5/
+[13] Neel Jain, Ping-yeh Chiang, Yuxin Wen, John Kirchenbauer, Hong-Min Chu,              [34] Qwen Team. 2025. Qwen3 Technical Report. arXiv:2505.09388 [cs.CL] https:
+     Gowthami Somepalli, Brian R Bartoldson, Bhavya Kailkhura, Avi Schwarzschild,              //arxiv.org/abs/2505.09388
+     Aniruddha Saha, et al. 2023. Neftune: Noisy embeddings improve instruction           [35] Nandan Thakur, Nils Reimers, Andreas Rücklé, Abhishek Srivastava, and Iryna
+     finetuning. arXiv preprint arXiv:2310.05914 (2023).                                       Gurevych. 2021. Beir: A heterogenous benchmark for zero-shot evaluation of
+[14] Zixuan Ke, Weize Kong, Cheng Li, Mingyang Zhang, Qiaozhu Mei, and Michael                 information retrieval models. arXiv preprint arXiv:2104.08663 (2021).
+     Bendersky. 2024. Bridging the preference gap between retrievers and llms. arXiv      [36] Ellen Voorhees. 2005. Overview of the TREC 2004 Robust Retrieval Track. (2005).
+     preprint arXiv:2401.06954 (2024).                                                    [37] Ellen Voorhees, Tasmeer Alam, Steven Bedrick, Dina Demner-Fushman,
+[15] Tom Kwiatkowski, Jennimaria Palomaki, Olivia Redfield, Michael Collins, Ankur             William R Hersh, Kyle Lo, Kirk Roberts, Ian Soboroff, and Lucy Lu Wang. 2021.
+     Parikh, Chris Alberti, Danielle Epstein, Illia Polosukhin, Jacob Devlin, Kenton           TREC-COVID: constructing a pandemic information retrieval test collection. In
+     Lee, et al. 2019. Natural questions: a benchmark for question answering research.         ACM SIGIR Forum, Vol. 54. ACM New York, NY, USA, 1–12.
+     Transactions of the Association for Computational Linguistics 7 (2019), 453–466.     [38] David Wadden, Shanchuan Lin, Kyle Lo, Lucy Lu Wang, Madeleine van Zuylen,
+[16] Jimmy Lin, Xueguang Ma, Sheng-Chieh Lin, Jheng-Hong Yang, Ronak Pradeep,                  Arman Cohan, and Hannaneh Hajishirzi. 2020. Fact or fiction: Verifying scientific
+     and Rodrigo Nogueira. 2021. Pyserini: A Python Toolkit for Reproducible Informa-          claims. arXiv preprint arXiv:2004.14974 (2020).
+     tion Retrieval Research with Sparse and Dense Representations. In Proceedings of     [39] Xuanhui Wang, Cheng Li, Nadav Golbandi, Michael Bendersky, and Marc Najork.
+     the 44th Annual International ACM SIGIR Conference on Research and Development            2018. The lambdaloss framework for ranking metric optimization. In Proceedings
+     in Information Retrieval (SIGIR 2021). 2356–2362.                                         of the 27th ACM international conference on information and knowledge manage-
+[17] Qi Liu, Bo Wang, Nan Wang, and Jiaxin Mao. 2025. Leveraging passage embed-                ment. 1313–1322.
+     dings for efficient listwise reranking with large language models. In Proceedings    [40] Shitao Xiao, Zheng Liu, Peitian Zhang, and Niklas Muennighoff. 2023.
+     of the ACM on Web Conference 2025. 4274–4283.                                             C-Pack: Packaged Resources To Advance General Chinese Embedding.
+[18] Rodrigo Nogueira and Kyunghyun Cho. 2019. Passage Re-ranking with BERT.                   arXiv:2309.07597 [cs.CL]
+     arXiv preprint arXiv:1901.04085 (2019).                                              [41] Zhilin Yang, Peng Qi, Saizheng Zhang, Yoshua Bengio, William Cohen, Ruslan
+[19] Rodrigo Nogueira, Zhiying Jiang, and Jimmy Lin. 2020. Document ranking with a             Salakhutdinov, and Christopher D Manning. 2018. HotpotQA: A Dataset for
+     pretrained sequence-to-sequence model. arXiv preprint arXiv:2003.06713 (2020).            Diverse, Explainable Multi-hop Question Answering. In Proceedings of the 2018
+[20] Rodrigo Nogueira, Wei Yang, Kyunghyun Cho, and Jimmy Lin. 2019. Multi-stage               Conference on Empirical Methods in Natural Language Processing. 2369–2380.
+     document ranking with BERT. arXiv preprint arXiv:1910.14424 (2019).                  [42] Hengran Zhang, Keping Bi, Jiafeng Guo, and Xueqi Cheng. 2024. Iterative Utility
+[21] Ronak Pradeep, Rodrigo Nogueira, and Jimmy Lin. 2021. The expando-mono-duo                Judgment Framework via LLMs Inspired by Relevance in Philosophy. arXiv
+     design pattern for text ranking with pretrained sequence-to-sequence models.              preprint arXiv:2406.11290 (2024).
+     arXiv preprint arXiv:2101.05667 (2021).                                              [43] Hengran Zhang, Minghao Tang, Keping Bi, Jiafeng Guo, Shihao Liu, Daiting
+[22] Ronak Pradeep, Sahel Sharifymoghaddam, and Jimmy Lin. 2023. Rankvicuna:                   Shi, Dawei Yin, and Xueqi Cheng. 2025. Leveraging LLMs for Utility-Focused
+     Zero-shot listwise document reranking with open-source large language models.             Annotation: Reducing Manual Effort for Retrieval and RAG. arXiv preprint
+     arXiv preprint arXiv:2309.15088 (2023).                                                   arXiv:2504.05220 (2025).
+[23] Ronak Pradeep, Sahel Sharifymoghaddam, and Jimmy Lin. 2023. RankZephyr:              [44] Hengran Zhang, Ruqing Zhang, Jiafeng Guo, Maarten de Rijke, Yixing Fan, and
+     Effective and Robust Zero-Shot Listwise Reranking is a Breeze! arXiv preprint             Xueqi Cheng. 2024. Are Large Language Models Good at Utility Judgments?.
+     arXiv:2312.02724 (2023).                                                                  In Proceedings of the 47th International ACM SIGIR Conference on Research and
+[24] Revanth Gangi Reddy, JaeHyeok Doo, Yifei Xu, Md Arafat Sultan, Deevya Swain,              Development in Information Retrieval. 1941–1951.
+     Avirup Sil, and Heng Ji. 2024. FIRST: Faster Improved Listwise Reranking with        [45] Honglei Zhuang, Zhen Qin, Rolf Jagerman, Kai Hui, Ji Ma, Jing Lu, Jianmo Ni,
+     Single Token Decoding. arXiv preprint arXiv:2406.15657 (2024).                            Xuanhui Wang, and Michael Bendersky. 2023. Rankt5: Fine-tuning t5 for text
+[25] Ruiyang Ren, Yuhao Wang, Kun Zhou, Wayne Xin Zhao, Wenjie Wang, Jing                      ranking with ranking losses. In Proceedings of the 46th International ACM SIGIR
+     Liu, Ji-Rong Wen, and Tat-Seng Chua. 2025. Self-calibrated listwise reranking             Conference on Research and Development in Information Retrieval. 2308–2313.
+     with large language models. In Proceedings of the ACM on Web Conference 2025.
+     3692–3701.                                                                           Received 20 February 2007; revised 12 March 2009; accepted 5 June 2009
+[26] Stephen Robertson, Hugo Zaragoza, et al. 2009. The probabilistic relevance
+     framework: BM25 and beyond. Foundations and Trends® in Information Retrieval
+

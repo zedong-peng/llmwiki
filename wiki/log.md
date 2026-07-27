@@ -3,11 +3,36 @@ title: Super Personal Wiki Log
 domain: root
 type: timeline
 status: active
-updated: 2026-07-17
+updated: 2026-07-24
 tags: [log]
 ---
 
 # Super Personal Wiki Log
+
+## [2026-07-24] research | Audited the Towards FPGA-backbone research idea
+
+- Ran the Microsoft ResearchStudio `idea-spark` workflow through literature retrieval, bottleneck identification, two candidate generations, coherence checks, collision retrieval, critique, revision, and falsification re-audit; the terminal result emitted no reviewer-defensible idea card.
+- Confirmed that native GGML integration, strict no-fallback semantics and evidence closure are necessary engineering foundations but insufficient as the load-bearing mechanism of a strong systems paper while the U280 path remains 228.5x/12.54x slower than matched CPU prefill/decode.
+- Rejected an asynchronous receipt-epoch candidate because XRT dependency/fault progress and canonical KV alias semantics were unconstructed; narrowed a second RegionSeal candidate to one pure, single-output region using the backend's existing same-group residency mirror publication.
+- Kept RegionSeal as an unselected engineering hypothesis after the final audit found ordinary effect-aware fusion overlap and a non-executable pre-synthesis falsification gate.
+- Added `towards-idea-audit-2026-07.md` with a calibrated region-shell go/no-go plan, orthogonal controls, statistical requirements, stop conditions and a publication claim ladder.
+
+## [2026-07-24] research | Materialized the FPGA LLM Related Work paper library
+
+- Added `wiki/research/fpga-llm-inference/papers/` with one directory and seed note per each of the 68 papers cited in the manuscript's Related Work.
+- Cached 48 publicly accessible full-paper PDFs from arXiv, author pages, NSF Public Access, and university sites; validated PDF signatures, page counts, first-page titles, and SHA-256 hashes.
+- Kept 20 paywalled or otherwise unverified entries as explicit metadata-only records instead of storing access-denied HTML or untrusted reposts; retained the GLITCHES author presentation as a clearly labeled supplement.
+- Added a 68-entry BibTeX subset, machine-readable manifest, checksums, download provenance, and navigation from the FPGA LLM area.
+- Corrected the GLITCHES author list to include Yu Wang using the public paper and Crossref record, then rebuilt the private manuscript PDF without citation or layout warnings.
+
+## [2026-07-23] research | Built FPGA LLM inference background and end-to-end comparison base
+
+- Added `wiki/research/fpga-llm-inference/` as an indexed research area covering inference foundations, FPGA mapping families, the system landscape, project status, and a strict end-to-end evaluation protocol.
+- Used Microsoft ResearchStudio `paper-search`, exact-title DBLP/DOI checks, and public arXiv full text to verify the core line from DFX and FlightLLM through Spatial LLM, EdgeLLM, StreamTensor, CODO, TeLLMe, and FAST-Prefill; recorded connector failures and search provenance.
+- Inspected the official `sjtu-zhao-lab/codo-artifact` repository and arXiv `2604.12618`; preserved CODO's exact GPT-2 TTFT/decode table, audited its single-block/output/clock artifact boundary, and recorded the `[64:64]` latency-formula discrepancy instead of silently normalizing it.
+- Synthesized the private `Towards a General FPGA Backbone for LLM Inference` draft by metadata and aggregate evidence only, without copying the manuscript or raw private repositories.
+- Expanded that draft's Related Work to six FPGA LLM categories, 69 verified bibliography entries, and a 13-system feature matrix that explicitly records the backend's missing multi-model, compiler, coarse-fusion, and power evidence; rebuilt the 20-page PDF without citation or layout warnings.
+- Identified fine-grained synchronous XRT execution as the immediate systems bottleneck and reframed the next step as contract-preserving GGML graph-region/block fusion rather than isolated `MUL_MAT` optimization.
 
 ## [2026-07-17] repo | Split the DLM research base into a private subrepository
 
@@ -298,3 +323,10 @@ tags: [log]
 - Moved the linear-attention paper set from `wiki/research/misc/papers/` into `wiki/research/linear-attention/papers/`, preserving each paper directory's PDFs, source trees, metadata, and repos.
 - Moved the two linear-attention research threads and their local benchmark figures into `wiki/research/linear-attention/threads/`.
 - Updated root and research indexes so the new area is reachable, and removed the migrated entries from `misc` navigation.
+
+## [2026-07-27] ingest | Normalized lazymem-related-work corpus into agent-memory structure
+
+- Kept `wiki/research/agent-memory/papers/lazymem-related-work/` as a frozen 45-PDF corpus (SHA256SUMS untouched) and added a wiki-conformant `index.md` (type: synthesis) summarizing the novelty audit, ResearchStudio rerun, and corpus catalog.
+- Created 31 new `stub` paper pages under `wiki/research/agent-memory/papers/` for corpus papers previously absent from the wiki, each linking the corpus-local PDF/text: benchmarks (memtrace-2026, memops-2026, rumba-2026, budgeted-context-restoration-2026, memaudit-2026), architectures (engram-2025, hingemem-2026, prism-memory-2026, gravity-2026), raw-retrieval (smartsearch-2026, agentir-2026, lexical-dense-fusion-2026, back-to-basics-2026, selroute-2026, evimem-2026, tiermem-2026, fidelity-before-structure-2026, event-memory-baseline-2025, defermem-2026, mgretrieval-2026, eywa-2026, convmemory-2026, ear-2026, training-free-control-2026, recursive-language-models-2025), IR foundations (dpr-2020, colbert-2020, splade-v2-2021, beir-2021), query transformation (query2doc-2023), adaptive retrieval (flare-2023).
+- Named `prism-memory-2026` to avoid collision with the existing `prism-2025` (same name, different paper); cross-linked both pages. Cross-linked beir-2021 and recursive-language-models-2025 stubs to their fuller notes under `research/misc/papers/`.
+- Updated `wiki/research/agent-memory/index.md`: new "Corpora & Syntheses" entry, new "Raw-History Retrieval & Adaptive Routing (LazyMem Corpus)" and "IR Foundations" sections, and rows for the new benchmark/architecture/query/adaptive papers.

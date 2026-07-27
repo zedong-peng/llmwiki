@@ -1,0 +1,823 @@
+                                                                         A Simple Yet Strong Baseline for
+                                                                 Long-Term Conversational Memory of LLM Agents
+
+
+                                                                                           Sizhe Zhou 1 Jiawei Han 1
+
+
+                                                                    Abstract                               1. Introduction
+                                                 LLM-based conversational agents still struggle to         Large Language Models (LLMs) have demonstrated impres-
+
+
+
+
+arXiv:2511.17208v2 [cs.CL] 11 Dec 2025
+                                                 maintain coherent, personalized interaction over          sive conversational abilities, but their fixed context windows
+                                                 many sessions: fixed context windows limit how            severely limit long-term coherence and personalization in
+                                                 much history can be kept in view, and most exter-         extended interactions. Even in so–called long-context vari-
+                                                 nal memory approaches trade off between coarse            ants, performance can degrade sharply (Liu et al., 2024) and
+                                                 retrieval over large chunks and fine-grained but          the LLMs can struggle to faithfully recall information that is
+                                                 fragmented views of the dialogue. Motivated by            many sessions old (Maharana et al., 2024; Wu et al., 2025a).
+                                                 neo-Davidsonian event semantics, we propose an            Meanwhile, naively concatenating entire multi-session his-
+                                                 event-centric alternative that represents conver-         tories into the prompt is computationally expensive and still
+                                                 sational history as short, event-like propositions        bounded by a finite context window.
+                                                 which bundle together participants, temporal cues,
+                                                 and minimal local context, rather than as inde-           A natural solution is to maintain an external store of dialogue
+                                                 pendent relation triples or opaque summaries. In          history and retrieve relevant content. However, retrieval at
+                                                 contrast to work that aggressively compresses or          the granularity of entire sessions or whole rounds often fails
+                                                 forgets past content, our design aims to preserve         to recall fine-grained details while retrieval of turns fails
+                                                 information in a non-compressive form and make            to recover the larger context. Other approaches compress
+                                                 it more accessible, rather than more lossy. Con-          conversation histories into summaries or distilled “facts”
+                                                 cretely, we instruct an LLM to decompose each             before indexing (Chhikara et al., 2025; Kim et al., 2025;
+                                                 session into enriched elementary discourse units          Huang et al., 2025; Fang et al., 2025), which improves
+                                                 (EDUs)—self-contained statements with normal-             efficiency but inevitably discards information. For long-
+                                                 ized entities and source turn attributions—and            term conversational memory—where queries may refer back
+                                                 organize sessions, EDUs, and their arguments in           to seemingly minor details many sessions ago—such lossy
+                                                 a heterogeneous graph that supports associative           compression is risky.
+                                                 recall. On top of this representation we build            To address these issues, recent research has drawn on cog-
+                                                 two simple retrieval-based variants that use dense        nitive science and structured knowledge representations.
+                                                 similarity search and LLM filtering, with an op-          Cognitively-inspired architectures (Nan et al., 2025; Xu
+                                                 tional graph-based propagation step to connect            et al., 2025; Fang et al., 2025; Li et al., 2025) organize
+                                                 and aggregate evidence across related EDUs. Ex-           memory into episodic and semantic stores, employ multi-
+                                                 periments on the LoCoMo and LongMemEvalS                  stage consolidation, or treat memory as a managed system
+                                                 benchmarks show that these event-centric mem-             resource. In parallel, graph-based systems (Gutiérrez et al.,
+                                                 ories match or surpass strong baselines, while            2024; Gutiérrez et al., 2025; Rasmussen et al., 2025; Wu
+                                                 operating with much shorter QA contexts. Our              et al., 2025b; Wang et al., 2025; Chhikara et al., 2025) rep-
+                                                 results suggest that structurally simple, event-          resent memories as networks of entities, relations, and text
+                                                 level memory provides a principled and practi-            chunks, and perform graph search to support associative re-
+                                                 cal foundation for long-horizon conversational            call. These approaches highlight the importance of structure,
+                                                 agents. Our code and data will be released at             yet most use entity–relation triples or coarse chunks as basic
+                                                 https://github.com/KevinSRR/EMem.                         units, which fragments or coarsens the original discourse: a
+                                                                                                           single utterance may be split into disconnected triples, while
+                                             1
+                                             University of Illinois Urbana-Champaign. Correspon-           large chunks mix unrelated information.
+                                         dence to: Sizhe Zhou <sizhez@illinois.edu>, Jiawei Han
+                                         <hanj@illinois.edu>.                                              Our starting point is the observation from neo-Davidsonian
+                                                                                                           event semantics that the meaning of a sentence is often best
+                                         Copyright 2025 by the author(s).
+
+                                                                                                       1
+                     A Simple Yet Strong Baseline for Long-Term Conversational Memory of LLM Agents
+
+represented as an event with multiple arguments, rather than                grounded in neo-Davidsonian event semantics.
+as a collection of independent binary relations (Davidson,               2. We propose two retrieval variants: EMem-G, which
+1967; Parsons, 1990). Inspired by this view, we model                       combines dense retrieval, LLM-based relevance filter-
+long-term conversational memory at the level of event-like                  ing, and graph propagation via PPR; and EMem, a
+elementary discourse units (EDUs). Instead of taking raw                    lightweight dense-retrieval+filter baseline that avoids
+clauses, we instruct an LLM to rewrite each session into a set              graph computation while retaining strong performance.
+of enriched EDUs. Unlike traditional EDUs from discourse                 3. We empirically demonstrate that these simple de-
+parsing, our EDUs are short event-style statements that may                 signs form competitive baselines on LoCoMo and
+span multiple utterances, enrich the text with normalized                   LongMemEvalS .
+entities and minimal context information, and sometimes
+include lightly inferred information so that each EDU is               2. Related Work
+as self-contained and precise as possible.1 Together, these
+EDUs recover the information conveyed by the original ses-             2.1. Memory Architectures for LLM Agents
+sion while making each atomic event explicit and maximally
+                                                                       Cognitively-inspired memory systems such as Nemori (Nan
+self-complete. We also attach turn-level source attributions
+                                                                       et al., 2025), LightMem (Fang et al., 2025), LiCoMem-
+to support downstream agentic behaviors to connect to larger
+                                                                       ory (Huang et al., 2025), and A-Mem (Xu et al., 2025) seek
+and nuanced conversation contexts.
+                                                                       to emulate human memory processes by organizing inter-
+We then organize all sessions, EDUs, and extracted argu-               actions into episodes, applying multi-stage consolidation,
+ments from EDUs into an event-centric memory graph to                  and dynamically restructuring memories. Many of these
+support associative recall and dense-sparse integration that           frameworks perform explicit compression or abstraction—
+are difficult to realize with flat retrieval over independent          through clustering, summarization, or note-taking—to main-
+chunks. At query time, conversational questions often refer            tain a compact store, which improves efficiency but can drop
+to unnamed or generic entities (“my pet”, “that confer-                fine-grained details. PREMem (Kim et al., 2025) moves
+ence”), so we perform entity and concept mention detection             part of the reasoning to the write phase, storing enriched
+on the query and retrieve both EDUs and argument nodes in              memory fragments that encode inferred relations across
+embedding space, using mentions as anchors into the graph              sessions. System-level frameworks like MemOS (Li et al.,
+rather than relying solely on exact entity strings. Because            2025) and Mem0 (Chhikara et al., 2025) treat memory as
+similarity scores and fixed thresholds alone are brittle in this       an operating system primitive or services layer, focusing
+setting, we employ lightweight LLM-based relevance filters             on scalable storage and retrieval and often combining sum-
+over both EDUs and arguments, designed to favor recall,                marization with fact extraction. In contrast, our approach
+and use the resulting scores to define query-specific seed             intentionally avoids lossy compression: we aim at memory
+weights on the graph. The full model, EMem-G, applies                  representations that preserve all the original information
+a Personalized PageRank step from these seeds to propa-                and we rely on event-centric structure plus inference-time
+gate relevance over EDU and argument nodes and select                  efforts to manage relevance and satisfy information seeking
+a small set of graph-consistent EDUs for augmenting the                requests.
+QA model, thereby capturing indirect associations across
+sessions. The lightweight variant, EMem, omits the graph               2.2. Structured and Graph-Based Memory
+and argument components and instead uses dense retrieval
+over EDUs followed by the same recall-oriented LLM filter,             Graph-based approaches have emerged as a powerful way
+providing an efficient, conceptually simple baseline that still        to endow LLMs with associative recall. HippoRAG and
+benefits from the event-centric representation. In summary,            HippoRAG 2 (Gutiérrez et al., 2024; Gutiérrez et al., 2025)
+our contributions are:                                                 build graphs over entities and passages and use personalized
+                                                                       PageRank to retrieve multi-hop evidence. Zep (Rasmussen
+  1. We introduce an event-centric conversational memory               et al., 2025) and Mem0’s graph extension (Chhikara et al.,
+     representation based on EDUs and a heterogeneous                  2025) maintain temporal knowledge graphs as a memory
+     graph linking sessions, EDUs, and argument nodes,                 layer for agents, while ComoRAG (Wang et al., 2025) or-
+    1
+      For example, from a dialogue about a trip to Tokyo we de-        ganizes long narratives into cognitively-inspired memory
+rive EDUs such as “Bob traveled to Tokyo for five days to attend       structures for iterative RAG. SGMem (Wu et al., 2025b)
+the Global AI Innovation Symposium 2024 in March 2024” and             represents dialogue as sentence-level graphs, connecting
+“Bob presented his team’s multimodal learning work at the Global       sentences within and across sessions. Our work is closest
+AI Innovation Symposium 2024.”. Here the entity mentions are           in spirit to HippoRAG 2 and SGMem but differs in two key
+normalized, and the timestamp is inferred based on the session
+timestamp. Note that the “event” concept also covers the expres-       aspects: (i) we adopt an event-centric representation rooted
+sion of triple-style facts or knowledge.                               in neo-Davidsonian semantics (Davidson, 1967; Parsons,
+                                                                       1990), where enriched EDUs—rather than triples or raw
+
+                                                                   2
+                        A Simple Yet Strong Baseline for Long-Term Conversational Memory of LLM Agents
+
+
+ Offline Indexing
+                                                                                                                    1 EDU extraction
+            1                     2                   3                                4
+                                                                                                                    2 Event extraction
+                                                                                                                    3 Synonym detection
+Conversations     Elementary          Event Arguments &                                                             4 Dense-sparse integration
+                Discourse Units        Roles from EDUs
+                                                                     Knowledge Graph
+
+Online Retrieval & QA w/ EMem-G                                                                                      5
+                                         2                       3                                                            Answer
+                                                                                               4                      1 Retrieving EDUs & arguments
+                       Ranked Arguments Filtered Arguments
+   Query           1                                                                                                  2 EDU & argument filtering
+                                         2                       3                                                    3 Assigning seed node weights
+                                                                                                                      4 Starting PPR graph search
+                                             Filtered EDUs                                                            5 QA w/ selected EDUs
+                        Ranked EDUs
+Online Retrieval & QA w/ EMem
+                                                                                                              EDU Node              EDU-Arg Edge
+                                                                                    1 Retrieving EDUs
+                   1                     2                   3                                                Argument Node         Synonym Edge
+  Query                                                                 Answer      2 EDU filtering                                 Context Edge
+                                                                                                              Session Node
+                                             Filtered EDUs                          3 QA w/ selected EDUs
+                                                                                                              Seed Node
+                        Ranked EDUs
+Figure 1. Overview of our memory framework. Offline, conversations are decomposed into enriched EDUs, arguments, and an event
+graph; online, EMem-G retrieves EDUs/arguments and propagates relevance over the graph, while EMem uses only EDU retrieval and
+filtering to efficiently supply a compact memory context for QA.
+
+sentences—are the primary memory units; and (ii) we cou-                        sium 2024 at Tokyo University.” This EDU is mildly abstrac-
+ple graph-based retrieval with LLM-based recall-oriented                        tive but self-contained: it unifies details mentioned across
+filtering over both EDUs and argument nodes, which is                           different turns and normalizes entities into their canonical
+particularly important for the implicit, unnamed references                     forms. Here, “March 2024” is inferred from the session
+prevalent in less knowledge-intensive conversations.                            timestamp and Bob’s utterance; and the mentions “Global
+                                                                                AI Innovation Symposium 2024” and “Tokyo University”
+3. Methodology                                                                  are expanded to full forms and normalized based on session
+                                                                                context. As a memory item, this single EDU captures a
+Figure 1 illustrates the overall offline indexing and online                    complete event—who did what, where, when, and for what
+retrieval pipelines.                                                            purpose.
+                                                                                In a triple-based knowledge graph, the same content would
+3.1. Problem Setting                                                            typically be decomposed into multiple relation triples,
+A conversation consists of sessions S = {s1 , . . . , sT } or-                  e.g., (Bob, attend, Global AI Innovation Symposium 2024),
+dered by timestamps τ (s). Each session s is a sequence                        (Bob, stay in, Tokyo),       (Bob, stay duration, five days),
+of turns s = (SPK1 , u1 ), . . . , (SPKLs , uLs ) , where uℓ is                 (Symposium 2024, held at, Tokyo University),
+the utterance from speaker SPKℓ . At query time, the agent                      (Symposium 2024, time, March 2024), which are stored
+receives a natural language question q and answer it condi-                     as separate edges that may be scattered across the graph.
+tioned on the entire conversation history. We assume access                     While such triples are useful for schema-driven reasoning,
+to an embedding encoder h(·) that maps any text x to an                         they fragment the original discourse: a retrieval step must
+embedding h(x) ∈ Rd , and a powerful QA model fQA that                          find and recombine several triples to reconstruct the event,
+takes (q, memory) as input and generates an answer.                             and fine-grained temporal or participant constraints can be
+                                                                                lost or inconsistently represented. In contrast, our enriched
+3.2. Event-Centric Memory Graph                                                 EDUs follow the neo-Davidsonian intuition of treating the
+                                                                                event as a single unit with multiple arguments; each EDU
+EDUs vs. relation triples. To make the notion of EDUs                           node in the memory graph is therefore a self-complete,
+concrete, consider a short multi-turn exchange where the                        human-readable memory cell that preserves the local
+user describes a trip: from several utterances the extractor                    coherence of the original conversation while still being
+may produce an EDU such as “Bob spent five days in Tokyo                        small enough to enable fine-grained retrieval.
+in March 2024 to attend the Global AI Innovation Sympo-
+
+                                                                            3
+                     A Simple Yet Strong Baseline for Long-Term Conversational Memory of LLM Agents
+
+EDU extraction. For each session s, we invoke an LLM-                 3.3. Graph-Based Retrieval and QA (EMem-G)
+based extractor gEDU with a single in-context exemplar
+                                                                      Given a query q, EMem-G performs the following steps
+that describes the session (including the timestamp and all
+                                                                      (corresponding to the middle row in Figure 1).
+speaker names) and asks for a list of EDUs. The extractor
+                 (s)        (s)
+outputs Es = {e1 , . . . , eNs }, where each EDU e is a short
+                                                                      Dense retrieval of EDUs and arguments. We encode
+natural language description plus metadata:
+                                                                      the query with the same encoder: zq = h(q). We first re-
+                                                                      trieve the top-Ke EDUs by cosine similarity between zq and
+                 e = (text(e), src(e), τ (e)).                        hedu (e), obtaining a candidate set C edu (q). In parallel, we
+                                                                      run an LLM-based mention detector on q to extract a set of
+Here, src(e) is the set of turn indices in s that support e,          surface mentions M (q) = {m1 , . . . , mM } corresponding
+and τ (e) is a timestamp derived from the session date (if            to entities, noun phrases, and salient concepts. Each men-
+available). For long, structured assistant responses (e.g.,           tion is embedded as h(m), and we retrieve top-Ka argument
+enumerated suggestions) from LongMemEvalS , we allow                  nodes for each mention using similarity between h(m) and
+the extractor to output structured chunks: multi-sentence             harg (a), forming a candidate argument set C arg (q).
+blocks, each accompanied by a 2–3 sentence summary that
+states the user request addressed, the information categories         Recall-oriented LLM filtering. Embedding similarity
+covered, and salient entities. We treat the summary as text(e)        alone is brittle when mentions are generic (“pet”, “that
+for indexing and retrieval, and reserve the full chunk for the        trip”) or when arguments are highly specific. We therefore
+QA stage. For completeness, our dataset-specific treatment            apply an LLM-based relevance filter to both candidate sets.
+of long assistant responses in LongMemEvalS is detailed               For EDUs, we prompt a LLM once with the query q and the
+in Appendix
+      S       A. Across all sessions, the global EDU set is           list {text(e) | e ∈ C edu (q)}, asking it to select the EDUs
+E = s Es .                                                            that are relevant to answering q. Its discrete selection in-
+                                                                      duces a binary indicator fEDU (q, e) ∈ {0, 1}, and we keep
+Event-argument extraction. For each EDU e ∈ E, we                     EDUs with fEDU (q, e) = 1. Similarly, for arguments we
+invoke a second LLM gARG that treats e as a single event and          prompt the LLM with q and the list {a | a ∈ C arg (q)} in
+returns an event type t(e) and a set of role–argument pairs           minimal context, obtaining a binary indicator fARG (q, a) ∈
+            Ke                                                        {0, 1}. The filtered sets are
+{(rk , ak )}k=1 . We collect all unique argument strings into a
+global argument set A. Each argument a ∈ A is associated
+with a node-level embedding harg (a). We do not enforce a                     C̃ edu (q) = {e ∈ C edu (q) | fEDU (q, e) = 1},
+fixed ontology of roles; the usage of rk is not explored in                   C̃ arg (q) = {a ∈ C arg (q) | fARG (q, a) = 1}.
+our framework, while arguments themselves become nodes
+in the memory graph.                                                  This design differs from precision-oriented filters (e.g., Hip-
+                                                                      poRAG 2’s filter (Gutiérrez et al., 2025)): we intentionally
+                                                                      keep borderline candidates by biasing the LLM toward re-
+Graph construction. We construct a heterogeneous graph                call, and rely on subsequent graph propagation and final QA
+G = (V, E) with three node types:                                     to down-weight spurious ones.
+   • Session nodes vs for s ∈ S.
+   • EDU nodes ve for e ∈ E.                                          Seed initialization. We initialize a nonnegative weight
+   • Argument nodes va for a ∈ A.                                     function s : V → R≥0 over graph nodes using embedding
+                                                                      similarities. For EDU nodes we set
+Edges are defined as:
+                                                                             s(ve ) = sim(zq , hedu (e)),     ve ∈ C̃ edu (q),
+       Esess-edu = {(vs , ve ) | e ∈ Es },
+                                                                      and for argument nodes
+       Eedu-arg = {(ve , va ) | a is an argument of e},
+          Esyn = {(va , va′ ) | sim(a, a′ ) ≥ δ}.                          s(va ) = sim(h(m), harg (a)),        va ∈ C̃ arg (q),
+
+                                                                      with s(v) = 0 for all remaining nodes and m ∈ M (q) is
+Here, sim(a, a′ ) is cosine similarity between harg (a) and
+                                                                      the corresponding mention that retrieves this candidate argu-
+harg (a′ ), and we cap the number of synonym neighbors per
+                                                                      ment va . If more than K argument nodes receive nonzero
+a (e.g., at 100). The final node set is V = {vs }∪{ve }∪{va }
+                                                                      scores, we keep only the K highest-scoring ones and set the
+and edge set E = Esess-edu ∪ Eedu-arg ∪ Esyn .
+                                                                      rest to zero, so that propagation remains focused and the ini-
+For later retrieval we cache embeddings for EDU texts,                tial mass is not diluted over many weakly related arguments.
+hedu (e) = h(text(e)). Graph construction is performed                The resulting vector s is used as the personalization (seed)
+offline as new sessions arrive.                                       vector for personalized PageRank.
+
+                                                                  4
+                    A Simple Yet Strong Baseline for Long-Term Conversational Memory of LLM Agents
+
+Personalized PageRank. Let T be the column-stochastic               4. Experiment
+transition matrix derived from G (e.g., uniform over neigh-
+bors). We compute a Personalized PageRank vector                    4.1. Experimental Setup
+
+         π = PPR(G, s) ≜ (1 − α)s + αT ⊤ π,                         Table 1. Category distributions of the LoCoMo (Maharana et al.,
+                                                                    2024) and LongMemEvalS (Wu et al., 2025a) datasets.
+with a fixed damping factor α ∈ (0, 1) using a small number
+of power iterations. The resulting π(v) scores reflect how                   LoCoMo                       LongMemEvalS
+strongly each node is connected to the query seeds under             Category          Count     Category                      Count
+random walks that repeatedly return to s.
+                                                                     Multi-Hop            278    knowledge-update                  72
+                                                                     Temporal             320    multi-session                    121
+Selecting EDUs and QA. We restrict π to EDU nodes                    Open Domain           93    single-session-assistant          56
+and select the top-K EDUs, R(q) = TopK{(e, π(ve )) :                 Single-Hop           829    single-session-preference         30
+e ∈ E}. For EDUs corresponding to structured chunks,                 –                      –    single-session-user               64
+                                                                     –                      –    temporal-reasoning               127
+we replace text(e) by the full chunk content before QA.
+We assemble a memory context by concatenating the se-                Total              1,520    Total                            470
+lected EDUs along with their source session timestamps
+and source-turns’ speaker names. Finally, the QA model              We evaluated EMem and EMem-G on two widely used long-
+produces the answer:                                                term conversational QA benchmark dataset, LoCoMo2 (Ma-
+                                                                   harana et al., 2024) and LongMemEvalS (Wu et al., 2025a).
+     ŷ = fQA q, {(text(e), src(e), τ (e)) : e ∈ R(q)} ,            LoCoMo contains 10 multi-session dialogues between
+using a prompt that asks the model to first reason using            two speakers with around 24K tokens on average while
+the retrieved memories and then output a concise answer in          LongMemEvalS consists of 500 multi-session dialogues be-
+zero-shot manner (Wei et al., 2022).                                tween user and assistant with around 105K average tokens.
+                                                                    We exclude the adversarial type of questions following the
+                                                                    prior research. The distribution of the evaluated questions
+3.4. Lightweight Retrieval (EMem)
+                                                                    are shown in Table 13 .
+EMem shares the same event graph and EDU extraction
+                                                                    We follow Nemori (Nan et al., 2025) to set up the evaluation
+as EMem-G but removes graph propagation and argument-
+                                                                    framework4 , leveraging LLM-judge5 to score the final QA
+level retrieval. Given a query q, we compute zq = h(q) and
+                                                                    accuracy on two benchmark datasets, and additionally report
+retrieve the top-Ke EDUs by similarity to hedu (e), obtaining
+                                                                    the F1 and BLEU-1 scores for QA on the LoCoMo dataset.
+C edu (q). We then apply the same recall-oriented LLM filter
+                                                                    The LLM-judge runs three times with mean and standard
+fEDU as in Section 3.3: the LLM is prompted once with q
+                                                                    deviation reported.
+and the list {text(e) : e ∈ C edu (q)} and selects a subset
+of relevant EDUs, inducing binary decisions fEDU (q, e) ∈           We also follow Nemori (Nan et al., 2025) baseline setup to
+{0, 1}. The retained set is                                         have: a full-context LLM that receives the entire dialogue
+                                                                    history; a retrieval-augmented model (RAG-4096) that splits
+        Rlite (q) = {e ∈ C edu (q) | fEDU (q, e) = 1},              the dialogue into 4096-token chunks and uses dense retrieval
+                                                                    to select context; and three memory-augmented systems,
+so the number of EDUs passed to QA is determined adap-              namely LangMem (LangChain AI, 2025) with a hierarchical
+tively by the filter rather than fixed a priori. The QA model       memory organization, Zep (Rasmussen et al., 2025) based
+then answers as                                                     on temporal knowledge graphs, and Mem0 (Chhikara et al.,
+                                                          
+    ŷ = fQA q, {(text(e), src(e), τ (e)) : e ∈ Rlite (q)} .           2
+                                                                          The raw dataset provides four category labels (Categories 1–
+                                                                    4), which we map to semantic categories: Category 1 to Multi-Hop,
+                                                                    Category 2 to Temporal Reasoning, Category 3 to Open-Domain,
+Because EDUs are short, self-contained, and enriched with
+                                                                    and Category 4 to Single-Hop according to the discussion in this
+canonical entities and time information, dense retrieval over       PR.
+them already yields high-quality candidates. Retrieving a               3
+                                                                          Note that questions in LongMemEvalS are assumed to be
+relatively large pool and then applying a recall-biased LLM         asked by the user. So we prepend the timestamp of the query
+filter captures most relevant memories without requiring            and a prefix “User: ” to each question in QA stage. An exam-
+personalized PageRank, while adaptively reducing the final          ple processed query is “Date of user query: 2023/05/30 (Tue)
+                                                                    21:54\nUser: How old was I when my grandma gave me the silver
+context length. Empirically, this lightweight EMem variant          necklace?”.
+is competitive with EMem-G and sometimes outperforms                    4
+                                                                          Please refer to the Nemori repository for detailed implementa-
+more sophisticated designs, making it a practical reference         tion including the LLM-judge prompts.
+                                                                        5
+point for future work.                                                    The LLM-judge is based on gpt-4o-mini.
+
+                                                                5
+                                                   A Simple Yet Strong Baseline for Long-Term Conversational Memory of LLM Agents
+
+
+Table 2. Performance on LoCoMo dataset (Maharana et al., 2024) categorized by question type. Bold indicates the best performance.
+Underline indicates the second best performance. The baseline performance comes from Nan et al., 2025.
+                                              Temporal Reasoning                 Open Domain                        Multi-Hop                        Single-Hop                            Overall
+                Method
+                                       LLM Score        F1     BLEU-1    LLM Score        F1     BLEU-1    LLM Score       F1     BLEU-1    LLM Score       F1     BLEU-1      LLM Score        F1    BLEU-1
+                FullContext       0.562 ± 0.004        0.441    0.361   0.486 ± 0.005    0.245    0.172   0.668 ± 0.003   0.354    0.261   0.830 ± 0.001   0.531    0.447     0.723 ± 0.000   0.462    0.378
+
+
+ gpt-4o-mini
+                LangMem          0.249 ± 0.003         0.319   0.262    0.476 ± 0.005    0.294   0.235    0.524 ± 0.003   0.335   0.239    0.614 ± 0.002   0.388   0.331      0.513 ± 0.003   0.358   0.294
+                Mem0             0.504 ± 0.001         0.444   0.376    0.406 ± 0.000    0.271   0.194    0.603 ± 0.000   0.343   0.252    0.681 ± 0.000   0.444   0.377      0.613 ± 0.000   0.415   0.342
+                RAG              0.237 ± 0.000         0.195   0.157    0.326 ± 0.005    0.190   0.135    0.313 ± 0.003   0.186   0.117    0.320 ± 0.001   0.222   0.186      0.302 ± 0.000   0.208   0.164
+                Zep              0.589 ± 0.003         0.448   0.381    0.396 ± 0.000    0.229   0.157    0.505 ± 0.007   0.275   0.193    0.632 ± 0.001   0.397   0.337      0.585 ± 0.001   0.375   0.309
+                Nemori           0.710 ± 0.000         0.567   0.466    0.448 ± 0.005    0.208   0.151    0.653 ± 0.002   0.365   0.256    0.821 ± 0.002   0.544   0.432      0.744 ± 0.001   0.495   0.385
+                EMem-G           0.760 ± 0.003         0.581   0.468    0.573 ± 0.013    0.242   0.199    0.747 ± 0.006   0.406   0.305    0.823 ± 0.001   0.504   0.422      0.780 ± 0.000   0.487   0.397
+                EMem             0.771 ± 0.004         0.574   0.461    0.602 ± 0.009    0.285   0.237    0.702 ± 0.004   0.406   0.307    0.830 ± 0.002   0.497   0.414      0.780 ± 0.001   0.483   0.393
+                FullContext       0.742 ± 0.004        0.475    0.400   0.566 ± 0.010    0.284    0.222   0.772 ± 0.003   0.442    0.337   0.869 ± 0.002   0.614    0.534     0.806 ± 0.001   0.533    0.450
+
+
+ gpt-4.1-mini
+                LangMem          0.508 ± 0.003         0.485   0.409    0.590 ± 0.005    0.328   0.264    0.710 ± 0.002   0.415    0.325   0.845 ± 0.001   0.510   0.436      0.734 ± 0.001   0.476   0.400
+                Mem0             0.569 ± 0.001         0.392   0.332    0.479 ± 0.000    0.237   0.177    0.682 ± 0.003   0.401    0.303   0.714 ± 0.001   0.486   0.420      0.663 ± 0.000   0.435   0.365
+                RAG              0.274 ± 0.000         0.223   0.191    0.288 ± 0.005    0.179   0.139    0.317 ± 0.003   0.201    0.128   0.359 ± 0.002   0.258   0.220      0.329 ± 0.002   0.235   0.192
+                Zep              0.602 ± 0.001         0.239   0.200    0.438 ± 0.000    0.242   0.193    0.537 ± 0.003   0.305    0.204   0.669 ± 0.001   0.455   0.400      0.616 ± 0.000   0.369   0.309
+                Nemori           0.776 ± 0.003         0.577   0.502    0.510 ± 0.009    0.258   0.193    0.751 ± 0.002   0.417    0.319   0.849 ± 0.002   0.588   0.515      0.794 ± 0.001   0.534   0.456
+                EMem-G           0.808 ± 0.001         0.513   0.406    0.717 ± 0.005    0.291   0.253    0.796 ± 0.002   0.376    0.308   0.905 ± 0.001   0.510   0.432      0.853 ± 0.000   0.473   0.393
+                EMem             0.800 ± 0.003         0.491   0.389    0.652 ± 0.010    0.270   0.237    0.790 ± 0.002   0.350    0.273   0.897 ± 0.001   0.509   0.430      0.842 ± 0.001   0.461   0.381
+
+
+
+
+Table 3. Performance on LongMemEvalS dataset (Wu et al., 2025a) across different question types. LLM-judged QA accuracy is reported.
+Bold indicates the best performance.
+                                                                                Full-context      Nemori            EMem-G              EMem
+                                             Question Type
+                                                                               (101K tokens) (3.7-4.8K tokens) (1.0K-3.6K tokens) (0.6K-2.5K tokens)
+                                             single-session-preference                   6.7%                 46.7%                        32.2%                        32.2%
+                                             single-session-assistant                   89.3%                 83.9%                        87.5%                        82.1%
+
+
+                              gpt-4o-mini
+                                             temporal-reasoning                         42.1%                 61.7%                        74.8%                        69.8%
+                                             multi-session                              38.3%                 51.1%                        73.6%                        78.0%
+                                             knowledge-update                           78.2%                 61.5%                        94.4%                        87.5%
+                                             single-session-user                        78.6%                 88.6%                        87.0%                        86.5%
+                                             Average                                    55.0%                 64.2%                        77.9%                        76.0 %
+                                             single-session-preference                  16.7%                 86.7%                         50%                             46.7%
+
+
+
+                              gpt-4.1-mini
+                                             single-session-assistant                   98.2%                 92.9%                        87.5%                            82.1%
+                                             temporal-reasoning                         60.2%                 72.2%                        83.7%                            80.6%
+                                             multi-session                              51.1%                 55.6%                        82.6%                            82.1%
+                                             knowledge-update                           76.9%                 79.5%                        94.4%                            95.4%
+                                             single-session-user                        85.7%                 90.0%                        94.8%                            93.8%
+                                             Average                                    65.6%                 74.6%                        84.9%                            83.0%
+
+
+2025) which maintains a store of extracted personalized                                                            comparable or fewer tokens (Tables 2 and 3). On Lo-
+memories.                                                                                                          CoMo, EMem and EMem-G consistently outperform in
+                                                                                                                   LLM-judged accuracy. With gpt-4o-mini, the over-
+For EMem and EMem-G, we utilize the OpenAI
+                                                                                                                   all LLM score improves from 0.744 for Nemori to 0.780
+text-embedding-3-small embedding model across
+                                                                                                                   for both EMem and EMem-G. The gains concentrate on
+all of our experiments, and use OpenAI gpt-4o-mini
+                                                                                                                   the categories that truly require long-term and structured
+and gpt-4.1-mini as our backbone LLM respectively.
+                                                                                                                   reasoning: temporal reasoning, open-domain, multi-hop
+In event graph construction, we set the similarity threshold
+                                                                                                                   questions. Single-hop questions are already easy for strong
+δ for synonym edges to be 0.9. The number of initially
+                                                                                                                   baselines, and all three top systems are effectively satu-
+retrieved EDUs top-Ke is set to be 30 and the number of
+                                                                                                                   rated there. The same pattern holds for gpt-4.1-mini:
+initially retrieved arguments top-Ka is set to 10. The upper
+                                                                                                                   EMem-G reaches 0.853 overall vs. 0.806 for full-context
+bound of the initialized argument nodes is 30. The upper
+                                                                                                                   and 0.794 for Nemori, indicating that memory retrieval
+bound of the final retrieved EDUs top-K is 10. For PPR,
+                                                                                                                   can efficiently surpass naive full-context prompting even
+we followed HippoRAG 2 (Gutiérrez et al., 2025)’s default
+                                                                                                                   when the backbone LLM is strong. On LoCoMo, this accu-
+parameters.
+                                                                                                                   racy is achieved with compact QA contexts: EMem passes
+                                                                                                                   only 509–1039 tokens to the backbone (average 738.2), and
+4.2. Main Results                                                                                                  EMem-G 924–1062 tokens (average 987.8), which is sub-
+Across both datasets and backbones, our method substan-                                                            stantially below Nemori’s reported 2,745 tokens and far be-
+tially improves over the memory baselines, while using                                                             low the 23,653-token full-context baseline (Nan et al., 2025).
+
+
+                                                                                                               6
+                           A Simple Yet Strong Baseline for Long-Term Conversational Memory of LLM Agents
+
+
+Table 4. Statistics of graphs constructed by EMem-G. All metrics except the first row are averaged per conversation. For LongMemEvalS ,
+“Avg Speaker EDU or Chunk Dist/Conv” and “Avg Speaker EDU or Chunk Len (words) Dist” show the averaged count and averaged word
+length respectively in the format of “User EDUs:Assistant EDUs:Assistant Chunks”. For LoCoMo, the two speakers of each conversation
+are ordered by their number of EDUs. The results are shown in the format of “max-EDUs speaker:min-EDUs speaker”.
+                                             LongMemEvalS (GPT-4o-mini)     LongMemEvalS (GPT-4.1-mini)     LoCoMo (GPT-4o-mini)    LoCoMo (GPT-4.1-mini)
+ Number of Conversations                                             470                             470                      10                       10
+ Avg Sessions/Conv                                                   47.7                            47.7                   27.2                     27.2
+ Avg Session Length (words)                                       1,644.4                         1,644.4                  536.9                    536.9
+ Avg Turns/Session                                                   10.3                            10.3                   21.6                     21.6
+ Avg EDU Nodes/Conv                                                 861.1                          1391.5                   552.8                    570.2
+ Avg Arg Nodes/Conv                                               2,780.9                         3,786.2                 1,144.7                  1,184.9
+ Avg Total Nodes/Conv                                             3,689.7                         5,225.4                 1,724.7                  1,782.3
+ Avg Session Node Degree                                            18.1                            29.2                    20.3                     21.0
+ Avg EDU Node Degree                                                 5.5                             4.7                     4.9                      4.7
+ Avg Arg Node Degree                                                 1.5                             1.4                     1.9                      1.8
+ Avg Session-EDU Edges/Conv                                         861.3                         1391.8                    552.9                    570.3
+ Avg EDU-Arg Edges/Conv                                           3,908.3                         5,106.4                 2,149.9                  2,100.3
+ Avg Synonym Edges/Conv                                             105.8                           189.0                    24.5                     38.7
+ Avg Total Edges/Conv                                             4,875.4                         6,687.1                 2,727.3                  2,709.3
+ Avg User EDUs/Conv                                                 314.6                           469.2                       –                        –
+ Avg Asst EDUs/Conv                                                 421.6                           725.6                       –                        –
+ Avg Asst Chunks/Conv                                               125.9                           197.7                       –                        –
+ Avg Speaker EDU or Chunk Dist/Conv                     314.6:421.6:125.9               469.2:725.6:197.7               98.1:16.7               105.9:18.5
+ Avg Speaker EDU or Chunk Len (words) Dist                23.2:21.3:193.8                 20.3:21.1:121.3               15.0:15.4                16.9:17.9
+ Avg Asst Chunk Summary Len (words)                                  43.7                            40.1                       –                        –
+
+
+
+
+While Nemori remains slightly ahead in F1 on LoCoMo,                              a result, purely attitudinal or stylistic information can be
+EMem/EMem-G match or exceed Nemori on BLEU-1 and,                                 over-compressed or dropped, which limits performance on
+more importantly, achieve higher LLM-judged correctness,                          single-session-preference questions.
+suggesting that our answers are semantically more often
+                                                                                  Comparing EMem and EMem-G directly, we see that the
+correct even if word overlap is not always maximal.
+                                                                                  graph-based retrieval is helpful but not universally neces-
+The LongMemEvalS results highlight the benefit of                                 sary. On LoCoMo, EMem and EMem-G attain essentially
+EMem/EMem-G in truly long conversations.                 With                     identical overall LLM scores with gpt-4o-mini, with
+gpt-4o-mini, the average LLM-judged accuracy im-                                  EMem slightly stronger on open-domain questions and
+proves to 77.9% for EMem-G and 76.0% for EMem,                                    EMem-G slightly stronger on multi-hop questions. With
+while reducing the effective context from 101K tokens to                          gpt-4.1-mini, EMem-G leads by about one percentage
+1.0K–3.6K and 0.6K–2.5K, respectively. With the stronger                          point overall. On LongMemEvalS , EMem-G has a modest
+gpt-4.1-mini, we see the same trend. The largest                                  edge in average accuracy, and clearly helps on tasks that
+gains come from temporal-reasoning, multi-session, and                            require stitching together scattered information (temporal
+knowledge-update questions. These categories are exactly                          reasoning, multi-session). In contrast, EMem is often on
+where the design of EDUs and event arguments matters:                             par or slightly better on knowledge-update questions, where
+the EDU abstraction keeps who–did–what–when–where                                 a small number of highly relevant, recent EDUs dominate
+bundled into self-contained units, and recall-oriented LLM                        and graph propagation adds limited additional signal.
+filtering plus event-aware retrieval makes it easier to locate
+                                                                                  Overall, these patterns suggest that (i) the event-semantics-
+and recombine the right long-range evidence than either
+                                                                                  centric EDU representation plus recall-oriented LLM fil-
+full-context prompting or heuristic memory stores.
+                                                                                  tering is the primary source of gains over baselines; (ii)
+At the same time, Nemori remains competitive on single-                           graph-based propagation over arguments provides additional
+session questions, especially preference and assistant-                           benefit mainly for queries that require relational and tempo-
+related ones. These questions depend more on local stylistic                      ral integration across distant parts of the dialogue; and (iii)
+cues and summarizing user habits within a short window                            the lightweight EMem variant is already a strong, practical
+than on integrating long-range event structure. Nemori’s                          default, with EMem-G offering extra headroom on the most
+dual episodic–semantic memory, which first generates rich                         structurally demanding long-term memory tasks at a modest
+narrative episodes and then distills them into semantic                           additional complexity cost.
+knowledge (including user habits and inclinations), is there-
+fore often sufficient and sometimes better aligned with the                       4.3. Graph Statistics
+judge on these tasks. By contrast, the EDU extractor is
+deliberately tuned toward factual, event-like content; as                         Table 4 summarizes the graphs constructed by EMem-G and
+                                                                                  confirms that both benchmarks are structurally challenging.
+
+                                                                              7
+                             A Simple Yet Strong Baseline for Long-Term Conversational Memory of LLM Agents
+
+
+Table 5. Ablation performance on LoCoMo dataset (Maharana et al., 2024) categorized by question type. gpt-4o-mini is adopted as
+base LLM and OpenAI text-embedding-3-small is adopted as base embedding model.
+                                Temporal Reasoning                  Open Domain                         Multi-Hop                        Single-Hop                            Overall
+                            LLM Score       F1     BLEU-1    LLM Score       F1     BLEU-1     LLM Score       F1     BLEU-1     LLM Score      F1     BLEU-1      LLM Score       F1      BLEU-1
+ EMem-G                    0.760 ± 0.003   0.581    0.468   0.573 ± 0.013   0.242    0.199    0.747 ± 0.006   0.406    0.305   0.823 ± 0.001   0.504    0.422     0.780 ± 0.000   0.487     0.397
+  w/o Query MD to node     0.754 ± 0.006   0.581    0.468   0.559 ± 0.009   0.276    0.236    0.675 ± 0.007   0.405    0.305   0.823 ± 0.002   0.507    0.419     0.766 ± 0.001   0.490     0.397
+   w/ Query NED to node    0.760 ± 0.001   0.580    0.462   0.559 ± 0.009   0.275    0.226    0.695 ± 0.002   0.407    0.302   0.820 ± 0.000   0.505    0.420     0.769 ± 0.001   0.489     0.395
+  w/o EDU Filter           0.747 ± 0.003   0.565    0.458   0.516 ± 0.000   0.252    0.201    0.602 ± 0.007   0.357    0.244   0.796 ± 0.001   0.502    0.420     0.733 ± 0.002   0.473     0.382
+  w/o QA zero-shot CoT     0.765 ± 0.004   0.595    0.485   0.595 ± 0.005   0.258    0.208    0.819 ± 0.001   0.413    0.308   0.819 ± 0.001   0.529    0.443     0.775 ± 0.003   0.505     0.413
+  w/o Graph & PPR (EMem)   0.771 ± 0.004   0.574    0.461   0.602 ± 0.009   0.285    0.237    0.702 ± 0.004   0.406    0.307   0.830 ± 0.002   0.497    0.414     0.780 ± 0.001   0.483     0.393
+   w/o EDU Filter          0.748 ± 0.005   0.567    0.462   0.588 ± 0.005   0.268    0.221    0.633 ± 0.010   0.363    0.252   0.805 ± 0.002   0.502    0.417     0.748 ± 0.003   0.476     0.384
+   w/o QA zero-shot CoT    0.768 ± 0.004   0.596    0.476   0.595 ± 0.005   0.291    0.244    0.701 ± 0.003   0.415    0.307   0.819 ± 0.001   0.520    0.431     0.773 ± 0.001   0.503     0.407
+
+
+
+
+Table 6. Ablation performance on LongMemEvalS dataset (Wu et al., 2025a) across different question type. gpt-4o-mini is adopted
+as base LLM and OpenAI text-embedding-3-small is adopted as base embedding model. LLM-judged QA accuracy is reported.
+
+                                single-session-preference     single-session-assistant       temporal-reasoning       multi-session   knowledge-update          single-session-user       Average
+
+ EMem-G                                    32.2%                         87.5%                     74.8%                 73.6%                 94.4%                  87.0%               77.9%
+  w/o Query MD to node                     26.7%                         83.3%                     72.7%                 73.3%                 88.9%                  88.5%               75.8%
+   w/ Query NED to node                    26.7%                         86.3%                     76.1%                 77.7%                 91.7%                  89.6%               78.8%
+  w/o QA zero-shot CoT                      3.3%                         87.5%                     72.4%                 68.3%                 90.3%                  86.5%               73.4%
+  w/o EDU Filter                           10.0%                         85.1%                     74.5%                 62.0%                 90.3%                  91.1%               73.1%
+  w/o Graph & PPR (EMem)                   32.2%                         82.1%                     69.8%                 78.0%                 87.5%                  86.5%               76.0%
+   w/o EDU Filter                          26.7%                         87.5%                     70.1%                 64.7%                 84.7%                  85.9%               72.4%
+   w/o QA zero-shot CoT                    15.5%                         85.7%                     56.7%                 66.1%                 94.4%                  92.2%               70.6%
+
+
+
+
+Conversations span dozens of sessions with long sessions in                                       together explain why our event-centric graph scales to very
+terms of word count, especially on LongMemEvalS , where                                           long conversations while still enabling efficient, focused
+assistant turns are very long. After EDU abstraction, how-                                        retrieval.
+ever, each conversation is reduced to a manageable graph
+with on the order of 500–1,400 EDUs and 1,000–4,000 argu-                                         4.4. Ablation Study
+ment nodes, depending on the dataset and backbone. Mov-
+ing from gpt-4o-mini to gpt-4.1-mini produces a                                                   We ablate the main components of EMem and EMem-G
+large increase in EDUs and arguments on LongMemEvalS                                              on LoCoMo and LongMemEvalS (Tables 5 and 6). On Lo-
+but only a modest change on LoCoMo, indicating that                                               CoMo, the LLM-based EDU filter is the most critical piece:
+stronger extractors matter most when turns are long and                                           removing it reduces the overall LLM score from 0.780 to
+heterogeneous.                                                                                    0.733 for EMem-G and to 0.748 for EMem, with multi-
+                                                                                                  hop performance dropping by 7–15 points, confirming that
+Despite the scale, the graphs are sparse: EDU nodes con-                                          recall-oriented filtering is key to suppressing noisy EDUs
+nect to only a handful of arguments, argument nodes have                                          while preserving relevant events. Removing query mention–
+degree around one or two, and synonym edges are com-                                              argument node weight initialization in EMem-G leads to a
+paratively rare. This means that events form small, well-                                         smaller overall drop (0.780 → 0.766) but hurts multi-hop
+localized neighborhoods, which is favorable for personal-                                         reasoning (0.747 → 0.675); replacing the LLM-based men-
+ized PageRank—random walks remain concentrated around                                             tion detector with a named entity mention variant largely
+a few relevant clusters rather than diffusing through a dense                                     closes this gap, indicating that graph propagation benefits
+graph. This could also indicate that a better event argument                                      from some form of query–argument anchoring but is fairly
+extraction method producing more normalized, atomic argu-                                         robust to the choice of detector. Dropping QA chain-of-
+ments could form a more dense graph for better graph-based                                        thought has only a minor effect on the LoCoMo average
+retrieval performance. The speaker-wise statistics further                                        (less than one point) for both models, mainly trading a small
+show that the number of memory units per role is both                                             decrease in LLM score for slightly higher F1/BLEU.
+manageable and highly imbalanced: in LongMemEvalS the
+assistant contributes the majority of EDUs and chunks, and                                        On LongMemEvalS , the same components remain impor-
+in LoCoMo one interlocutor dominates the EDU count, re-                                           tant but their impact is larger. For EMem-G, removing the
+flecting where most factual content actually resides. At                                          EDU filter or QA CoT reduces the average accuracy from
+the same time, individual EDUs are short (roughly one to                                          77.9% to 73.1% and 73.4%, respectively, with multi-session
+two sentences) and long assistant responses are represented                                       questions dropping by up to 11.6 points, showing that prun-
+by compact summaries, so most of the information that                                             ing and explicit reasoning both matter when information
+retrieval and QA operate on is concentrated into concise,                                         is spread over many sessions. This could be related to our
+event-centric nodes rather than raw turns. These properties                                       EDU extraction which leads to lots of topic-wise similar
+
+
+                                                                                              8
+                     A Simple Yet Strong Baseline for Long-Term Conversational Memory of LLM Agents
+
+                                                             LoCoMo                                                LongMemEvalS
+
+                                            0.780
+                                                                                                    0.770
+                                            0.772
+
+
+
+
+                          Performance (%)
+                                            0.767
+
+
+
+                                                                                      QA Accuracy
+                                                                                                    0.760
+
+                                                                                                    0.757
+                                                                                                    0.755
+                                            0.738
+                                                    10   20             30   40                             10    20             30   40
+                                                           Linking Top-k                                            Linking Top-k
+
+
+
+Figure 2. LLM-judged QA accuracy of EMem with different linking Top-k setup. gpt-4o-mini is adopted as base LLM and OpenAI
+text-embedding-3-small is adopted as base embedding model.
+
+                                                             LoCoMo                                                LongMemEvalS
+
+                                            0.780                                                   0.779
+
+
+                                            0.773                                                   0.774
+                                                                                                    0.772
+
+
+
+                          QA Accuracy                                                 QA Accuracy
+                                            0.770
+
+
+
+
+                                            0.751                                                   0.755
+
+                                                    10   20             30   40                             10    20             30   40
+                                                           Linking Top-k                                            Linking Top-k
+
+
+
+Figure 3. LLM-judged QA accuracy of EMem-G with different linking Top-k setup. gpt-4o-mini is adopted as base LLM and OpenAI
+text-embedding-3-small is adopted as base embedding model.
+
+
+EDUs from same sessions, hence requiring a relatively more                                          For EMem-G, we similarly vary linking Top-Ke , which also
+powerful embedding model, reranker, or filter to remove                                             determines the upper bound on non-zero argument seeds
+noisy information. Removing the graph and PPR (EMem)                                                (see Figure 3). Accuracy improves as Ke grows from small
+lowers the average to 76.0%: the graph particularly helps                                           values and peaks around 30 on both datasets, with only
+temporal-reasoning and knowledge-update questions, while                                            marginal degradation beyond that point, suggesting that
+EMem slightly improves multi-session performance, con-                                              graph propagation benefits from a richer set of seeds but
+sistent with the trade-offs in the main results. For EMem,                                          becomes slightly more susceptible to noise when too many
+ablations of the EDU filter and QA CoT again mainly harm                                            low-relevance EDUs and arguments are injected. Finally,
+multi-session and temporal-reasoning questions. Overall,                                            varying the QA Top-K (the number of EDUs passed to the
+these results support our design choice that event-semantics                                        QA model) for EMem-G with fixed linking Ke = 30 (Fig-
+based EDUs plus recall-oriented filtering carry most of the                                         ure 4) shows a steep gain when moving from very small
+gains, with graph propagation and QA CoT providing ad-                                              contexts (1–3 EDUs) to moderate ones (5–10 EDUs), after
+ditional, dataset-dependent improvements on the hardest                                             which performance quickly saturates around 10–15 EDUs.
+long-term reasoning cases.                                                                          Overall, these trends indicate that our memory system is
+                                                                                                    stable across a broad range of retrieval and augmentation hy-
+4.5. Retrieval Hyperparameters Anaysis                                                              perparameters, and that strong performance can be obtained
+                                                                                                    with small, fixed context budgets that remain practical for
+We first vary the number of retrieved candidate EDUs before                                         real-world deployment.
+filtering (linking Top-Ke ) in EMem (Figure 2). Across both
+LoCoMo and LongMemEvalS , performance is relatively flat
+once Ke is in the range of 20–40, with a mild optimum                                               5. Conclusion
+around 20–30 depending on the dataset. This indicates that                                          We have argued for an event-centric view of conversational
+the combination of dense retrieval and recall-oriented EDU                                          memory, grounded in neo-Davidsonian semantics, where
+filtering is robust: as long as we retrieve a moderately sized                                      long-term dialogue is reconstructed as a graph of enriched
+candidate pool, the LLM filter is able to discard noisy EDUs                                        EDUs rather than as raw turns, coarse summaries, or frag-
+and preserve most relevant information, and there is no need                                        mented triples. By instructing an LLM to produce self-
+to aggressively tune Ke .
+
+                                                                                  9
+                      A Simple Yet Strong Baseline for Long-Term Conversational Memory of LLM Agents
+
+                                                                 LoCoMo                                                       LongMemEvalS
+
+                                         0.780                                                           0.788
+                                         0.746                                                           0.743
+
+                                         0.712                                                           0.679
+
+
+
+
+                           QA Accuracy                                                     QA Accuracy
+
+
+
+
+                                         0.501                                                           0.341
+                                                 1   3     5              10         15                          1   3     5              10         15
+                                                         Memory Augmentation Top-k                                       Memory Augmentation Top-k
+
+
+
+Figure 4. LLM-judged QA accuracy of EMem with different memory augmentation Top-k setup. gpt-4o-mini is adopted as base
+LLM and OpenAI text-embedding-3-small is adopted as base embedding model.
+
+
+contained, normalized event units and organizing them into                                               program, which is supported by National Science Founda-
+a heterogeneous graph over sessions, EDUs, and arguments,                                                tion grants OAC 2320345, #2138259, #2138286, #2138307,
+our framework enables associative recall and dense–sparse                                                #2137603, and #2138296. Any opinions, findings, and con-
+integration that are difficult to realize with flat retrieval over                                       clusions or recommendations expressed herein are those of
+text chunks. The two retrieval variants, EMem and EMem-                                                  the authors and do not necessarily represent the views, either
+G, differ only in whether they invoke graph propagation, but                                             expressed or implied, of DARPA or the U.S. Government.
+share the same design philosophy: use simple, high-recall                                                The views and conclusions contained in this paper are those
+dense retrieval, apply a lightweight LLM filter to remove                                                of the authors and should not be interpreted as representing
+noisy candidates, and then reason over a compact set of                                                  any funding agencies.
+event memories.
+Experiments on LoCoMo and LongMemEvalS show that                                                         References
+this design yields strong performance on temporal, multi-                                                Chhikara, P., Khant, D., Aryan, S., Singh, T., and Yadav, D.
+hop, and knowledge-update questions while operating with                                                   Mem0: Building production-ready ai agents with scalable
+modest context budgets, and that the induced memory                                                        long-term memory. arXiv preprint arXiv:2504.19413,
+graphs are sparse, interpretable, and robust to retrieval hy-                                              2025.
+perparameters. At the same time, weaker performance on
+single-session preference questions highlights a limitation                                              Davidson, D. The logical form of action sentences. In
+of a purely event-centric representation for capturing fine-                                               Rescher, N. (ed.), The Logic of Decision and Action, pp.
+grained user attitudes and styles. An important direction for                                              81–95. University of Pittsburgh Press, Pittsburgh, 1967.
+future work is to pair event-level memory with complemen-
+tary models of user profiles and interaction patterns, and                                               Fang, J., Deng, X., Xu, H., Jiang, Z., Tang, Y., Xu, Z.,
+to extend this framework beyond dialogue to other long-                                                    Deng, S., Yao, Y., Wang, M., Qiao, S., et al. Lightmem:
+horizon settings such as tool-augmented agents and multi-                                                  Lightweight and efficient memory-augmented generation.
+document reasoning.                                                                                        arXiv preprint arXiv:2510.18866, 2025.
+
+Acknowledgments                                                                                          Gutiérrez, B. J., Shu, Y., Qi, W., Zhou, S., and Su, Y. From
+                                                                                                           RAG to memory: Non-parametric continual learning for
+Research was supported in part by the AI Institute for                                                     large language models. In Forty-second International
+Molecular Discovery, Synthetic Strategy, and Manufac-                                                      Conference on Machine Learning, 2025. URL https:
+turing: Molecule Maker Lab Institute (MMLI), funded                                                       //openreview.net/forum?id=LWH8yn4HS2.
+by U.S. National Science Foundation under Awards No.
+2019897 and 2505932, NSF IIS 25-37827, and the Insti-                                                    Gutiérrez, B. J., Shu, Y., Gu, Y., Yasunaga, M., and Su, Y.
+tute for Geospatial Understanding through an Integrative                                                   Hipporag: Neurobiologically inspired long-term memory
+Discovery Environment (I-GUIDE) by NSF under Award                                                         for large language models. In The Thirty-eighth Annual
+No. 2118329. The research has used the Delta/DeltaAI ad-                                                  Conference on Neural Information Processing Systems,
+vanced computing and data resource, supported in part by                                                   2024. URL https://openreview.net/forum?
+the University of Illinois Urbana-Champaign and through                                                    id=hkujvAPVsg.
+allocation #250851 from the Advanced Cyberinfrastructure
+Coordination Ecosystem: Services & Support (ACCESS)                                                      Huang, Z., Tian, Z., Guo, Q., Zhang, F., Zhou, Y., Jiang, D.,
+                                                                                                           and Zhou, X. Licomemory: Lightweight and cognitive
+
+                                                                                          10
+                    A Simple Yet Strong Baseline for Long-Term Conversational Memory of LLM Agents
+
+  agentic memory for efficient long-term reasoning. arXiv           Wu, D., Wang, H., Yu, W., Zhang, Y., Chang, K.-W., and
+  preprint arXiv:2511.01448, 2025.                                   Yu, D. Longmemeval: Benchmarking chat assistants
+                                                                     on long-term interactive memory. In The Thirteenth
+Kim, S., Lee, Y., Kim, S., Kim, H., and Cho, S. Pre-storage          International Conference on Learning Representations,
+  reasoning for episodic memory: Shifting inference bur-             2025a. URL https://openreview.net/forum?
+  den to memory for personalized dialogue. arXiv preprint            id=pZiyCaVuti.
+  arXiv:2509.10852, 2025.
+                                                                    Wu, Y., Zhang, Y., Liang, S., and Liu, Y. Sgmem: Sentence
+LangChain AI. Langmem: Long-term memory sdk for llm                  graph memory for long-term conversational agents. arXiv
+  agents. https://langchain-ai.github.io/                            preprint arXiv:2509.21212, 2025b.
+  langmem/, 2025. Accessed: 2025-11-20.
+                                                                    Xu, W., Liang, Z., Mei, K., Gao, H., Tan, J., and Zhang, Y.
+Li, Z., Song, S., Wang, H., Niu, S., Chen, D., Yang, J., Xi,
+                                                                     A-mem: Agentic memory for llm agents. arXiv preprint
+  C., Lai, H., Zhao, J., Wang, Y., et al. Memos: An operat-
+                                                                      arXiv:2502.12110, 2025.
+  ing system for memory-augmented generation (mag) in
+  large language models. arXiv preprint arXiv:2505.22101,
+  2025.
+Liu, N. F., Lin, K., Hewitt, J., Paranjape, A., Bevilacqua,
+  M., Petroni, F., and Liang, P. Lost in the middle: How
+  language models use long contexts. Transactions of
+  the Association for Computational Linguistics, 12:157–
+  173, 2024. doi: 10.1162/tacl a 00638. URL https:
+  //aclanthology.org/2024.tacl-1.9/.
+Maharana, A., Lee, D.-H., Tulyakov, S., Bansal, M., Barbi-
+ eri, F., and Fang, Y. Evaluating very long-term conver-
+ sational memory of LLM agents. In Ku, L.-W., Martins,
+ A., and Srikumar, V. (eds.), Proceedings of the 62nd
+ Annual Meeting of the Association for Computational
+ Linguistics (Volume 1: Long Papers), pp. 13851–13870,
+ Bangkok, Thailand, August 2024. Association for Com-
+ putational Linguistics. doi: 10.18653/v1/2024.acl-long.
+ 747. URL https://aclanthology.org/2024.
+ acl-long.747/.
+Nan, J., Ma, W., Wu, W., and Chen, Y. Nemori: Self-
+  organizing agent memory inspired by cognitive science.
+  arXiv preprint arXiv:2508.03341, 2025.
+Parsons, T. Events in the Semantics of English. MIT Press,
+  Cambridge, MA, 1990.
+Rasmussen, P., Paliychuk, P., Beauvais, T., Ryan, J., and
+  Chalef, D. Zep: a temporal knowledge graph architecture
+  for agent memory. arXiv preprint arXiv:2501.13956,
+  2025.
+Wang, J., Zhao, R., Wei, W., Wang, Y., Yu, M., Zhou, J., Xu,
+ J., and Xu, L. Comorag: A cognitive-inspired memory-
+ organized rag for stateful long narrative reasoning. arXiv
+ preprint arXiv:2508.10419, 2025.
+Wei, J., Wang, X., Schuurmans, D., Bosma, M., Xia, F., Chi,
+ E., Le, Q. V., Zhou, D., et al. Chain-of-thought prompting
+ elicits reasoning in large language models. Advances in
+ neural information processing systems, 35:24824–24837,
+ 2022.
+
+                                                               11
+                    A Simple Yet Strong Baseline for Long-Term Conversational Memory of LLM Agents
+
+A. Dataset-Specific EDU Extraction for LongMemEval
+LongMemEval consists of multi-session dialogues between a user and an assistant (Wu et al., 2025a). We observed a
+systematic asymmetry in utterance style: user turns are typically short and focused, whereas assistant turns are often long,
+highly structured responses (e.g., enumerated lists, step-by-step plans, comparative analyses). Leveraging a relatively small
+LLMs (e.g., gpt-4o-mini) for EDU extraction on such long sessions, we frequently encounter the issue of missing
+EDUs, which is likely considered as unimportant information. To adapt our EDU extraction pipeline to this setting without
+overfitting the core method, we apply a slightly different treatment to the two speakers.
+
+User utterances. For the user side, we directly apply the generic EDU extraction procedure from Section 3.2. Each
+session is passed to the extractor gEDU along with timestamps and speaker tags, and the model emits extracted EDUs with
+source turn index attributions. No dataset-specific modification is required.
+
+Assistant utterances: atomic EDUs and structured chunks.         To mitigate the above discussed issues, each assistant turn
+is processed in two parallel views:
+ 1. Atomic EDUs. The extractor produces a set of fine-grained EDUs, analogous to the user side, each with its own source
+    turn index. These capture localized facts (e.g., an atomic fact or an event).
+ 2. Structured chunks. In the same call, the extractor is asked to identify cohesive information blocks—“structured
+    chunks”—that group related details presented in an organized way (comparisons, detailed overviews, comprehensive
+    recommendations, step-by-step procedures, lists of related items, etc.). For each chunk c, the model also generates a
+    short summary s(c) of 2–3 sentences that (i) states which user request or question the chunk addresses, (ii) describes
+    the main information categories covered, and (iii) naturally includes key entities and terms.
+We treat each chunk as an additional EDU node in the memory graph, but use the summary s(c) as the textual content
+text(e) for argument extraction, indexing, and retrieval. Arguments for chunk nodes are extracted from s(c) rather than
+from the full chunk text. The original chunk content is stored separately and is only revealed to the QA model at answer
+time when the corresponding EDU node is retrieved. This design preserves the organizational structure of long assistant
+responses while keeping the indexable text short and information-dense.
+In practice, both atomic EDUs and structured chunks share the same metadata schema, including source turn indices and
+session timestamps, and are handled uniformly by the retrieval and graph components. The only difference is that chunk
+nodes have a hidden “expanded” text used solely in the final QA prompt and we need to initiate two LLM calls on this
+dataset. This dataset-specific adaptation improves recall on LongMemEvalS without changing the core EMem/EMem-G
+algorithms.
+
+
+
+
+                                                            12
+

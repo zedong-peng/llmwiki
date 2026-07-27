@@ -1,0 +1,1426 @@
+                                                From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+
+                                                                  Qiming Zhu 1 Shunian Chen 1 Rui Yu 1 Zhehao Wu 1 Benyou Wang 1
+
+
+                                                                   Abstract                                 compression into summaries or extracted facts (Chhikara
+                                                                                                            et al., 2025; Fang et al., 2025), committing to what to retain
+                                                Long-horizon agents often compress interaction
+                                                                                                            before the agent knows what future queries will require.
+                                                histories into write-time summaries. This creates
+                                                a fundamental write-before-query barrier: com-
+
+
+
+
+arXiv:2602.17913v1 [cs.DB] 20 Feb 2026
+                                                pression decisions are made before the system               Summaries at write-time may erase decisive evidence.
+                                                knows what a future query will hinge on. As a               Write-time compression forces irreversible retention de-
+                                                result, summaries can cause unverifiable omis-              cisions under uncertainty, requiring a preemptive bet on
+                                                sions—decisive constraints (e.g., allergies) may            saliency before the query distribution is known (Zheng et al.,
+                                                be dropped, leaving the agent unable to justify             2025). Consequently, even state-of-the-art summarizers dis-
+                                                an answer with traceable evidence. Retaining                card nuances that later prove decisive (Kang et al., 2025).
+                                                raw logs restores an authoritative source of truth,         For instance, compressing a “severe peanut allergy” into
+                                                but grounding on raw logs by default is expensive:          generic “dietary preferences” creates an unverifiable omis-
+                                                many queries are answerable from summaries, yet             sion: when later asked “Is this snack safe?”, the agent cannot
+                                                raw grounding still requires processing far longer          trace or cite the specific constraint from its memory. Thus,
+                                                contexts, inflating token consumption and latency.          any fixed-budget summary admits a worst-case query it can-
+                                                                                                            not support with traceable evidence. These failures are not
+                                                We propose TierMem, a provenance-linked                     merely occasional summarization errors; they are structural
+                                                framework that casts retrieval as an inference-time         risks of lossy, write-before-query compression.
+                                                evidence allocation problem. TierMem uses a
+                                                two-tier memory hierarchy to answer with the
+                                                                                                            Raw grounding is auditable but often wasteful. A natu-
+                                                cheapest sufficient evidence: it queries a fast
+                                                                                                            ral response is to avoid compression and always ground on
+                                                summary index by default, and a runtime suf-
+                                                                                                            raw logs (Asai et al., 2023; Yan et al., 2025; Du et al., 2025).
+                                                ficiency router E SCALATES to an immutable
+                                                                                                            This improves auditability, but it is often economically and
+                                                raw-log store only when summary evidence is
+                                                                                                            algorithmically inefficient. Naively feeding long histories
+                                                insufficient. TierMem then writes back verified
+                                                                                                            or globally retrieving large raw contexts incurs substantial
+                                                findings as new summary units linked to their
+                                                                                                            token and latency costs, and long inputs can even degrade
+                                                raw sources. On LoCoMo, TierMem achieves
+                                                                                                            effective context utilization due to position-sensitive failures
+                                                0.851 accuracy (vs. 0.873 raw-only) while reduc-
+                                                                                                            and attention dilution (Liu et al., 2023; Zhang et al., 2025).
+                                                ing input tokens by 54.1% and latency by 60.7%.
+                                                                                                            Crucially, most queries do not require raw-level evidence.
+                                                Code is available at https://github.com/
+                                                FreedomIntelligence/Tiermem
+                                                                                                            Bridging the gap: Answer with the cheapest sufficient
+                                                                                                            evidence. These two extremes suggest that long-horizon
+                                                                                                            memory access should be query-conditioned. Given a query,
+                                         1. Introduction
+                                                                                                            the agent should retrieve the lowest-cost memory granularity
+                                         Long-horizon language agents increasingly need to answer           that still provides sufficient evidence for faithful, auditable
+                                         over interaction histories spanning weeks or months (Chen          answering. This principle echoes recent adaptive RAG work
+                                         et al., 2023; Liu et al., 2023). At scale, their memory must       that selectively accesses external evidence to trade off qual-
+                                         be simultaneously evidence-faithful (grounded in source),          ity against retrieval cost (Su et al., 2025; Wang et al., 2025b).
+                                         auditable (traceable to provenance), and economical (low la-       We view this as an inference-time evidence allocation
+                                         tency and cost). Yet most current systems rely on write-time       problem: decide at runtime when cheap summaries are
+                                            1
+                                                                                                            enough and when the system must consult authoritative raw
+                                             School of Data Science, The Chinese University of Hong         sources. A practical system must therefore (i) detect when
+                                         Kong, Shenzhen. Correspondence to: Qiming Zhu <qim-
+                                         ingzhu@link.cuhk.edu.cn>.                                          retrieved summaries are evidence-insufficient, (ii) fall back
+                                                                                                            to an auditable source of truth only in those cases, and (iii)
+                                         Preprint.                                                          consolidate verified findings back into cheap memory to
+
+                                                                                                        1
+                           From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+amortize future queries.                                              2. The TierMem Framework
+                                                                      This section introduces TierMem, a two-tier memory frame-
+TierMem: linked summaries with selective escalation.                  work that casts long-horizon retrieval as an inference-time
+Drawing inspiration from tiered caches, we propose Tier-              evidence allocation problem. TierMem prioritizes efficiency
+Mem, a linked two-tier memory hierarchy governed by a                 by defaulting to a fast summary tier, yet eliminates unver-
+runtime sufficiency check. As shown in Figure 1, Tier-1 is            ifiable omissions by E SCALATING to immutable raw logs
+a fast summary index whose units are explicitly linked to             when summaries lack sufficient detail. Crucially, the sys-
+their source raw pages via provenance pointers, enabling              tem employs a provenance-linked architecture to ensure
+targeted escalation. Tier-2 is an immutable raw-log store             that all consolidated memories remain traceable to their
+that serves as an auditable source of truth. Given a user             source.Detailed architectural design and implementation
+query, TierMem first retrieves from Tier-1 and applies a              specifics are provided in Appendix A.
+lightweight miss detector (router) that judges whether the
+retrieved summary evidence is sufficient. On a HIT, the               2.1. Architecture: Provenance-Linked 2 Tier Memory
+agent answers immediately from summaries. On a MISS,
+the system E SCALATES to the linked raw pages (and, if                TierMem organizes memory into two distinct levels of gran-
+needed, bounded global retrieval) for deep grounding. Af-             ularity, bridged by explicit provenance links to ensure
+ter escalation, TierMem performs verified write-back: it              traceability.
+distills only grounded evidence into new Tier-1 units linked
+back to supporting raw pages, enabling online consolidation           Tier-2: Immutable Paged Raw Log (MR ). To guaran-
+without sacrificing auditability.                                     tee auditability, Tier-2 stores the full interaction history as
+                                                                      immutable, fixed-size pages (e.g., ∼1000 tokens), each as-
+Across two long-horizon conversational memory bench-                  signed a stable identifier. Unlike sliding windows, paged
+marks, LoCoMo and LongMemEval, TierMem nearly                         storage ensures that evidence units remain static, allowing
+matches raw-only accuracy while substantially reducing                stable citation even as the context grows.
+query-time cost by escalating only when necessary. On Lo-
+CoMo, TierMem reaches 0.851 accuracy versus 0.873 for                 Tier-1: Provenance Index (MS ). Tier-1 acts as a semantic
+always-raw, while reducing average input tokens by 54.1%              cache for fast retrieval. Each entry contains: (i) a concise
+and latency by 60.7% (3,396 vs. 7,398 tokens; 6.76s vs.               summary, (ii) a dense embedding for retrieval, and (iii)
+17.18s). On LongMemEval, where summary-only meth-                     provenance links (ρ) pointing to the specific Tier-2 page
+ods degrade sharply under long-range updates, TierMem                 identifiers that support the summary. These links prevent
+mitigates compression loss by routing evidence-insufficient           hallucinations by anchoring summaries to raw data and
+cases to raw grounding.                                               provide a high-recall “warm start” pointer during escalation.
+
+                                                                      Construction. The tiers are built synchronously: whenever
+Contributions.                                                        a raw page is sealed in Tier-2, TierMem synthesizes corre-
+                                                                      sponding summary entries in Tier-1, automatically record-
+  1. Problem formulation. We identify the write-before-               ing the links ρ. This ensures no summary exists without a
+     query barrier in summary-centric agent memory and                traceable raw source.
+     cast long-horizon memory access as inference-time
+     evidence allocation: choose the minimal granularity              2.2. Inference Protocol: Adaptive Routing and
+     that provides sufficient evidence for faithful, auditable             Consolidation
+     answering.                                                       Given a query, TierMem executes a dynamic protocol (Fig-
+                                                                      ure 1) to select the minimal sufficient evidence granularity.
+  2. Framework. We introduce TierMem, a linked two-
+     tier memory hierarchy with (i) provenance-linked sum-
+     maries, (ii) a lightweight miss detector that routes A N -
+     SWER vs. E SCALATE , and (iii) verified write-back for
+                                                                      Router Policy (πθ ). The core decision maker is a
+     online consolidation.                                            lightweight policy πθ that judges evidence sufficiency. It
+                                                                      takes the query and retrieved Tier-1 summaries as input and
+  3. Empirics. We show TierMem improves the accuracy–                 outputs a binary decision: A NSWER or E SCALATE. The
+     efficiency trade-off on long-horizon benchmarks, re-             policy is trained to define “sufficiency” strictly: it must
+     covering much of the benefit of raw grounding at sub-            escalate if the summary lacks precise constraints (e.g., nega-
+     stantially lower token and latency cost.                         tions, exact values, attribution) required for a faithful answer
+                                                                      (training details in §3).
+
+                                                                  2
+                             From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+          Interface                 Logical Control Flow                       Online                           Tiered Memory
+                                                                            Consolidation
+
+                                                                                                                                                                                      Lossy, Fast
+      User Query(Q)
+                                                                                                                        Tier-1:
+                            Cache Hit                                              Retrieval                          Summary
+                                                                                                                       Memory
+                                                Router                             Summary                             (Cache)
+                                                                                                                       Summary:
+                                                                                                                       Monique as active narrator
+                                                                                                                       shaping identity and
+                                                                                                                       reader perspective
+                                         Cache Miss                                                                    Summary:
+                                                                                                                       Reading preferences link
+                                                                                   Validator                           graphic novels and strong
+
+
+
+
+                                                                                                                                                                   Provenance Links
+                                                                                                                       female protagonists
+
+
+        Generator                       Deep Search Loop
+      (Final Answer)                                                                                        Tier-2: Raw Logs
+
+
+
+
+                                                                                                                                                                                      Complete, Slow
+                                                                                                                (Storage)
+                                                                                                            Raw Dialogue Snippets:
+                                                                                 Deep Retrieval             user: I’m getting back into graphic novels… similar
+                                                                                                            to Saga…
+                               Planner                        Extractor                                     assistant: Recommendations: Monstress, Wicked +
+                                                                                                            Divine, Descender…
+                            (Decompose Q)                    (Synthesize)                                   user: Enjoying character depth…
+                                                Iternative                                                  Raw Dialogue Snippets:
+
+                                                   Loop                          Raw Context                user: I think Monique is a great narrator… outside
+                                                                                                            perspective… active participant… biases influence
+                                                                                                            perceptions…
+                                                                                                            assistant: Exactly! Monique isn’t passive… universal
+                                                                                                            masks… intersectional identity…
+
+
+
+
+Figure 1. TierMem overview. TierMem maintains a provenance-linked two-tier memory hierarchy. Tier-1 is a fast summary index whose
+entries store (i) compact summaries and (ii) provenance links ρ to supporting Tier-2 raw pages in an immutable paged log. Given a query,
+TierMem retrieves Tier-1 evidence and uses a lightweight router πθ to choose A NSWER (summaries only) or E SCALATE (consult linked
+raw pages, then run a bounded retrieval procedure if needed). After escalation, TierMem can optionally perform verified write-back to
+update Tier-1 with evidence-backed findings linked to their raw sources.
+
+
+Phase 1: Fast Path (Default). TierMem first retrieves                            3.1. Training Signal: Summary Sufficiency Labels
+top-k summaries from Tier-1. If πθ outputs A NSWER, the
+                                                                                 We supervise πθ using a hindsight labeling strategy. For a
+system generates the response immediately using only these
+                                                                                 given query, we generate two answers: (1) a Summary-Only
+summaries. This path minimizes latency and cost for the
+                                                                                 answer, and (2) a Raw-Grounded answer (derived from the
+majority of queries where high-level context suffices.
+                                                                                 escalation path). An LLM judge compares these against the
+                                                                                 query requirements:
+
+Phase 2: Provenance-Guided Escalation. If πθ outputs                                  • Label A NSWER (0): If the summary-only answer is
+E SCALATE, TierMem triggers a bounded retrieval loop to                                 correct and complete.
+recover missing details. Crucially, this search is provenance-
+guided: it prioritizes reading the Tier-2 pages explicitly                            • Label E SCALATE (1): If the summary answer is vague
+linked (ρ) by the retrieved summaries, as these likely con-                             or incorrect, but the raw-grounded answer recovers the
+tain the omitted nuances. If this initial look-up remains                               necessary details.
+insufficient, the system performs a limited multi-hop search
+over Tier-2 (up to Tmax steps) to locate disconnected evi-                       This filters out “impossible” queries (where even raw logs
+dence. This ensures deep grounding without the prohibitive                       fail) and isolates cases where write-time compression caused
+cost of reading the full raw history.                                            an unverifiable omission.
+
+                                                                                 3.2. Optimization: Distillation and Alignment
+
+Phase 3: Verified Write-Back. To prevent recurring esca-                         We employ a two-stage training process to refine the deci-
+lations for the same topic, TierMem performs online consol-                      sion boundary.
+idation. After a successful escalation, the system extracts
+                                                                                 Stage 1: Distillation (SFT). We distill routing behavior
+the newly verified details and updates Tier-1 via a retrieve-
+                                                                                 from a stronger teacher (GPT-5) that outputs a short ra-
+and-edit operation: new findings are either added as new
+                                                                                 tionale and the final decision. We fine-tune the router to
+entries or merged into existing ones. Importantly, these up-
+                                                                                 imitate the teacher outputs, keeping only examples where
+dates preserve the provenance links to the Tier-2 evidence
+                                                                                 the teacher decision matches our oracle label (details in
+used during escalation, maintaining the chain of custody.
+                                                                                 Appendix B.5).
+
+3. Router Optimization                                                           Stage 2: Cost-Aware Alignment (GRPO). To explicitly
+                                                                                 manage the accuracy-efficiency trade-off, we further opti-
+We optimize the router πθ to minimize inference costs                            mize πθ using Group Relative Policy Optimization (GRPO).
+while maintaining the accuracy of a raw-grounded upper                           The reward function is defined as:
+bound.The full experimental setup for router training is de-
+tailed in Appendix B.                                                              R(τ ) = Racc (τ ) − λcost Rcost (τ ) − λwaste Rwaste (τ )
+
+                                                                             3
+                           From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+where Racc rewards answer correctness, λcost penalizes the           Fair comparison within TierMem. To isolate memory
+computational cost of escalation, and λwaste specifically            access policy from model choice, all TierMem variants use
+penalizes “false alarms” (escalating when summaries were             the same generator, the same embedding model for Tier-1
+actually sufficient). This objective forces the model to esca-       dense retrieval, and the same reranker. Among TierMem
+late only when the expected gain in faithfulness outweighs           variants, the only differences are (i) whether Tier-2 is con-
+the retrieval cost.                                                  sulted, and (ii) how/when escalation is triggered (always
+                                                                     vs. routed). We report efficiency measured in the QA phase
+4. Experiments                                                       (retrieval + generation) and explicitly account for routing
+                                                                     overhead when present.
+We reframe memory retrieval as a problem of inference-
+time evidence allocation. Our central hypothesis is                  4.1.2. M ETRICS AND C OST ACCOUNTING
+that aligning retrieval granularity with query complex-
+                                                                     We report both answer quality and query-time efficiency,
+ity—defaulting to efficient summaries and E SCALATING to
+                                                                     together with routing behavior and a specific metric for
+raw logs only when strictly necessary—can break the static
+                                                                     compression loss.
+trade-off between cost and faithfulness.
+We evaluate whether TierMem successfully navigates this              Answer quality & Compression Loss. We report: (i)
+optimization landscape through four Research Questions               LLM-judge accuracy (primary): fraction of queries judged
+(RQs):                                                               correct by the benchmark protocol. (ii) Unverifiable Omis-
+                                                                     sion Rate (UOR): To quantify the write-before-query bar-
+RQ1 (Trade-off): Does TierMem improve the accuracy–                  rier, we measure the fraction of queries where summary-
+efficiency trade-off compared to static summary-only and             based methods fail specifically due to missing evidence (i.e.,
+raw-only policies?                                                   the answer can be found in our raw-data system but was lost
+                                                                     in summaries), distinguishing these from reasoning failures.
+RQ2 (Control Mechanism): Can a lightweight router reli-
+ably detect evidence insufficiency (distinguishing A NSWER
+vs. E SCALATE) with negligible inference overhead?                   Query-time efficiency (QA phase). We measure: Avg.
+                                                                     input tokens / query (Tokin /Q), Avg. output tokens / query
+RQ3 (Structural Utility): Do explicit provenance pointers            (Tokout /Q), and Avg. latency / query (Lat./Q), when mea-
+(Tier-1→Tier-2) measurably improve the grounding quality             sured. Unless otherwise stated, escalation uses a bounded
+of escalated queries?                                                Deep Search Loop capped at Tmax =3 iterations.
+RQ4 (Online Amortization): Does the consolidation of
+verified findings reduce future cache misses, effectively            Routing behavior. We measure: (i) R-rate (fraction of
+amortizing raw-access costs over time?                               queries routed to E SCALATE), (ii) Recall on hard cases
+                                                                     (fraction of oracle-hard queries correctly escalated), and (iii)
+4.1. Experimental Setup                                              Router overhead (tokens consumed by the routing step
+                                                                     itself).
+4.1.1. BASELINES
+We compare against representative systems spanning                   Token accounting for routed systems. For routed vari-
+summary-centric and raw/controller-centric paradigms. On             ants, we decompose query-time token usage into: Tokin =
+the summary-centric side, Mem0 (Chhikara et al., 2025)               TokQA +Tokrouter Tokout = Tokgen +Tokrouter-out and report
+LightMem (Fang et al., 2025), O-mem (Wang et al., 2025a),            both the total and the components (where applicable). This
+and MemOS (Li et al., 2025) primarily rely on compact                makes the cost–fidelity trade-off explicit: routing should
+written memories for fast retrieval. On the raw/controller-          reduce TokQA by avoiding unnecessary raw reads, while
+centric side, MemR3 (Du et al., 2025) and GAM (Yan                   keeping Tokrouter small.
+et al., 2025) allocate more inference-time budget to access
+fine-grained evidence and improve grounding.                         4.2. Main Results: Accuracy–Efficiency trade-off
+For TierMem, we report: Ours (summary) (Tier-1 only),                We analyze the accuracy–efficiency trade-off (RQ1) across
+Ours (raw-data) (always Tier-2), Ours (router) (learned              both benchmarks. Broadly, Ours (summary) is the most
+routing), and Ours (router, GPT-4.1-mini) (a stronger                efficient but suffers from compression loss (the write-before-
+LLM routing reference). To ensure a fair and consistent              query barrier), while Ours (raw-data) is the most accurate
+comparison, we disable online write-back for all methods             but costly. Ours (router) balances this via inference-time
+in the main benchmark evaluation. We use GPT-4.1-mini as             evidence allocation, approaching raw-only accuracy with
+the backbone in memory systems.                                      summary-like efficiency.
+
+                                                                 4
+                            From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+LoCoMo. The write-before-query barrier is quantifiable                  5.2. Router Learning and Cost–Fidelity Trade-off
+via UOR analysis (Table 1): summary-centric baselines ex-
+                                                                        To isolate the impact of router training (RQ2), we compare
+hibit high omission rates (14.7%–23.3%), confirming that er-
+                                                                        several router variants in Table 3. We report both mechanism
+rors often stem from evidence unavailability. Ours (router)
+                                                                        metrics (routing classification) and outcome metrics (end-
+overcomes this, achieving 0.851 overall accuracy (approach-
+                                                                        to-end QA).
+ing the 0.873 raw-only upper bound) while reducing average
+input tokens by 54.1% and latency by 60.7% compared to
+the raw baseline. In contrast, Ours (summary) drops to                  Training stages improve both behavior and overhead.
+0.755 accuracy, consistent with its 15.4% UOR. The router               The Zero-shot router is not only less accurate, but also inef-
+provides the largest gains on queries requiring precise de-             ficient due to poor protocol adherence, producing excessive
+tails (e.g., entities, temporal qualifiers) that static summaries       output tokens. SFT regularizes the output format and estab-
+often drop.                                                             lishes basic routing logic, improving recall on hard queries
+                                                                        while reducing overhead. SFT+GRPO further sharpens the
+                                                                        decision boundary: it improves hard-case recall to 71.7%
+                                                                        and achieves the best local routing F1-score, indicating that
+LongMemEval. As shown in Table 2, the summary-raw                       RL improves discrimination rather than merely escalating
+gap widens due to long-range dependencies. Static sum-                  more.
+maries fail to retain answerable evidence for nearly 30% of
+queries (e.g., 29.6% UOR for Mem0). Ours (router) effec-                End-to-end impact. Despite a small routing overhead
+tively bridges this gap by selectively escalating hard cases,           (Table 3), SFT+GRPO matches the stronger GPT-4.1-mini
+offering a superior trade-off compared to static memory                 router in overall LoCoMo accuracy (0.851) and reduces
+formats.                                                                latency substantially compared to raw-only. These results
+                                                                        support the core premise of TierMem: a lightweight router
+                                                                        can act as a semantic cache controller, allocating expensive
+                                                                        raw evidence only when needed.
+Why routing helps. A routed system is a mixture of two
+regimes: the cheap A NSWER path (Tier-1 only) and the                   5.3. Ablation: Effect of Provenance Pointers
+expensive E SCALATE path (Tier-2 grounding). The goal is
+therefore not to maximize escalation, but to: (i) achieve high          A key design choice in TierMem is explicit Tier-1→Tier-2
+accuracy on the A NSWER path when summaries are seman-                  provenance linking, used to warm-start escalation on likely
+tically sufficient, and (ii) reliably trigger E SCALATE when            relevant raw pages (RQ3). We compare: (i) Linked, full
+summaries are underspecified or high-risk. By dynamically               TierMem with provenance pointers enabled, and (ii) No-
+detecting insufficiency, TierMem effectively converts the               Linked, an otherwise identical system where escalation
+high UOR observed in baselines (15-30%) into recoverable                performs global retrieval (BM25) without prioritizing linked
+cases via provenance-guided escalation. We quantify this in             raw pages. Results are shown in Table 4.
+§5.
+                                                                        Overall accuracy improves via better escalations.
+5. Analysis and Ablations                                               Provenance pointers yield a consistent end-to-end gain:
+                                                                        Linked achieves 85.1% accuracy compared to 83.6% for
+We analyze how TierMem achieves its accuracy–efficiency                 No-Linked (+1.5pp), with similar routing rates. Crucially,
+trade-off and isolate the contributions of its key mechanisms.          improvements concentrate on escalated queries: Acc.@R
+We focus on routing behavior (RQ2), provenance pointers                 rises from 77.5% to 81.7% (+4.2pp), while the A NSWER
+(RQ3), and online consolidation (RQ4), and conclude with                path remains unchanged. This matches the intended causal
+error analysis.                                                         role of provenance pointers: they do not change what sum-
+                                                                        maries contain, but they improve how quickly and reliably
+5.1. Routing Behavior Breakdown                                         the system finds decisive Tier-2 evidence when summaries
+                                                                        are insufficient.A more detailed breakdown of escalation
+On LoCoMo, the final router (SFT+GRPO) escalates 39.0%                  behaviors and retrieval dynamics is provided in Appendix C.
+of queries and recalls 71.7% of oracle-hard cases (Ta-
+ble 3). Routing overhead is 678 tokens/query on av-
+                                                                        5.4. Consolidation Over Replay Epochs
+erage, decomposed as 584 input and 94.5 output tokens
+(Tokin =3396.4+584, Tokout =247.7+94.5; Table 1). This                  TierMem supports continual improvement via consolida-
+corresponds to 14.7% of total input tokens (584/3980.4) and             tion (verified write-back). For consistency with the bench-
+15.7% of total tokens (678/4322.6) per query. We analyze                mark protocol, we evaluate consolidation in an epoch-wise
+how training improves this routing boundary in §5.2.                    replay setting: within each epoch, Tier-1 remains fixed
+
+                                                                    5
+                               From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+Table 1. LoCoMo test results. UOR (Unverifiable Omission Rate) quantifies errors caused by missing evidence in summaries (lower is
+better). Bold indicates the best result in each column.
+
+                                            Accuracy (LLM-Judge) ↑               UOR %↓      F1↑                      Efficiency
+ System                             Multi Temp. Open Single Overall               Rate      Overall         Tokin ↓        Tokout ↓ Lat.(s) ↓
+ Mem0 (Chhikara et al., 2025)       0.628    0.707   0.531   0.712       0.684       23.3    0.426           1085.9          8.0      20.32
+ LightMem (Fang et al., 2025)       0.709    0.807   0.542   0.810       0.773       14.7    0.495           1159.5          6.9      27.69
+ O-mem (Wang et al., 2025a)         0.706    0.776   0.604   0.797       0.764       16.3    0.512           2178.1         544.2      1.16
+ MemOS (Li et al., 2025)            0.773    0.639   0.625   0.804       0.753       17.1    0.400           2692.3          13.3     10.80
+ MemR3 (Du et al., 2025)            0.812    0.829   0.729   0.902       0.860          -    0.586           4585.7        384.1      12.30
+ GAM (Yan et al., 2025)             0.858    0.860   0.781   0.886       0.869          -    0.574          15773.7        1231.5     21.85
+ Ours (summary)                     0.656    0.717   0.667   0.812       0.755       15.4    0.514        260.1      6.1               1.24
+ Ours (raw-data)                    0.812    0.863   0.719   0.916       0.873          -    0.604       7398.4     521.3             17.18
+ Ours (router)                      0.794    0.829   0.708   0.895       0.851          -    0.581     (3396+584) (247+94)             6.76
+ Ours (router, 4.1-mini)            0.755    0.850   0.677   0.904       0.851          -    0.591       3620.9     235.4              6.40
+
+Table 2. Main results on LongMemEval. Summary-based methods show high UOR, indicating frequent loss of key evidence during
+compression.
+
+ Method                    SS-User SS-Asst SS-Pref Multi-S Know. Upd Temp. Reas Overall UOR %↓                  Tokin /Q      Tokout /Q Lat./Q
+ Mem0                       0.800   0.589    0.533   0.571     0.667         0.489       0.596       29.6        1268            9       15.2
+ LightMem                   0.871   0.339    0.767   0.790     0.885         0.700       0.716       16.8        1160            7       7.87
+ O-mem                      0.957   0.446    0.773   0.632     0.551         0.542       0.620       25.7        2680           670      12.3
+ MemOS                      0.872   0.617    0.963   0.514     0.840         0.557       0.652       27.4        1682           206       2.3
+ MemR3                      0.929   0.929    0.600   0.684     0.769         0.639       0.742        -          6347           437      18.9
+ GAM                        0.957   0.964    0.600   0.752     0.756         0.629       0.764        -         37850          1448      42.3
+ Ours (summary)             0.900   0.857    0.833   0.549     0.756         0.519       0.678       19.6         380        11     5.37
+ Ours (raw-data)            0.971   0.982    0.900   0.752     0.846         0.662       0.808        -          7298       677    13.56
+ Ours (router)              0.957   0.946    0.833   0.692     0.744         0.602       0.752        -       (4235+660) (354+101) 10.04
+ Ours (router, 4.1-mini)    0.929   0.982    0.867   0.714     0.782         0.624       0.770        -          4574       328    9.74
+
+
+
+while answering the full query set, and verified findings                only), and (iii) efficiency (average input tokens and latency).
+collected from escalations are written back between epochs.              If consolidation is effective, later replay epochs should an-
+This isolates the effect of consolidation on future queries              swer more queries from Tier-1 without losing correctness,
+while keeping per-epoch evaluation conditions identical                  reducing the need for expensive raw grounding.
+(RQ4).
+                                                                         Two write-back variants. We compare two batch write-
+After a cache miss, TierMem escalates to Tier-2 to gather au-
+                                                                         back strategies that differ in whether they recall existing
+ditable evidence, then distills only verified findings into Tier-
+                                                                         related Tier-1 units before committing a new fact:
+1 as compact units linked back to supporting raw pages. Un-
+like generic summarization, write-back is query-triggered                   • No-Recall write-back (E1–E3): after completing an
+and evidence-backed: the system only commits what was                         epoch, the system decides whether to write a new Tier-1
+needed and validated during escalation, revealing which de-                   unit based only on each verified finding and its trigger-
+tails must persist under the write-before-query asymmetry.                    ing query, without retrieving related Tier-1 units. If it
+In our implementation, the write-back controller supports                     writes, it always performs ADD (otherwise SKIP).
+three operations: ADD, UPDATE, and SKIP.
+                                                                            • Retrieve-and-Edit write-back (E1U–E3U): after
+                                                                              completing an epoch, the system first retrieves seman-
+Replay protocol (epoch-wise). We conduct a longitudi-                         tically related Tier-1 units using each verified finding
+nal study over three replay epochs using the same fixed                       as a query, then chooses among ADD/UPDATE/SKIP.
+query set. Within each epoch, Tier-1 is frozen: answers are                   This enables UPDATE and avoids uncontrolled growth
+produced without modifying memory. During the epoch, we                       of redundant entries.
+log the verified findings extracted from escalations. After
+the epoch finishes, we apply these logged updates in a sin-              Results: consolidation increases cheap-path coverage
+gle batch to produce the next Tier-1 state for the following             and amortizes raw cost across replays. Table 5 sum-
+replay epoch. We evaluate (i) overall task accuracy, (ii) the            marizes the evolution. Across replay epochs, overall accu-
+fraction of queries routed to the cheap Summary path (Tier-1             racy remains stable, yet the system answers more queries
+
+                                                                     6
+                            From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+Table 3. Impact of Training Strategies on Router Behavior. Router Cost denotes the average token overhead (Input+Output) incurred
+by the routing step itself. The Zero-shot baseline is inefficient, generating excessive output tokens (∼317 avg output) due to poor
+instruction following. SFT regularizes the output format, reducing overhead to ∼678 tokens. SFT+GRPO achieves the best performance
+trade-off: for a negligible router overhead (∼678 tokens), it recovers 71.7% of hard queries and matches GPT-4.1-mini’s accuracy,
+effectively saving 51% of total system costs compared to the Raw-only upper bound. Additional analysis of S/R counterfactual outcomes
+and why similar end-to-end accuracy can arise despite different hard-case recall is provided in Appendix D.
+
+                           Routing Classification (Mechanism)                   End-to-End QA Performance (Outcome)
+  System                  R-rate Recall (Hard) F1-Score(%)            Overall Acc. ↑ Router Cost ↓ Router Lat.(s)↓ Lat.(s) ↓
+  Ours (Summary-only)      0%             -               -               0.755              -                -            1.24
+  Ours (Raw-only)         100%         100.0%             -               0.873              -                -            17.18
+  Ours (Zero-shot)        20.6%        44.7%            38.1              0.806            901              1.541           5.41
+  Ours (SFT)              38.2%        65.8%            37.5              0.831            680              0.494           6.28
+  Ours (SFT+GRPO)         39.0%        71.7%            40.6              0.851            678              0.551           6.76
+  GPT-4.1-mini            35.1%        76.4%            46.5              0.851            685              0.757           6.40
+
+
+Table 4. Effect of provenance pointers. Linked enables                5.5. Qualitative Case Studies
+provenance-aware warm-start during escalation. Improvements are
+concentrated on escalated queries (Acc.@R), while summary-path        5.5.1. C ASE S TUDY: Q UALITATIVE C ASES
+accuracy remains unchanged.
+                                                                      We present two representative cases illustrating how Tier-
+  Method          Acc. R-rate Acc.@R Tokin /Q Lat.(s)                 Mem aligns retrieval granularity with query requirements
+  Raw-only        87.3   100%      87.3        7398    17.18          in Table 6. Case 1 requires escalation due to entity loss in
+  No-Linked     83.6     38.0%     77.5        3832     6.33          summarization, and Case 2 can be answered cheaply from
+  Linked (ours) 85.1     39.0%     81.7        3980     6.76          summaries because key semantic evidence is preserved. A
+                                                                      broader clustering-based analysis of router decision errors
+                                                                      is provided in Section E.
+
+                                                                      Mitigating compression loss. When the user query re-
+on the cheap summary path: S-Traffic increases monoton-               quires a specific entity that is missing from Tier-1 sum-
+ically, and S-Correct rises by 32% (819→1,083) under                  maries, TierMem escalates and grounds the answer in Tier-2
+No-Recall write-back. This indicates that as Tier-1 accumu-           raw logs, avoiding vague or hallucinated responses.
+lates verified units from prior replays, a growing fraction of
+queries become answerable with sufficient evidence from               Ensuring semantic efficiency. When Tier-1 summaries
+summaries alone, offloading work that previously required             contain semantically sufficient evidence (even if not phrased
+raw-page reads. Correspondingly, average token usage and              in the same surface form as the query), the router answers di-
+latency decrease over time (e.g., Tokavg : 3,958→2,419; La-           rectly, avoiding unnecessary raw retrieval while preserving
+tency: 5.14s→3.39s), demonstrating clear amortization of              correctness.
+raw-access cost under repeated query demand.
+                                                                      5.5.2. A NATOMY OF S UMMARY-O NLY FAILURES AND
+                                                                             ROUTER D ECISIONS
+                                                                      To better understand the write-before-query barrier and how
+Retrieve-and-Edit improves consolidation hygiene.                     our router responds to summary insufficiency, we analyze
+Retrieve-and-Edit exhibits a similar trend of increasing              the subset of test queries where the Summary-Only sys-
+Summary-path coverage, while maintaining overall accu-                tem fails. On LoCoMo (n=1540), Summary-Only makes
+racy at least as well as No-Recall at later epochs (e.g., 0.852       378 errors (24.5%). These errors expose two structural fail-
+at E2U vs. 0.847 at E2). Because it explicitly recalls related        ure modes of write-time compression: (i) information is
+Tier-1 units, it can UPDATE rather than blindly append,               missing from Tier-1 (no recoverable answer span), and (ii)
+reducing semantic duplication and keeping Tier-1 more co-             over-generalization where decisive entities/values are re-
+herent. This comes with a modest management overhead:                 placed by coarse abstractions (e.g., “Sweden” → “her home
+Tokavg decreases substantially, while latency can be slightly         country”). Table 7 summarizes the dominant root causes.
+higher than No-Recall at the same epoch due to the ad-
+ditional recall-and-edit step. Overall, Retrieve-and-Edit             Write-before-query manifests as missing or unrecover-
+provides better consolidation hygiene while still enabling            able evidence. The largest portion of Summary-Only er-
+strong amortization.                                                  rors (41.3%) are due to missing information: the needed
+
+                                                                  7
+                              From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+Table 5. System evolution under consolidation in locomo(n=1540). S-Traffic: queries routed to Summary (Tier-1 only). S-Acc.:
+accuracy on Summary-routed queries. S-Correct: correctly answered via Summary. Tokavg /Lat.: average tokens/latency per query.
+
+            Epoch      Overall Acc.       S-Traffic     S-Acc.      S-Correct ↑       Tokavg     Lat.(s)     ADD        UPDATE
+            No-Recall write-back (no recall; only ADD or SKIP)
+            E1             0.851             932        87.9%           819           3,958        5.14       720           –
+            E2             0.847            1,125       87.6%        985 (+166)       3,035        4.16       486           –
+            E3             0.845            1,245       87.0%        1,083 (+98)      2,419        3.39       317           –
+            Retrieve-and-Edit write-back (recall related Tier-1, then ADD/UPDATE/SKIP)
+            E1U            0.851             932        87.9%           819           3,958        5.14      1,186         209
+            E2U            0.852            1,168       87.0%        1,016 (+197)     2,719        4.22       652          105
+            E3U            0.850            1,224       86.8%        1,063 (+57)      2,447        3.85       426           77
+
+            Table 6. Qualitative case studies illustrating how TierMem aligns retrieval granularity with query requirements.
+
+    User Query            Tier-1 Summary (Compressed)                       Router Decision & Reasoning
+                                            Case 1: Mitigating Entity Loss (The “Hero” Case)
+    Q: “What book Context: “...Joanna recommended Nate to find Decision: E SCALATE (Raw Search)
+    recommendations     a fantasy book series... Joanna approved the Router Thought: “Summaries mention Joanna recommended
+    has Joanna given to specific book series Nate showed her...”          a series... but do not explicitly state the book titles. They are
+    Nate?”              ✗Defect: The specific entity (Book Title) is lost contextually related but lack specific answers.”
+                        during summarization.                             Outcome: Retrieved raw log containing “Little Women”,
+                                                                          avoiding a vague or hallucinated answer.
+                                             Case 2: Semantic Sufficiency (The “Saver” Case)
+   Q: “What important Context: “...John said adopting a rescue dog... Decision: A NSWER (Summary Only)
+   values does John teaches John’s kids responsibility and compas- Router Thought: “Summaries do not explicitly state ‘values:
+   want to teach his sion...”                                          X’, but they hint at key points... Since summaries contain
+   kids through adopt- ✓Sufficient: Key semantic concepts are present. the answer (responsibility and compassion), use Summary.”
+   ing a rescue dog?”                                                  Outcome: Answered correctly (Accuracy preserved) while
+                                                                       skipping ∼4k tokens of raw retrieval.
+
+
+
+answer is not present in the retrieved summaries at infer-                ing failures are dominated by the R-path rather than the
+ence time. This is a direct symptom of write-before-query:                routing decision itself: (i) retrieval may fail to locate the cor-
+the memory writer must decide what to keep before know-                   rect raw page, (ii) the raw evidence may still be missing or
+ing the future query, so some decisive constraints/attributes             already generalized upstream (i.e., the source-of-truth does
+are never preserved in Tier-1 in a query-usable form. A                   not contain an explicit answer span in the stored pages), or
+second major slice (28.8%) is over-generalization, where                  (iii) the generator may fail to extract/compose the correct
+summaries retain topic relevance but lose answer-critical                 answer even when relevant evidence is present. This mo-
+specificity (entities, modifiers, exact values), making the               tivates improving provenance-guided retrieval quality and
+evidence semantically related yet insufficient.                           grounded answer extraction in addition to improving the
+                                                                          router.
+Router decisions on Summary-Only failures. Given
+these 378 Summary-Only errors, our router routes 72.0%                    5.6. Router Diagnostics on Summary-Only Error Cases
+(272) to E SCALATE (R) and 28.0% (106) to A NSWER (S).
+                                                                          We further analyze the router system on the same 431
+However, only 10/106 (9.4%) of S decisions are actually
+                                                                          Summary-Only error cases to diagnose whether failures
+justified by summaries containing the gold information;
+                                                                          stem from (i) incorrect routing decisions or (ii) limitations
+the remaining 96/106 are false cache hits where the router
+                                                                          in the E SCALATE (raw-grounded) path.
+should have escalated.
+
+Why many errors persist even after escalation. A key                      A large fraction are false cache hits (should escalate but
+finding is that 72.0% of Summary-Only failures are already                answered from summaries). Among the 431 Summary-
+recognized as summary-insufficient (router chooses R), yet                Only errors, the router selects A NSWER in 191 cases
+the final answer remains wrong. This indicates that remain-               (44.3%). Crucially, 148 of these are false cache hits—the
+
+                                                                      8
+                            From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+Table 7. Root causes of Summary-Only errors on LoCoMo (n=1540; Summary-Only errors = 378). The top two categories (missing
+information and over-generalization) are direct manifestations of the write-before-query barrier.
+
+           Root cause                     #       %      Description
+           Information missing       156        41.3     Retrieved summaries contain no explicit answer evidence (com-
+                                                         pression/coverage loss).
+           Over-generalization       109        28.8     Specific answer-critical details are abstracted away (e.g., entity/-
+                                                         value → generic descriptor).
+           Reasoning failure           43       11.4     Requires multi-step reasoning but summaries do not support it.
+           Routing decision error      20        5.3     Router selects S when summaries are insufficient (false cache hit).
+           Time confusion              11        2.9     Multiple similar events/timestamps induce ambiguity.
+           Entity confusion             6        1.6     Entity references collapse to pronouns or ambiguous mentions.
+           Other                       33        8.7     Miscellaneous failures.
+
+
+Table 8. Router behavior on Summary-Only error cases                  times ineffective: even with context-extension methods,
+(n=431). False cache hits (choosing A NSWER when escalation is
+needed) account for 34.3% of the error set.
+                                                                      compute grows with length, and models exhibit position-
+                                                                      sensitive degradation on long inputs (Chen et al., 2023; Liu
+   Router outcome on the error set            Count     Rate          et al., 2023). Accordingly, non-parametric agent memory
+   Escalate but still wrong                     240    55.7%
+                                                                      systems rely on external read–write stores to support long-
+   False cache hit                              148    34.3%          term personalization (Yehudai et al., 2025). Representa-
+   Answer with summaries and sufficient          43    10.0%          tive approaches include OS-style hierarchical management
+                                                                      (MemGPT) and controller-based memory operation (SCM),
+                                                                      as well as write-time compression and organization (Memo-
+router answers from Tier-1 although summaries do not con-             ryBank, Mem0, LightMem) and structured memories such
+tain the gold evidence (34.3% of all 431 error cases). This           as temporal knowledge graphs (Packer et al., 2024; Wang
+indicates that the dominant router failure mode is insufficient       et al., 2023; Zhong et al., 2023; Chhikara et al., 2025; Fang
+strictness in sufficiency checking, often triggered by super-         et al., 2025; Rasmussen et al., 2025). In contrast, TierMem
+ficial keyword matches that do not verify slot completeness           explicitly treats memory access as inference-time evidence
+or exactness.                                                         granularity allocation: it answers from a cheap, provenance-
+                                                                      linked summary tier when sufficient, and escalates to an
+Escalation is often triggered correctly but can still fail            immutable raw tier only on detected insufficiency, with veri-
+downstream. In 240 cases (55.7%), the router correctly                fied write-back for amortization. We evaluate this trade-off
+escalates, yet the final answer remains wrong. This sug-              on long-horizon benchmarks including LoCoMo and Long-
+gests that improvements must also target the E SCALATE                MemEval (Maharana et al., 2024; Wu et al., 2025).
+pipeline, e.g., ensuring the raw store contains the needed
+detail, improving provenance-guided retrieval coverage, and           6.2. Agentic Memory Retrieval and Auditable
+strengthening the grounding constraints during generation                  Grounding
+to avoid falling back to the same generalized phrasing.               Beyond storage, retrieval in long-term interaction is inher-
+                                                                      ently a control problem: models must decide when and
+Connecting back to write-before-query. These results                  how much to retrieve and when to stop to avoid under/over-
+highlight a two-part mitigation strategy for write-before-            retrieval (Asai et al., 2023; Jiang et al., 2023). Related work
+query: (1) reduce lossy abstraction at write time (e.g.,              studies iterative retrieval and reflection-based improvement,
+entity/number/date retention constraints), and (2) tighten            (Shinn et al., 2023) and emphasizes verifiable grounding
+inference-time sufficiency checks to detect when sum-                 via retrieve–revise pipelines and fine-grained citations (Gao
+maries are merely topically related but lack decisive evi-            et al., 2022; Cao & Wang, 2024). Closer to agent memory,
+dence. In our setting, (2) is especially urgent, as false cache       retrieval controllers such as MemR3 and page-store-based
+hits directly harm correctness.                                       deep research systems optimize closed-loop evidence gath-
+                                                                      ering under cost constraints (Du et al., 2025; Yan et al.,
+6. Related Work                                                       2025). In contrast, TierMem collapses control into a cost-
+                                                                      sensitive binary routing decision (A NSWER vs. E SCALATE)
+6.1. Memory for Long-Horizon LLM Agents                               across memory granularities, uses provenance pointers to
+                                                                      enable auditable fallback to raw pages, and consolidates
+Long-horizon LLM agents must remain consistent over his-
+                                                                      only verified evidence back to the fast tier.
+tories spanning days to months, yet context windows and in-
+ference budgets make feeding full raw logs costly and some-
+
+                                                                  9
+                           From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+7. Conclusion                                                         Hu, Y., Wang, Y., and McAuley, J. Evaluating memory in
+                                                                        LLM agents via incremental multi-turn interactions, 2025.
+We identify a structural failure mode in summary-centric                URL https://arxiv.org/abs/2507.05257.
+long-horizon memory: the write-before-query barrier,
+where write-time compression can induce unverifiable                  Jiang, Z., Xu, F. F., Gao, L., Sun, Z., Liu, Q., Dwivedi-Yu,
+omissions and break auditability. To address this, we pro-               J., Yang, Y., Callan, J., and Neubig, G. Active retrieval
+pose TierMem, which treats retrieval as inference-time                   augmented generation, 2023. URL https://arxiv.
+evidence allocation: answer from a fast summary tier when                org/abs/2305.06983.
+evidence is sufficient, and E SCALATE to an immutable raw-
+log source of truth only when necessary, then write back              Kang, M., Chen, W.-N., Han, D., Inan, H. A., Wutschitz, L.,
+verified findings with provenance links.                                Chen, Y., Sim, R., and Rajmohan, S. Acon: Optimizing
+                                                                        context compression for long-horizon llm agents, 2025.
+Across LoCoMo and LongMemEval, TierMem im-                              URL https://arxiv.org/abs/2510.00615.
+proves the accuracy–efficiency tradeo-off, approaching raw-
+grounded faithfulness while substantially reducing query-             Li, Z., Xi, C., Li, C., Chen, D., Chen, B., Song, S., Niu, S.,
+time cost. Analyses further show that (i) a lightweight suffi-          Wang, H., Yang, J., Tang, C., Yu, Q., Zhao, J., Wang, Y.,
+ciency router can reliably control escalation with small over-          Liu, P., Lin, Z., Wang, P., Huo, J., Chen, T., Chen, K., Li,
+head, (ii) provenance pointers materially improve escalated             K., Tao, Z., Lai, H., Wu, H., Tang, B., Wang, Z., Fan, Z.,
+grounding quality, and (iii) verified write-back increases              Zhang, N., Zhang, L., Yan, J., Yang, M., Xu, T., Xu, W.,
+cheap-path coverage over time without degrading accuracy.               Chen, H., Wang, H., Yang, H., Zhang, W., Xu, Z.-Q. J.,
+                                                                        Chen, S., and Xiong, F. MemOS: A memory OS for
+                                                                        AI system, 2025. URL https://arxiv.org/abs/
+References                                                              2507.03724.
+Asai, A., Wu, Z., Wang, Y., Sil, A., and Hajishirzi, H. Self-
+                                                                      Liu, N. F., Lin, K., Hewitt, J., Paranjape, A., Bevilacqua,
+  RAG: Learning to retrieve, generate, and critique through
+                                                                        M., Petroni, F., and Liang, P. Lost in the middle: How
+  self-reflection, 2023. URL https://arxiv.org/
+                                                                        language models use long contexts, 2023. URL https:
+  abs/2310.11511.
+                                                                        //arxiv.org/abs/2307.03172.
+Cao, S. and Wang, L.         Verifiable generation with
+                                                                      Maharana, A., Lee, D.-H., Tulyakov, S., Bansal, M., Barbi-
+  subsentence-level fine-grained citations, 2024. URL
+                                                                       eri, F., and Fang, Y. Evaluating very long-term conver-
+  https://arxiv.org/abs/2406.06125.
+                                                                       sational memory of LLM agents, 2024. URL https:
+Chen, S., Wong, S., Chen, L., and Tian, Y. Extending con-              //arxiv.org/abs/2402.17753.
+  text window of large language models via positional in-             Packer, C., Wooders, S., Lin, K., Fang, V., Patil, S. G.,
+  terpolation, 2023. URL https://arxiv.org/abs/                         Stoica, I., and Gonzalez, J. E. MemGPT: Towards LLMs
+  2306.15595.                                                           as operating systems, 2024. URL https://arxiv.
+Chhikara, P., Khant, D., Aryan, S., Singh, T., and Ya-                  org/abs/2310.08560.
+  dav, D. Mem0: Building production-ready AI agents                   Rasmussen, P., Paliychuk, P., Beauvais, T., Ryan, J., and
+  with scalable long-term memory, 2025. URL https:                      Chalef, D. Zep: A temporal knowledge graph architec-
+  //arxiv.org/abs/2504.19413.                                           ture for agent memory, 2025. URL https://arxiv.
+                                                                        org/abs/2501.13956.
+Du, X., Li, L., Zhang, D., and Song, L. MemR3 : Memory
+  retrieval via reflective reasoning for LLM agents, 2025.            Shinn, N., Cassano, F., Berman, E., Gopinath, A.,
+  URL https://arxiv.org/abs/2512.20237.                                 Narasimhan, K., and Yao, S. Reflexion: Language
+                                                                        agents with verbal reinforcement learning, 2023. URL
+Fang, J., Deng, X., Xu, H., Jiang, Z., Tang, Y., Xu, Z.,
+                                                                        https://arxiv.org/abs/2303.11366.
+  Deng, S., Yao, Y., Wang, M., Qiao, S., Chen, H., and
+  Zhang, N. LightMem: Lightweight and efficient memory-               Su, J., Healey, J., Nakov, P., and Cardie, C. Fast or better?
+  augmented generation, 2025. URL https://arxiv.                        balancing accuracy and cost in retrieval-augmented gen-
+  org/abs/2510.18866.                                                   eration with flexible user control, 2025. URL https:
+                                                                        //arxiv.org/abs/2502.12145.
+Gao, L., Dai, Z., Pasupat, P., Chen, A., Chaganty, A. T.,
+  Fan, Y., Zhao, V. Y., Lao, N., Lee, H., Juan, D.-C., and            Wang, B., Liang, X., Yang, J., Huang, H., Wu, S., Wu, P., Lu,
+  Guu, K. RARR: Researching and revising what language                 L., Ma, Z., and Li, Z. SCM: Enhancing large language
+  models say, using language models, 2022. URL https:                  model with self-controlled memory framework, 2023.
+ //arxiv.org/abs/2210.08726.                                           URL https://arxiv.org/abs/2304.13343.
+
+                                                                 10
+                          From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+Wang, P., Tian, M., Li, J., Liang, Y., Wang, Y., Chen, Q.,                metadata to include the Page ID (Pi ) as a provenance
+ Wang, T., Lu, Z., Ma, J., Jiang, Y. E., and Zhou, W.                     pointer ρi , enabling retrieval to map back from a sum-
+ O-mem: Omni memory system for personalized, long                         mary vector to its originating page.
+ horizon, self-evolving agents, 2025a. URL https://
+ arxiv.org/abs/2511.13593.                                              • Embedding model. We embed summaries with
+                                                                          text-embedding-3-small.
+Wang, Y., Wei, L., and Ling, H. Targ: Training-free adaptive
+ retrieval gating for efficient rag, 2025b. URL https:               Mem0 components used vs. disabled. In our implemen-
+ //arxiv.org/abs/2511.09803.                                         tation, Mem0 is used only for (i) storing and querying em-
+                                                                     beddings for Tier-1 summary entries and (ii) attaching/re-
+Wu, D., Wang, H., Yu, W., Zhang, Y., Chang, K.-W., and               trieving metadata (e.g., raw log id/page id) for prove-
+ Yu, D. LongMemEval: Benchmarking chat assistants                    nance. We do not use Mem0’s entity-graph construction,
+ on long-term interactive memory, 2025. URL https:                   graph updates, or graph-based retrieval; these components
+ //arxiv.org/abs/2410.10813.                                         are disabled/bypassed so that Tier-1 consists solely of page
+Yan, B. Y., Li, C., Qian, H., Lu, S., and Liu, Z. General            summaries plus metadata pointers.
+  agentic memory via deep research, 2025. URL https:
+  //arxiv.org/abs/2511.18423.                                        A.2. Paged-Log Ingestion and Persistence
+
+Yehudai, A., Eden, L., Li, A., Uziel, G., Zhao, Y., Bar-             We implement a paged ingestion procedure that converts
+  Haim, R., Cohan, A., and Shmueli-Scheuer, M. Survey                streaming dialogue turns into fixed-size pages stored in a
+  on evaluation of LLM-based agents, 2025. URL https:                persistent PageStore. Each incoming turn is appended to
+  //arxiv.org/abs/2503.16416.                                        the current page with an explicit timestamp and speaker tag.
+                                                                     Once a page reaches a configured maximum length (default:
+Zhang, A. L., Kraska, T., and Khattab, O. Recursive lan-             1000 tokens), we trigger a summarization-and-indexing step
+  guage models, 2025. URL https://arxiv.org/                         via mem0.add(infer=True) over the entire page.
+  abs/2512.24601.
+                                                                     Page format. Each page stores raw interaction text line-
+Zheng, Y., McKee, K. L., Miconi, T., Bugaud, Z., van
+                                                                     by-line in the canonical form:
+  Gelderen, M., and McCaleb, J. Goal-directed search
+  outperforms goal-agnostic memory compression in long-                              [timestamp] speaker : text.
+  context memory tasks, 2025. URL https://arxiv.
+  org/abs/2511.21726.                                                This preserves multi-speaker context for datasets with more
+                                                                     than one interlocutor.
+Zhong, W., Guo, L., Gao, Q., Ye, H., and Wang, Y. Memory-
+  bank: Enhancing large language models with long-term               Provenance. For each page Pi , we generate a unique
+  memory, 2023. URL https://arxiv.org/abs/                           page id. We set raw log id ← page id in Mem0
+  2305.10250.                                                        metadata such that any retrieved summary hit can be deter-
+                                                                     ministically mapped back to the original raw page content
+                                                                     in PageStore.
+A. Implementation Details
+A.1. Memory Instantiation                                            Durability and replay. PageStore persists pages to
+                                                                     disk and supports session-scoped loading. This enables re-
+Our framework is general; in experiments we instantiate the          suming runs without re-ingesting all prior turns and ensures
+memory management system using the open-source Mem0                  that the raw evidence used for research-mode grounding
+library (Chhikara et al., 2025) for vector indexing and stor-        remains accessible.
+age. We adapt Mem0 to our Paged-Log Architecture as
+follows:                                                             A.3. Deferred Summarization for Unindexed Pages
+
+  • Summarization prompt (fsumm ). We replace Mem0’s                 To handle sessions that terminate before a page fills (or
+    default entity-graph extraction with page-level summa-           failures during ingestion), we provide a deferred summa-
+    rization. The prompt instructs the model to generate a           rization routine auto summary. It enumerates pages
+    concise, self-contained summary of the interaction log,          whose summaries have not yet been stored and calls
+    preserving key dates, decisions, and user preferences.           mem0.add(infer=True) for each such page. The re-
+                                                                     turned memory strings are recorded in PageStore and
+  • Storage schema. Each page summary is embedded                    the page is marked as indexed, ensuring that the vector store
+    and indexed in the vector store. We extend Mem0                  remains consistent with the persistent log.
+
+                                                                11
+                          From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+A.4. Query Answering Pipeline                                        Planning step. A separate planning prompt evaluates cov-
+                                                                     erage and returns either DONE or SEARCH with retrieval
+Given a query q, we first retrieve top-k summary hits from
+                                                                     commands. We support two retrieval operators:
+Mem0 using vector similarity search. Each hit contains a
+summary text and a provenance pointer to its source page.
+                                                                        • MEM0 SEARCH: semantic retrieval over Mem0 sum-
+                                                                          maries.
+Two-path routing (S/R).      We use a lightweight router to
+select between:                                                         • KEYWORD SEARCH: BM25-style keyword search
+                                                                          over raw pages in PageStore.
+  • S-path (Summary-only). When retrieved summaries
+    contain an explicit answer, we generate the response             We deduplicate issued commands and terminate early when
+    directly from the summaries.                                     no new pages are discovered.
+  • R-path (Research). When summaries are ambiguous
+    or incomplete, we switch to a slower research mode               A.6. Dynamic Write-back Protocol
+    that grounds generation in raw page evidence.
+                                                                     We implement online consolidation as a closed-loop mem-
+Cost accounting. We record (i) Mem0 retrieval token                  ory update step. Given a set of verified linked facts extracted
+usage and latency, (ii) router token usage, and (iii) answer-        during the Research Integration phase:
+generation token usage. These are aggregated into online
+cost metrics for analysis.                                           1. Conflict Retrieval. For each new candidate fact fnew ,
+                                                                     we query MS to retrieve the top-k (e.g., k = 3) most similar
+                                                                     existing summary units, denoted as Mretrieved .
+A.5. Research Mode: Integration–Plan Loop
+The R-path implements an iterative loop that alternates              2. Operation Selection. We prompt an LLM (the Memory
+between integration (extracting grounded facts from ev-              Manager) to compare fnew with Mretrieved . The model
+idence) and planning (deciding whether to retrieve more              outputs one of four actions:
+evidence).
+                                                                        • SKIP: If fnew is semantically entailed by Mretrieved .
+Evidence construction. We group retrieved hits by
+page id and build an evidence block that includes: (i)                  • UPDATE: If fnew adds specific details (e.g., times-
+Mem0 page summaries (when available) and (ii) the full raw                tamps, names) to a vague existing entry. The model
+page content from PageStore. This ensures that research                   generates the merged text.
+mode always has access to verbatim text for grounding.                  • ADD: If fnew represents a distinct, previously unin-
+                                                                          dexed event.
+Integration step. The integration prompt extracts a set of
+linked facts of the form:                                            3. Provenance Inheritance. If an UPDATE occurs, the
+               fact, evidence quote.                                 new unit inherits the provenance pointers ρ from both the
+                                                                     original unit and the new evidence sources, maintaining a
+Crucially, we do not ask the model to generate provenance
+                                                                     complete audit trail.
+identifiers.
+                                                                     A.7. Reranking (Optional)
+Deterministic provenance linking. After integration, we
+map each extracted fact to its source pages using a determin-        When enabled, we apply a page-level reranker to candi-
+istic post-processing step:                                          date evidence pages. Hits are first grouped by page id;
+                                                                     reranking operates on each page’s raw content (or, if miss-
+  • First, we attempt substring matching of the normalized           ing, concatenated summaries) and selects the top-k unique
+    evidence quote against each page’s raw content                   pages. We also include a protection rule: pages with high-
+    (and, if needed, its summaries).                                 confidence Mem0 similarity scores are retained to avoid
+  • If quote matching fails, we fall back to keyword overlap         discarding highly relevant memories before reranking.
+    between the fact text and page content.
+                                                                     Discussion: Online Consolidation vs. Epoch-wise Re-
+This       produces          source pages           and              play Evaluation TierMem is designed to support online
+evidence snippets without relying on model-                          consolidation: after an escalation, verified findings can be
+generated page identifiers, reducing hallucinated prove-             written back immediately to reduce future misses. How-
+nance.                                                               ever, to match the benchmark evaluation protocol and avoid
+
+                                                                12
+                           From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+Algorithm 1 TierMem QA (Abstract): Router + Bounded                    hyperparameters used.
+Retrieve–Integrate–Plan Loop
+Require: Query Q; Tier-1 summaries MS ; Tier-2 raw                     B.1. Task Definition and Notation
+    pages MR                                                           The router is a lightweight controller that decides whether
+Require: Router πθ ; generator Gen                                     the system can answer a user query using Tier-1 summaries
+Require: Retrieve, Rerank, Integrate, Plan                             alone (A NSWER/S) or must escalate to Tier-2 raw logs
+Require: max iterations Tmax                                           (E SCALATE/R). Given a query Q and an initial evidence
+Ensure: Answer Ŷ                                                      state Z0 consisting of the top-k retrieved Tier-1 summaries,
+ 1: Z0 ← Retrieve(MS , Q)
+                                                                       the router predicts:
+ 2: if πθ (Q, Z0 ) = A NSWER then
+ 3:    return Gen(Q, Z0 )
+                                                                                  a ∼ πθ (a | Q, Z0 ),     a ∈ {S, R}.
+ 4: end if
+ 5: E ← Integrate(Q, Linked(Z0 )) {seed: summaries +
+                                                                       The router output is strictly a JSON object with an action
+    linked raw pages (compressed)}
+                                                                       token (and optionally a teacher thinking field during
+ 6: q1 ← Q; H ← ∅ {optional: searched queries / history}
+                                                                       distillation).
+ 7: for t = 1 to Tmax do
+ 8:    Ct ← Retrieve(MS , qt ) ∪ Retrieve(M  R , qt )
+                                                                      B.2. Data Construction: Summary Sufficiency Labels
+ 9:    Xt ← TopK Rerank(Ct , Q)
+10:    E ← E ∪ Integrate(Q, Xt )                                       Source benchmark slice. We construct router training
+11:    (dt , qt+1 )   ←     Plan(Q, E, H) {dt          ∈               data from the Long-Range Understanding (LRU) compe-
+       {S TOP, S EARCH}}                                               tency in MemoryAgentBench (Hu et al., 2025), using a
+12:    if dt = S TOP then                                              summarization-style subset of 2,000 instances. Each in-
+13:       break                                                        stance is materialized into a linked two-tier memory state
+14:    end if                                                          (MS , MR ) using the write path described in §2.1. For each
+15:    H ← H ∪ {qt }; qt ← qt+1                                        query Q, Tier-1 dense retrieval returns the initial summary
+16: end for                                                            evidence Z0 (top-ks summaries), which forms the router
+17: Ŷ ← Gen(Q, E)                                                     input.
+18: optional: WriteBack(MS , E)
+19: return Ŷ
+                                                                       Two-path execution (Summary vs. Research). For each
+                                                                       query Q, we execute two fixed policies to determine whether
+                                                                       Z0 is sufficient:
+within-run distribution shift, our main experiments report re-
+sults under an epoch-wise replay setting where Tier-1 is held
+                                                                          • Summary-only (S-path): ŶS ← Gen(Q, Z0 )
+fixed within each epoch and updates are applied between
+epochs. We expect that in interactive deployments, moving
+                                                                          • Research/raw-grounded (R-path): Run the bounded
+write-back into the QA loop is straightforward and may
+                                                                            Deep Search Loop (§2.2) to obtain Efinal , then ŶR ←
+further reduce repeated escalations, but careful design is
+                                                                            Gen(Q, Efinal )
+needed to preserve reproducibility and to avoid unintended
+interactions with evaluation sampling.
+                                                                       LLM judge and sufficiency rubric. We obtain binary
+A.8. Statistics and Debug Instrumentation                              indicators cS , cR ∈ {0, 1} using LLM-based judges with
+                                                                       conservative rubrics. Both judges are run with temperature
+For analysis, we log per-query events including (i) route              0 and are constrained to output a fixed JSON schema to
+choice (S vs. R), (ii) hit breakdown by source type                    reduce variance.
+(original vs. linked fact), (iii) linked-fact write-
+back counts, and (iv) latency/token usage. This instrumenta-
+                                                                       S-path: summary sufficiency judge. Given (Q, y ⋆ , Z0 ),
+tion is used only for evaluation and does not affect the core
+                                                                       the judge determines whether the retrieved summaries con-
+algorithm.
+                                                                       tain explicitly sufficient information to answer the question
+                                                                       correctly without guessing. We use the following prompt
+B. Router: Data Construction, Training                                 (verbatim):
+   Pipeline, and Hyperparameters
+                                                                       B.3. Judge Prompt for Summary Sufficiency
+This appendix consolidates all details related to router super-
+vision, SFT distillation, GRPO optimization, and the exact             We set cS = I[has sufficient info = true].
+
+                                                                  13
+                              From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+     Judge Prompt (Summary Sufficiency)                                  B.4. Training Workflow Overview
+    You are evaluating whether retrieved summaries contain               We train the router using a two-stage pipeline:
+    sufficient information to answer a question.
+    Question: {question}
+    Gold answer: {gold answer}
+                                                                           1. Stage 1 (SFT / Distillation): Initialize the router to
+    Retrieved summaries:                                                      follow the routing protocol and learn strong sufficiency
+    {summaries text}                                                          heuristics from a high-capacity teacher (GPT-5) using
+    Your task: Determine if the summaries contain EX-                         a strict JSON format.
+    PLICIT information to answer the question correctly.
+    Strict criteria (be conservative):                                     2. Stage 2 (GRPO): Starting from the SFT checkpoint,
+                                                                              refine the decision boundary under an explicit accuracy–
+        1. The answer should be DIRECTLY stated or clearly
+           derivable from the summaries.                                      cost trade-off, discouraging unnecessary escalation
+                                                                              while preserving faithfulness.
+        2. Do NOT count vague/related information as suffi-
+           cient.
+                                                                         This separation is intentional: SFT primarily regularizes be-
+        3. Do NOT infer causes from effects.                             havior and format; GRPO optimizes the accuracy–efficiency
+                                                                         trade-off.
+        4. For completeness questions (“how many”, “list all”,
+           “both”), summaries must be COMPLETE.
+                                                                         B.5. Stage 1: SFT via GPT-5 Thinking+Action
+        5. For exact details (dates, numbers, names), sum-                    Distillation
+           maries must contain those exact details.
+                                                                         Teacher prompt (GPT-5 thinking trace + binary action).
+    If you have ANY doubt whether the summaries allow a
+    factual answer without guessing, answer false.                       We distill a teacher-generated thinking trace and the
+    Output JSON:                                                         final routing decision action using the following prompt
+    {                                                                    (verbatim):
+        "has_sufficient_info": true/false,
+        "reason": "..."                                                  B.6. Router Thinking Prompt
+    }
+                                                                         SFT targets and formatting. For each example, the stu-
+                                                                         dent router is trained to reproduce the teacher’s JSON re-
+Figure 2. The judge prompt used to evaluate whether the retrieved        sponse. We treat the entire JSON (including thinking
+summaries provide sufficient context to answer the ground truth.
+                                                                         and action) as the supervised target, using standard next-
+                                                                         token cross-entropy. At inference time, the system uses only
+R-path: research/correctness judge. Given (Q, y ⋆ , ŶR ),               the action field.
+the judge determines whether the research-path answer
+matches the gold answer. We use a separate LLM-as-judge                  Teacher-label consistency filter. To ensure alignment
+prompt (Appendix B.3), which outputs a JSON object of                    with oracle labels derived in §B.2, we keep only SFT ex-
+the form: { ”label”: ‘‘CORRECT’’ / ‘‘WRON’’ }. We                        amples where the teacher action matches the oracle routing
+set cR = I[label = ‘‘CORRECT’’].                                         label y. Examples with mismatched teacher actions are
+                                                                         discarded.
+Why conservative judging? Our routing label targets
+summary sufficiency. False positives (marking summaries as               Why include thinking in SFT. The teacher thinking
+sufficient when they are not) would train a router that under-           field provides structured intermediate reasoning about evi-
+escalates and produces ungrounded answers. Therefore,                    dence sufficiency (e.g., completeness, ambiguity, exactness),
+the S-path prompt intentionally biases toward false when                 which improves stability and reduces instruction-following
+there is ambiguity or missing explicit support.                          failures (e.g., verbose or malformed outputs) in a small
+                                                                         router.
+Routing labels (semantic cache hit/miss). We define the
+router supervision label as:                                             B.7. Stage 2: GRPO Alignment for Accuracy–Cost
+                   (                                                          Trade-off
+                     S if cS = 1,
+              y=
+                     R if cS = 0 ∧ cR = 1.                               Starting from the SFT checkpoint, we optimize the router
+                                                                         with GRPO using a trajectory-level reward:
+We drop instances where both policies fail (cS =0 ∧ cR =0),
+since they provide no signal on whether escalation can re-                R(τ ) = Racc (τ ) − λcost Rcost (τ ) − λwaste Rwaste (τ ),
+cover missing evidence.                                                                                                           (1)
+
+                                                                    14
+                               From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+    Router Thinking Prompt
+   You are a router for a memory-augmented QA system. Decide whether the retrieved summaries are sufficient to answer the
+   question.
+   Available Actions
+
+       1. “S” — Answer using current summaries only
+          Use when: The summaries contain a span that directly states the answer (or a direct paraphrase) WITHOUT needing to
+          assume missing facts.
+          Rules of thumb:
+              • If you can point to a specific snippet that can be copied into the answer, choose S.
+
+       2. “R” — Deep research mode
+          Use when: Summaries are too ambiguous, contradictory, or unrelated; OR the question requires a comprehensive list and
+          summaries are clearly incomplete.
+          R is more reliable than S.
+   Input
+   QUESTION: {question}
+   SUMMARIES:
+   {summaries block}
+   Decision checklist
+
+         • What exact answer format is needed? (single value / list / date / identity)
+         • Do summaries explicitly contain it?
+
+         • Any ambiguity or need to infer?
+
+         • Any completeness requirement?
+
+   Output (JSON only)
+   {
+       "thinking": "<your reasoning>",
+       "action": "S/R"
+   }
+
+
+          Figure 3. The updated router prompt incorporating explicit chain-of-thought reasoning to improve decision reliability.
+
+
+where:                                                                    B.8. GRPO Dataset Preparation and Filtering
+                                                                          Starting from the offline QA logs (which include both
+  • Racc encourages correct routing (choose S when sum-                   summary-path and research-path outcomes), we apply the
+    maries suffice; choose R when escalation is necessary),               following filters:
+  • Rcost penalizes choosing R to reflect token/latency
+    overhead,                                                              1. Remove instances where both paths fail (cS = 0 ∧
+                                                                              cR = 0).
+  • Rwaste penalizes unnecessary escalation (choosing R
+    when y = S).                                                           2. Remove instances where the R-path fails (cR = 0),
+                                                                              since escalation does not recover evidence.
+Concrete reward implementation. In our implementa-
+tion, rewards are computed from (cS , cR ) and the router                  3. Optionally re-judge S-path sufficiency using a fixed
+decision a:                                                                   judge configuration to reduce label noise; keep only
+                                                                              instances consistent under re-judging.
+GRPO dataset construction. We build GRPO prompts
+using the same router input (Q, Z0 ) as in SFT. For each                  Optional augmentation. We optionally augment a sub-
+prompt, we sample multiple router completions per prompt                  set of questions by paraphrasing while preserving intent
+(generations per prompt is reported in §B.9) to compute                   and specificity (2–3 paraphrases per question). Paraphrases
+group-relative advantages.                                                inherit the same memory state and labels.
+
+                                                                     15
+                            From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+Balancing. To emphasize hard decisions, we oversample                    B.9.3. R EWARD C OEFFICIENTS
+cases where escalation is necessary (cS = 0 ∧ cR = 1)
+during GRPO minibatch formation.                                           Name                                                  Value
+                                                                           Correct reward (CORRECT REWARD)                       1.0
+B.9. Hyperparameters                                                       Wrong penalty (WRONG PENALTY)                         -1.5
+                                                                           Cost of S (COST S)                                    0.0
+B.9.1. SFT H YPERPARAMETERS                                                Cost of R (COST R)                                    0.1
+                                                                           Waste penalty for unnecessary R (WASTE R)             0.4
+                                                                           Format error penalty (FORMAT ERROR PENALTY)           -1.0
+      Parameter                      Value                               Table 11. Reward coefficients used by the router GRPO objective.
+      Train type                     LoRA
+      Precision                      bfloat16
+      Epochs                         5
+      Learning rate                  1 × 10−4                            C. Detailed Analysis of Provenance Pointer
+      Max sequence length            4096
+      Per-device train batch size    8                                      Ablation
+      Per-device eval batch size     4
+      Gradient accumulation steps    1
+                                                                         This appendix provides a detailed analysis of the prove-
+      LoRA rank / alpha              64 / 128                            nance pointer ablation study introduced in Section 5.3. We
+      Target modules                 all-linear                          analyze route consistency, accuracy under identical routing
+      Warmup ratio                   0.1                                 decisions, and token-level cost, in order to isolate the effect
+      Eval / Save steps              10 / 10                             of provenance-aware warm-start from routing behavior or
+      Save total limit               5
+      Logging steps                  1
+                                                                         additional computation.
+      Dataloader workers             4
+      Loss scaling                   ignore empty think                  C.1. Route Consistency
+      Kernel optimization            use liger kernel=true
+      DeepSpeed                      ZeRO-2                              Across 1,540 shared queries, Linked and No-Linked make
+   Table 9. SFT (LoRA) training configuration for the router.            identical routing decisions on 1,306 queries (84.8%), and
+                                                                         differ on 234 queries (15.2%). This indicates that enabling
+                                                                         provenance pointers induces only modest changes in routing
+                                                                         behavior. Therefore, improvements observed in the Linked
+B.9.2. GRPO H YPERPARAMETERS                                             setting cannot be explained solely by more aggressive esca-
+                                                                         lation, but instead suggest higher-quality evidence retrieval
+                                                                         during escalation.
+    Parameter                       Value
+    RLHF type                       GRPO                                 C.2. Accuracy under Identical Routes
+    Initialization                  SFT adapter checkpoint
+    Precision                       bfloat16                             To disentangle retrieval quality from routing effects, we
+    Epochs                          6                                    analyze queries where Linked and No-Linked select the
+    Context length                  2048                                 same route.
+    Learning rate                   5e-6
+    Max completion length           256
+    Per-device train batch size     24                                   Both Escalate (R). When both systems escalate to raw
+    Per-device eval batch size      24                                   logs, Linked answers 31 queries correctly that No-Linked
+    Gradient accumulation steps     1                                    answers incorrectly, whereas the reverse occurs in 25 cases.
+    Warmup ratio                    0.05                                 This yields a net gain of +6 queries for Linked under identi-
+    DeepSpeed                       ZeRO-2
+    Target modules                  all-linear
+                                                                         cal escalation decisions.
+    LoRA rank / alpha               64 / 128
+    Dataloader workers              4                                    Both Answer (S). When both systems answer directly
+    Logging / Save steps            5 / 50                               from summaries, Linked answers 16 queries correctly that
+    Completions logging             log completions=true
+    Sampling temperature            1.2                                  No-Linked answers incorrectly, compared to 10 in the oppo-
+    Generations per prompt          8                                    site direction. The small difference confirms that prove-
+    Rollout forward batch size      8                                    nance pointers primarily affect raw evidence grounding
+    KL / regularization parameter   β = 0.02                             rather than summary-only answering.
+    Reporting                       Weights & Biases
+Table 10. GRPO training configuration for router policy optimiza-        These controlled comparisons demonstrate that provenance
+tion.                                                                    pointers improve the quality of retrieved evidence, indepen-
+                                                                         dent of routing frequency.
+
+                                                                    16
+                            From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+C.3. Cost Analysis by Route                                              Category                Count   Decomposition (actual)
+
+Table 12 reports average token usage by route. On summary-               S correct R correct       240     225 correct / 15 wrong
+                                                                         S correct R wrong          33      13 correct / 20 wrong
+only queries, Linked and No-Linked incur nearly identical                S wrong R correct         181     169 correct / 12 wrong
+cost. On escalated queries, Linked incurs slightly higher                S wrong R wrong            86      14 correct / 72 wrong
+token usage, reflecting deeper or more precise raw evidence
+                                                                         Total matched (R set)     540    421 correct / 119 wrong
+grounding.
+                                                                       Table 13. GPT-4.1-mini: S/R counterfactual comparison on the
+Importantly, the average research depth is nearly identical            queries routed to R.
+between Linked (1.38) and No-Linked (1.36), with the same
+maximum depth (3), indicating that gains do not stem from
+additional retrieval iterations.                                         Category                Count   Decomposition (actual)
+                                                                         S correct R correct       313      305 correct / 8 wrong
+           Method        Route     Tokin    Tokout                       S correct R wrong          26      13 correct / 13 wrong
+                                                                         S wrong R correct         170     153 correct / 17 wrong
+           Linked          S        847.5     97.8                       S wrong R wrong            92      20 correct / 72 wrong
+           Linked          R       8875.1    724.0
+                                                                         Total matched (R set)     601    491 correct / 110 wrong
+           No-Linked       S        847.2     96.8
+                                                                       Table 14. Ours (SFT+GRPO): S/R counterfactual comparison on
+           No-Linked       R       8705.0    709.9
+                                                                       the queries routed to R.
+Table 12. Average QA token cost by route for provenance pointer
+ablation.
+
+                                                                       the benchmark judge. This yields a 2×2 table with counts:
+C.4. Summary
+                                                                          • S correct R correct: both paths would be correct.
+In summary, provenance pointers consistently improve per-
+formance on escalated queries by enabling more reliable                   • S correct R wrong: R would hurt (regression if esca-
+raw-log grounding. The improvement persists under identi-                   lated).
+cal routing decisions and does not rely on increased search
+depth. While provenance-aware escalation incurs slightly                  • S wrong R correct: R would fix S (repair benefit).
+higher token cost, it yields a favorable accuracy–efficiency
+trade-off, validating provenance linking as a core component              • S wrong R wrong: both fail (hard negatives).
+of TierMem.
+                                                                       We report both (i) the raw S/R agreement counts and
+                                                                       (ii) their decomposition against the final judge labels
+D. Additional Analysis: Why Higher
+                                                                       (actual correct/wrong) to expose how “hard” the
+   Hard-Recall Can Tie on End-to-End Judge                             routed set is.
+   Score
+This appendix explains why GPT-4.1-mini achieves higher                GPT-4.1-mini (R-routed subset).
+recall on oracle-hard cases (Table 3), yet matches our
+SFT+GRPO router on the final LoCoMo LLM-as-judge                       Ours (SFT+GRPO) (R-routed subset).
+accuracy. Crucially, this effect does not come from differ-
+ent stored memories: all variants share identical writes and           D.2. Repair benefit vs. regression risk
+use the same memory library, generator, embedding model,
+and reranker (cf. evaluation protocol in §4.1.1). Instead,             Hard-recall is a mechanism metric that measures whether
+the tie arises from how routing interacts with (i) the diffi-          oracle-hard cases are escalated, but end-to-end judge ac-
+culty distribution of escalated queries and (ii) the effective         curacy depends on whether escalation actually repairs S
+repair/regression behavior of the R-path under the realized            failures without introducing regressions. From Tables 13–
+evidence trajectories.                                                 14, we define two diagnostics on the R-routed subset:
+
+                                                                                                                         S wrong R correct
+D.1. S/R counterfactual comparison matrices on the                      RepairRate = Pr(R correct | S wrong) =
+                                                                                                               S wrong R correct + S wrong
+     R-routed set                                                                                                        (2)
+For each router, we log a counterfactual comparison on the                                                                S correct R wrong
+                                                                       RegressRate = Pr(R wrong | S correct) =
+subset of queries routed to R: we run the S-path answer and                                                    S correct R wrong + S correct
+the R-path answer and record whether each is correct under                                                               (3)
+
+                                                                  17
+                            From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+Measured values. For GPT-4.1-mini: RepairRate =                         False cache misses dominate and reflect conservative
+181/(181 + 86) = 67.8% and RegressRate = 33/(33 +                       bias. R→S errors are much more frequent (371 cases).
+240) = 12.1%. For ours: RepairRate = 170/(170 +                         The primary cause is false information gap detection: the
+92) = 64.9% and RegressRate = 26/(26 + 313) = 7.7%.                     router assumes summaries are insufficient even when they
+Thus, GPT-4.1-mini shows higher repair rate but also higher             contain enough evidence. These errors increase cost but
+regression exposure on the set it escalates, whereas our                typically do not degrade correctness, reflecting a conser-
+router is slightly less aggressive in “fixing” but produces             vative policy that prioritizes faithfulness. This suggests a
+fewer cases where R would be worse than S.                              clear path for future improvement: better calibration and
+                                                                        sufficiency detection that leverages indirect but adequate
+D.3. Why end-to-end accuracy can tie despite recall                     evidence while still avoiding false cache hits.
+     differences
+Even with identical writes and identical components, routers            F. Prompts Used in the TierMem System
+induce different escalated sets and therefore different dif-
+ficulty distributions for the R-path. This is visible in the
+hard-negative bucket S wrong R wrong: GPT-4.1-mini
+escalates 86 such cases, while ours escalates 92. Impor-
+tantly, within this bucket the judge decomposition shows
+that some instances labeled as S wrong R wrong still end
+up as actual correct (14 for GPT-4.1-mini vs. 20 for
+ours), which we interpret as evidence of trajectory sensi-
+tivity in the R-path: small differences in retrieved evidence
+traces and generation can flip outcomes on extremely diffi-
+cult instances. In our runs, the R-path succeeds on more of
+these hard negatives (20 vs. 14), partially compensating for
+the lower oracle-hard recall.
+
+
+Takeaway. Under a fixed write state, the gap between
+mechanism metrics (e.g., oracle-hard recall) and outcome
+metrics (judge accuracy) can be explained by (i) different
+escalated-set difficulty, (ii) repair vs. regression trade-offs,
+and (iii) trajectory sensitivity of the R-path on borderline
+hard instances. Therefore, we report not only hard recall
+but also the S/R counterfactual matrices to make the cost–
+fidelity behavior transparent.
+
+E. Router Error Analysis and Failure Modes
+We analyze routing errors relative, clustered into coherent
+categories (Table 15). We distinguish two asymmetric error
+types: (i) S→R errors (false cache hits), where the router
+answers from Tier-1 but raw grounding is required; and (ii)
+R→S errors (false cache misses), where the router escalates
+unnecessarily despite sufficient summary evidence.
+
+
+False cache hits are rarer but more harmful. S→R
+errors are relatively rare (61 cases) but directly impact cor-
+rectness. They stem mainly from information completeness
+failures (missing a required slot such as an entity name) and
+precision requirement failures (ignoring that the question
+demands exactness or attribution). These cases align with
+known brittleness of lossy compression: a summary can be
+topically relevant yet underspecified for exact answering.
+
+                                                                   18
+                              From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+                                       Error Category                                        Count
+                                       S→R Errors (Summary insufficient, escalation needed)
+                                       Information completeness error                             26
+                                       Disambiguation failure                                     17
+                                       Precision requirement ignored                              16
+                                       Context and focus confusion                                 1
+                                       Other                                                       1
+                                       Total S→R                                                  61
+                                       R→S Errors (Unnecessary escalation)
+                                       False information gap detection                          289
+                                       Neglect of indirect or inferential evidence               49
+                                       Temporal or logical inference failure                     33
+                                       Total R→S                                                371
+Table 15. Router error analysis. We categorize routing errors into false cache hits (S→R) and false cache misses (R→S). False cache
+hits are relatively rare but stem mainly from summary incompleteness and unmet precision requirements. False cache misses dominate
+and primarily reflect conservative over-escalation, incurring additional cost without affecting correctness.
+
+
+     Fact Extraction Prompt (JSON Schema)
+    You are the Universal Memory Encoder. Your goal is to convert raw input stream into high-fidelity, self-contained knowledge
+    records (Long-term Memory).
+    INPUT FORMATTING NOTICE:
+    The input will be provided in the next user message, prefixed by ‘Input:’ and often formatted as dialogue lines.
+    It may follow a pattern like: ‘[Timestamp] Speaker Name: Content’.
+
+        • If this pattern is present, you MUST use the ‘Timestamp’ for temporal grounding and ‘Speaker Name’ for entity resolution.
+
+        • If this pattern is absent (e.g., raw document text), treat the input as a factual source and extract knowledge propositions.
+
+    CORE OBJECTIVES:
+        1. ENTITY & CONTEXT RESOLUTION:
+             • No ambiguous references: Every extracted fact must explicitly name the involved people, organizations, objects,
+               places, and concepts.
+             • No “User” ambiguity: If the input says ‘[... ] Melanie: I like art’, the fact MUST be “Melanie likes art”, NOT “The
+               user likes art”.
+             • De-contextualization: Each extracted fact must be standalone.
+
+        2. TEMPORAL GROUNDING: Use the provided timestamps in the input as the source of truth. Convert relative time
+           (“tomorrow”, “next week”) into absolute context.
+        3. PRONOUN & DEIXIS ELIMINATION: Extracted facts must not contain any pronouns. If a pronoun appears, resolve
+           it to the specific entity.
+
+        4. SCENE TAGGING (EMBEDDED): Identify the immediate scene/activity (2-5 words). Append this scene to the end of
+           the fact string inside brackets.
+
+    OUTPUT INSTRUCTIONS (MUST FOLLOW):
+    Return a JSON object with EXACTLY this schema:
+    {
+        "facts": [
+            "<atomic fact sentence 1> [Scene: ...]",
+            "<atomic fact sentence 2> [Scene: ...]", ...
+        ]
+    }
+    Rules: Output JSON only (no extra text, no markdown code fences).
+
+
+                            Figure 4. The prompt used for extracting atomic facts from conversation streams.
+
+
+                                                                    19
+                         From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+
+
+ Research Integration Prompt
+You are a research assistant extracting facts from conversation evidence to answer a question.
+QUESTION: {question}
+RETRIEVED EVIDENCE: {evidence}
+YOUR TASK:
+Read through ALL pages in the evidence and extract facts that help answer the question.
+EXTRACTION STRATEGY:
+Identify what information is needed and extract:
+    1. Direct answers: Facts that directly answer the question
+
+    2. Component facts: Facts about entities/topics in the question that can be combined
+
+    3. Temporal facts: When events happened
+
+    4. Confirmation facts: Look for acceptance/approval messages
+OUTPUT FORMAT (JSON):
+{
+    "linked_facts": [
+      {
+        "fact": "<extracted fact - use specific dates/names>",
+        "evidence_quote": "<EXACT quote from the evidence>"
+      }
+    ],
+    "coverage_assessment": "<what aspects are covered vs missing>"
+}
+
+
+                               Figure 5. Prompt for integrating retrieved facts to answer a query.
+
+
+
+
+ Research Plan Prompt
+You are a research planner. Based on the current facts and the question, decide if more information is needed.
+QUESTION: {question}
+CURRENT FACTS: {current facts}
+COVERAGE ASSESSMENT: {coverage assessment}
+RESEARCH HISTORY: {research history}
+ALREADY SEARCHED: {searched queries}
+YOUR TASK:
+Decide whether the current facts are SUFFICIENT to answer the question, or if more search is needed.
+OUTPUT FORMAT (JSON):
+{
+    "decision": "DONE" or "SEARCH",
+    "reasoning": "<brief explanation>",
+    "search_commands": [
+      {"type": "MEM0_SEARCH", "query": "<semantic search query>"},
+      {"type": "KEYWORD_SEARCH", "keywords": ["k1", "k2"]}
+    ]
+}
+DECISION CRITERIA:
+
+    • DONE: The facts contain enough information to provide a reasonable answer.
+
+    • SEARCH: Key information is missing and more search might help.
+
+
+                         Figure 6. Prompt for planning the next research step or concluding the search.
+
+
+
+                                                                 20
+                       From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+
+
+
+ Router Prompt (Summarization vs. Research Decision)
+You are an expert router for a memory-augmented QA system. Analyze the retrieved summaries and decide the best action to
+answer the question.
+Available actions:
+1. ”S” - Answer using current summaries only. Use when Summaries contain the EXPLICIT answer.
+2. ”R” - Deep research mode (slow path). Use when Summaries are ambiguous, only contextually related, or miss the answer
+entirely.
+Question: {q}
+Retrieved Summaries: {summaries block}
+Output format (JSON only):
+- If answering with summaries: {"action": "S"}
+- If deep research needed: {"action": "R"}
+
+
+                  Figure 7. Routing prompt to decide between immediate summarization or deep research.
+
+
+
+
+ Answer Generation Prompts (Template Functions)
+def _make_locomo_summary_prompt(summary: str, question: str) -> str:
+    return f"""\
+Based on the summary below, write an answer in the form of **a short phrase**...
+Answer with exact words from the context whenever possible.
+For date/time, strictly follow the format "15 July 2023"...
+
+QUESTION: {question}
+SUMMARY: {summary}
+Short answer:
+"""
+
+def _make_longmemeval_prompt(summary: str, question: str) -> str:
+    return f"""\
+You are an intelligent memory assistant tasked with retrieving accurate
+information from episodic memories.
+
+# INSTRUCTIONS:
+Synthesize information from different memories to answer the user’s question.
+It is CRITICAL that you move beyond simple fact extraction and perform
+logical inference. Answer the question in a short phrase.
+
+QUESTION: {question}
+SUMMARY: {summary}
+Short answer:
+"""
+
+
+                  Figure 8. Python functions used to generate the final answer prompts based on context.
+
+
+
+
+                                                           21
+                        From Lossy to Verified: A Provenance-Aware Tiered Memory for Agents
+
+
+
+
+ Write-Back Grounding Verification Prompt
+You are a strict quality judge for memory facts. Given a question and candidate facts, select ONLY high-quality facts that meet
+ALL criteria.
+Question: {question}
+Candidate Facts: {facts list}
+Quality Criteria (ALL must be met):
+  1. Directly Relevant: Directly helps answer this specific question.
+
+  2. Specific & Concrete: Contains names, dates, numbers, locations.
+
+  3. Factually Grounded: Based on concrete conversation content.
+
+  4. Non-redundant & Self-contained.
+Reject facts that are: Too general, obvious from the question, vague, or tangentially related.
+Output format: Return ONLY a JSON array of selected fact indices (0-based), e.g., [0, 2], [1], or [] if none qualify.
+
+
+                          Figure 9. Prompt for verifying the quality and relevance of extracted facts.
+
+
+
+
+ LLM as Judge Evaluation Prompt
+Your task is to label an answer to a question as ‘CORRECT’ or ‘WRONG’. You will be given: (1) a question (posed by one user
+to another user), (2) a ‘gold’ (ground truth) answer, (3) a generated answer.
+The gold answer will usually be a concise and short answer. The generated answer might be much longer, but you should be
+generous with your grading - as long as it touches on the same topic/time as the gold answer, it should be counted as CORRECT.
+Question: {question} Gold answer: {gold answer} Generated answer: {generated answer}
+First, provide a short (one sentence) explanation of your reasoning, then finish with CORRECT or WRONG in a json format with
+the key as ”label”.
+
+
+                           Figure 10. The LLM-as-a-Judge prompt used for automated evaluation.
+
+
+
+
+                                                              22
+

@@ -1,0 +1,665 @@
+                                                       Precise Zero-Shot Dense Retrieval without Relevance Labels
+
+                                                             Luyu Gao∗ † Xueguang Ma∗ ‡ Jimmy Lin‡ Jamie Callan†
+                                                               †
+                                                                 Language Technologies Institute, Carnegie Mellon University
+                                                          ‡
+                                                            David R. Cheriton School of Computer Science, University of Waterloo
+                                                              {luyug, callan}@cs.cmu.edu, {x93ma, jimmylin}@uwaterloo.ca
+
+
+
+                                                                  Abstract                               pre-training (Izacard et al., 2021; Gao and Callan,
+                                                                                                         2021; Lu et al., 2021; Gao and Callan, 2022; Liu
+                                                 While dense retrieval has been shown effec-             and Shao, 2022) have been proposed to improve the
+                                                 tive and efficient across tasks and languages,
+                                                                                                         effectiveness of supervised dense retrieval models.
+                                                 it remains difficult to create effective fully
+
+
+
+
+arXiv:2212.10496v1 [cs.IR] 20 Dec 2022
+                                                 zero-shot dense retrieval systems when no rel-             On the other hand, zero-shot dense retrieval still
+                                                 evance label is available. In this paper, we            remains difficult. Many recent works consider the
+                                                 recognize the difficulty of zero-shot learning          alternative transfer learning setup, where the dense
+                                                 and encoding relevance. Instead, we pro-                retrievers are trained on a high-resource dataset and
+                                                 pose to pivot through Hypothetical Document             then evaluated on queries from new tasks. The MS-
+                                                 Embeddings (HyDE). Given a query, HyDE first
+                                                                                                         MARCO collection (Bajaj et al., 2016), a massive
+                                                 zero-shot instructs an instruction-following
+                                                 language model (e.g. InstructGPT) to gen-               judged dataset with a large number of judged query-
+                                                 erate a hypothetical document. The docu-                document pairs, is arguably the most commonly
+                                                 ment captures relevance patterns but is unreal          used. As argued by Izacard et al. (2021), in prac-
+                                                 and may contain false details. Then, an un-             tice, however, the existence of such a large dataset
+                                                 supervised contrastively learned encoder (e.g.          cannot always be assumed. Even MS-MARCO re-
+                                                 Contriever) encodes the document into an                stricts commercial use and cannot be adopted in a
+                                                 embedding vector. This vector identifies a
+                                                                                                         variety of real-world search scenarios.
+                                                 neighborhood in the corpus embedding space,
+                                                 where similar real documents are retrieved                 In this paper, we aim to build effective fully
+                                                 based on vector similarity. This second step            zero-shot dense retrieval systems that require no
+                                                 ground the generated document to the actual             relevance supervision, work out-of-box and gener-
+                                                 corpus, with the encoder’s dense bottleneck             alize across tasks. As supervision is not available,
+                                                 filtering out the incorrect details. Our exper-         we start by examining self-supervised representa-
+                                                 iments show that HyDE significantly outper-
+                                                                                                         tion learning methods. Modern deep learning en-
+                                                 forms the state-of-the-art unsupervised dense
+                                                 retriever Contriever and shows strong per-              ables two distinct learning algorithms. At the token
+                                                 formance comparable to fine-tuned retrievers,           level, generative large language models (LLM) pre-
+                                                 across various tasks (e.g. web search, QA, fact         trained on large corpus have demonstrated strong
+                                                 verification) and languages (e.g. sw, ko, ja).1         natural language understanding (NLU) and gen-
+                                                                                                         eration (NLG) capabilities (Brown et al., 2020;
+                                         1       Introduction                                            Chen et al., 2021; Rae et al., 2021; Hoffmann
+                                         Dense retrieval (Lee et al., 2019; Karpukhin et al.,            et al., 2022; Thoppilan et al., 2022; Chowdhery
+                                         2020), the method of retrieving documents using                 et al., 2022). At the document level, text (chunk)
+                                         semantic embedding similarities, has been shown                 encoders pre-trained with contrastive objectives
+                                         successful across tasks like web search, question               learn to encode document-document similarity into
+                                         answering, and fact verification. A variety of meth-            inner-product (Izacard et al., 2021; Gao and Callan,
+                                         ods such as negative mining (Xiong et al., 2021; Qu             2022). On top of these, one extra insight into LLM
+                                         et al., 2021), distillation (Qu et al., 2021; Lin et al.,       is borrowed: the LLMs further trained to follow
+                                         2021b; Hofstätter et al., 2021) and task-specific               instructions can zero-shot generalize to diverse un-
+                                                                                                         seen instructions (Ouyang et al., 2022; Sanh et al.,
+                                                 ∗
+                                                Equal contribution.                                      2022; Min et al., 2022; Wei et al., 2022). Ouyang
+                                             1
+                                              No models were trained or fine-tuned in making this pre-
+                                         print. Our open source code is available at https://github.     et al. (2022) show that with a small amount of data,
+                                         com/texttron/hyde.                                              GPT-3 (Brown et al., 2020) models can be aligned
+write a passage to answer the question
+                                                                                                                        How wisdom teeth are removed...
+how long does it take to remove
+wisdom tooth                                    HyDE           It usually takes between 30
+                                                                                                                        Some ... a few minutes, whereas
+                                                                                                                        others can take 20 minutes or
+                                                               minutes and two hours to                                 longer....
+                                                               remove a wisdom tooth...
+write a scientific paper passage to answer
+the question                                                   ...depression and anxiety had                            ... two studies investigating
+How has the COVID-19 pandemic impacted                         increased by 20% since the      Contriever               COVID-19 patients ... significantly
+mental health?                                                 start of the pandemic...                                 higher level of depressive ...
+                                                     GPT
+                                                               인간이 불을 사용한 기록은 약
+write a passage in Korean to answer the                        800만년 전부터 나타난다...                                        ... 불을 처음 사용한 시기는 호모
+question in detail
+                                                                                                                        에렉투스가 살았던 142만 년 전으
+인간은 언제 불을 사용했는가?                                                                                                        로 거슬러간다...
+
+                                             instruction   query              generated document        real document
+
+
+
+
+Figure 1: An illustration of the HyDE model. Documents snippets are shown. HyDE serves all types of queries
+without changing the underlying GPT-3 and Contriever/mContriever models.
+
+
+to human intent to follow instructions.                                   sets, covering tasks like Web Search, Question
+   With these ingredients, we propose to                                  Answering, Fact Verification and languages like
+pivot      through       Hypothetical   Document                          Swahili, Korean, Japanese.
+Embeddings (HyDE), and decompose dense
+retrieval into two tasks, a generative task per-                          2       Related Works
+formed by an instruction-following language                               Dense Retrieval (Lee et al., 2019; Karpukhin
+model and a document-document similarity task                             et al., 2020) has been extensively studied after the
+performed by a contrastive encoder (Figure 1).                            emergence of pre-trained Transformer language
+First, we feed the query to the generative model                          models (Devlin et al., 2019). Researchers stud-
+and instruct it to "write a document that answers                         ied the metric learning problems, such as training
+the question", i.e. a hypothetical document.                              loss (Karpukhin et al., 2020) and negative sam-
+We expect the generative process to capture                               pling (Xiong et al., 2021; Qu et al., 2021), and also
+"relevance" by giving an example; the generated                           introduced distillation (Qu et al., 2021; Lin et al.,
+document is not real, can contain factual errors but                      2021b; Hofstätter et al., 2021). Later works studied
+is like a relevant document. In the second step,                          the second stage pre-training of language model
+we use an unsupervised contrastive encoder to                             specifically for retrieval (Izacard et al., 2021; Gao
+encode this document into an embedding vector.                            and Callan, 2021; Lu et al., 2021; Gao and Callan,
+Here, we expect the encoder’s dense bottleneck                            2022; Liu and Shao, 2022).
+to serve a lossy compressor, where the extra
+                                                                             The popularity of dense retrieval can be partially
+(hallucinated) details are filtered out from the
+                                                                          attributed to the rich and successful research in very
+embedding. We use this vector to search against
+                                                                          efficient minimum inner product search (MIPS) at
+the corpus embeddings. The most similar real
+                                                                          very large (billion) scales (Johnson et al., 2017).
+documents are retrieved and returned. The retrieval
+leverages document-document similarity encoded                           Instructions-Following Language Models
+in the inner-product during contrastive training.                        Soon after the emergence of LLMs, several groups
+Note that, interestingly, with HyDE factorization,                       of researchers discover that LLMs trained on data
+the query-document similarity score is no longer                         consisting of instructions and their execution can
+explicitly modeled nor computed. Instead, the                            zero-shot generalize to perform new tasks with new
+retrieval task is cast into two NLU and NLG tasks.                       instructions (Ouyang et al., 2022; Sanh et al., 2022;
+   HyDE appears unsupervised. No model is trained                        Min et al., 2022; Wei et al., 2022). This can be
+in HyDE: both the generative model and the con-                          done by standard supervised sequence-to-sequence
+trastive encoder remain intact. Supervision signals                      learning or more effectively with reinforcement
+were only involved in instruction learning of our                        learning (Ouyang et al., 2022).
+backbone LLM.                                                               Concurrent to us, Asai et al. (2022) studied
+   In our experiments, we show HyDE using Instruct-                      “Task-aware Retrieval with Instructions”. They
+GPT (Ouyang et al., 2022) and Contriever (Izacard                        fine-tuned dense encoders that can also encode
+et al., 2021) as backbone models significantly out-                      task-specific instruction prepended to query. In
+performs the previous state-of-the-art Contriever-                       comparison, we use an unsupervised encoder and
+only zero-shot no-relevance system on 11 queries                         handle different tasks and their instruction with an
+instruction following generative LLM, as described      3.1    Preliminaries
+above.                                                  Dense retrieval models similarity between query
+                                                        and document with inner product similarity. Given
+Zero-Shot Dense Retrieval The tasks of zero-            a query q and document d, it uses two encoder
+shot (dense) retrieval are arguably empirically de-     function encq and encd to map them into d dimen-
+fined by Thakur et al. (2021) for the neural re-        sion vectors vq , vd , whose inner product is used
+trieval community. Their BEIR benchmark con-            as similarity measurement.
+sists of diverse retrieval tasks. The paper and
+many follow-up research generally consider the            sim(q, d) = hencq (q), encd (d)i = hvq , vd i (1)
+Transfer Learning setup where the dense re-
+                                                        For zero-shot retrieval, we consider L query sets
+triever is first learned using a diverse and richly
+                                                        Q1 , Q2 , ..., QL and their corresponding search cor-
+supervised corpus and query collection, namely
+                                                        pus, document sets D1 , D2 , ..., DL . Denote the
+MS-MARCO (Thakur et al., 2021; Wang et al.,
+                                                        j-th query from i-th set query set Qi as qij . We
+2022; Yu et al., 2022).
+                                                        need to fully define mapping functions encq and
+   However, as stated by Izacard et al. (2021), such    encd without access to any query set Qi , document
+a large collection can rarely be assumed. In this       set Di , or any relevance judgment rij .
+paper, therefore, we study the problem of building         The difficulty of zero-shot dense retrieval lies
+effective dense retrieval systems without relevance     precisely in Equation 1: it requires learning of two
+labels. Similar to Izacard et al. (2021), we also       embedding functions (for query and document re-
+do not assume access to the test time corpora for       spectively) into the same embedding space where
+training. This is a more realistic setup and prevents   inner product captures relevance. Without rele-
+over-engineering on the test corpora.                   vance judgments/scores to fit, learning becomes
+   By the definition in Sachan et al. (2022), our       intractable.
+setup can be roughly considered as “unsuper-
+vised”. Strictly, as with Sachan et al. (2022), the     3.2    HyDE
+only supervision resides in the LLM, in the pro-        HyDE circumvents the aforementioned learning
+cessing of learning to follow instructions.             problem by performing search in document-
+                                                        only embedding space that captures document-
+Generative Retrieval Generative search is a new         document similarity. This can be easily learned
+class of retrieval methods that use neural generative   using unsupervised contrastive learning (Izacard
+models as search indices (Metzler et al., 2021; Tay     et al., 2021; Gao et al., 2021; Gao and Callan,
+et al., 2022; Bevilacqua et al., 2022; Lee et al.,      2022). We set document encoder encd directly as a
+2022). These models use (constrained) decoding          contrastive encoder enccon .
+to generate document identifiers, such as id and
+                                                                           f = encd = enccon             (2)
+sub-string, which map directly to real documents.
+They have to go through special training procedures     This function is also denoted as f for simplic-
+over relevance data; effective search may also need     ity. This unsupervised contrastive encoder will
+to use novel forms of search indices (Bevilacqua        be shared by all incoming document corpus.
+et al., 2022; Lee et al., 2022). In comparison, our
+method uses the standard MIPS index and requires              vd = f (d)    ∀d ∈ D1 ∪ D2 ∪ ... ∪ DL      (3)
+no training or training data. Our generative model
+produces an intermediate hypothetical document          To build the query vector, we consider in addition
+to be fed into a dense encoder, instead of a real       an instruction following LM, InstructLM. It takes a
+document.                                               query q and a textual instruction INST and follows
+                                                        them to perform the task specified by INST. For
+                                                        simplicity, denote,
+3   Methodology
+                                                                g(q, INST) = InstructLM(q, INST)         (4)
+In this section, we first formally define the prob-
+lem of (zero-shot) dense retrieval. Then we will        Now we can use g to map queries to "hypotheti-
+introduce how HyDE is designed to solve it.             cal" documents by sampling from g, setting INST
+to be “write a paragraph that answers the                     sample from InstructGPT using the OpenAI play-
+question”. The generated document is not real,                ground default temperature of 0.7 for open-ended
+can and is likely to be ungrounded factually (Brown           generations. We use the English-only Contriever
+et al., 2020; Thoppilan et al., 2022). We only re-            model for English retrieval tasks and multilingual
+quire it to capture relevance pattern. This is done           mContriever for non-English tasks. We conducted
+by generating documents, i.e. providing exam-                 retrieval experiments with the Pyserini toolkit (Lin
+ples. Critically, here we offload relevance mod-              et al., 2021a).
+eling from representation learning model to an
+                                                              Datasets We consider web search query sets
+NLG model that generalizes significantly more eas-
+                                                              TREC DL19 (Craswell et al., 2020a) and
+ily, naturally, and effectively (Brown et al., 2020;
+                                                              DL20 (Craswell et al., 2020b); they are based on
+Ouyang et al., 2022). Generating examples also
+                                                              the MS-MARCO dataset (Bajaj et al., 2016). We
+replaces explicit modeling of relevance scores.
+                                                              also use a diverse collection of 6 low-resource
+We can now encode the generated document using
+                                                              datasets from the BEIR dataset (Thakur et al.,
+the document encoder f . Write,
+                                                              2021). For non-English retrieval, we consider
+          E[vqij ] = E[f (g(qij , INSTi ))]             (5)   Swahili, Korean, Japanese, and Bengali from the
+                                                              Mr.Tydi dataset (Zhang et al., 2021).
+Formally, g defines a probability distribution based             We use different instructions for each dataset.
+on the chain rule. In this paper, we simply consider          They share a similar structure but have different
+the expectation value, assuming the distribution of           quantifiers to control the exact form of the gener-
+vqij is uni-modal, i.e. the query is not ambiguous.           ated hypothetical documents. These instructions
+The study of ambiguous queries and diversity is               can be found in subsection A.1.
+left to future work. We estimate Equation 5 by                Compared          Systems Contriever           models,
+sampling N documents from g, [dˆ1 , dˆ2 , ..., dˆN ].         Contriever and mContriever, serve as our major
+                    1            X                            baseline. They are trained using unsupervised
+          v̂qij =                             f (dk )   (6)   contrastive learning. HyDE retrievers share the
+                    N
+                        dˆk ∼g(qij ,INSTi )                   exact same embedding spaces with them. The
+                         N                                    only difference is how the query vector is built.
+                    1 X ˆ
+                  =    f (dk )                          (7)   These comparisons allow us to easily examine
+                    N
+                        k=1                                   the effect of HyDE. The classical heuristic-based
+                                                              lexical retriever BM25 is also included.
+We also consider the query as a possible hypothesis,
+                                                                 Several systems that involve fine-tuning on mas-
+                             N                                sive relevance data are also included as refer-
+                    1 X ˆ
+        v̂qij =        [ f (dk ) + f (qij )]            (8)   ences. We consider models fine-tuned on MS-
+                  N +1                                        MARCO and transferred, DPR and ANCE, from
+                           k=1
+
+Inner product is computed between v̂qij and the               the BEIR paper. For multilingual, we include
+set of all document vectors {f (d)|d ∈ Di }. The              the mDPR model from Mr.Tydi paper and MS-
+most similar documents are retrieved. Here the                MARCO fine-tuned mBERT and XLM-R from
+encoder function f serves as a lossy compressor               the Contriever paper. We also include the state-of-
+that outputs dense vectors, where the extra details           the-art transfer learning models: Contriever and
+are filtered and left out from the vector. It further         mContriever fine-tuned on MS-MARCO, denoted
+grounds the hypothetical vector to the actual corpus          ContrieverFT and mContrieverFT . These mod-
+and the real documents. The full HyDE system is               els have run through the state-of-the-art retrieval
+illustrated in Figure 1.                                      model training pipeline that involves second-stage
+                                                              retrieval-specific pre-training (Lee et al., 2019) and
+4     Experiments                                             a few rounds of fine-tuning (Qu et al., 2021); they
+                                                              should be considered empirical upper bounds.
+4.1    Setup
+Implementation We implement HyDE using                        4.2   Web Search
+InstructGPT, a GPT-3 model from the instruct                  In Table 1, we show retrieval results on TREC
+series (text-davinci-003; Ouyang et al. (2022))               DL19 and TREC DL20. We see HyDE bring sizable
+and Contriever models (Izacard et al., 2021). We              improvements to Contriever across the board for
+                                                DL19                           DL20
+                                  map       ndcg@10 recall@1k       map    ndcg@10 recall@1k
+                   w/o relevance judgement
+                   BM25            30.1    50.6         75.0        28.6    48.0       78.6
+                   Contriever      24.0    44.5         74.6        24.0    42.1       75.4
+                   HyDE            41.8    61.3         88.0        38.2    57.9       84.4
+                   w/ relevance judgement
+                   DPR             36.5      62.2       76.9        41.8    65.3       81.4
+                   ANCE            37.1      64.5       75.5        40.8    64.6       77.6
+                   ContrieverFT 41.7         62.1       83.6        43.6    63.2       85.8
+
+Table 1: Results for web search on DL19/20. Best performing w/o relevance and overall system(s) are marked
+bold. DPR, ANCE and ContrieverFT are in-domain supervised models that are finetuned on MS MARCO training
+data.
+
+                              Scifact     Arguana   Trec-Covid      FiQA   DBPedia   TREC-NEWS
+                                                    nDCG@10
+                w/o relevance judgement
+                BM25             67.9       39.7       59.5         23.6    31.8         39.5
+                Contriever       64.9       37.9       27.3         24.5    29.2         34.8
+                HyDE             69.1       46.6       59.3         27.3    36.8         44.0
+                w/ relevance judgement
+                DPR              31.8       17.5       33.2         29.5    26.3         16.1
+                ANCE             50.7       41.5       65.4         30.0    28.1         38.2
+                ContrieverFT     67.7       44.6       59.6         32.9    41.3         42.8
+                                                    Recall@100
+                w/o relevance judgement
+                BM25             92.5       93.2       49.8         54.0    46.8         44.7
+                Contriever       92.6       90.1       17.2         56.2    45.3         42.3
+                HyDE             96.4       97.9       41.4         62.1    47.2         50.9
+                w/ relevance judgement
+                DPR              72.7       75.1       21.2         34.2    34.9         21.5
+                ANCE             81.6       93.7       45.7         58.1    31.9         39.8
+                ContrieverFT     94.7       97.7       40.7         65.6    54.1         49.2
+
+ Table 2: Low resource tasks from BEIR. Best performing w/o relevance and overall system(s) are marked bold.
+
+
+both precision-oriented and recall metrics. While             4.3   Low Resource Retrieval
+unsupervised Contriever can underperform the
+                                                              In Table 2, we show retrieval results on low-
+classical BM25 approach, HyDE outperforms BM25
+                                                              resource tasks from BEIR. Similar to web
+by large margins.
+                                                              search, HyDE again brings sizable improvements to
+                                                              Contriever across the board in terms of both ndcg
+                                                              and recall. HyDE is only outperformed by BM25 on
+                                                              one dataset, TREC-Covid but with a tiny 0.2 mar-
+   HyDE remains competitive even when compared                gin; in comparison, the underlying Contriever
+to fine-tuned models. Note that TREC DL19/20                  underperforms by more than 50%.
+are search tasks defined on MS-MARCO and                         We also observe HyDE demonstrates strong
+there, all the fine-tuned models are richly super-            performance compared to fine-tuned models.
+vised. On TREC DL19, HyDE shows comparable                    HyDE generally shows better performance than
+map and ndcg@10 to ContrieverFT and best re-                  ANCE and DPR, even though the two are
+call@1k. On DL20, HyDE gets around 10% lower                  fine-tuned on MS-MARCO and ANCE also in-
+map and ndcg@10 than ContrieverFT and sim-                    volves some sophisticated hard negative techniques.
+ilar recall@1k. The ANCE model shows better                   ContrieverFT shows performance advantages on
+ndcg@10 numbers than HyDE but lower recall, sug-              FiQA and DBPedia. These involve retrieval of fi-
+gesting it may be biased to a subset of queries               nancial posts or entities respectively. We believe
+and/or relevant documents.                                    the performance difference can be attributed to the
+                      Swahili   Korean   Japanese   Bengali            Model                 DL19   DL20
+      w/o relevance judgement                                          Contriever            44.5    42.1
+      BM25               38.9    28.5      21.2      41.8
+      mContriever        38.3    22.3      19.5      35.3
+                                                                       ContrieverFT          62.1    63.2
+      HyDE               41.7    30.6      30.7      41.3              HyDE
+      w/ relevance judgement                                           w/ Contriever
+      mDPR               7.3     21.9      18.1      25.8                 w/ Flan-T5 (11b)   48.9    52.9
+      mBERT             37.4     28.1      27.1      35.1                 w/ Cohere (52b)    53.8    53.8
+      XLM-R             35.1     32.2      24.8      41.7                 w/ GPT (175b)      61.3    57.9
+      mContrieverFT     51.2     34.2      32.4      42.3              w/ ContrieverFT
+                                                                          w/ Flan-T5 (11b)   60.2    62.1
+Table 3: MRR@100 on Mr.Tydi. Best performing w/o                          w/ Cohere (52b)    61.4    63.1
+relevance and overall system(s) are marked bold.                          w/ GPT (175b)      67.4    63.5
+
+                                                              Table 4: NDCG@10 on TREC DL19/20. Effect
+under-specification of the instruction; more elabo-           of changing different instruction LMs and using fine-
+rative instructions may help.                                 tuned encoder. Best w/o relevance and overall models
+                                                              are marked bold.
+4.4     Multilingual Retrieval
+Multilingual setup poses several additional chal-
+                                                              models bring improvement to the unsupervised
+lenges to HyDE. The small-sized contrastive en-
+                                                              Contriever, with larger models bringing larger
+coder gets saturated as the number of languages
+                                                              improvements. At the time when this paper is
+scales (Conneau et al., 2020; Izacard et al., 2021).
+                                                              written, the Cohere model is still experimental
+Meanwhile, our generative LLM faces an opposite
+                                                              without much detail disclosed. We can only
+issue: with languages of not as high resource as
+                                                              tentatively hypothesize that training techniques
+English or French, the high capacity LLM can get
+                                                              may have also played some role in the performance
+under-trained (Hoffmann et al., 2022).
+                                                              difference.
+   Nevertheless, in Table 3, we still find HyDE
+able to improve the mContriever model. It can                 5.2    HyDE with Fine-tuned Encoder
+outperform non-Contriever models fine-tuned on
+and transferred from MS-MARCO. On the other                   To begin with, HyDE with fine-tuned encoder is
+hand, we do observe some margins between HyDE                 not the intended usage: HyDE is more powerful
+and fine-tuned mContrieverFT . Since HyDE and                 and irreplaceable when few relevance labels are
+mContrieverFT use similar contrastive encoders,               present. Here we are interested to find out if
+we hypothesize this is because the non-English lan-           and how HyDE embedding can affect fine-tuned en-
+guages we considered are under-trained in both                coders. In Table 4, we see that less powerful instruc-
+pre-training and instruction learning stages.                 tion LMs can negatively impact the overall perfor-
+                                                              mance of the fine-tuned retriever. (To remind our
+5      Analysis                                               readers, ContrieverFT is in-domain supervisedly
+                                                              fine-tuned for TREC DL19/20). The performance
+The generative LLM and contrastive encoder make
+                                                              degradations remain small. On the other hand, we
+up the backbone of HyDE. In this section, we study
+                                                              also observe the InstructGPT model able to fur-
+the effect of changing their realizations. In partic-
+                                                              ther bring up the performance, especially on DL19.
+ular, we consider smaller language models (LM)
+                                                              This suggests that there may still exist certain fac-
+and fine-tuned encoders. We conduct our studies
+                                                              tors not captured by the fine-tuned encoder but only
+on TREC DL19/20.
+                                                              by the generative model.
+5.1     Effect of Different Generative Models
+                                                              6     Conclusion
+In Table 4, we show HyDE using other
+instruction-following language models.      In                At the end of the paper, we encourage the readers
+particular, we consider a 52-billion Cohere                   to take a moment and reflect on the HyDE model.
+model (command-xlarge-20221108) and a                         Compare it to some of the other recently seen re-
+11-billion FLAN model (FLAN-T5-xxl; Wei                       trievers or re-ranker. These other models probably
+et al. (2022)).2 Generally, we observe that all               differ in their architecture, training method, and/or
+   2
+     Model sizes are from https://crfm.stanford.edu/          task, but probably all of them involve modeling
+helm/v1.0/?models.                                            relevance scores between a pair of query and docu-
+ment. Dense retrievers consider vector similarities     Tom B. Brown, Benjamin Mann, Nick Ryder, Melanie
+while self-attentive re-rankers regression scores. In     Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind
+                                                          Neelakantan, Pranav Shyam, Girish Sastry, Amanda
+comparison, the concept of relevance in HyDE is
+                                                          Askell, Sandhini Agarwal, Ariel Herbert-Voss,
+captured by an NLG model and the language gener-          Gretchen Krueger, Tom Henighan, Rewon Child,
+ation process. We demonstrate in many cases, HyDE         Aditya Ramesh, Daniel M. Ziegler, Jeffrey Wu,
+can be as effective as dense retrievers that learn to     Clemens Winter, Christopher Hesse, Mark Chen,
+model numerical relevance scores. So, is numeri-          Eric Sigler, Mateusz Litwin, Scott Gray, Benjamin
+                                                          Chess, Jack Clark, Christopher Berner, Sam Mc-
+cal relevance just a statistical artifact of language     Candlish, Alec Radford, Ilya Sutskever, and Dario
+understanding? Will a weak retriever theoretically        Amodei. 2020. Language models are few-shot learn-
+suffice as the NLU & NLG models rapidly become            ers. In Advances in Neural Information Processing
+stronger? Rushing to conclusions is not smart;            Systems 33: Annual Conference on Neural Informa-
+                                                          tion Processing Systems 2020, NeurIPS 2020, De-
+more works need to be done to get answers. With           cember 6-12, 2020, virtual.
+this paper, we just want to raise these questions.
+   Concretely in this paper, we introduce a new         Mark Chen, Jerry Tworek, Heewoo Jun, Qiming
+paradigm of interactions between LLM and dense           Yuan, Henrique Ponde de Oliveira Pinto, Jared Ka-
+                                                         plan, Harri Edwards, Yuri Burda, Nicholas Joseph,
+encoder/retriever. We demonstrate (part of) rel-         Greg Brockman, Alex Ray, Raul Puri, Gretchen
+evance modeling and instruction understanding            Krueger, Michael Petrov, Heidy Khlaaf, Girish Sas-
+can be delegated to the more powerful and flex-          try, Pamela Mishkin, Brooke Chan, Scott Gray,
+ible LLM. As a consequence, the need for rele-           Nick Ryder, Mikhail Pavlov, Alethea Power, Lukasz
+                                                         Kaiser, Mohammad Bavarian, Clemens Winter,
+vance labels is removed. We are excited to see           Philippe Tillet, Felipe Petroski Such, Dave Cum-
+how this can be generalized further to more so-          mings, Matthias Plappert, Fotios Chantzis, Eliza-
+phisticated tasks like multi-hop retrieval/QA and        beth Barnes, Ariel Herbert-Voss, William Hebgen
+conversational search.                                   Guss, Alex Nichol, Alex Paino, Nikolas Tezak, Jie
+                                                         Tang, Igor Babuschkin, Suchir Balaji, Shantanu Jain,
+   We argue HyDE is also of practical use though not     William Saunders, Christopher Hesse, Andrew N.
+necessarily over the entire lifespan of a search sys-    Carr, Jan Leike, Josh Achiam, Vedant Misra, Evan
+tem. At the very beginning of the life of the search     Morikawa, Alec Radford, Matthew Knight, Miles
+system, serving queries using HyDE offers perfor-        Brundage, Mira Murati, Katie Mayer, Peter Welin-
+                                                         der, Bob McGrew, Dario Amodei, Sam McCandlish,
+mance comparable to a fine-tuned model, which            Ilya Sutskever, and Wojciech Zaremba. 2021. Eval-
+no other relevance-free model can offer. As the          uating large language models trained on code.
+search log grows, a supervised dense retriever can
+be gradually rolled out. As the dense retriever         Aakanksha Chowdhery, Sharan Narang, Jacob Devlin,
+                                                          Maarten Bosma, Gaurav Mishra, Adam Roberts,
+grows stronger, more queries will be routed to it,        Paul Barham, Hyung Won Chung, Charles Sutton,
+with only less common and emerging ones going             Sebastian Gehrmann, Parker Schuh, Kensen Shi,
+to HyDE backend.                                          Sasha Tsvyashchenko, Joshua Maynez, Abhishek
+                                                          Rao, Parker Barnes, Yi Tay, Noam Shazeer, Vin-
+                                                          odkumar Prabhakaran, Emily Reif, Nan Du, Ben
+                                                          Hutchinson, Reiner Pope, James Bradbury, Jacob
+References                                                Austin, Michael Isard, Guy Gur-Ari, Pengcheng
+                                                          Yin, Toju Duke, Anselm Levskaya, Sanjay Ghe-
+Akari Asai, Timo Schick, Patrick Lewis, Xilun Chen,       mawat, Sunipa Dev, Henryk Michalewski, Xavier
+  Gautier Izacard, Sebastian Riedel, Hannaneh Ha-         Garcia, Vedant Misra, Kevin Robinson, Liam Fe-
+  jishirzi, and Wen-tau Yih. 2022. Task-aware re-         dus, Denny Zhou, Daphne Ippolito, David Luan,
+  trieval with instructions.                              Hyeontaek Lim, Barret Zoph, Alexander Spiridonov,
+                                                          Ryan Sepassi, David Dohan, Shivani Agrawal, Mark
+Payal Bajaj, Daniel Campos, Nick Craswell, Li Deng,       Omernick, Andrew M. Dai, Thanumalayan Sankara-
+  Jianfeng Gao, Xiaodong Liu, Rangan Majumder,            narayana Pillai, Marie Pellat, Aitor Lewkowycz,
+  Andrew McNamara, Bhaskar Mitra, Tri Nguyen,             Erica Moreira, Rewon Child, Oleksandr Polozov,
+  Mir Rosenberg, Xia Song, Alina Stoica, Saurabh Ti-      Katherine Lee, Zongwei Zhou, Xuezhi Wang, Bren-
+  wary, and Tong Wang. 2016. Ms marco: A human            nan Saeta, Mark Diaz, Orhan Firat, Michele Catasta,
+  generated machine reading comprehension dataset.        Jason Wei, Kathy Meier-Hellstern, Douglas Eck,
+                                                          Jeff Dean, Slav Petrov, and Noah Fiedel. 2022.
+Michele Bevilacqua, Giuseppe Ottaviano, Patrick           Palm: Scaling language modeling with pathways.
+  Lewis, Wen-tau Yih, Sebastian Riedel, and Fabio
+  Petroni. 2022. Autoregressive search engines: Gen-    Alexis Conneau, Kartikay Khandelwal, Naman Goyal,
+  erating substrings as document identifiers. CoRR,       Vishrav Chaudhary, Guillaume Wenzek, Francisco
+  abs/2204.10628.                                         Guzmán, Edouard Grave, Myle Ott, Luke Zettle-
+  moyer, and Veselin Stoyanov. 2020. Unsupervised            SIGIR ’21, page 113–122, New York, NY, USA. As-
+  cross-lingual representation learning at scale. In         sociation for Computing Machinery.
+  Proceedings of the 58th Annual Meeting of the Asso-
+  ciation for Computational Linguistics, pages 8440–       Gautier Izacard, Mathilde Caron, Lucas Hosseini, Se-
+  8451, Online. Association for Computational Lin-           bastian Riedel, Piotr Bojanowski, Armand Joulin,
+  guistics.                                                  and Edouard Grave. 2021. Towards unsupervised
+                                                             dense information retrieval with contrastive learning.
+Nick Craswell, Bhaskar Mitra, Emine Yilmaz, Daniel           CoRR, abs/2112.09118.
+  Campos, and Ellen M. Voorhees. 2020a. Overview
+  of the trec 2019 deep learning track.                    Jeff Johnson, Matthijs Douze, and Hervé Jégou. 2017.
+                                                              Billion-scale similarity search with gpus. CoRR,
+Nick Craswell, Bhaskar Mitra, Emine Yilmaz,                   abs/1702.08734.
+  Daniel Fernando Campos, and Ellen M. Voorhees.
+  2020b. Overview of the trec 2020 deep learning           Vladimir Karpukhin, Barlas Oguz, Sewon Min, Patrick
+  track. ArXiv, abs/2003.07820.                              Lewis, Ledell Wu, Sergey Edunov, Danqi Chen, and
+                                                             Wen-tau Yih. 2020. Dense passage retrieval for
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and                open-domain question answering. In Proceedings of
+   Kristina Toutanova. 2019. BERT: Pre-training of           the 2020 Conference on Empirical Methods in Nat-
+   deep bidirectional transformers for language under-       ural Language Processing (EMNLP), pages 6769–
+   standing. In Proceedings of the 2019 Conference           6781, Online. Association for Computational Lin-
+   of the North American Chapter of the Association          guistics.
+   for Computational Linguistics: Human Language
+  Technologies, Volume 1 (Long and Short Papers),          Hyunji Lee, Sohee Yang, Hanseok Oh, and Minjoon
+   pages 4171–4186, Minneapolis, Minnesota. Associ-          Seo. 2022. Generative multi-hop retrieval.
+   ation for Computational Linguistics.                    Kenton Lee, Ming-Wei Chang, and Kristina Toutanova.
+                                                             2019. Latent retrieval for weakly supervised open
+Luyu Gao and Jamie Callan. 2021. Condenser: a pre-
+                                                             domain question answering. In Proceedings of the
+  training architecture for dense retrieval. In Proceed-
+                                                             57th Annual Meeting of the Association for Com-
+  ings of the 2021 Conference on Empirical Methods
+                                                             putational Linguistics, pages 6086–6096, Florence,
+  in Natural Language Processing, pages 981–993,
+                                                             Italy. Association for Computational Linguistics.
+  Online and Punta Cana, Dominican Republic. Asso-
+  ciation for Computational Linguistics.                   Jimmy Lin, Xueguang Ma, Sheng-Chieh Lin, Jheng-
+                                                              Hong Yang, Ronak Pradeep, and Rodrigo Nogueira.
+Luyu Gao and Jamie Callan. 2022. Unsupervised cor-            2021a. Pyserini: A Python toolkit for reproducible
+  pus aware language model pre-training for dense             information retrieval research with sparse and dense
+  passage retrieval. In Proceedings of the 60th Annual        representations. In Proceedings of the 44th Annual
+  Meeting of the Association for Computational Lin-           International ACM SIGIR Conference on Research
+  guistics (Volume 1: Long Papers), pages 2843–2853,          and Development in Information Retrieval (SIGIR
+  Dublin, Ireland. Association for Computational Lin-         2021), pages 2356–2362.
+  guistics.
+                                                           Sheng-Chieh Lin, Jheng-Hong Yang, and Jimmy Lin.
+Tianyu Gao, Xingcheng Yao, and Danqi Chen. 2021.             2021b. In-batch negatives for knowledge distillation
+   SimCSE: Simple contrastive learning of sentence           with tightly-coupled teachers for dense retrieval. In
+   embeddings. In Proceedings of the 2021 Conference         Proceedings of the 6th Workshop on Representation
+   on Empirical Methods in Natural Language Process-         Learning for NLP (RepL4NLP-2021), pages 163–
+   ing, pages 6894–6910, Online and Punta Cana, Do-          173, Online. Association for Computational Linguis-
+   minican Republic. Association for Computational           tics.
+   Linguistics.
+                                                           Zheng Liu and Yingxia Shao. 2022. Retromae: Pre-
+Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch,          training retrieval-oriented transformers via masked
+   Elena Buchatskaya, Trevor Cai, Eliza Rutherford,          auto-encoder. ArXiv, abs/2205.12035.
+   Diego de Las Casas, Lisa Anne Hendricks, Johannes
+  Welbl, Aidan Clark, Tom Hennigan, Eric Noland,           Shuqi Lu, Di He, Chenyan Xiong, Guolin Ke, Waleed
+   Katie Millican, George van den Driessche, Bogdan          Malik, Zhicheng Dou, Paul Bennett, Tie-Yan Liu,
+   Damoc, Aurelia Guy, Simon Osindero, Karen Si-             and Arnold Overwijk. 2021. Less is more: Pre-
+   monyan, Erich Elsen, Jack W. Rae, Oriol Vinyals,          train a strong Siamese encoder for dense text re-
+   and Laurent Sifre. 2022. Training compute-optimal         trieval using a weak decoder. In Proceedings of the
+   large language models.                                    2021 Conference on Empirical Methods in Natural
+                                                             Language Processing, pages 2780–2791, Online and
+Sebastian Hofstätter, Sheng-Chieh Lin, Jheng-Hong            Punta Cana, Dominican Republic. Association for
+  Yang, Jimmy Lin, and Allan Hanbury. 2021. Ef-              Computational Linguistics.
+  ficiently teaching an effective dense retriever with
+  balanced topic aware sampling. In Proceedings of         Donald Metzler, Yi Tay, Dara Bahri, and Marc Najork.
+  the 44th International ACM SIGIR Conference on             2021. Rethinking search: making domain experts
+  Research and Development in Information Retrieval,         out of dilettantes. SIGIR Forum, 55(1):13:1–13:27.
+Sewon Min, Mike Lewis, Luke Zettlemoyer, and Han-        Victor Sanh, Albert Webson, Colin Raffel, Stephen
+  naneh Hajishirzi. 2022. MetaICL: Learning to learn       Bach, Lintang Sutawika, Zaid Alyafeai, Antoine
+  in context. In Proceedings of the 2022 Conference of     Chaffin, Arnaud Stiegler, Arun Raja, Manan Dey,
+  the North American Chapter of the Association for        M Saiful Bari, Canwen Xu, Urmish Thakker,
+  Computational Linguistics: Human Language Tech-          Shanya Sharma Sharma, Eliza Szczechla, Taewoon
+  nologies, pages 2791–2809, Seattle, United States.       Kim, Gunjan Chhablani, Nihal V. Nayak, De-
+  Association for Computational Linguistics.               bajyoti Datta, Jonathan Chang, Mike Tian-Jian
+                                                           Jiang, Han Wang, Matteo Manica, Sheng Shen,
+Long Ouyang, Jeff Wu, Xu Jiang, Diogo Almeida,             Zheng Xin Yong, Harshit Pandey, Rachel Bawden,
+  Carroll L. Wainwright, Pamela Mishkin, Chong             Thomas Wang, Trishala Neeraj, Jos Rozen, Ab-
+  Zhang, Sandhini Agarwal, Katarina Slama, Alex            heesht Sharma, Andrea Santilli, Thibault Févry, Ja-
+  Ray, John Schulman, Jacob Hilton, Fraser Kelton,         son Alan Fries, Ryan Teehan, Teven Le Scao, Stella
+  Luke Miller, Maddie Simens, Amanda Askell, Pe-           Biderman, Leo Gao, Thomas Wolf, and Alexan-
+  ter Welinder, Paul Christiano, Jan Leike, and Ryan       der M. Rush. 2022. Multitask prompted training
+  Lowe. 2022. Training language models to follow in-       enables zero-shot task generalization. In The Tenth
+  structions with human feedback.                          International Conference on Learning Representa-
+                                                           tions, ICLR 2022, Virtual Event, April 25-29, 2022.
+Yingqi Qu, Yuchen Ding, Jing Liu, Kai Liu, Ruiyang         OpenReview.net.
+  Ren, Wayne Xin Zhao, Daxiang Dong, Hua Wu,             Yi Tay, Vinh Q. Tran, Mostafa Dehghani, Jianmo Ni,
+  and Haifeng Wang. 2021. RocketQA: An opti-               Dara Bahri, Harsh Mehta, Zhen Qin, Kai Hui, Zhe
+  mized training approach to dense passage retrieval       Zhao, Jai Prakash Gupta, Tal Schuster, William W.
+  for open-domain question answering. In Proceed-          Cohen, and Donald Metzler. 2022. Transformer
+  ings of the 2021 Conference of the North Ameri-          memory as a differentiable search index. CoRR,
+  can Chapter of the Association for Computational         abs/2202.06991.
+  Linguistics: Human Language Technologies, pages
+  5835–5847, Online. Association for Computational       Nandan Thakur, Nils Reimers, Andreas Rücklé, Ab-
+  Linguistics.                                             hishek Srivastava, and Iryna Gurevych. 2021. BEIR:
+                                                           A heterogenous benchmark for zero-shot evalu-
+Jack W. Rae, Sebastian Borgeaud, Trevor Cai, Katie         ation of information retrieval models.       CoRR,
+   Millican, Jordan Hoffmann, Francis Song, John           abs/2104.08663.
+   Aslanides, Sarah Henderson, Roman Ring, Susan-
+   nah Young, Eliza Rutherford, Tom Hennigan, Ja-        Romal Thoppilan, Daniel De Freitas, Jamie Hall,
+   cob Menick, Albin Cassirer, Richard Powell, George      Noam Shazeer, Apoorv Kulshreshtha, Heng-Tze
+   van den Driessche, Lisa Anne Hendricks, Mari-           Cheng, Alicia Jin, Taylor Bos, Leslie Baker, Yu Du,
+   beth Rauh, Po-Sen Huang, Amelia Glaese, Jo-             YaGuang Li, Hongrae Lee, Huaixiu Steven Zheng,
+   hannes Welbl, Sumanth Dathathri, Saffron Huang,         Amin Ghafouri, Marcelo Menegali, Yanping Huang,
+   Jonathan Uesato, John Mellor, Irina Higgins, An-        Maxim Krikun, Dmitry Lepikhin, James Qin, Dehao
+   tonia Creswell, Nat McAleese, Amy Wu, Erich             Chen, Yuanzhong Xu, Zhifeng Chen, Adam Roberts,
+   Elsen, Siddhant Jayakumar, Elena Buchatskaya,           Maarten Bosma, Yanqi Zhou, Chung-Ching Chang,
+   David Budden, Esme Sutherland, Karen Simonyan,          Igor Krivokon, Will Rusch, Marc Pickett, Kath-
+   Michela Paganini, Laurent Sifre, Lena Martens,          leen S. Meier-Hellstern, Meredith Ringel Morris,
+   Xiang Lorraine Li, Adhiguna Kuncoro, Aida Ne-           Tulsee Doshi, Renelito Delos Santos, Toju Duke,
+   matzadeh, Elena Gribovskaya, Domenic Donato,            Johnny Soraker, Ben Zevenbergen, Vinodkumar
+   Angeliki Lazaridou, Arthur Mensch, Jean-Baptiste        Prabhakaran, Mark Diaz, Ben Hutchinson, Kristen
+   Lespiau, Maria Tsimpoukelli, Nikolai Grigorev,          Olson, Alejandra Molina, Erin Hoffman-John, Josh
+   Doug Fritz, Thibault Sottiaux, Mantas Pajarskas,        Lee, Lora Aroyo, Ravi Rajakumar, Alena Butryna,
+   Toby Pohlen, Zhitao Gong, Daniel Toyama, Cy-            Matthew Lamm, Viktoriya Kuzmina, Joe Fenton,
+   prien de Masson d’Autume, Yujia Li, Tayfun Terzi,       Aaron Cohen, Rachel Bernstein, Ray Kurzweil,
+   Vladimir Mikulik, Igor Babuschkin, Aidan Clark,         Blaise Aguera-Arcas, Claire Cui, Marian Croak,
+   Diego de Las Casas, Aurelia Guy, Chris Jones,           Ed H. Chi, and Quoc Le. 2022. Lamda: Lan-
+   James Bradbury, Matthew Johnson, Blake Hecht-           guage models for dialog applications.        CoRR,
+   man, Laura Weidinger, Iason Gabriel, William Isaac,     abs/2201.08239.
+   Ed Lockhart, Simon Osindero, Laura Rimell, Chris      Kexin Wang, Nandan Thakur, Nils Reimers, and Iryna
+   Dyer, Oriol Vinyals, Kareem Ayoub, Jeff Stan-           Gurevych. 2022. GPL: Generative pseudo label-
+   way, Lorrayne Bennett, Demis Hassabis, Koray            ing for unsupervised domain adaptation of dense re-
+   Kavukcuoglu, and Geoffrey Irving. 2021. Scal-           trieval. In Proceedings of the 2022 Conference of
+   ing language models: Methods, analysis & insights       the North American Chapter of the Association for
+   from training gopher.                                   Computational Linguistics: Human Language Tech-
+                                                           nologies, pages 2345–2360, Seattle, United States.
+Devendra Singh Sachan, Mike Lewis, Mandar Joshi,           Association for Computational Linguistics.
+  Armen Aghajanyan, Wen-tau Yih, Joelle Pineau, and
+  Luke Zettlemoyer. 2022. Improving passage re-          Jason Wei, Maarten Bosma, Vincent Y. Zhao, Kelvin
+  trieval with zero-shot question generation.               Guu, Adams Wei Yu, Brian Lester, Nan Du, An-
+  drew M. Dai, and Quoc V. Le. 2022. Finetuned lan-
+  guage models are zero-shot learners. In The Tenth
+  International Conference on Learning Representa-
+  tions, ICLR 2022, Virtual Event, April 25-29, 2022.
+  OpenReview.net.
+Lee Xiong, Chenyan Xiong, Ye Li, Kwok-Fung Tang,
+  Jialin Liu, Paul N. Bennett, Junaid Ahmed, and
+  Arnold Overwijk. 2021. Approximate nearest neigh-
+  bor negative contrastive learning for dense text re-
+  trieval. In 9th International Conference on Learning
+  Representations, ICLR 2021, Virtual Event, Austria,
+  May 3-7, 2021. OpenReview.net.
+Yue Yu, Chenyan Xiong, Si Sun, Chao Zhang, and
+  Arnold Overwijk. 2022. Coco-dr: Combating dis-
+  tribution shifts in zero-shot dense retrieval with con-
+  trastive and distributionally robust learning. In Pro-
+  ceedings of the 2022 Conference on Empirical Meth-
+  ods in Natural Language Processing.
+
+Xinyu Zhang, Xueguang Ma, Peng Shi, and Jimmy Lin.
+  2021. Mr. TyDi: A multi-lingual benchmark for
+  dense retrieval. arXiv:2108.08787.
+A     Appendix
+A.1     Instructions
+A.1.1    Web Search
+    Please write a passage to answer the question
+    Question: [QUESTION]
+    Passage:
+
+
+A.1.2    SciFact
+    Please write a scientific paper passage to support/refute the claim
+    Claim: [Claim]
+    Passage:
+
+
+A.1.3    Arguana
+
+    Please write a counter argument for the passage
+    Passage: [PASSAGE]
+    Counter Argument:
+
+
+A.1.4    TREC-COVID
+    Please write a scientific paper passage to answer the question
+    Question: [QUESTION]
+    Passage:
+
+
+A.1.5    FiQA
+
+    Please write a financial article passage to answer the question
+    Question: [QUESTION]
+    Passage:
+
+
+A.1.6    DBPedia-Entity
+
+    Please write a passage to answer the question.
+    Question: [QUESTION]
+    Passage:
+
+
+A.1.7    TREC-NEWS
+    Please write a news passage about the topic.
+    Topic: [TOPIC]
+    Passage:
+
+
+A.1.8    Mr.TyDi
+
+    Please write a passage in Swahili/Korean/Japanese/Bengali to answer the question in detail.
+    Question: [QUESTION]
+    Passage:
+

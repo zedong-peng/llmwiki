@@ -1,0 +1,384 @@
+                                                           SPLADE v2: Sparse Lexical and Expansion Model for
+                                                                        Information Retrieval
+                                                                           Thibault Formal                                                              Benjamin Piwowarski
+                                                                       Naver Labs Europe                                                            Sorbonne Université, CNRS, LIP6
+                                                                          Meylan, France                                                                     Paris, France
+                                                                    Sorbonne Université, LIP6                                                        benjamin.piwowarski@lip6.fr
+                                                                           Paris, France
+                                                                 thibault.formal@naverlabs.com
+
+                                                                           Carlos Lassance                                                               Stéphane Clinchant
+
+
+
+
+arXiv:2109.10086v1 [cs.IR] 21 Sep 2021
+                                                                       Naver Labs Europe                                                                 Naver Labs Europe
+                                                                          Meylan, France                                                                   Meylan, France
+                                                                 carlos.lassance@naverlabs.com                                                    stephane.clinchant@naverlabs.com
+
+                                         ABSTRACT                                                                                      LM-based neural ranking models. Because of strict efficiency re-
+                                         In neural Information Retrieval (IR), ongoing research is directed                            quirements, these models have initially been used as re-rankers
+                                         towards improving the first retriever in ranking pipelines. Learning                          in a two-stage ranking pipeline, where first-stage retrieval – or
+                                         dense embeddings to conduct retrieval using efficient approximate                             candidate generation – is conducted with bag-of-words models (e.g.
+                                         nearest neighbors methods has proven to work well. Meanwhile,                                 BM25) that rely on inverted indexes. While BOW models remain
+                                         there has been a growing interest in learning sparse representations                          strong baselines [31], they suffer from the long standing vocab-
+                                         for documents and queries, that could inherit from the desirable                              ulary mismatch problem, where relevant documents might not
+                                         properties of bag-of-words models such as the exact matching of                               contain terms that appear in the query. Thus, there have been at-
+                                         terms and the efficiency of inverted indexes. Introduced recently,                            tempts to substitute standard BOW approaches by learned (neural)
+                                         the SPLADE model provides highly sparse representations and com-                              rankers. Designing such models poses several challenges regarding
+                                         petitive results with respect to state-of-the-art dense and sparse                            efficiency and scalability: therefore there is a need for methods
+                                         approaches. In this paper, we build on SPLADE and propose several                             where most of the computation can be done offline and online in-
+                                         significant improvements in terms of effectiveness and/or efficiency.                         ference is fast. Dense retrieval with approximate nearest neighbors
+                                         More specifically, we modify the pooling mechanism, benchmark a                               search has shown impressive results [11, 16, 24, 30], but can still
+                                         model solely based on document expansion, and introduce models                                benefit from BOW models (e.g. by combining both types of signals),
+                                         trained with distillation. We also report results on the BEIR bench-                          due to the absence of explicit term matching. Hence, there has
+                                         mark. Overall, SPLADE is considerably improved with more than 9%                              recently been a growing interest in learning sparse representations
+                                         gains on NDCG@10 on TREC DL 2019, leading to state-of-the-art                                 for queries and documents [1, 4, 8, 9, 18, 21, 32, 33]. By doing so,
+                                         results on the BEIR benchmark.                                                                models can inherit from the desirable properties of BOW models
+                                                                                                                                       like exact-match of (possibly latent) terms, efficiency of inverted
+                                         KEYWORDS                                                                                      indexes and interpretability. Additionally, by modeling implicit or
+                                                                                                                                       explicit (latent, contextualized) expansion mechanisms – similarly
+                                         neural networks, indexing, sparse representations, regularization
+                                                                                                                                       to standard expansion models in IR – these models can reduce the
+                                                                                                                                       vocabulary mismatch.
+                                         1     INTRODUCTION                                                                               In this paper, we build on the SPLADE model [8] and propose
+                                         The release of large pre-trained language models like BERT [7]                                several improvements/modifications that bring gains in terms of ef-
+                                         has shaken-up Natural Language Processing and Information Re-                                 fectiveness or efficiency: (1) by simply modifying SPLADE pooling
+                                         trieval. These models have shown a strong ability to adapt to various                         mechanism, we are able to increase effectiveness by a large margin;
+                                         tasks by simple fine-tuning. At the beginning of 2019, Nogueira                               (2) in the meantime, we propose an extension of the model with-
+                                         and Cho [19] achieved state-of-the-art results – by a large margin                            out query expansion. Such model is inherently more efficient, as
+                                         – on the MS MARCO passage re-ranking task, paving the way for                                 everything can be pre-computed and indexed offline, while provid-
+                                                                                                                                       ing results that are still competitive; (3) finally, we use distillation
+                                         Permission to make digital or hard copies of all or part of this work for personal or         techniques [12] to boost SPLADE performance, leading to close to
+                                         classroom use is granted without fee provided that copies are not made or distributed         state-of-the-art results on the MS MARCO passage ranking task as
+                                         for profit or commercial advantage and that copies bear this notice and the full citation
+                                         on the first page. Copyrights for components of this work owned by others than ACM            well as the BEIR zero-shot evaluation benchmark [26].
+                                         must be honored. Abstracting with credit is permitted. To copy otherwise, or republish,
+                                         to post on servers or to redistribute to lists, requires prior specific permission and/or a
+                                         fee. Request permissions from permissions@acm.org.
+                                         Conference’17, July 2017, Washington, DC, USA                                                 2    RELATED WORKS
+                                         © 2021 Association for Computing Machinery.
+                                         ACM ISBN 978-x-xxxx-xxxx-x/YY/MM. . . $15.00                                                  Dense retrieval based on BERT Siamese models [25] has become the
+                                         https://doi.org/10.1145/nnnnnnn.nnnnnnn                                                       standard approach for candidate generation in Question Answering
+and IR [10, 11, 13, 16, 24, 30]. While the backbone of these mod-       to revisit exact-match mechanisms by learning dense representa-
+els remains the same, recent works highlight the critical aspects       tions per term to perform contextualized term matching, at the cost
+of the training strategy to obtain state-of-the-art results, ranging    of increased index size.
+from improved negative sampling [11, 16] to distillation [12, 16].
+ColBERT [14] pushes things further: the postponed token-level           3     SPARSE LEXICAL REPRESENTATIONS FOR
+interactions allow to efficiently apply the model for first-stage re-         FIRST-STAGE RANKING
+trieval, benefiting of the effectiveness of modeling fine-grained       In this section, we first describe in details the SPLADE model re-
+interactions, at the cost of storing embeddings for each (sub)term      cently introduced in [8].
+– raising concerns about the actual scalability of the approach for
+large collections. To the best of our knowledge, very few studies       3.1    SPLADE
+have discussed the impact of using approximate nearest neighbors
+(ANN) search on IR metrics [2, 27]. Due to the moderate size of the     SPLADE predicts term importance – in BERT WordPiece vocabulary
+MS MARCO collection, results are usually reported with an exact,        (|𝑉 | = 30522) – based on the logits of the Masked Language Model
+brute-force search, therefore giving no indication on the effective     (MLM) layer. More precisely, let us consider an input query or doc-
+computing cost.                                                         ument sequence (after WordPiece tokenization) 𝑡 = (𝑡 1, 𝑡 2, ..., 𝑡 𝑁 ),
+   An alternative to dense indexes is term-based ones. Building on      and its corresponding BERT embeddings (ℎ 1, ℎ 2, ..., ℎ 𝑁 ). We con-
+standard BOW models, Zamani et al. first introduced SNRM [32]: the      sider the importance 𝑤𝑖 𝑗 of the token 𝑗 (vocabulary) for a token 𝑖
+model embeds documents and queries in a sparse high-dimensional         (of the input sequence):
+latent space by means of ℓ1 regularization on representations. How-                𝑤𝑖 𝑗 = transform(ℎ𝑖 )𝑇 𝐸 𝑗 + 𝑏 𝑗        𝑗 ∈ {1, ..., |𝑉 |}                (1)
+ever, SNRM effectiveness remains limited and its efficiency has been
+                                                                        where 𝐸 𝑗 denotes the BERT input embedding for token 𝑗, 𝑏 𝑗 is a
+questioned [22].
+                                                                        token-level bias, and transform(.) is a linear layer with GeLU acti-
+   Motivated by the success of BERT, there have been attempts to
+                                                                        vation and LayerNorm. Note that Eq. (1) is equivalent to the MLM
+transfer the knowledge from pre-trained LM to sparse approaches.
+                                                                        prediction, thus it can also be initialized from a pre-trained MLM
+DeepCT [4–6] focused on learning contextualized term weights in
+                                                                        model. The final representation is then obtained by summing im-
+the full vocabulary space – akin to BOW term weights. However,
+                                                                        portance predictors over the input sequence tokens, after applying
+as the vocabulary associated with a document remains the same,
+                                                                        a log-saturation effect [8]:
+this type of approach does not solve the vocabulary mismatch,                                    ∑︁
+as acknowledged by the use of query expansion for retrieval [4].                                     log 1 + ReLU(𝑤𝑖 𝑗 )                 (2)
+                                                                                                                         
+                                                                                           𝑤𝑗 =
+A first solution to this problem consists in expanding documents                                  𝑖 ∈𝑡
+using generative approaches such as doc2query [21] and doc2query-          Ranking loss. Let 𝑠 (𝑞, 𝑑) denote the ranking score obtained via
+T5 [20] to predict expansion words for documents. The document          dot product between 𝑞 and 𝑑 representations from Eq. (2). Given a
+expansion adds new terms to documents – hence fighting the vo-          query 𝑞𝑖 in a batch, a positive document 𝑑𝑖+ , a (hard) negative doc-
+cabulary mismatch – as well as repeats existing terms, implicitly       ument 𝑑𝑖− (e.g. coming from BM25 sampling), and a set of negative
+performing re-weighting by boosting important terms.                    documents in the batch (positive documents from other queries)
+   Recently, DeepImpact [18] combined the expansion from doc2query-        − } , we consider a constrastive loss, which can be interpreted
+                                                                        {𝑑𝑖,𝑗 𝑗
+T5 with the re-weighting from DeepCT to learn term impacts. These       as the maximization of the probability of the document 𝑑𝑖+ being
+expansion techniques are however limited by the way they are            relevant among the documents 𝑑𝑖+, 𝑑𝑖− and {𝑑𝑖,𝑗 − }:
+trained (predicting queries), which is indirect in nature and limit
+their progress. A second solution to this problem, that has been                                                                 +
+chosen by recent works [1, 8, 17, 33], is to estimate the importance                                                  𝑒 𝑠 (𝑞𝑖 ,𝑑𝑖 )
+                                                                              L𝑟𝑎𝑛𝑘−𝐼 𝐵𝑁 = − log             +               −                         − )   (3)
+of each term of the vocabulary implied by each term of the docu-                                                                               𝑠 (𝑞𝑖 ,𝑑𝑖,𝑗
+                                                                                                    𝑒 𝑠 (𝑞𝑖 ,𝑑𝑖 ) + 𝑒 𝑠 (𝑞𝑖 ,𝑑𝑖 ) +
+                                                                                                                                      Í
+                                                                                                                                          𝑗𝑒
+ment (or query), i.e. to compute an interaction matrix between the
+                                                                           The in-batch negatives (IBN) sampling strategy is widely used
+document or query tokens and all the tokens from the vocabulary.
+                                                                        for training image retrieval models, and has shown to be effective
+This is followed by an aggregation mechanism (roughly sum for
+                                                                        in learning first-stage rankers [13, 16, 24].
+SparTerm [1] and SPLADE [8], max for EPIC [17] and SPARTA [33]),
+that allows to compute an importance weight for each term of the           Learning sparse representations. The idea of learning sparse
+vocabulary, for the full document or query.                             representations for first-stage retrieval dates back to SNRM [32],
+   However, EPIC and SPARTA (document) representations are not          via ℓ1 regularization. Later, [22] pointed-out that minimizing the ℓ1
+sparse enough by construction – unless resorting on top-𝑘 pooling       norm of representations does not result in the most efficient index,
+– contrary to SparTerm, for which fast retrieval is thus possible.      as nothing ensures that posting lists are evenly distributed. Note
+Furthermore, the latter does not include (like SNRM) an explicit        that this is even more true for standard indexes due to the Zipfian
+sparsity regularization, which hinders its performance. SPLADE          nature of the term frequency distribution. To obtain a well-balanced
+however relies on such regularization, as well as other key changes,    index, Paria et al. [22] introduce the FLOPS regularizer, a smooth
+that boost both the efficiency and the effectiveness of this type of    relaxation of the average number of floating-point operations nec-
+approaches, providing a model that both learns expansion and com-       essary to compute the score between a query and a document, and
+pression in an end-to-end manner. Furthermore, COIL [9] proposed        hence directly related to the retrieval time. It is defined using 𝑎 𝑗 as a
+                                                                        continuous relaxation of the activation (i.e. the term has a non-zero
+weight) probability 𝑝 𝑗 for token 𝑗, and estimated for documents 𝑑              4    EXPERIMENTAL SETTING AND RESULTS
+in a batch of size 𝑁 by 𝑎¯ 𝑗 = 𝑁1 𝑖=1
+                                         (𝑑 )
+                                       𝑤 𝑗 𝑖 . This gives the following         We trained and evaluated our models on the MS MARCO passage
+                                   Í𝑁
+
+regularization loss                                                             ranking dataset2 in the full ranking setting. The dataset contains
+                                                        !2                      approximately 8.8M passages, and hundreds of thousands training
+                                     ∑︁ 1 ∑︁                                    queries with shallow annotation (≈ 1.1 relevant passages per query
+                                              𝑁
+                                2                 (𝑑𝑖 )
+                         ∑︁
+                ℓFLOPS =      𝑎¯ 𝑗 =            𝑤                    (4)
+                                         𝑁 𝑖=1 𝑗                                in average). The development set contains 6980 queries with similar
+                          𝑗 ∈𝑉       𝑗 ∈𝑉
+                                                                                labels, while the TREC DL 2019 evaluation set provides fine-grained
+   Overall loss. By jointly optimizing the model in Eq. (2) with                annotations from human assessors for a set of 43 queries [3].
+ranking and regularization losses, SPLADE combines the best of
+                                                                                   Training, indexing and retrieval. We initialized the models
+both worlds for end-to-end training of sparse, expansion-aware
+                                                                                with the DistilBERT-base checkpoint. Models are trained with
+representations of documents and queries:
+                                                                                the ADAM optimizer, using a learning rate of 2𝑒 −5 with linear
+                                              𝑞
+                 L = L𝑟𝑎𝑛𝑘−𝐼 𝐵𝑁 + 𝜆𝑞 Lreg + 𝜆𝑑 L𝑑reg                     (5)    scheduling and a warmup of 6000 steps, and a batch size of 124. We
+                                                                                keep the best checkpoint using MRR@10 on a validation set of 500
+where Lreg is the sparse FLOPS regularization from Eq. 4. We use                queries, after training for 150k iterations, using an approximate re-
+two distinct regularization weights (𝜆𝑑 and 𝜆𝑞 ) for queries and                trieval validation set similar to [11]. For the SPLADE-doc approach,
+documents – allowing to put more pressure on the sparsity for                   we simply train for 50k steps and select the last checkpoint. We
+queries, which is critical for fast retrieval.                                  consider a maximum length of 256 for input sequences. In order
+                                                                                to mitigate the contribution of the regularizer at the early stages
+3.2       Pooling strategy                                                      of training, we follow [22] and use a scheduler for 𝜆, quadratically
+We propose to change the sum in Eq. (2) by a max pooling operation:             increasing 𝜆 at each training iteration, until a given step (50k in
+                                                                                our case), from which it remains constant. Typical values for 𝜆 fall
+                 𝑤 𝑗 = max log 1 + ReLU(𝑤𝑖 𝑗 )                  (6)
+                                                
+                            𝑖 ∈𝑡                                                between 1𝑒 −1 and 1𝑒 −4 . For storing the index, we use a custom im-
+The model now bears more similarities with SPARTA and EPIC,                     plementation based on Python arrays, and we rely on Numba [15]
+and to some extent ColBERT. As shown in the experiments section,                to parallelize retrieval. Models3 are trained using PyTorch [23] and
+it considerably improves SPLADE performance. In the following,                  HuggingFace transformers [28], on 4 Tesla 𝑉 100 GPUs with 32GB
+max pooling is the default configuration for SPLADE, and the cor-               memory.
+responding model is referred to as SPLADE-max.                                     Evaluation. We report Recall@1000 for both datasets, as well
+                                                                                as the official metrics MRR@10 and NDCG@10 for MS MARCO dev
+3.3       SPLADE document encoder                                               set and TREC DL 2019 respectively. Since we are essentially inter-
+In addition to the max pooling operation, we consider a document-               ested in the first retrieval step, we do not consider re-rankers based
+only version of SPLADE. In this case, there are no query expansion              on BERT, and we compare our approach to first stage rankers only
+nor query term weighting, and the ranking score is simply given                 – results reported on the MS MARCO leaderboard are thus not com-
+by:                                                                             parable to the results presented here. We compare to the following
+                                    ∑︁                                          sparse approaches (1) BM25, (2) DeepCT [4], (3) doc2query-T5 [20],
+                         𝑠 (𝑞, 𝑑) =    𝑤 𝑑𝑗                     (7)
+                                                                                (4) SparTerm [1], (5) COIL-tok [9] and (6) DeepImpact [18], as well
+                                       𝑗 ∈𝑞
+                                                                                as state-of-the-art dense approaches ANCE [29], TCT-ColBERT [16]
+   Such extension offers an interesting efficiency boost: because               and TAS-B [11], reporting results from corresponding papers.
+the ranking score solely depends on the document term weights,                     MS MARCO dev and TREC DL 2019 results are given in Table
+everything can be pre-computed offline, and inference cost is con-              1: as the performance for SPLADE depends on the regularization
+sequently reduced, while still offering competitive results as shown            strength 𝜆, and as more efficient models are generally less effec-
+in the experiments. We refer to this model as SPLADE-doc.                       tive, we select in the table the best performing model in our grid
+                                                                                of experiments, with reasonable efficiency (in terms of FLOPS).
+3.4       Distillation and hard negatives                                       Figure 1 highlights the actual trade-off between effectiveness and
+We also incorporate distillation to our training procedure, follow-             efficiency for SPLADE, by showing the performance (MRR@10
+ing the improvements shown in [12]. The distillation training is                on MS MARCO dev set) vs FLOPS, for SPLADE models trained
+done in two steps: (1) we first train both a SPLADE first-stage                 with different regularization strength. The FLOPS metric is an es-
+retriever as well as a cross-encoder reranker 1 using the triplets              timation of the average number of floating-point operations be-
+generated by [12]; (2) in the second step, we generate triplets using           tweenh a query and a idocument which is defined as the expectation
+SPLADE trained with distillation (thus providing harder negatives               E𝑞,𝑑
+                                                                                       Í        (𝑞) (𝑑)
+                                                                                                          where 𝑝 𝑗 is the activation probability for to-
+                                                                                         𝑗 ∈𝑉 𝑝 𝑗 𝑝 𝑗
+than BM25), and use the aforementioned reranker to generate the
+                                                                                ken 𝑗 in a document 𝑑 or a query 𝑞. It is empirically estimated
+scores needed for the Margin-MSE loss. We then train a SPLADE
+                                                                                from a set of approximately 100k development queries, on the MS
+model from scratch using these triplets and scores. The result of
+                                                                                MARCO collection. Overall, we observe that: (1) our improved mod-
+the second step is what we call DistilSPLADE-max.
+                                                                                els outperform the other sparse retrieval methods by a large margin
+1 Using                                                                         2 https://github.com/microsoft/MSMARCO-Passage-Ranking
+         https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-12-v2 as pre-
+trained checkpoint.                                                             3 We made the code public at https://github.com/naver/splade
+Table 1: Evaluation on MS MARCO passage retrieval (dev set)                  representations) with effectiveness. For relatively sparse represen-
+and TREC DL 2019.                                                            tations, we are able to obtain performance on par with approaches
+                                                                             like doc2query-T5 (e.g. MRR@10=29.6 for a model with an average
+  model                   MS MARCO dev   TREC DL 2019                        of 19 non-zero weights per document). In addition, it is straight-
+                         MRR@10 R@1000 NDCG@10 R@1000                        forward to train and apply to a new document collection: a single
+                                                                             forward is required as opposed to multiple inferences with beam
+  Dense retrieval
+                                                                             search for doc2query-T5.
+  Siamese (ours)            0.312      0.941       0.637       0.711
+  ANCE [29]                 0.330      0.959       0.648         -
+                                                                             4.3                  Distillation
+  TCT-ColBERT [16]          0.359      0.970       0.719       0.760
+  TAS-B [11]                0.347      0.978       0.717       0.843         By training with distillation, we are able to considerably improve
+  RocketQA [24]             0.370      0.979         -           -           the performance of SPLADE, as seen in Table 1. From Figure 1, we
+                                                                             observe that distilled models bring huge improvements for higher
+  Sparse retrieval
+  BM25                      0.184      0.853       0.506       0.745
+  DeepCT [4]                0.243      0.913       0.551       0.756
+  doc2query-T5 [20]         0.277      0.947       0.642       0.827         Figure 1: Performance vs FLOPS for SPLADE models trained
+  SparTerm [1]              0.279      0.925         -           -           with different regularization strength 𝜆 on MS MARCO.
+  COIL-tok [9]              0.341      0.949       0.660         -
+  DeepImpact [18]           0.326      0.948       0.695         -
+  SPLADE [8]                0.322      0.955       0.665       0.813                             36
+  Our methods
+
+
+
+
+                                                                              MRR@10 (dev set)
+  SPLADE-max                0.340      0.965       0.684       0.851                             34
+  SPLADE-doc                0.322      0.946       0.667       0.747
+  DistilSPLADE-max          0.368      0.979       0.729       0.865
+                                                                                                 32
+
+on the MS MARCO dev set as well as TREC DL 2019 queries; (2) the
+results are competitive with state-of-the-art dense retrieval methods.                           30                                     doc2query-T5
+                                                                                                                                        SparTerm lexical
+   BEIR. Finally, we verify the zero-shot performance of SPLADE                                                                         SPLADE [8]
+using a subset of datasets from the BEIR [26] benchmark that en-                                 28                                     SPLADE-max
+compasses various IR datasets for zero-shot evaluation. We solely                                                                       DistilSPLADE-max
+
+use a subset due to the fact that some of the datasets (namely                                        0.0   0.5   1.0     1.5 2.0 2.5    3.0    3.5    4.0
+CQADupstack, BioASQ, Signal-1M, TREC-NEWS, Robust04) are not                                                                # FLOPS
+readily available. Results are displayed in Table 2 (NDCG@10).
+We compare against the best performing models from the original
+benchmark paper [26] (ColBERT [14]) and the two best performing
+                                                                             Figure 2: Performance vs average document length (num-
+from the rolling benchmark4 (tuned BM25 and TAS-B [11]). We
+                                                                             ber of non-zero dimensions in document representations)
+also report the SPLADE evaluation against these baselines.
+                                                                             for SPLADE-doc models trained with different regulariza-
+                                                                             tion strength 𝜆𝑑 on MS MARCO.
+4.1    Impact of max pooling
+                                                                                                             SPLADE-doc
+First, on MS MARCO and TREC, max pooling brings almost 2 points
+in MRR@10 and NDCG@10 compared to the SPLADE baseline. It                                    32.0
+becomes competitive with COIL and DeepImpact. In addition, Fig-
+
+
+
+
+                                                                              MRR@10 (dev set)
+ure 1 shows that SPLADE-max is consistently better than SPLADE,                              31.5
+in terms of effectiveness-efficiency trade-off. SPLADE-max has also
+improved performance on the BEIR benchmark (cf Table 2).                                     31.0
+
+4.2    Document expansion                                                                    30.5
+Our document encoder model with max pooling is able to reach the
+same performance as the previous SPLADE model, outperforming                                 30.0
+doc2query-T5 on MS MARCO. As this model has no query encoder,
+it is more efficient in terms of e.g. latency. Figure 2 illustrates how                      29.5
+we can balance efficiency (in terms of the average size of document
+                                                                                             29.0
+4 https://docs.google.com/spreadsheets/d/1L8aACyPaXrL8iEelJLGqlMqXKPX2oSP_                                    50       100       150       200
+R10pZoy77Ns                                                                                             avg. document length (# of non-zero entries)
+Table 2: NDCG@10 results on BEIR (subset containing all                                [8] Thibault Formal, Benjamin Piwowarski, and Stéphane Clinchant. 2021. SPLADE:
+the readily available datasets).                                                           Sparse Lexical and Expansion Model for First Stage Ranking. In Proceedings
+                                                                                           of the 44th International ACM SIGIR Conference on Research and Development
+                                                                                           in Information Retrieval (Virtual Event, Canada) (SIGIR ’21). Association for
+                                   Baselines                    SPLADE                     Computing Machinery, New York, NY, USA, 2288–2292. https://doi.org/10.1145/
+Corpus                                                                                     3404835.3463098
+                         ColBERT BM25 TAS-B sum [8] max distil                         [9] Luyu Gao, Zhuyun Dai, and Jamie Callan. 2021. COIL: Revisit Exact Lexical Match
+                                                                                           in Information Retrieval with Contextualized Inverted List. In Proceedings of the
+MS MARCO                   0.425      0.228    0.408      0.387    0.402 0.433             2021 Conference of the North American Chapter of the Association for Computa-
+                                                                                           tional Linguistics: Human Language Technologies. Association for Computational
+ArguAna                    0.233      0.315    0.427      0.447    0.439 0.479             Linguistics, Online, 3030–3042. https://doi.org/10.18653/v1/2021.naacl-main.241
+Climate-FEVER              0.184      0.213    0.228      0.162    0.199 0.235        [10] Kelvin Guu, Kenton Lee, Zora Tung, Panupong Pasupat, and Ming-Wei
+DBPedia                    0.392      0.273    0.384      0.343    0.366 0.435             Chang. 2020. REALM: Retrieval-Augmented Language Model Pre-Training.
+                                                                                           arXiv:2002.08909 [cs.CL]
+FEVER                      0.771      0.753    0.700      0.728    0.730 0.786        [11] Sebastian Hofstätter, Sheng-Chieh Lin, Jheng-Hong Yang, Jimmy Lin, and Allan
+FiQA-2018                  0.317      0.236    0.300      0.258    0.287 0.336             Hanbury. 2021. Efficiently Teaching an Effective Dense Retriever with Balanced
+                                                                                           Topic Aware Sampling. In Proc. of SIGIR.
+HotpotQA                   0.593      0.603    0.584      0.635    0.636 0.684        [12] Sebastian Hofstätter, Sophia Althammer, Michael Schröder, Mete Sertkan, and
+NFCorpus                   0.305      0.325    0.319      0.311    0.313 0.334             Allan Hanbury. 2020. Improving Efficient Neural Ranking Models with Cross-
+NQ                         0.524      0.329    0.463      0.438    0.469 0.521             Architecture Knowledge Distillation. arXiv:2010.02666 [cs.IR]
+                                                                                      [13] Vladimir Karpukhin, Barlas Oğuz, Sewon Min, Patrick Lewis, Ledell Wu, Sergey
+Quora                      0.854      0.789    0.835      0.829    0.835 0.838             Edunov, Danqi Chen, and Wen tau Yih. 2020. Dense Passage Retrieval for Open-
+SCIDOCS                    0.145      0.158    0.149      0.141    0.145 0.158             Domain Question Answering. arXiv:2004.04906 [cs.CL]
+SciFact                    0.671      0.665    0.643      0.626    0.628 0.693        [14] Omar Khattab and Matei Zaharia. 2020. ColBERT: Efficient and Effective Passage
+                                                                                           Search via Contextualized Late Interaction over BERT. In Proceedings of the 43rd
+TREC-COVID                 0.677      0.656    0.481      0.655    0.673 0.710             International ACM SIGIR Conference on Research and Development in Information
+Touché-2020 (v1)           0.275      0.614    0.173      0.289    0.316 0.364             Retrieval (Virtual Event, China) (SIGIR ’20). Association for Computing Machinery,
+                                                                                           New York, NY, USA, 39–48. https://doi.org/10.1145/3397271.3401075
+Avg. all                   0.455      0.440 0.435         0.446 0.460 0.500           [15] Siu Kwan Lam, Antoine Pitrou, and Stanley Seibert. 2015. Numba: A llvm-based
+Avg. zero-shot             0.457      0.456 0.437         0.451 0.464 0.506                python jit compiler. In Proceedings of the Second Workshop on the LLVM Compiler
+                                                                                           Infrastructure in HPC. 1–6.
+Best on dataset              2          2     0             0     0    11             [16] Sheng-Chieh Lin, Jheng-Hong Yang, and Jimmy Lin. 2021. In-Batch Negatives
+                                                                                           for Knowledge Distillation with Tightly-Coupled Teachers for Dense Retrieval.
+                                                                                           In Proceedings of the 6th Workshop on Representation Learning for NLP (RepL4NLP-
+                                                                                           2021). Association for Computational Linguistics, Online, 163–173. https://doi.
+values of FLOPS (0.368 MRR@10 for ≈ 4 FLOPS), but are still very                           org/10.18653/v1/2021.repl4nlp-1.17
+efficient in low regime (0.35 MRR for ≈ 0.3 FLOPS). Furthermore,                      [17] Sean MacAvaney, Franco Maria Nardini, Raffaele Perego, Nicola Tonellotto, Nazli
+DistilSPLADE-max is able to outperform all other methods in most                           Goharian, and Ophir Frieder. 2020. Expansion via Prediction of Importance with
+                                                                                           Contextualization. Proceedings of the 43rd International ACM SIGIR Conference on
+datasets of the BEIR benchmark (cf Table 2).                                               Research and Development in Information Retrieval (Jul 2020). https://doi.org/10.
+                                                                                           1145/3397271.3401262
+5   CONCLUSION                                                                        [18] Antonio Mallia, Omar Khattab, Torsten Suel, and Nicola Tonellotto. 2021. Learn-
+                                                                                           ing Passage Impacts for Inverted Indexes. In Proceedings of the 44th International
+In this paper, we have built on the SPLADE model by reconsidering                          ACM SIGIR Conference on Research and Development in Information Retrieval
+                                                                                           (Virtual Event, Canada) (SIGIR ’21). Association for Computing Machinery, New
+its pooling mechanism, and by using standard training techniques                           York, NY, USA, 1723–1727. https://doi.org/10.1145/3404835.3463030
+such as distillation for neural IR models. Our experiments have                       [19] Rodrigo Nogueira and Kyunghyun Cho. 2019. Passage Re-ranking with BERT.
+shown that the max pooling technique indeed provides a substantial                         arXiv:1901.04085 [cs.IR]
+                                                                                      [20] Rodrigo Nogueira and Jimmy Lin. 2019. From doc2query to docTTTTTquery.
+improvement. Secondly, the document encoder is an interesting                         [21] Rodrigo Nogueira, Wei Yang, Jimmy Lin, and Kyunghyun Cho. 2019. Document
+model for faster retrieval conditions. Finally, the distilled SPLADE                       Expansion by Query Prediction. arXiv:1904.08375 [cs.IR]
+model leads to close to state-of-the-art models on MS MARCO and                       [22] Biswajit Paria, Chih-Kuan Yeh, Ian E. H. Yen, Ning Xu, Pradeep Ravikumar, and
+                                                                                           Barnabás Póczos. 2020. Minimizing FLOPs to Learn Efficient Sparse Representa-
+TREC DL 2019, while clearly outperforming recent dense models                              tions. arXiv:2004.05665 [cs.LG]
+on zero-shot evaluation.                                                              [23] Adam Paszke, Sam Gross, Francisco Massa, Adam Lerer, James Bradbury, Gregory
+                                                                                           Chanan, Trevor Killeen, Zeming Lin, Natalia Gimelshein, Luca Antiga, et al. 2019.
+                                                                                           PyTorch: An Imperative Style, High-Performance Deep Learning Library.. In
+REFERENCES                                                                                 NeurIPS.
+[1] Yang Bai, Xiaoguang Li, Gang Wang, Chaoliang Zhang, Lifeng Shang, Jun Xu,         [24] Yingqi Qu, Yuchen Ding, Jing Liu, Kai Liu, Ruiyang Ren, Wayne Xin Zhao,
+    Zhaowei Wang, Fangshan Wang, and Qun Liu. 2020. SparTerm: Learning Term-               Daxiang Dong, Hua Wu, and Haifeng Wang. 2021. RocketQA: An Optimized
+    based Sparse Representation for Fast Text Retrieval. arXiv:2010.00768 [cs.IR]          Training Approach to Dense Passage Retrieval for Open-Domain Question An-
+[2] Leonid Boytsov. 2018. Efficient and Accurate Non-Metric k-NN Search with Appli-        swering. In Proceedings of the 2021 Conference of the North American Chapter
+    cations to Text Matching. Ph.D. Dissertation. Carnegie Mellon University.              of the Association for Computational Linguistics: Human Language Technolo-
+[3] Nick Craswell, Bhaskar Mitra, Emine Yilmaz, Daniel Campos, and Ellen M                 gies. Association for Computational Linguistics, Online, 5835–5847. https:
+    Voorhees. 2020. Overview of the trec 2019 deep learning track. arXiv preprint          //doi.org/10.18653/v1/2021.naacl-main.466
+    arXiv:2003.07820 (2020).                                                          [25] Nils Reimers and Iryna Gurevych. 2019. Sentence-BERT: Sentence Embeddings
+[4] Zhuyun Dai and Jamie Callan. 2019. Context-Aware Sentence/Passage Term                 using Siamese BERT-Networks. In Proceedings of the 2019 Conference on Em-
+    Importance Estimation For First Stage Retrieval. arXiv:1910.10687 [cs.IR]              pirical Methods in Natural Language Processing. Association for Computational
+[5] Zhuyun Dai and Jamie Callan. 2020. Context-Aware Document Term Weighting               Linguistics. http://arxiv.org/abs/1908.10084
+    for Ad-Hoc Search. Association for Computing Machinery, New York, NY, USA,        [26] Nandan Thakur, Nils Reimers, Andreas Rücklé, Abhishek Srivastava, and Iryna
+    1897–1907. https://doi.org/10.1145/3366423.3380258                                     Gurevych. 2021. BEIR: A Heterogenous Benchmark for Zero-shot Evaluation
+[6] Zhuyun Dai and Jamie Callan. 2020. Context-Aware Term Weighting For First              of Information Retrieval Models. CoRR abs/2104.08663 (2021). arXiv:2104.08663
+    Stage Passage Retrieval. Association for Computing Machinery, New York, NY,            https://arxiv.org/abs/2104.08663
+    USA, 1533–1536. https://doi.org/10.1145/3397271.3401204                           [27] Zhengkai Tu, Wei Yang, Zihang Fu, Yuqing Xie, Luchen Tan, Kun Xiong, Ming
+[7] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. 2018. BERT:          Li, and Jimmy Lin. 2020. Approximate Nearest Neighbor Search and Lightweight
+    Pre-training of Deep Bidirectional Transformers for Language Understanding.            Dense Vector Reranking in Multi-Stage Retrieval Architectures. In Proceedings of
+    CoRR abs/1810.04805 (2018). arXiv:1810.04805 http://arxiv.org/abs/1810.04805           the 2020 ACM SIGIR on International Conference on Theory of Information Retrieval.
+                                                                                           97–100.
+[28] Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Clement Delangue,       [31] Wei Yang, Kuang Lu, Peilin Yang, and Jimmy Lin. 2019. Critically Examining the
+     Anthony Moi, Pierric Cistac, Tim Rault, Rémi Louf, Morgan Funtowicz, Joe                “Neural Hype”. Proceedings of the 42nd International ACM SIGIR Conference on
+     Davison, Sam Shleifer, Patrick von Platen, Clara Ma, Yacine Jernite, Julien Plu,        Research and Development in Information Retrieval (Jul 2019). https://doi.org/10.
+     Canwen Xu, Teven Le Scao, Sylvain Gugger, Mariama Drame, Quentin Lhoest,                1145/3331184.3331340
+     and Alexander M. Rush. 2020. HuggingFace’s Transformers: State-of-the-art          [32] Hamed Zamani, Mostafa Dehghani, W. Bruce Croft, Erik Learned-Miller, and
+     Natural Language Processing. arXiv:1910.03771 [cs.CL]                                   Jaap Kamps. 2018. From Neural Re-Ranking to Neural Ranking: Learning a
+[29] Lee Xiong, Chenyan Xiong, Ye Li, Kwok-Fung Tang, Jialin Liu, Paul Bennett,              Sparse Representation for Inverted Indexing. In Proceedings of the 27th ACM
+     Junaid Ahmed, and Arnold Overwijk. 2020. Approximate Nearest Neighbor                   International Conference on Information and Knowledge Management (Torino,
+     Negative Contrastive Learning for Dense Text Retrieval. arXiv:2007.00808 [cs.IR]        Italy) (CIKM ’18). Association for Computing Machinery, New York, NY, USA,
+[30] Lee Xiong, Chenyan Xiong, Ye Li, Kwok-Fung Tang, Jialin Liu, Paul N. Bennett,           497–506. https://doi.org/10.1145/3269206.3271800
+     Junaid Ahmed, and Arnold Overwikj. 2021. Approximate Nearest Neighbor Neg-         [33] Tiancheng Zhao, Xiaopeng Lu, and Kyusong Lee. 2020. SPARTA: Efficient
+     ative Contrastive Learning for Dense Text Retrieval. In International Conference        Open-Domain Question Answering via Sparse Transformer Matching Retrieval.
+     on Learning Representations. https://openreview.net/forum?id=zeFrfgyZln                 arXiv:2009.13013 [cs.CL]
+
