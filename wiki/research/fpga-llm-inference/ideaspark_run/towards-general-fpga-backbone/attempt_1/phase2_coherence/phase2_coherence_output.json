@@ -1,0 +1,474 @@
+{
+  "trace_report": {
+    "formalized_procedure": [
+      {
+        "step": "S1",
+        "consumes": [
+          "one baseline Gemma 3 1B F16 application process containing E >= 0 ggml_backend_graph_compute invocations",
+          "GGML support-query/backend events",
+          "XRT artifact lookup, run-start, and blocking-completion events"
+        ],
+        "produces": [
+          "JSONL ledger indexed by (process_id, graph_invocation_id, node_index, tensor_id)",
+          "counts H_e admitted calls, L_e XRT starts, and S_e blocking completions per epoch e"
+        ],
+        "note": "Verbatim: `1. Add baseline hooks at GGML support queries, backend compute entry/exit, artifact lookup, every `xrt::run::start`, and every blocking wait; input is the existing Gemma 3 1B F16 execution and output is a reconciled JSONL ledger keyed by graph invocation, node index, and tensor ID.` Reconciliation requires total, rather than sampled, hooks as stated in P5."
+      },
+      {
+        "step": "S2",
+        "consumes": [
+          "node i signature",
+          "tensor metadata and versions",
+          "support-predicate version",
+          "loaded xclbin UUID, kernel name, and ABI digest"
+        ],
+        "produces": [
+          "receipt R_i or Unsupported(i)"
+        ],
+        "note": "Verbatim: `2. Extend the support-query path to emit R_i records keyed by graph invocation and node index; inputs are the real node signature, backend tensor metadata, support-predicate version, and loaded xclbin/kernel metadata, and output is an immutable receipt table or an explicit unsupported result.` R_i has one record per graph node. Tensor IDs are not, by themselves, a storage-alias representation; that is traced as a blocking finding below."
+      },
+      {
+        "step": "S3",
+        "consumes": [
+          "ordered graph nodes N[0..H_e-1]",
+          "receipt table R[0..H_e-1]",
+          "per-signature descriptor bounds and candidate artifact metadata"
+        ],
+        "produces": [
+          "AdmittedEpoch(e) or explicit preflight failure before any XRT start"
+        ],
+        "note": "Verbatim: `3. Add strict graph preflight before any FPGA work; input is the ordered GGML graph plus receipt table, and output is either a fully admitted epoch or the original explicit failure with zero XRT launches and no CPU execution.` The original text does not define descriptor capacity; the applied wording repair makes representability and finite K_i bounds preflight inputs."
+      },
+      {
+        "step": "S4",
+        "consumes": [
+          "admitted call i",
+          "unchanged input/output tensor bindings",
+          "ordered descriptor vector D_i[0..K_i-1] with a finite ABI-specific bound K_i <= Kmax(signature_i)"
+        ],
+        "produces": [
+          "one descriptor BO",
+          "one started finite candidate wrapper run W_i",
+          "provisional output storage for call i"
+        ],
+        "note": "Verbatim: `4. Refactor each of the 11 accepted operator-family wrappers so its host code writes the existing ordered tile arguments into a descriptor BO and starts one finite vector-descriptor kernel; inputs are the unchanged tensors and tile list, and output is the same device tensor that feeds subsequent GGML nodes and ultimately the model logits.` A native XRT run cannot dynamically launch the old runs; implementability therefore requires each new FPGA wrapper to contain the operator's tile compute/stage logic and iterate D_i itself. This intentionally changes its UUID/ABI relative to the baseline artifact and is conditional on P3's no-hidden-host-effect assumption."
+      },
+      {
+        "step": "S5",
+        "consumes": [
+          "R_i",
+          "D_i",
+          "device-visible dependency-version state",
+          "provisional tensor bindings"
+        ],
+        "produces": [
+          "published output version(s) or status Fault(i)"
+        ],
+        "note": "Verbatim: `5. Add receipt checks and tensor-version gates to each finite wrapper; inputs are R_i, descriptor BO, and device version table, and outputs are either the new output-tensor versions consumed by downstream operators or a first-fault status code.` Two operative readings exist for `gates`: (A) a wrapper waits/polls until every input version is published, or (B) XRT/ERT submission dependencies prevent the wrapper from starting until inputs are ready. The candidate describes no XRT dependency object, so reading B consumes an unproduced artifact. Under reading A, no abort publication, memory-order rule, or progress rule is produced. This ambiguity is reading-robustly blocking because neither reading is completely constructed."
+      },
+      {
+        "step": "S6",
+        "consumes": [
+          "topologically graph-ordered admitted calls",
+          "run handles and BO/tensor lifetimes",
+          "the dependency mechanism presumed by S5"
+        ],
+        "produces": [
+          "an in-flight epoch with all calls submitted and resources retained"
+        ],
+        "note": "Verbatim: `6. Replace per-call waits with graph-ordered asynchronous submissions and retain every descriptor BO, run handle, and tensor allocation until epoch resolution; inputs are admitted calls and dependency versions, and output is an in-flight epoch whose downstream nodes consume only published producer versions.` Host submission order is not itself a declared XRT completion dependency. The missing progress/fault semantics are not repaired because they are the mechanism's declared obstacle."
+      },
+      {
+        "step": "S7",
+        "consumes": [
+          "committed mutable storage",
+          "node read/write sets",
+          "an alias map from every tensor/view interval to canonical storage pages",
+          "epoch provisional-version map"
+        ],
+        "produces": [
+          "copy-on-write pages and bindings visible to later device calls",
+          "a staged mutable state"
+        ],
+        "note": "Verbatim: `7. Route KV-cache and other mutable writes to provisional copy-on-write pages and resolve aliases through the epoch version map; inputs are committed state and node write sets, and output is staged state read by later attention operations without changing generated logits before commit.` The quoted step requires an alias map, but S1-S6 produce only tensor IDs/versions and read/write sets; no step constructs canonical storage identity, byte ranges, view offsets/strides, or overlap rules."
+      },
+      {
+        "step": "S8",
+        "consumes": [
+          "completion/status for every submitted run",
+          "provisional tensor/state versions",
+          "any earlier explicit synchronization/copy/read boundary"
+        ],
+        "produces": [
+          "committed epoch visible to llama.cpp or first explicit error with provisional state discarded"
+        ],
+        "note": "Verbatim: `8. Implement epoch commit at graph return and at unchanged explicit synchronize/copy/read boundaries; inputs are all run statuses and provisional versions, and output is either atomically committed tensors/state returned to llama.cpp or an explicit first error with provisional state discarded.` `At graph return` has two readings: commit before returning from graph_compute, or commit after graph_compute has returned. Only the first preserves synchronous framework visibility; the candidate's definition of the boundary as return supports that reading, and the procedure wording is repaired to say `before return`. Even on that reading, S8 cannot consume all statuses after a failed producer leaves a dependent polling wrapper unreleased."
+      },
+      {
+        "step": "S9",
+        "consumes": [
+          "112 c64/c512 signatures",
+          "2,422 accepted U280 observations",
+          "baseline artifacts and candidate vector-wrapper artifacts",
+          "baseline and candidate ledgers"
+        ],
+        "produces": [
+          "bytewise output comparison",
+          "support/error/fallback comparison",
+          "within-arm receipt-to-loaded-artifact binding checks"
+        ],
+        "note": "Verbatim: `9. Replay all 112 c64/c512 signatures and 2,422 accepted U280 dispatch observations against the baseline; inputs are the existing test corpus and exact artifacts, and outputs are bytewise tensor comparisons plus equality checks for support decisions, errors, artifact IDs, and absence of CPU fallback.` Literal cross-arm UUID/ABI equality is incompatible with S4's new vector ABI. The applied repair makes `artifact identity` mean that each arm executes exactly the artifact admitted by its own receipt, while recording the intentional baseline-to-candidate mapping."
+      },
+      {
+        "step": "S10",
+        "consumes": [
+          "matched pp512 and tg128 prompts, binaries, clocks, F16 model, and U280 board",
+          "baseline, full mechanism, descriptor-unpacked, and per-call-wait arms"
+        ],
+        "produces": [
+          "process totals H=sum(H_e), L=sum(L_e), S=sum(S_e), A=L/H for H>0",
+          "application wall clock from first backend entry to final committed requested output",
+          "per-epoch latency, XRT wait time, logits/tokens, state and strictness traces"
+        ],
+        "note": "Verbatim: `10. Run matched pp512 and tg128 Gemma campaigns with warmups and repeated trials, then run descriptor-unpacked and per-call-wait controls; inputs are identical prompts, clocks, F16 model, U280, and binaries except the named intervention, and outputs are A, blocking synchronization count, XRT wait time, full-path wall clock, logits/tokens, and strictness traces.` The applied estimand repair makes the wall-clock endpoint explicitly downstream of all graph epochs and final commit, and defines A as N/A when H=0."
+      }
+    ],
+    "dry_run": {
+      "instance": "Two levels were traced. Actual-count level: pp512 has H=1,626 admitted calls and baseline L=224,936 starts; tg128 has H=104,877 and baseline L=202,530. Dependency level: one epoch has producer N0 with K0=2, committed KV page P version 7 initially [0,0,0,0], and consumer N1 with K1=1 reading alias view V=P[0:4]. N0's two ordered descriptors stage P version 8 as [1,2,3,4]; N1 should sum V to logit 10. Baseline waits after each descriptor. Candidate submits W0 then W1 and requires W1 to consume provisional version 8.",
+      "execution": {
+        "mode": "unexecuted",
+        "script": "",
+        "output": "No code-execution tool was available in this isolated context; all arithmetic below is hand-computed and marked unexecuted."
+      },
+      "computed_quantities": [
+        {
+          "quantity": "pp512 baseline launch amplification",
+          "value": "A_base = 138.3370 starts/admitted call (unexecuted)",
+          "arithmetic": "224,936 / 1,626 = 138 + 548/1,626 = 138.3370"
+        },
+        {
+          "quantity": "pp512 candidate launch bound",
+          "value": "L_cand <= 1,626 and A_cand <= 1; at least 223,310 starts removed, 99.277% (unexecuted)",
+          "arithmetic": "224,936 - 1,626 = 223,310; 223,310 / 224,936 = 0.99277"
+        },
+        {
+          "quantity": "tg128 baseline launch amplification",
+          "value": "A_base = 1.9311 starts/admitted call (unexecuted)",
+          "arithmetic": "202,530 / 104,877 = 1 + 97,653/104,877 = 1.9311"
+        },
+        {
+          "quantity": "tg128 candidate launch bound",
+          "value": "L_cand <= 104,877 and A_cand <= 1; at least 97,653 starts removed, 48.217% (unexecuted)",
+          "arithmetic": "202,530 - 104,877 = 97,653; 97,653 / 202,530 = 0.48217"
+        },
+        {
+          "quantity": "minimal baseline dependent result",
+          "value": "logit = 10 (unexecuted)",
+          "arithmetic": "N0 completes ordered writes [1,2,3,4] before N1 starts; N1 computes 1+2+3+4=10"
+        },
+        {
+          "quantity": "minimal naive wait-elision result under an allowed completion reordering",
+          "value": "logit = 0 rather than 10 (unexecuted)",
+          "arithmetic": "without an XRT dependency, N1 may read committed V=[0,0,0,0] before N0 completes; 0+0+0+0=0"
+        },
+        {
+          "quantity": "minimal candidate result if alias canonicalization, release/acquire publication, progress, and abort propagation all exist",
+          "value": "logit = 10 (unexecuted, conditional)",
+          "arithmetic": "W1 waits for canonical storage page P version 8, then reads [1,2,3,4] and sums to 10"
+        },
+        {
+          "quantity": "minimal candidate behavior as written when V has a distinct tensor ID and no produced alias map",
+          "value": "either waits forever for V version 8 or consumes stale V version 7 and returns 0 (unexecuted)",
+          "arithmetic": "S2 records tensor IDs/versions but no relation V aliases P; publishing P:8 neither necessarily publishes V:8 nor redirects V to the provisional page"
+        },
+        {
+          "quantity": "wall-clock effect implied by launch arithmetic",
+          "value": "not computable from counts alone",
+          "arithmetic": "T_candidate - T_baseline needs measured full-process timestamps; 223,310 and 97,653 fewer starts do not determine elapsed-time change"
+        }
+      ],
+      "anomalies": [
+        "pp512's 99.277% start-count reduction and tg128's 48.217% reduction establish only L/H changes; neither computes the declared wall-clock estimand.",
+        "The two-node trace has a concrete expected value 10, but the written tensor-ID versioning cannot resolve V to P's provisional page, yielding 0 or nontermination.",
+        "If N0 faults before publishing version 8, W1's stated version gate has no produced success version and no specified abort token, so epoch resolution cannot obtain all statuses.",
+        "Literal equality of baseline and candidate artifact UUID/ABI values is impossible when S4 installs a new vector-descriptor ABI; this is repaired as within-arm admission-to-execution identity."
+      ]
+    },
+    "degenerate_probes": [
+      {
+        "probe": "empty graph / H=0",
+        "behavior": "Preflight and commit can be no-ops with L=0, but A=L/H is 0/0.",
+        "finding": "Wording repair: report A as N/A for H=0 and report H and L separately."
+      },
+      {
+        "probe": "K_i=0 for one admitted no-op call",
+        "behavior": "A finite wrapper may launch, execute zero descriptor iterations, publish its output/version status, and terminate; L_i=1 still satisfies L<=H. If no launch is chosen, L_i=0 also satisfies the bound.",
+        "finding": "The launch policy for K_i=0 is not material to the bound, but version publication must still occur."
+      },
+      {
+        "probe": "single node, K=1, no mutable aliases",
+        "behavior": "One candidate run followed by one commit wait is well-defined if the wrapper terminates and its status is observable.",
+        "finding": null
+      },
+      {
+        "probe": "all tensor IDs are distinct views of one mutable KV storage page",
+        "behavior": "The tensor-version table cannot determine overlapping storage or redirect every view to one provisional COW page from the artifacts produced by S1-S6.",
+        "finding": "Blocking alias-provenance hole; the mechanism's own declared mutable-state obstacle is not executed as written."
+      },
+      {
+        "probe": "producer faults before publishing a version required by one downstream wrapper",
+        "behavior": "The downstream wrapper waits for a version that can never appear, while S8 waits for every run status; discard/first-error commit is unreachable.",
+        "finding": "Blocking dependent-graph/fault-propagation hole."
+      },
+      {
+        "probe": "enqueue failure after an earlier wrapper has started",
+        "behavior": "The host can identify the failed enqueue, but no shared abort state or drain/cancel rule is specified for already-running wrappers and no downstream release status is produced.",
+        "finding": "Same blocking dependent-graph/fault-propagation hole."
+      },
+      {
+        "probe": "ties at every receipt check",
+        "behavior": "Receipt comparisons are exact equality checks, not scored thresholds; equality admits and any mismatch fails preflight.",
+        "finding": null
+      },
+      {
+        "probe": "maximum descriptor count",
+        "behavior": "The original text has no Kmax or descriptor-BO capacity, so `finite` cannot be checked before launch.",
+        "finding": "Patched by requiring each candidate ABI to publish a finite per-signature Kmax and preflight to verify K_i and descriptor bytes fit."
+      },
+      {
+        "probe": "multiple graph epochs in tg128",
+        "behavior": "S is one blocking completion per graph epoch, not necessarily one for the entire tg128 process; process totals must sum over epochs.",
+        "finding": "Patched by defining aggregate H, L, and S over all epochs and making final committed process output the wall-clock endpoint."
+      }
+    ],
+    "claim_step_map": [
+      {
+        "claim": "Strict preflight gives explicit failure, zero XRT launches, and no CPU fallback for an unsupported/stale graph.",
+        "established_by": "S2-S3",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "support queries and artifact lookups have no FPGA side effects",
+          "every graph node is enumerated before any candidate launch",
+          "the application cannot independently invoke a CPU fallback after the backend returns its explicit error"
+        ],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "One finite vector-descriptor launch replaces K_i old starts for every accepted GGML call and therefore L<=H.",
+        "established_by": "S3-S4",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "each accepted call's complete per-tile behavior is representable inside one terminating FPGA wrapper rather than requiring host feedback or dynamic XRT kernel launches",
+          "K_i and descriptor bytes fit the ABI-declared bound",
+          "the custom wrapper preserves every descriptor's stage/arithmetic order"
+        ],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "Graph-ordered asynchronous submission plus device version gates executes dependent nodes correctly without per-call waits.",
+        "established_by": "UNESTABLISHED",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "a concrete XRT/ERT dependency or polling protocol with guaranteed progress",
+          "release/acquire visibility from tensor writes to version publication and downstream reads",
+          "failure/abort propagation that releases every dependent wrapper",
+          "a scheduling rule that prevents waiting wrappers from blocking their prerequisites"
+        ],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "Copy-on-write pages and tensor versions preserve mutable KV aliases and let downstream attention read provisional updates.",
+        "established_by": "UNESTABLISHED",
+        "strength_grade": "overclaim",
+        "assumptions_missing": [],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "Any validation, enqueue, or device fault reports the first error and discards provisional state.",
+        "established_by": "UNESTABLISHED",
+        "strength_grade": "overclaim",
+        "assumptions_missing": [],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "Artifact identity is preserved.",
+        "established_by": "S2, S3, S5, S9",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "identity means receipt-to-loaded-artifact equality within each arm, not cross-arm equality of a baseline ABI with the new vector ABI",
+          "the loaded UUID/kernel/ABI cannot change between preflight and run creation"
+        ],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "Observable tensors, committed state, support outcomes, and errors are byte/trace equivalent to baseline.",
+        "established_by": "S9-S10",
+        "strength_grade": "empirical",
+        "assumptions_missing": [],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "Synchronization count is one per graph epoch unless the unchanged application asks for an earlier boundary.",
+        "established_by": "S6-S8",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "all wrappers terminate or abort",
+          "XRT exposes a way to resolve every run with one host-side epoch wait/aggregation",
+          "resource lifetime management and start calls do not introduce additional blocking completions"
+        ],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "The matched diagnostic varies only descriptor packing and commit timing.",
+        "established_by": "S10",
+        "strength_grade": "overclaim",
+        "assumptions_missing": [],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "Launch-count collapse lowers pp512/tg128 full-path wall clock.",
+        "established_by": "S10",
+        "strength_grade": "empirical",
+        "assumptions_missing": [],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "The reported wall clock is downstream of the intervention rather than XRT wait time moved elsewhere.",
+        "established_by": "S8-S10",
+        "strength_grade": "established",
+        "assumptions_missing": [],
+        "arbitration": "argument",
+        "measured": null
+      }
+    ],
+    "naive_comparison": {
+      "declared_branch": "(i) false-premise",
+      "naive_version": "Independently, retain every old per-tile XRT start and mutable buffer binding, remove intervening waits, submit in host graph order, and block only at the final required output without receipts, explicit dependencies, version publication, or COW state.",
+      "instance_behavior": {
+        "naive": "On the two-node instance an allowed completion order lets N1 read committed [0,0,0,0] before N0's [1,2,3,4] is visible, producing logit 0; start count remains 3.",
+        "mechanism": "If its missing alias/dependency/fault assumptions are supplied, W1 waits for canonical P:8 and produces logit 10 with 2 starts; as written it can instead return 0 or fail to terminate.",
+        "divergence": "intended output difference 10-0=10 and launch difference 3-2=1 on the minimal instance"
+      },
+      "verdict": "confronts_obstacle",
+      "reasoning": "Receipts, version gates, and COW are substantive additions to naive wait deletion, and the minimal reordering gives the candidate's stated failure numerically. The full mechanism nevertheless does not survive as written because it never constructs the XRT progress/fault protocol or storage-alias map those additions require."
+    }
+  },
+  "verdict": "patched",
+  "unrepaired": [
+    {
+      "finding": "The deferred-wait graph has no executable XRT dependency, memory-order, progress, or failure-propagation protocol. `start()` submission order is not defined here as a completion dependency; under polling-gate reading, a producer fault never publishes the required version, so a dependent wrapper can wait forever and epoch commit can never collect all statuses or report the first error. This is the exact explicit-failure/order obstacle the candidate claims to solve, so adding an abort/dependency scheduler would be an obstacle-level redesign rather than a coherence wording patch.",
+      "severity": "blocking",
+      "why_not_repaired": "The candidate's branch-(i) audit declares correct ordering, delayed errors, and first-fault commit to be the load-bearing obstacle. Supplying a host event DAG, ERT dependency mechanism, or device abort/progress protocol changes the actual execution mechanism and cannot be patched around by skipping dependent nodes or waiting per call.",
+      "verbatim_step_quote": "5. Add receipt checks and tensor-version gates to each finite wrapper; inputs are R_i, descriptor BO, and device version table, and outputs are either the new output-tensor versions consumed by downstream operators or a first-fault status code.\n6. Replace per-call waits with graph-ordered asynchronous submissions and retain every descriptor BO, run handle, and tensor allocation until epoch resolution; inputs are admitted calls and dependency versions, and output is an in-flight epoch whose downstream nodes consume only published producer versions.\n8. Implement epoch commit at graph return and at unchanged explicit synchronize/copy/read boundaries; inputs are all run statuses and provisional versions, and output is either atomically committed tensors/state returned to llama.cpp or an explicit first error with provisional state discarded.",
+      "executed_evidence": "UNEXECUTED (no execution tool available), self-contained trace: let producer N0 require one run and publish tensor version v=8 only on success; let downstream N1's wrapper gate on input v=8. Submit start(N0), then start(N1), then make N0 return Fault(0) without publishing v=8. The stated outputs permit N0 to emit a fault status, but no step publishes an abort/failure version consumed by N1. N1's gate therefore remains false forever. Step 8 requires statuses from all runs, including N1, so it cannot terminate or report Fault(0). Independently, if publication is a device-memory write, the text supplies no release-before-version/acquire-after-version rule, so observing v=8 does not as written establish visibility of N0's tensor bytes. These failures hold whether `gate` means polling (missing abort/progress/memory order) or XRT dependency (no dependency artifact is produced or consumed).",
+      "reading_dependence": "reading_robust"
+    },
+    {
+      "finding": "Mutable KV alias correctness consumes an alias relation that no prior step produces. Tensor IDs/versions and a read/write-set label do not identify overlapping storage intervals or redirect every view to a provisional COW page, so a downstream alias can observe committed bytes or wait on the wrong version even though the writer published its provisional tensor version. This is the candidate's declared mutable-KV obstacle and cannot be repaired by abstaining on aliases.",
+      "severity": "blocking",
+      "why_not_repaired": "A sound fix requires a canonical storage-object/byte-range/view model, overlap-aware versioning, descriptor rebinding, and page commit rules across all GGML aliases. That is load-bearing mechanism design for the exact aliasing obstacle in BLOCK 2, not narrative alignment.",
+      "verbatim_step_quote": "2. Extend the support-query path to emit R_i records keyed by graph invocation and node index; inputs are the real node signature, backend tensor metadata, support-predicate version, and loaded xclbin/kernel metadata, and output is an immutable receipt table or an explicit unsupported result.\n7. Route KV-cache and other mutable writes to provisional copy-on-write pages and resolve aliases through the epoch version map; inputs are committed state and node write sets, and output is staged state read by later attention operations without changing generated logits before commit.",
+      "executed_evidence": "UNEXECUTED (no execution tool available), self-contained trace: committed storage page P at version 7 contains [0,0,0,0]. Tensor A and view tensor V have distinct tensor IDs but both denote P[0:4]. N0 writes through A and stages provisional P version 8 as [1,2,3,4]. N1 reads through V and should compute 1+2+3+4=10. R_i records tensor IDs/versions and read/write sets, but no produced artifact states A and V share canonical page P and byte interval [0,4). Publishing A/P:8 therefore neither necessarily advances V's version nor rebinds V's descriptor to provisional P:8. N1 either reads committed V:7 and computes 0, an error of 10, or waits forever for a V-specific version 8. All-identical alias views amplify the same failure; no threshold or empirical outcome resolves the missing dataflow artifact.",
+      "reading_dependence": "reading_robust"
+    }
+  ],
+  "applied_revisions": [
+    {
+      "scope": "coherence",
+      "op": "append_sentence",
+      "field": "core_mechanism",
+      "value": "Across baseline and candidate arms, artifact identity means that the artifact actually launched equals the xclbin UUID, kernel name, and ABI digest admitted by that arm's receipt; installing the vector ABI intentionally changes the candidate artifact relative to the baseline, so cross-arm UUID or ABI equality is not claimed. Process-level H, L, and S are sums over all graph epochs, A is reported only when H > 0 (otherwise N/A), and commit at a graph boundary completes before `ggml_backend_graph_compute` returns.",
+      "outcome": "applied",
+      "delta_summary": "Repairs the T1/T3 artifact-identity ambiguity, H=0 division, multi-epoch aggregation, and `at graph return` wording without changing the mechanism."
+    },
+    {
+      "scope": "coherence",
+      "op": "append_sentence",
+      "field": "core_mechanism_steps",
+      "value": "For Step 3, each candidate wrapper ABI declares a finite per-signature descriptor-count and descriptor-byte capacity, and preflight verifies every K_i fits before any XRT launch. For Step 8, epoch resolution and commit complete before the corresponding graph-compute or explicit visibility request returns. For Step 9, artifact checks compare each receipt with the artifact actually loaded and launched within the same arm and record the intentional baseline-to-vector-wrapper mapping; they do not require baseline and candidate UUID/ABI equality.",
+      "outcome": "applied",
+      "delta_summary": "Repairs the T3 maximum-capacity hole and the T1 ambiguity in commit timing and artifact-ID equality."
+    },
+    {
+      "scope": "coherence",
+      "op": "append_sentence",
+      "field": "core_mechanism_reasoning",
+      "value": "ESTIMAND CLARIFICATION: in each paired pp512 or tg128 application trial, full-path wall clock runs from the first backend graph-compute entry to availability of the final committed output requested by the unchanged application, including all intervening graph epochs; per-epoch graph-entry-to-commit latency is reported only as a diagnostic, and H, L, and S are summed over those epochs.",
+      "outcome": "applied",
+      "delta_summary": "Repairs the T1 estimand ambiguity so the measured wall-clock endpoint is downstream of deferred execution across the complete pp512/tg128 process."
+    },
+    {
+      "scope": "coherence",
+      "op": "replace",
+      "field": "gap_closure[1].how_closed",
+      "value": "Closed by a matched real-GGML evaluation that holds prompts, graph inputs, clocks, model, board, and application path fixed, compares the baseline with the complete receipt-epoch mechanism, and uses descriptor-unpacked and per-call-wait ablations to separate launch packing from commit timing while independently checking launches, downstream wall clock, output/state equivalence, support decisions, within-arm receipt-to-artifact identity, and zero fallback; corpus support is thin for FPGA runtimes, with the closest C02 exemplars drawn from other evaluation domains.",
+      "outcome": "applied",
+      "delta_summary": "Downgrades the T4 overclaim that the baseline-to-candidate comparison varies only two implementation details even though vector artifacts, receipts, gates, and COW also change."
+    }
+  ],
+  "final_candidate": {
+    "title": "Receipt-Carried Epochs for Strict Framework-Native FPGA Inference",
+    "hook": "On the unchanged Gemma 3 1B F16 graph, the same accepted-node sequence can reduce pp512 launches from 224,936 to at most 1,626 and tg128 launches from 202,530 to at most 104,877 while retaining byte-identical observable tensors under deterministic kernel execution. The surprising test is whether that launch-count collapse also lowers full-path wall clock, rather than merely moving wait time elsewhere.",
+    "hook_shape_rationale": "Shape (a) passes because the named launch-count and full-path wall-clock metrics predict a large pp512/tg128 reduction while the support trace and observable outputs remain fixed, a live-runtime result not established by the closest replay study. Shape (b) was considered but rejected because transition-aware dispatch already names transition costs, so describing admission/execution coupling as merely tacit would overstate the reframe.",
+    "gap_closure": [
+      {
+        "gap": "No retrieved frontier leaf establishes that a framework-native backend can retain exact support decisions, explicit failure behavior, tensor-state continuity, and accelerator-artifact identity while execution no longer incurs one host-visible completion cycle per admitted unit — stakes: backend maintainers otherwise face either silent semantic drift and wrong outputs or a formally correct integration whose launch overhead blocks useful deployment and wastes FPGA development effort.",
+        "main_pattern": "architectural_operator_substitution",
+        "sub_pattern": "C12 (Substitute the Operator or Representation)",
+        "companion_pattern": null,
+        "how_closed": "Closed by replacing per-tile XRT launches and per-node waits with a finite vector-descriptor operator ABI plus receipt-carried graph epochs; corpus support is thin in this domain, and C12's closest exemplars concern structural plumbing in other staged systems."
+      },
+      {
+        "gap": "No retrieved frontier leaf demonstrates on live hardware that reducing transition and synchronization amplification across a complete autoregressive run preserves the connected model's outputs and costs once dispatcher, framework, state-management, and failure paths are included — stakes: edge-LLM practitioners can spend most runtime in control overhead despite accelerating accepted operators, while replay-only conclusions may not transfer to deployed heterogeneous runtimes.",
+        "main_pattern": "controlled_diagnostic_design",
+        "sub_pattern": "C02 (Design a Confound-Isolating Diagnostic)",
+        "companion_pattern": null,
+        "how_closed": "Closed by a matched real-GGML evaluation that holds prompts, graph inputs, clocks, model, board, and application path fixed, compares the baseline with the complete receipt-epoch mechanism, and uses descriptor-unpacked and per-call-wait ablations to separate launch packing from commit timing while independently checking launches, downstream wall clock, output/state equivalence, support decisions, within-arm receipt-to-artifact identity, and zero fallback; corpus support is thin for FPGA runtimes, with the closest C02 exemplars drawn from other evaluation domains."
+      }
+    ],
+    "core_mechanism": "The shared evaluation object is a paired execution ledger for one unchanged `ggml_backend_graph_compute` invocation of Gemma 3 1B F16: baseline and candidate runs record the same ordered admitted calls, support outcomes, artifact identifiers, tensor versions, errors, XRT starts, waits, and final observable tensors. For admitted call i, the backend creates an immutable receipt R_i = (operator family, dtype/shape signature, support-predicate version, input/output tensor IDs and versions, mutable-state read/write set, xclbin UUID, kernel name, kernel-ABI digest); every field comes from the actual GGML node, backend tensor metadata, and loaded XRT artifact, so no oracle or learned quantity is used. Before execution, a strict preflight requires one matching R_i for every graph node, rejects a stale artifact or changed signature explicitly, and has no CPU branch. Each accepted operator artifact receives a finite vector-descriptor ABI: its descriptor array is the existing ordered list of tile arguments formerly sent through K_i separate `xrt::run` starts, and one terminating launch loops over exactly those K_i descriptors in the original arithmetic order before returning, without combining different GGML operators. Calls are then submitted asynchronously in graph order, while a device-visible tensor-version table gates each finite operator wrapper on its receipts' input versions and publishes output versions; the framework observes completion only at the graph epoch boundary, defined as return from that graph-compute invocation or an earlier explicit synchronize/copy/read request. Stateful writes such as KV-cache updates target copy-on-write pages named by provisional versions, downstream operators read those provisional versions, and the epoch atomically advances the committed version table only after every run and receipt-status slot succeeds; on any validation, enqueue, or device fault it reports the first error, discards provisional versions, and never falls back. Artifact identity is preserved because a launch is legal only when R_i's xclbin UUID, kernel name, and ABI digest equal the loaded artifact, and tensor-state continuity is preserved by the version gates and commit rule rather than by a host wait after each call. The launch-amplification quantity is A = L/H, where H is the number of admitted GGML calls recorded at backend entry and L is the number of completed XRT run starts recorded by the XRT wrapper over the same full path; the construction makes L at most H for accepted execution, while synchronization count S is the number of blocking host completion calls and is one per graph epoch unless the unchanged application explicitly requests an earlier boundary. Under the stated assumptions that each vector wrapper preserves descriptor order, kernels are deterministic, and no tensor becomes host-visible before commit, observational equivalence means byte equality of every host-observed tensor and committed state plus equality of the ordered support, explicit-error, and artifact-identity traces. This is neither graph fusion nor capture, a persistent kernel, an FPGA instruction overlay, or dataflow compilation: operator boundaries and replaceable artifacts remain intact, every operator kernel terminates, and the only substituted slots are intra-operator launch expansion and host-visible completion placement. Across baseline and candidate arms, artifact identity means that the artifact actually launched equals the xclbin UUID, kernel name, and ABI digest admitted by that arm's receipt; installing the vector ABI intentionally changes the candidate artifact relative to the baseline, so cross-arm UUID or ABI equality is not claimed. Process-level H, L, and S are sums over all graph epochs, A is reported only when H > 0 (otherwise N/A), and commit at a graph boundary completes before `ggml_backend_graph_compute` returns.",
+    "core_mechanism_reasoning": "BLOCK 1 — PREMISES\nP1: The measured pp512 and tg128 paths are control dominated: XRT wait is 96.25% and 79.58% of profiled operator time, respectively, so launch/wait amplification is a plausible end-to-end bottleneck.\nP2: Existing accepted operator calls already materialize an ordered tile-argument list before issuing their many XRT runs; this is believed because the current dispatch expands 1,626 pp512 calls into 224,936 launches and 104,877 tg128 calls into 202,530 launches.\nP3: A finite operator wrapper can consume that descriptor list in the same order without changing arithmetic; untested — falsification target, because hidden host-side effects between tile launches could invalidate packing.\nP4: Device-resident tensor dependencies and mutable KV state can be represented by monotonically increasing tensor versions plus copy-on-write commit; this is believed from the backend's existing tensor storage ownership but remains implementation-sensitive to aliasing.\nP5 observation-model: the instrumentation intercepts every accepted GGML backend entry, XRT run start, blocking completion, artifact lookup, and graph-return boundary on the named Gemma path; completeness is checked by reconciling each call with exactly one support receipt and each XRT event with a receipt, rather than assuming sampled profiler intervals are complete.\nESTIMAND: for the fixed Gemma 3 1B F16 U280 pp512 and tg128 processes, the target is the paired change in full-path wall clock from graph-compute entry to committed output availability, together with A = total completed XRT starts divided by total admitted GGML calls, across repeated executions of the same prompts, binaries, clocks, and application path.\nBLOCK 2 — NAIVE-BASELINE AUDIT\nNaive baseline: delete every per-launch or per-call `wait()` in the current backend, call `start()` in the existing order, and wait once when `ggml_backend_graph_compute` returns. Branch (i): this silently assumes command arguments, temporary tensors, aliased buffers, mutable KV state, artifact bindings, and delayed errors remain valid and correctly ordered without the waits, which is false for a strict stateful backend; receipt pinning, immutable descriptors, tensor-version gates, copy-on-write state, and first-fault commit confront that failure directly. The transaction machinery is a standard systems tool, but this instance is not solved by a generic transaction layer because GGML separates per-node support admission from graph execution while XRT binds finite runs to mutable buffer objects and replaceable xclbin/kernel ABIs, and stateful decode aliases tensors across epochs; the contribution is the domain-specific receipt/version contract spanning those three lifecycles.\nBLOCK 3 — DESIGN RATIONALE\nThe two gaps share machinery because the receipt ledger that makes deferred completion strict also supplies the independent oracle for the matched live-hardware diagnostic; a separate benchmark subsystem would risk measuring a different path. I rejected host command capture/batching because it lands on the occupied CUDA-Graphs-like node, whole-graph fusion and StreamTensor/CODO-style compilation because they take graph ownership, persistent kernels and instruction overlays because they collapse artifact boundaries, and fully spatial streaming because it replaces the runtime contract. I also rejected wait elision alone because it cannot roll back KV state or bind a prior support decision to the artifact actually executed. ESTIMAND CLARIFICATION: in each paired pp512 or tg128 application trial, full-path wall clock runs from the first backend graph-compute entry to availability of the final committed output requested by the unchanged application, including all intervening graph epochs; per-epoch graph-entry-to-commit latency is reported only as a diagnostic, and H, L, and S are summed over those epochs.",
+    "core_mechanism_steps": "1. Add baseline hooks at GGML support queries, backend compute entry/exit, artifact lookup, every `xrt::run::start`, and every blocking wait; input is the existing Gemma 3 1B F16 execution and output is a reconciled JSONL ledger keyed by graph invocation, node index, and tensor ID.\n2. Extend the support-query path to emit R_i records keyed by graph invocation and node index; inputs are the real node signature, backend tensor metadata, support-predicate version, and loaded xclbin/kernel metadata, and output is an immutable receipt table or an explicit unsupported result.\n3. Add strict graph preflight before any FPGA work; input is the ordered GGML graph plus receipt table, and output is either a fully admitted epoch or the original explicit failure with zero XRT launches and no CPU execution.\n4. Refactor each of the 11 accepted operator-family wrappers so its host code writes the existing ordered tile arguments into a descriptor BO and starts one finite vector-descriptor kernel; inputs are the unchanged tensors and tile list, and output is the same device tensor that feeds subsequent GGML nodes and ultimately the model logits.\n5. Add receipt checks and tensor-version gates to each finite wrapper; inputs are R_i, descriptor BO, and device version table, and outputs are either the new output-tensor versions consumed by downstream operators or a first-fault status code.\n6. Replace per-call waits with graph-ordered asynchronous submissions and retain every descriptor BO, run handle, and tensor allocation until epoch resolution; inputs are admitted calls and dependency versions, and output is an in-flight epoch whose downstream nodes consume only published producer versions.\n7. Route KV-cache and other mutable writes to provisional copy-on-write pages and resolve aliases through the epoch version map; inputs are committed state and node write sets, and output is staged state read by later attention operations without changing generated logits before commit.\n8. Implement epoch commit at graph return and at unchanged explicit synchronize/copy/read boundaries; inputs are all run statuses and provisional versions, and output is either atomically committed tensors/state returned to llama.cpp or an explicit first error with provisional state discarded.\n9. Replay all 112 c64/c512 signatures and 2,422 accepted U280 dispatch observations against the baseline; inputs are the existing test corpus and exact artifacts, and outputs are bytewise tensor comparisons plus equality checks for support decisions, errors, artifact IDs, and absence of CPU fallback.\n10. Run matched pp512 and tg128 Gemma campaigns with warmups and repeated trials, then run descriptor-unpacked and per-call-wait controls; inputs are identical prompts, clocks, F16 model, U280, and binaries except the named intervention, and outputs are A, blocking synchronization count, XRT wait time, full-path wall clock, logits/tokens, and strictness traces. For Step 3, each candidate wrapper ABI declares a finite per-signature descriptor-count and descriptor-byte capacity, and preflight verifies every K_i fits before any XRT launch. For Step 8, epoch resolution and commit complete before the corresponding graph-compute or explicit visibility request returns. For Step 9, artifact checks compare each receipt with the artifact actually loaded and launched within the same arm and record the intentional baseline-to-vector-wrapper mapping; they do not require baseline and candidate UUID/ABI equality.",
+    "falsification_prediction": "Run unchanged llama.cpp with Gemma 3 1B F16 on the Alveo U280 for matched pp512 and tg128 trials, comparing the current strict backend, receipt epochs, receipt epochs with one descriptor per launch, and receipt epochs with per-call waits; measure launch count, A, full-path wall clock, outputs, committed KV state, support/error trace, artifact IDs, and fallback count. If the mechanism works, A and blocking waits decrease, and downstream pp512 and tg128 wall clock decreases while observable tensors/state and strictness traces remain equivalent and fallback remains zero. The single load-bearing variable is launch amplification A; the negative-control intervention disables descriptor packing while preserving receipts and versioned commit, and it should drive full-path wall clock back toward the current backend, while a per-call-wait control distinguishes launch reduction from synchronization deferral. Falsify the candidate on this existing path if launch reduction fails to improve downstream wall clock, or if any correctness, support-decision, explicit-failure, tensor-state, artifact-identity, or zero-fallback check regresses.",
+    "compute_budget": "Approximately 0.2 GPU-day + $0 API; the main cost is one U280 for roughly 6-8 weeks of wrapper/runtime development and about 7 board-days for signature regression, matched pp512/tg128 trials, fault injection, and controls, within the five-month envelope.",
+    "differentiation_from_lit": [
+      {
+        "paper_id": "arxiv:2607.17415v1",
+        "delta": "It chooses backends from exact-shape and previous-backend features and sums measured operator/transition costs in replay, whereas this candidate constructs a live no-fallback receipt/version protocol that reduces actual XRT starts and waits while committing the connected GGML graph's outputs and state."
+      },
+      {
+        "paper_id": "arxiv:2601.19263v1",
+        "delta": "Its host agent may choose CPU execution and retrieves FPGA outputs before subsequent progress, whereas this candidate fixes every admitted node to its pinned FPGA artifact and permits deferred visibility only through version-gated execution and atomic state commit."
+      },
+      {
+        "paper_id": "arxiv:2607.07643v1",
+        "delta": "ATLAS generates model hardware through a universal GEMM frontend and architecture-aware RTL backend, whereas this candidate leaves the irregular real GGML graph and its 11 replaceable operator families intact and changes only their strict admission-to-launch-and-commit contract."
+      }
+    ],
+    "almost_prior_paper_id": "arxiv:2607.17415v1",
+    "what_step_was_missed": "It would have needed to replace replay with an integrated framework transaction that binds each support decision to a concrete artifact, carries tensor and mutable-state versions across asynchronous FPGA runs, and commits the real autoregressive graph only after live execution succeeds.",
+    "signature_terms": [
+      "admission-receipt execution epochs",
+      "vector-descriptor FPGA invocation",
+      "strict zero-fallback GGML backend",
+      "launch amplification wall-clock coupling"
+    ],
+    "alias_terms": [
+      "transactional future-backed tensor runtime",
+      "capability-pinned deferred commit protocol",
+      "versioned asynchronous command journal"
+    ],
+    "composition_note": ""
+  },
+  "falsification_rewritten": false
+}

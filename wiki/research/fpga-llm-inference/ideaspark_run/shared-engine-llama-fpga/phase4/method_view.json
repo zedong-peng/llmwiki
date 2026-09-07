@@ -1,0 +1,156 @@
+{
+  "title": "Visibility-Sensitive Command Streaming for Native GGML FPGA Inference",
+  "method_name": "Visibility-Sensitive Trace Compression (VSTC)",
+  "abstract_draft": "Low-batch LLM inference on an FPGA can be limited less by arithmetic than by repeatedly crossing the host-to-device launch boundary for a native GGML execution trace. Existing FPGA designs such as LlamaF [openalex:W4405909140] improve model-specific compute mappings, but retain a control plane in which many original runtime calls remain separately dispatched or are replaced only by static, model-shaped groups. We propose Visibility-Sensitive Trace Compression (VSTC), a native-runtime control-plane method that records a visibility-sensitivity ticket for every original GGML call, preserves host-visible or stateful boundaries, and streams only eligible device-only runs as exact patchable bytecode on a resident interpreter. The contribution is a per-call admission protocol that makes command compression conditional on observed reads, aliases, state, consumer structure, allocation identity, scratch requirements, and explicit-error behavior rather than on a fixed operator class. VSTC is falsified if, on Gemma 3 1B F16 U280 runs, admitting more eligible template entries does not reduce p50/p95 prefill or decode latency relative to a naive resident descriptor engine, or if forcing those same entries back to individual completion does not restore that latency. If the premise holds, the method removes avoidable XRT submissions while retaining bytewise logits and native explicit-error traces.",
+  "core_claim": "VSTC lowers low-batch native GGML FPGA inference latency by admitting only calls proven device-only by a per-call visibility ticket into exact streamed templates while preserving the original host-visible completion and error behavior.",
+  "sub_claims": [
+    {
+      "id": "c1",
+      "statement": "A per-original-call visibility-sensitivity ticket can separate calls that require host-observable completion from calls whose intermediate device results can remain internal without changing the captured native contract.",
+      "supports_which_aspect": "Closes the bottleneck that makes a native runtime conservatively pay an XRT launch for every GGML call."
+    },
+    {
+      "id": "c2",
+      "statement": "Patchable exact bytecode templates with per-call completion identities can stream eligible bulk work on a resident interpreter without replacing the installed F16 kernels or caller tensor allocations.",
+      "supports_which_aspect": "Closes the gap between model-specific static fusion and a reusable representation for a live native GGML trace."
+    },
+    {
+      "id": "c3",
+      "statement": "The admission fraction rho and an otherwise-identical forced-individual-completion control distinguish the benefit of visibility-sensitive compression from generic resident-engine overhead reduction.",
+      "supports_which_aspect": "Closes the causal-identification gap in the latency claim by tying the claimed mechanism to an intervention on admission."
+    }
+  ],
+  "key_equations": [
+    {
+      "id": "E1",
+      "linked_step_id": "S1",
+      "latex": "\\tau_i = (r_i,a_i,s_i,u_i,o_i,q_i,e_i)",
+      "description": "Visibility-sensitivity ticket for original GGML call i: host-read, alias, state, unique-consumer, original-allocation, scratch, and explicit-error facts.",
+      "description_zh": "原始 GGML 调用 i 的可见性敏感票据，记录主机读取、别名、状态、唯一消费者、原始分配、临时空间和显式错误事实。"
+    },
+    {
+      "id": "E2",
+      "linked_step_id": "S2",
+      "latex": "b_i = \\mathbb{1}[\\neg r_i \\land \\neg a_i \\land \\neg s_i \\land u_i \\land o_i \\land \\neg q_i \\land \\neg e_i]",
+      "description": "Admission predicate: only a call with no host-read, alias, state, scratch, or explicit-error hazard and with a unique consumer and original allocation can enter a B template.",
+      "description_zh": "准入谓词：只有不存在主机读取、别名、状态、临时空间或显式错误风险，且具有唯一消费者和原始分配的调用才能进入 B 模板。"
+    },
+    {
+      "id": "E3",
+      "linked_step_id": "S5",
+      "latex": "\\rho = \\frac{\\sum_{i=1}^{N_{\\mathrm{XRT}}} b_i}{N_{\\mathrm{XRT}}}",
+      "description": "Admission fraction rho, the share of baseline XRT submissions represented by admitted B-template entries.",
+      "description_zh": "准入比例 rho，表示基线 XRT 提交中由已准入 B 模板条目代表的份额。"
+    }
+  ],
+  "method_flow": {
+    "high_level_pipeline": "VSTC first observes the native GGML/XRT execution stream and records a ticket for each original call rather than assuming that calls of the same operator type have the same safety conditions. It evaluates those tickets to retain host-visible or stateful calls as H boundaries and to admit only device-only calls as B entries. Consecutive B entries are encoded as exact, patchable device bytecode and interpreted by a resident engine, while H calls keep individually surfaced completion and explicit-error behavior. The backend then audits the resulting execution against the native trace and relates latency changes to rho, the fraction of baseline submissions represented by admitted B entries.",
+    "steps": [
+      {
+        "step_id": "S1",
+        "title": "Capture native call tickets",
+        "what_changes": "Instrument each original GGML/XRT call to emit a ticket containing host-read, alias, state, unique-consumer, original-allocation, scratch, and explicit-error facts together with its original call identity.",
+        "why_this_step": "The heterogeneous-decomposition decision must be made from runtime semantics rather than from a static operator name or model-specific matrix group.",
+        "linked_component": "engineering",
+        "linked_falsification": "mechanism_distinguisher",
+        "input": "Native llama.cpp GGML call stream, tensor metadata, and XRT submission/completion events.",
+        "output": "Ordered per-call visibility-sensitivity ticket trace."
+      },
+      {
+        "step_id": "S2",
+        "title": "Partition observable boundaries",
+        "what_changes": "Evaluate the admission predicate on each ticket, retaining H calls that require host materialization or stateful handling and marking only safe device-only calls as B entries.",
+        "why_this_step": "The partition prevents command compression from crossing the visibility, alias, state, allocation, scratch, or error conditions that define the native contract.",
+        "linked_component": "engineering",
+        "linked_falsification": "mechanism_distinguisher",
+        "input": "Ordered ticket trace from S1.",
+        "output": "H/B partition with a recorded reason for every denied B admission."
+      },
+      {
+        "step_id": "S3",
+        "title": "Build exact B templates",
+        "what_changes": "Encode contiguous admitted B entries as patchable exact device bytecode with their original bindings, call identities, and completion slots rather than replacing them with an approximate fused operator.",
+        "why_this_step": "Exact templates retain the installed F16 kernels and caller allocation semantics while eliminating repeated host-side reconstruction of device-only submissions.",
+        "linked_component": "engineering",
+        "linked_falsification": "mechanism_distinguisher",
+        "input": "Admitted B entries and original GGML/XRT argument bindings from S2.",
+        "output": "Patchable B-template records plus per-original-call completion metadata."
+      },
+      {
+        "step_id": "S4",
+        "title": "Stream bulk and surface boundaries",
+        "what_changes": "Run B-template records through the resident interpreter while dispatching H boundaries with individually surfaced completion states and propagating the original explicit-error behavior.",
+        "why_this_step": "This realizes the claimed launch reduction without turning the resident engine into a generic asynchronous scheduler that hides native runtime observability.",
+        "linked_component": "engineering",
+        "linked_falsification": "mechanism_distinguisher",
+        "input": "B-template records, H boundaries, and the original execution order.",
+        "output": "Native-compatible logits, tensor effects, completion states, and explicit-error trace."
+      },
+      {
+        "step_id": "S5",
+        "title": "Audit equivalence and admission",
+        "what_changes": "Check bytewise logits and explicit-error traces against the native backend, optionally force full observation, and compute rho together with XRT-submission and p50/p95 latency measurements.",
+        "why_this_step": "The full-observation oracle and forced B-denial control test whether any speedup comes from visibility-sensitive admission rather than from an unmeasured interpreter or changed kernel path.",
+        "linked_component": "engineering",
+        "linked_falsification": "metric_specification",
+        "input": "Execution outputs from S4 and matched native, resident-engine, and admission-disabled runs.",
+        "output": "Equivalence verdict, admission fraction rho, submission counts, and latency evidence."
+      }
+    ],
+    "design_reasoning_echo": "VSTC treats semantic visibility, not arithmetic type, as the source of heterogeneity in a native trace. The design therefore records facts at the granularity at which the caller can observe behavior, applies a conservative admission predicate, and compresses only the residual device-only bulk as exact templates. This differs from fixed operator fusion or model-specific matrix concatenation because each B decision is justified by the current call's read, alias, state, consumer, allocation, scratch, and error conditions. Per-call completion identities and the full-observation oracle keep the representation accountable to the native execution contract, while the forced-denial control makes the H/B partition itself experimentally distinguishable from merely installing a resident interpreter."
+  },
+  "plain_method_steps_en": [
+    {
+      "step_id": "S1",
+      "what_to_do": "Instrument each original GGML/XRT call and emit a ticket that records host-read, alias, state, unique-consumer, original-allocation, scratch, and explicit-error facts together with the call's original identity. Input: native llama.cpp GGML call stream, tensor metadata, and XRT submission/completion events. Output: ordered per-call visibility-sensitivity ticket trace.",
+      "why_this_makes_sense": "The compression decision has to come from what the running program can observe, not from the operator name alone or from a static model group."
+    },
+    {
+      "step_id": "S2",
+      "what_to_do": "Evaluate the admission predicate on each ticket, keep H calls that need host materialization or stateful handling, and mark only safe device-only calls as B entries. Input: the ordered ticket trace from S1. Output: an H/B partition with a recorded reason for every denied B admission.",
+      "why_this_makes_sense": "The partition must not cross the visibility, alias, state, allocation, scratch, or error conditions that define the native contract."
+    },
+    {
+      "step_id": "S3",
+      "what_to_do": "Encode contiguous admitted B entries as patchable exact device bytecode with their original bindings, call identities, and completion slots rather than replacing them with an approximate fused operator. Input: admitted B entries and original GGML/XRT argument bindings from S2. Output: patchable B-template records plus per-original-call completion metadata.",
+      "why_this_makes_sense": "Exact templates keep the installed F16 kernels and caller allocation semantics while removing repeated host-side reconstruction of device-only submissions."
+    },
+    {
+      "step_id": "S4",
+      "what_to_do": "Run B-template records through the resident interpreter while dispatching H boundaries with individually surfaced completion states and propagating the original explicit-error behavior. Input: B-template records, H boundaries, and the original execution order. Output: native-compatible logits, tensor effects, completion states, and explicit-error trace.",
+      "why_this_makes_sense": "This gives the claimed launch reduction without turning the resident engine into a generic asynchronous scheduler that hides native runtime observability."
+    },
+    {
+      "step_id": "S5",
+      "what_to_do": "Check bytewise logits and explicit-error traces against the native backend, optionally force full observation, and compute rho together with XRT-submission and p50/p95 latency measurements. Input: execution outputs from S4 and matched native, resident-engine, and admission-disabled runs. Output: equivalence verdict, admission fraction rho, submission counts, and latency evidence.",
+      "why_this_makes_sense": "The full-observation oracle and forced B-denial control test whether any speedup comes from visibility-sensitive admission rather than from an unmeasured interpreter or a changed kernel path."
+    }
+  ],
+  "plain_method_steps_zh": [
+    {
+      "step_id": "S1",
+      "what_to_do": "给每个原始 GGML/XRT 调用打一个 ticket，记录 host-read、alias、state、unique-consumer、original-allocation、scratch 和 explicit-error 这些事实，以及这个调用的原始身份。输入：native llama.cpp GGML 调用流、tensor metadata 和 XRT submission/completion 事件。输出：按顺序排列的每调用可见性感知 ticket trace。",
+      "why_this_makes_sense": "压缩决策必须来自运行中的程序到底能观察到什么，而不能只看 operator 名称，或只看一个静态的模型分组。"
+    },
+    {
+      "step_id": "S2",
+      "what_to_do": "对每个 ticket 计算 admission predicate，保留那些需要 host materialization 或有 stateful handling 的 H 调用，只把安全的 device-only 调用标成 B entries。输入：来自 S1 的有序 ticket trace。输出：H/B partition，并且为每个被拒绝的 B admission 记录原因。",
+      "why_this_makes_sense": "这个 partition 不能跨过定义原生 contract 的 visibility、alias、state、allocation、scratch 或 error 条件。"
+    },
+    {
+      "step_id": "S3",
+      "what_to_do": "把连续被准入的 B entries 编成可 patch 的 exact device bytecode，并保留它们原始的 bindings、call identity 和 completion slots，而不是把它们替换成一个近似的 fused operator。输入：来自 S2 的已准入 B entries 和原始 GGML/XRT argument bindings。输出：可 patch 的 B-template records，以及每个原始调用对应的 completion metadata。",
+      "why_this_makes_sense": "exact templates 保留了已安装的 F16 kernels 和调用方的 allocation 语义，同时去掉了反复在 host 侧重建 device-only submissions 的开销。"
+    },
+    {
+      "step_id": "S4",
+      "what_to_do": "把 B-template records 送进 resident interpreter，同时让 H boundaries 以单独可见的 completion state 发出，并传播原始的 explicit-error 行为。输入：B-template records、H boundaries 和原始执行顺序。输出：与 native 兼容的 logits、tensor effects、completion states 和 explicit-error trace。",
+      "why_this_makes_sense": "这样才能实现声称的 launch reduction，同时又不把 resident engine 变成一个隐藏 native runtime observability 的通用异步调度器。"
+    },
+    {
+      "step_id": "S5",
+      "what_to_do": "把 bytewise logits 和 explicit-error traces 与 native backend 对齐检查，必要时强制 full observation，并计算 rho 以及 XRT-submission 和 p50/p95 latency measurements。输入：S4 的执行输出，以及匹配的 native、resident-engine 和 admission-disabled runs。输出：equivalence verdict、admission fraction rho、submission counts 和 latency evidence。",
+      "why_this_makes_sense": "full-observation oracle 和 forced B-denial control 用来检验任何加速到底是不是来自 visibility-sensitive admission，而不是来自一个没有被单独测量的 interpreter，或者来自一条改过的 kernel path。"
+    }
+  ]
+}

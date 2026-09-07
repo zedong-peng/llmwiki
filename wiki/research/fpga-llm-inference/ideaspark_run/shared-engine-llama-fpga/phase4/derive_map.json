@@ -1,0 +1,93 @@
+{
+  "title_zh": "面向原生 GGML FPGA 推理的可见性感知命令流式传输",
+  "plain_motivation_en": "The bottleneck is a control-plane mismatch in native, low-batch FPGA inference. A GGML trace can include calls whose results must stay visible to the host or take part in mutable state, alongside a larger device-side bulk whose intermediate completions do not need to be surfaced. Treating both groups as equally observable turns a semantic safeguard into repeated XRT launch traffic. The main example is llama.cpp running Gemma 3 1B F16 on a U280, but the issue is structural for native tensor runtimes whose call graph and buffer identities are only known at execution time.\n\nRecent FPGA LLM work makes the remaining control-plane gap easier to see. Big PE [openalex:W4416342314] and XtraMAC [arxiv:2605.06052v1] both push the compute path toward higher density or better datatype use, so host dispatch becomes a larger share of low-batch latency instead of a minor overhead. At the same time, llama.cpp exposes a stable native GGML call stream, XRT exposes the command and completion interfaces needed to capture it, and U280-class boards can host a small resident interpreter without replacing the installed F16 kernels. These conditions make it practical to test a runtime-representation change directly rather than infer its value from a model-specific accelerator redesign.\n\nPrior work stops short for a structural reason. Big PE [openalex:W4416342314] changes the compute array mapping, which has no runtime record of host reads, aliases, state, or consumer visibility. LlamaF [openalex:W4405909140] uses model-specific matrix grouping and keeps attention control and KV-cache work on the processing system, but it does not build patchable exact templates from the live GGML trace or give each original call an individually surfaced completion after eligibility is decided. XtraMAC [arxiv:2605.06052v1] improves MAC utilization, but a MAC microarchitecture cannot decide whether a runtime call may defer host-visible materialization without changing native behavior.\n\nIf this gap closes, a native llama.cpp backend can keep its original tensor allocation and explicit-error contract while avoiding per-call host launches for the device-only parts of prefill and decode. That gives one reusable runtime path across traces instead of requiring each new model to be recast into a bespoke matrix schedule, and it makes the latency claim easier to attribute to a measured reduction in unnecessary submissions rather than to a bundled accelerator redesign.",
+  "plain_motivation_zh": "核心瓶颈是原生、低 batch FPGA 推理里的控制面不匹配。一个 GGML trace 里可能既有必须让主机看见结果、或者会参与可变状态的调用，也有一大段只在设备侧流动、并不需要逐个显式完成的 bulk。把这两类调用都当成同样可见，就会把一种语义上的保守处理变成反复的 XRT 启动开销。这里的主要例子是 llama.cpp 在 U280 上运行 Gemma 3 1B F16，但这个问题对所有只在执行时才知道调用图和缓冲区身份的原生张量运行时都是结构性的。\n\n最近的 FPGA LLM 工作让剩下的控制面空缺更明显了。Big PE [openalex:W4416342314] 和 XtraMAC [arxiv:2605.06052v1] 都是在把计算路径推向更高密度或更好的数据类型利用，所以在低 batch 场景里，主机调度会比以前占更大比例的延迟，而不再只是一个小开销。与此同时，llama.cpp 提供了稳定的原生 GGML 调用流，XRT 提供了捕获它所需的命令和完成接口，U280 级板卡也可以容纳一个小型 resident interpreter，而不必替换已安装的 F16 kernels。这样的条件使得直接测试一种运行时表示的变化变得可行，而不是只能从某个模型专用加速器改造去间接推断它的价值。\n\n前人的工作停在结构性原因上。Big PE [openalex:W4416342314] 改的是计算阵列映射，而这种映射里没有主机读取、别名、状态或消费者可见性的运行时记录。LlamaF [openalex:W4405909140] 用的是模型专用的矩阵分组，并把 attention control 和 KV-cache 工作留在 processing system 上，但它没有从真实 GGML trace 里构造可 patch 的 exact templates，也没有在资格判定后给每个原始调用单独暴露完成。XtraMAC [arxiv:2605.06052v1] 提高的是 MAC 利用率，但一个 MAC 微架构本身并不能决定某个运行时调用是否可以延后主机可见的 materialization，而又不改变原生行为。\n\n如果这个空缺被补上，原生 llama.cpp backend 就能在保留原始 tensor allocation 和 explicit-error contract 的同时，避开 prefill 和 decode 中设备侧部分的逐调用主机启动。这样就得到了一条能在不同 trace 之间复用的运行时路径，而不用把每个新模型都重新改写成一套专门的 matrix schedule；同时，延迟提升也更容易归因于可测量的无谓 submission 减少，而不是归因于一个打包在一起的加速器重设计。",
+  "plain_method_steps_en": [
+    {
+      "step_id": "S1",
+      "what_to_do": "Instrument each original GGML/XRT call and emit a ticket that records host-read, alias, state, unique-consumer, original-allocation, scratch, and explicit-error facts together with the call's original identity. Input: native llama.cpp GGML call stream, tensor metadata, and XRT submission/completion events. Output: ordered per-call visibility-sensitivity ticket trace.",
+      "why_this_makes_sense": "The compression decision has to come from what the running program can observe, not from the operator name alone or from a static model group."
+    },
+    {
+      "step_id": "S2",
+      "what_to_do": "Evaluate the admission predicate on each ticket, keep H calls that need host materialization or stateful handling, and mark only safe device-only calls as B entries. Input: the ordered ticket trace from S1. Output: an H/B partition with a recorded reason for every denied B admission.",
+      "why_this_makes_sense": "The partition must not cross the visibility, alias, state, allocation, scratch, or error conditions that define the native contract."
+    },
+    {
+      "step_id": "S3",
+      "what_to_do": "Encode contiguous admitted B entries as patchable exact device bytecode with their original bindings, call identities, and completion slots rather than replacing them with an approximate fused operator. Input: admitted B entries and original GGML/XRT argument bindings from S2. Output: patchable B-template records plus per-original-call completion metadata.",
+      "why_this_makes_sense": "Exact templates keep the installed F16 kernels and caller allocation semantics while removing repeated host-side reconstruction of device-only submissions."
+    },
+    {
+      "step_id": "S4",
+      "what_to_do": "Run B-template records through the resident interpreter while dispatching H boundaries with individually surfaced completion states and propagating the original explicit-error behavior. Input: B-template records, H boundaries, and the original execution order. Output: native-compatible logits, tensor effects, completion states, and explicit-error trace.",
+      "why_this_makes_sense": "This gives the claimed launch reduction without turning the resident engine into a generic asynchronous scheduler that hides native runtime observability."
+    },
+    {
+      "step_id": "S5",
+      "what_to_do": "Check bytewise logits and explicit-error traces against the native backend, optionally force full observation, and compute rho together with XRT-submission and p50/p95 latency measurements. Input: execution outputs from S4 and matched native, resident-engine, and admission-disabled runs. Output: equivalence verdict, admission fraction rho, submission counts, and latency evidence.",
+      "why_this_makes_sense": "The full-observation oracle and forced B-denial control test whether any speedup comes from visibility-sensitive admission rather than from an unmeasured interpreter or a changed kernel path."
+    }
+  ],
+  "plain_method_steps_zh": [
+    {
+      "step_id": "S1",
+      "what_to_do": "给每个原始 GGML/XRT 调用打一个 ticket，记录 host-read、alias、state、unique-consumer、original-allocation、scratch 和 explicit-error 这些事实，以及这个调用的原始身份。输入：native llama.cpp GGML 调用流、tensor metadata 和 XRT submission/completion 事件。输出：按顺序排列的每调用可见性感知 ticket trace。",
+      "why_this_makes_sense": "压缩决策必须来自运行中的程序到底能观察到什么，而不能只看 operator 名称，或只看一个静态的模型分组。"
+    },
+    {
+      "step_id": "S2",
+      "what_to_do": "对每个 ticket 计算 admission predicate，保留那些需要 host materialization 或有 stateful handling 的 H 调用，只把安全的 device-only 调用标成 B entries。输入：来自 S1 的有序 ticket trace。输出：H/B partition，并且为每个被拒绝的 B admission 记录原因。",
+      "why_this_makes_sense": "这个 partition 不能跨过定义原生 contract 的 visibility、alias、state、allocation、scratch 或 error 条件。"
+    },
+    {
+      "step_id": "S3",
+      "what_to_do": "把连续被准入的 B entries 编成可 patch 的 exact device bytecode，并保留它们原始的 bindings、call identity 和 completion slots，而不是把它们替换成一个近似的 fused operator。输入：来自 S2 的已准入 B entries 和原始 GGML/XRT argument bindings。输出：可 patch 的 B-template records，以及每个原始调用对应的 completion metadata。",
+      "why_this_makes_sense": "exact templates 保留了已安装的 F16 kernels 和调用方的 allocation 语义，同时去掉了反复在 host 侧重建 device-only submissions 的开销。"
+    },
+    {
+      "step_id": "S4",
+      "what_to_do": "把 B-template records 送进 resident interpreter，同时让 H boundaries 以单独可见的 completion state 发出，并传播原始的 explicit-error 行为。输入：B-template records、H boundaries 和原始执行顺序。输出：与 native 兼容的 logits、tensor effects、completion states 和 explicit-error trace。",
+      "why_this_makes_sense": "这样才能实现声称的 launch reduction，同时又不把 resident engine 变成一个隐藏 native runtime observability 的通用异步调度器。"
+    },
+    {
+      "step_id": "S5",
+      "what_to_do": "把 bytewise logits 和 explicit-error traces 与 native backend 对齐检查，必要时强制 full observation，并计算 rho 以及 XRT-submission 和 p50/p95 latency measurements。输入：S4 的执行输出，以及匹配的 native、resident-engine 和 admission-disabled runs。输出：equivalence verdict、admission fraction rho、submission counts 和 latency evidence。",
+      "why_this_makes_sense": "full-observation oracle 和 forced B-denial control 用来检验任何加速到底是不是来自 visibility-sensitive admission，而不是来自一个没有被单独测量的 interpreter，或者来自一条改过的 kernel path。"
+    }
+  ],
+  "plain_method_modules_en": [
+    {
+      "module_id": "ticketing_and_partition",
+      "purpose_oneline": "Record what each native call exposes, then split the trace into host-visible boundaries and safe device-only bulk.",
+      "step_ids": ["S1", "S2"]
+    },
+    {
+      "module_id": "template_streaming",
+      "purpose_oneline": "Turn eligible bulk into exact streamed templates and run them while keeping boundary behavior visible.",
+      "step_ids": ["S3", "S4"]
+    },
+    {
+      "module_id": "equivalence_and_measurement",
+      "purpose_oneline": "Check that the streamed path still matches native outputs and measure whether admission actually helps.",
+      "step_ids": ["S5"]
+    }
+  ],
+  "plain_method_modules_zh": [
+    {
+      "module_id": "ticketing_and_partition",
+      "purpose_oneline": "先记录每个原生调用能暴露什么，再把 trace 分成主机可见的边界和安全的设备侧 bulk。",
+      "step_ids": ["S1", "S2"]
+    },
+    {
+      "module_id": "template_streaming",
+      "purpose_oneline": "把可准入的 bulk 变成可精确流式执行的 templates，并在保持边界行为可见的同时运行它们。",
+      "step_ids": ["S3", "S4"]
+    },
+    {
+      "module_id": "equivalence_and_measurement",
+      "purpose_oneline": "检查流式路径是否仍与原生输出一致，并衡量 admission 是否真的带来收益。",
+      "step_ids": ["S5"]
+    }
+  ]
+}

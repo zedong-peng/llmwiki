@@ -1,0 +1,125 @@
+{
+  "method_name": "Visibility-Sensitive Trace Compression (VSTC)",
+  "abstract_draft": "Low-batch LLM inference on an FPGA can be limited less by arithmetic than by repeatedly crossing the host-to-device launch boundary for a native GGML execution trace. Existing FPGA designs such as LlamaF [openalex:W4405909140] improve model-specific compute mappings, but retain a control plane in which many original runtime calls remain separately dispatched or are replaced only by static, model-shaped groups. We propose Visibility-Sensitive Trace Compression (VSTC), a native-runtime control-plane method that records a visibility-sensitivity ticket for every original GGML call, preserves host-visible or stateful boundaries, and streams only eligible device-only runs as exact patchable bytecode on a resident interpreter. The contribution is a per-call admission protocol that makes command compression conditional on observed reads, aliases, state, consumer structure, allocation identity, scratch requirements, and explicit-error behavior rather than on a fixed operator class. VSTC is falsified if, on Gemma 3 1B F16 U280 runs, admitting more eligible template entries does not reduce p50/p95 prefill or decode latency relative to a naive resident descriptor engine, or if forcing those same entries back to individual completion does not restore that latency. If the premise holds, the method removes avoidable XRT submissions while retaining bytewise logits and native explicit-error traces.",
+  "motivation.problem_framing": "The central bottleneck is a control-plane mismatch in native, low-batch FPGA inference: a GGML trace contains calls whose results must remain observable to the host or participate in mutable state, alongside a larger data-plane bulk whose intermediate completions are not semantically required. Treating both groups as equally observable turns a semantic precaution into repeated XRT launch traffic. The primary instance is llama.cpp running Gemma 3 1B F16 on a U280, but the issue is structural for native tensor runtimes whose call graph and buffer identities are only known at execution time.\n\nPrior FPGA LLM work improves the data plane rather than representing this runtime distinction. LlamaF [openalex:W4405909140] uses model-specific matrix concatenations and W8A8 kernels while keeping attention control and KV-cache work on the processing system; Big PE [openalex:W4416342314] increases systolic-array density for prompt processing; and XtraMAC [arxiv:2605.06052v1] improves mixed-precision MAC utilization. These approaches can reduce computation cost, but none supplies a per-original-call decision record that establishes when native completion, allocation identity, alias behavior, state, and explicit errors may be preserved while launch submission is compressed.",
+  "motivation.why_now": "Recent FPGA LLM work makes the remaining control-plane gap more visible: Big PE [openalex:W4416342314] and XtraMAC [arxiv:2605.06052v1] each push the compute datapath toward higher density or better datatype utilization, so host dispatch becomes a more consequential fraction of low-batch latency rather than an incidental overhead. At the same time, llama.cpp exposes a stable native GGML call stream and XRT provides the command and completion interfaces needed to capture it, while U280-class boards can host a small resident interpreter without replacing the installed F16 kernels. These conditions make it practical to test a runtime representation change directly instead of inferring its benefit from a model-specific accelerator redesign.",
+  "motivation.why_prior_stopped[0].what_they_did": "Big PE [openalex:W4416342314] co-designs a denser 4x4 8-bit coarse-grained systolic cell for TinyStories prompt processing on PCIe-based FPGAs.",
+  "motivation.why_prior_stopped[0].what_they_did_not_do": "It does not preserve a native F16 GGML call stream through a per-call visibility partition or reduce launch submissions while retaining each original call's completion and error semantics.",
+  "motivation.why_prior_stopped[0].structural_reason_they_stopped": "Its optimization unit is a compute-array mapping, which has no runtime representation of host reads, aliases, state, or consumer visibility from which safe command admission can be decided.",
+  "motivation.why_prior_stopped[1].what_they_did": "LlamaF [openalex:W4405909140] accelerates Llama2 with model-specific Wq/Wk/Wv and W1/W3 concatenations plus two W8A8 GQMV kernels, while retaining attention control and KV-cache handling on the processing system.",
+  "motivation.why_prior_stopped[1].what_they_did_not_do": "It does not construct patchable exact templates from the live GGML trace or give every original call an individually surfaced completion after eligibility is established.",
+  "motivation.why_prior_stopped[1].structural_reason_they_stopped": "Static matrix grouping is defined before execution and therefore cannot encode the dynamic host-observation, alias, state, scratch, allocation, and explicit-error facts required for native-runtime command compression.",
+  "motivation.why_prior_stopped[2].what_they_did": "XtraMAC [arxiv:2605.06052v1] builds a datatype-adaptive mixed-precision MAC that shares mantissa products to improve FPGA DSP utilization.",
+  "motivation.why_prior_stopped[2].what_they_did_not_do": "It does not alter the host command representation or suppress repeated XRT submissions when the same F16 data-plane kernels are retained.",
+  "motivation.why_prior_stopped[2].structural_reason_they_stopped": "A MAC microarchitecture has no control-plane mechanism for deciding whether a runtime call may defer host-visible materialization without changing native behavior.",
+  "motivation.what_changes_when_gap_closes": "Closing this gap would let a native llama.cpp backend retain its original tensor allocation and explicit-error contract while avoiding per-call host launches for device-only portions of prefill and decode. That creates a reusable runtime path across model traces instead of requiring each new model to be recast into a bespoke matrix schedule, complementing the data-plane advances in LlamaF [openalex:W4405909140] and XtraMAC [arxiv:2605.06052v1]. It also makes a concrete systems claim available: latency improvements can be attributed to a measured reduction in semantically unnecessary submissions, rather than to an inseparable accelerator redesign.",
+  "core_claim": "VSTC lowers low-batch native GGML FPGA inference latency by admitting only calls proven device-only by a per-call visibility ticket into exact streamed templates while preserving the original host-visible completion and error behavior.",
+  "sub_claims": [
+    {
+      "id": "c1",
+      "statement": "A per-original-call visibility-sensitivity ticket can separate calls that require host-observable completion from calls whose intermediate device results can remain internal without changing the captured native contract.",
+      "supports_which_aspect": "Closes the bottleneck that makes a native runtime conservatively pay an XRT launch for every GGML call."
+    },
+    {
+      "id": "c2",
+      "statement": "Patchable exact bytecode templates with per-call completion identities can stream eligible bulk work on a resident interpreter without replacing the installed F16 kernels or caller tensor allocations.",
+      "supports_which_aspect": "Closes the gap between model-specific static fusion and a reusable representation for a live native GGML trace."
+    },
+    {
+      "id": "c3",
+      "statement": "The admission fraction rho and an otherwise-identical forced-individual-completion control distinguish the benefit of visibility-sensitive compression from generic resident-engine overhead reduction.",
+      "supports_which_aspect": "Closes the causal-identification gap in the latency claim by tying the claimed mechanism to an intervention on admission."
+    }
+  ],
+  "key_equations": [
+    {
+      "id": "E1",
+      "linked_step_id": "S1",
+      "latex": "\\tau_i = (r_i,a_i,s_i,u_i,o_i,q_i,e_i)",
+      "description": "Visibility-sensitivity ticket for original GGML call i: host-read, alias, state, unique-consumer, original-allocation, scratch, and explicit-error facts.",
+      "description_zh": "原始 GGML 调用 i 的可见性敏感票据，记录主机读取、别名、状态、唯一消费者、原始分配、临时空间和显式错误事实。"
+    },
+    {
+      "id": "E2",
+      "linked_step_id": "S2",
+      "latex": "b_i = \\mathbb{1}[\\neg r_i \\land \\neg a_i \\land \\neg s_i \\land u_i \\land o_i \\land \\neg q_i \\land \\neg e_i]",
+      "description": "Admission predicate: only a call with no host-read, alias, state, scratch, or explicit-error hazard and with a unique consumer and original allocation can enter a B template.",
+      "description_zh": "准入谓词：只有不存在主机读取、别名、状态、临时空间或显式错误风险，且具有唯一消费者和原始分配的调用才能进入 B 模板。"
+    },
+    {
+      "id": "E3",
+      "linked_step_id": "S5",
+      "latex": "\\rho = \\frac{\\sum_{i=1}^{N_{\\mathrm{XRT}}} b_i}{N_{\\mathrm{XRT}}}",
+      "description": "Admission fraction rho, the share of baseline XRT submissions represented by admitted B-template entries.",
+      "description_zh": "准入比例 rho，表示基线 XRT 提交中由已准入 B 模板条目代表的份额。"
+    }
+  ],
+  "method_flow.high_level_pipeline": "VSTC first observes the native GGML/XRT execution stream and records a ticket for each original call rather than assuming that calls of the same operator type have the same safety conditions. It evaluates those tickets to retain host-visible or stateful calls as H boundaries and to admit only device-only calls as B entries. Consecutive B entries are encoded as exact, patchable device bytecode and interpreted by a resident engine, while H calls keep individually surfaced completion and explicit-error behavior. The backend then audits the resulting execution against the native trace and relates latency changes to rho, the fraction of baseline submissions represented by admitted B entries.",
+  "method_flow.steps": [
+    {
+      "step_id": "S1",
+      "title": "Capture native call tickets",
+      "what_changes": "Instrument each original GGML/XRT call to emit a ticket containing host-read, alias, state, unique-consumer, original-allocation, scratch, and explicit-error facts together with its original call identity.",
+      "why_this_step": "The heterogeneous-decomposition decision must be made from runtime semantics rather than from a static operator name or model-specific matrix group.",
+      "linked_component": "engineering",
+      "linked_falsification": "mechanism_distinguisher",
+      "input": "Native llama.cpp GGML call stream, tensor metadata, and XRT submission/completion events.",
+      "output": "Ordered per-call visibility-sensitivity ticket trace."
+    },
+    {
+      "step_id": "S2",
+      "title": "Partition observable boundaries",
+      "what_changes": "Evaluate the admission predicate on each ticket, retaining H calls that require host materialization or stateful handling and marking only safe device-only calls as B entries.",
+      "why_this_step": "The partition prevents command compression from crossing the visibility, alias, state, allocation, scratch, or error conditions that define the native contract.",
+      "linked_component": "engineering",
+      "linked_falsification": "mechanism_distinguisher",
+      "input": "Ordered ticket trace from S1.",
+      "output": "H/B partition with a recorded reason for every denied B admission."
+    },
+    {
+      "step_id": "S3",
+      "title": "Build exact B templates",
+      "what_changes": "Encode contiguous admitted B entries as patchable exact device bytecode with their original bindings, call identities, and completion slots rather than replacing them with an approximate fused operator.",
+      "why_this_step": "Exact templates retain the installed F16 kernels and caller allocation semantics while eliminating repeated host-side reconstruction of device-only submissions.",
+      "linked_component": "engineering",
+      "linked_falsification": "mechanism_distinguisher",
+      "input": "Admitted B entries and original GGML/XRT argument bindings from S2.",
+      "output": "Patchable B-template records plus per-original-call completion metadata."
+    },
+    {
+      "step_id": "S4",
+      "title": "Stream bulk and surface boundaries",
+      "what_changes": "Run B-template records through the resident interpreter while dispatching H boundaries with individually surfaced completion states and propagating the original explicit-error behavior.",
+      "why_this_step": "This realizes the claimed launch reduction without turning the resident engine into a generic asynchronous scheduler that hides native runtime observability.",
+      "linked_component": "engineering",
+      "linked_falsification": "mechanism_distinguisher",
+      "input": "B-template records, H boundaries, and the original execution order.",
+      "output": "Native-compatible logits, tensor effects, completion states, and explicit-error trace."
+    },
+    {
+      "step_id": "S5",
+      "title": "Audit equivalence and admission",
+      "what_changes": "Check bytewise logits and explicit-error traces against the native backend, optionally force full observation, and compute rho together with XRT-submission and p50/p95 latency measurements.",
+      "why_this_step": "The full-observation oracle and forced B-denial control test whether any speedup comes from visibility-sensitive admission rather than from an unmeasured interpreter or changed kernel path.",
+      "linked_component": "engineering",
+      "linked_falsification": "metric_specification",
+      "input": "Execution outputs from S4 and matched native, resident-engine, and admission-disabled runs.",
+      "output": "Equivalence verdict, admission fraction rho, submission counts, and latency evidence."
+    }
+  ],
+  "method_flow.design_reasoning_echo": "VSTC treats semantic visibility, not arithmetic type, as the source of heterogeneity in a native trace. The design therefore records facts at the granularity at which the caller can observe behavior, applies a conservative admission predicate, and compresses only the residual device-only bulk as exact templates. This differs from fixed operator fusion or model-specific matrix concatenation because each B decision is justified by the current call's read, alias, state, consumer, allocation, scratch, and error conditions. Per-call completion identities and the full-observation oracle keep the representation accountable to the native execution contract, while the forced-denial control makes the H/B partition itself experimentally distinguishable from merely installing a resident interpreter.",
+  "feasibility_validation.data.verdict": "feasible",
+  "feasibility_validation.data.rationale": "llama.cpp, the wikitext-2-raw-v1 prompts, and the supported Gemma 3 1B F16 inference inputs are accessible for the stated workload; a publicly downloadable GGUF checkpoint with the same GGML operation coverage can substitute during trace development if the exact weights are unavailable.",
+  "feasibility_validation.theoretical.verdict": "n/a",
+  "feasibility_validation.theoretical.rationale": "The contribution is an executable native-runtime representation and equivalence check rather than a theorem claim, so no unproven theoretical prerequisite is required for the proposed result.",
+  "feasibility_validation.engineering.verdict": "tight",
+  "feasibility_validation.engineering.rationale": "The binding cost is U280 HLS/XRT integration and debugging of exact bytecode, per-call completion, alias handling, and regression capture, although the proposal reuses existing llama.cpp and F16 kernels rather than requiring a new accelerator datapath.",
+  "feasibility_validation.falsification.verdict": "feasible",
+  "feasibility_validation.falsification.rationale": "The named Gemma/U280 pp512 and tg128 workloads, native and resident-engine controls, bytewise logits, explicit-error traces, XRT submission counts, and forced B-denial intervention can all be implemented with the existing runtime and board tooling.",
+  "feasibility_validation.overall": "tight",
+  "reviewer_concerns_and_responses[0].response": "The defense is anchored in `core_mechanism_steps`: VSTC captures per-original-GGML-call host observation, alias, state, unique-consumer, allocation, scratch, and explicit-error conditions before any B template is admitted, whereas CDA-GNN's retrieved dependency chains are predetermined for GNN state propagation. The `falsification_prediction` further keeps a naive resident descriptor engine and an admission-disabled control, so a benefit cannot be attributed merely to having an asynchronous U280 engine.",
+  "reviewer_concerns_and_responses[1].response": "A targeted scoop-check must establish whether dynamic command-graph, deferred-execution, or XRT command-buffer systems already preserve the same per-call host observation, alias, state, allocation, completion, and explicit-error contract while streaming exact native-runtime templates. VSTC's delta survives only if that full native-semantic admission protocol is absent or materially different.",
+  "reviewer_concerns_and_responses[2].response": "The candidate does not use a numerical sensitivity proxy to rediscover mixed precision or low rank; its `core_mechanism_steps` classify runtime observability conditions and preserve original call identities. The ticket predicate, full-observation oracle, and forced B-denial branch in `falsification_prediction` expose why this heterogeneity exists and test the partition against a fixed interpreter and unchanged kernels.",
+  "reviewer_concerns_and_responses[3].response": "The `falsification_prediction` directly supplies the required two-leg mitigation: an all-eligible homogeneous slice compares the single-record and multi-record interpreter, while a mixed trace forces B admission off with the same engine active. Together with the per-call ticket rule in `core_mechanism_steps`, these controls make interpreter expressivity and the H/B decomposition independently identifiable rather than treating a combined latency result as sufficient evidence.",
+  "domain_landscape.position_note": "VSTC applies the domain's mid-frequency heterogeneous-decomposition pattern to runtime visibility rather than the saturated practice of replacing compute operators, making its partition a control-plane representation rather than a numerical or datapath specialization."
+}

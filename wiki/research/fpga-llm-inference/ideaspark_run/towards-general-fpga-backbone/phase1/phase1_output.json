@@ -1,0 +1,229 @@
+{
+  "intake": {
+    "domain": "Framework-native FPGA backend architecture and runtime integration for LLM inference",
+    "venue": "FPGA architecture or computer-systems venue",
+    "time": "approximately 5 months for mechanism development and falsification",
+    "data": [
+      "unchanged llama.cpp/GGML application executing a real Gemma 3 1B F16 graph",
+      "112 c64/c512 GGML graph signatures across 11 accepted operator families",
+      "2,422 accepted U280 dispatch observations plus prefill/decode GGML-call, XRT-launch, wait-time, and matched CPU timing traces"
+    ],
+    "compute": "80GB-class GPUs (A100/H100), up to 8 concurrent (one node), approximately 150 GPU-days over 5 months, plus ~$10k inference/API budget for the full falsification campaign",
+    "expertise": "FPGA architecture, RTL/HLS operator development, llama.cpp/GGML backend integration, XRT runtime engineering, and systems profiling",
+    "preference": "empirical",
+    "baseline": "The unchanged llama.cpp/GGML CPU path and the current strict native GGML FPGA backend on one Alveo U280 running Gemma 3 1B F16; the matched FPGA path is 228.5x slower for pp512 and 12.54x slower for tg128.",
+    "limitation": "The accepted GGML graph executes correctly without silent fallback, but 1,626 pp512 GGML calls expand to 224,936 XRT launches and 104,877 tg128 calls expand to 202,530 launches; XRT wait accounts for 96.25% and 79.58% of profiled operator time, so integration coverage alone does not establish useful acceleration.",
+    "contribution_type": "system",
+    "_inferred_fields": [
+      "domain",
+      "venue",
+      "time",
+      "compute",
+      "expertise",
+      "preference"
+    ]
+  },
+  "bottleneck_statement": "For framework-native heterogeneous inference backends, individually valid accelerator admissions can compose into globally pathological execution: when framework-visible graph progress is realized as fine-grained device launches and waits, synchronization work grows far faster than useful FPGA work, while changing execution granularity risks breaking the support, failure, tensor-state, and artifact semantics on which the unchanged application relies. arxiv:2607.17415v1 shows that backend transitions can erase operator-local gains but evaluates measured trace replay rather than an integrated FPGA runtime, arxiv:2601.19263v1 dynamically assigns layers or subgraphs but explicitly allows host execution and output synchronization without a strict framework-native no-fallback contract, and arxiv:2607.07643v1 automates whole-model FPGA generation through a universal GEMM abstraction rather than preserving irregular GGML operator and stateful-decode semantics. The concrete failure in the anchor setting is therefore not missing operator coverage or missing generic fusion: the current machinery cannot simultaneously demonstrate live reduction of launch/wait amplification and observational equivalence to the original GGML execution contract, so integration evidence alone cannot support a reviewer-defensible systems contribution.",
+  "closest_adjacent": [
+    {
+      "paper_id": "arxiv:2607.17415v1",
+      "is_anchor": true,
+      "summary_and_residue": "The paper conditions backend selection on exact operator features and the previously selected backend, then prices directed transition latency and energy during ordered trace replay. It does not execute an integrated mixed-backend model, includes only a single length-1 causal decode call, excludes dispatcher and model-level framework overhead, and provides no live FPGA or strict accepted-node execution evidence, so its transition savings do not close the framework-to-device execution residue."
+    },
+    {
+      "paper_id": "arxiv:2601.19263v1",
+      "is_anchor": false,
+      "summary_and_residue": "The paper introduces a host software agent that partitions layers or subgraphs, chooses CPU or FPGA execution, orchestrates transfers, and drives a parameterizable FPGA core. Its method makes CPU execution an ordinary scheduling choice and retrieves FPGA outputs before subsequent progress, while its primary benchmark is a small ResNet-like CNN, so it does not establish strict GGML admission semantics or show that a real autoregressive framework graph avoids launch/synchronization amplification."
+    },
+    {
+      "paper_id": "arxiv:2607.07643v1",
+      "is_anchor": false,
+      "summary_and_residue": "ATLAS automatically lowers high-level DL models through GEMM calls and generates hardblock-aware RTL wrappers, tiling, control, and scheduling metadata. The universal GEMM route does not establish preservation of irregular GGML operator contracts, resident decode state, explicit no-fallback behavior, or live compatibility with an unchanged llama.cpp execution path."
+    }
+  ],
+  "what_phase_0_did_not_address": [
+    "No retrieved frontier leaf demonstrates on live hardware that reducing transition and synchronization amplification across a complete autoregressive run preserves the connected model's outputs and costs once dispatcher, framework, state-management, and failure paths are included — stakes: edge-LLM practitioners can spend most runtime in control overhead despite accelerating accepted operators, while replay-only conclusions may not transfer to deployed heterogeneous runtimes.",
+    "No retrieved frontier leaf establishes that a framework-native backend can retain exact support decisions, explicit failure behavior, tensor-state continuity, and accelerator-artifact identity while execution no longer incurs one host-visible completion cycle per admitted unit — stakes: backend maintainers otherwise face either silent semantic drift and wrong outputs or a formally correct integration whose launch overhead blocks useful deployment and wastes FPGA development effort.",
+    "No retrieved frontier leaf tests whether the granularity at which a framework admits supported work must also determine the granularity at which accelerator progress is launched and synchronized — stakes: if this inherited coupling is unnecessary, a field-wide assumption embedded in backend delegation and transition studies has distorted performance conclusions and blocks principled design of strict heterogeneous runtimes."
+  ],
+  "method_lineage": {
+    "line": "framework-native admission, delegation, and execution granularity for heterogeneous accelerator backends",
+    "nodes": [
+      {
+        "node_id": "n0",
+        "method": "Host-managed accelerator kernel invocation through command queues",
+        "move": "Made a CPU host submit explicit device kernels and synchronize through a runtime API instead of executing accelerator work as ordinary host instructions.",
+        "parent": null,
+        "provenance": "parametric",
+        "age_band": ">16y",
+        "confidence": "high",
+        "residual_problem": "Fine-grained host submissions and completion checks can dominate short or highly fragmented device work.",
+        "is_frontier_leaf": false,
+        "is_collateral": false
+      },
+      {
+        "node_id": "n1",
+        "method": "Framework graph partitioning into accelerator-supported subgraphs",
+        "move": "Added capability-based partitioning so a framework could delegate supported graph portions while retaining unsupported work on the host.",
+        "parent": "n0",
+        "provenance": "parametric",
+        "age_band": "8-16y",
+        "confidence": "high",
+        "residual_problem": "Capability boundaries also become transfer, launch, and synchronization boundaries, so local support does not imply efficient composition.",
+        "is_frontier_leaf": false,
+        "is_collateral": false
+      },
+      {
+        "node_id": "n2",
+        "method": "Execution-provider/delegate admission with backend-owned subgraph execution",
+        "move": "Formalized backend support queries and let a provider own execution of admitted nodes or subgraphs behind a framework interface.",
+        "parent": "n1",
+        "provenance": "parametric",
+        "age_band": "4-8y",
+        "confidence": "high",
+        "residual_problem": "Admission granularity remains coupled to backend lifecycle and synchronization granularity, with weak guarantees about fallback and artifact identity across implementations.",
+        "is_frontier_leaf": false,
+        "is_collateral": false
+      },
+      {
+        "node_id": "n3",
+        "method": "Pluggable GGML device backends with per-node support and offload",
+        "move": "Brought heterogeneous device selection into lightweight local LLM graph execution through operator/type/shape support checks and backend tensor storage.",
+        "parent": "n2",
+        "provenance": "parametric",
+        "age_band": "2-4y",
+        "confidence": "medium",
+        "residual_problem": "A correct accepted graph can still expand into many runtime launches and waits, and the interface alone does not establish efficient end-to-end execution.",
+        "is_frontier_leaf": false,
+        "is_collateral": false
+      },
+      {
+        "node_id": "n4",
+        "method": "AI-FPGA Agent dynamic layer/subgraph offload",
+        "move": "Added runtime state and Q-learning-guided choice between CPU execution and a parameterizable FPGA accelerator while orchestrating transfers and synchronization.",
+        "parent": "n2",
+        "provenance": "retrieved:arxiv:2601.19263v1",
+        "age_band": "0-2y",
+        "confidence": "high",
+        "residual_problem": "The method permits CPU execution by design and does not validate strict framework-native admission, complete autoregressive execution, or control-overhead scaling.",
+        "is_frontier_leaf": true,
+        "is_collateral": false
+      },
+      {
+        "node_id": "n5",
+        "method": "Transition-aware per-operator backend dispatch",
+        "move": "Made each backend decision depend on the previous backend and measured directed switch costs instead of minimizing operator cost independently.",
+        "parent": "n2",
+        "provenance": "retrieved:arxiv:2607.17415v1",
+        "age_band": "0-2y",
+        "confidence": "high",
+        "residual_problem": "The result remains analytical trace replay without an integrated mixed-backend runtime, live FPGA execution, full KV-cache decode, or measured dispatcher overhead.",
+        "is_frontier_leaf": true,
+        "is_collateral": false
+      },
+      {
+        "node_id": "c0",
+        "method": "XLA/TVM-style graph fusion and ahead-of-time subgraph compilation",
+        "move": "Attacked boundary overhead by combining graph operations and compiling optimized accelerator code under compiler ownership of the graph.",
+        "parent": null,
+        "provenance": "parametric",
+        "age_band": "8-16y",
+        "confidence": "high",
+        "residual_problem": "Compiler-owned graph rewriting does not by itself preserve an unchanged application's backend admission, explicit failure, and replaceable-artifact contracts.",
+        "is_frontier_leaf": false,
+        "is_collateral": true
+      },
+      {
+        "node_id": "c1",
+        "method": "CUDA Graphs command capture and replay",
+        "move": "Attacked repeated host-launch overhead by capturing a stable sequence of device operations for low-overhead replay.",
+        "parent": null,
+        "provenance": "parametric",
+        "age_band": "4-8y",
+        "confidence": "high",
+        "residual_problem": "Capture assumes replay-stable GPU operations and does not supply strict FPGA support semantics, artifact identity, or arbitrary GGML state handling.",
+        "is_frontier_leaf": false,
+        "is_collateral": true
+      },
+      {
+        "node_id": "c2",
+        "method": "DFX end-to-end programmable GPT overlay appliance",
+        "move": "Attacked per-operator host overhead by running complete GPT inference through a device instruction scheduler and programmable compute core across FPGAs.",
+        "parent": null,
+        "provenance": "parametric",
+        "age_band": "4-8y",
+        "confidence": "high",
+        "residual_problem": "The custom appliance owns model execution and does not retain the unchanged llama.cpp/GGML boundary or its explicit support and fallback semantics.",
+        "is_frontier_leaf": false,
+        "is_collateral": true
+      },
+      {
+        "node_id": "c3",
+        "method": "FINN-style fully streaming FPGA dataflow",
+        "move": "Attacked intermediate traffic and launch overhead by specializing a model into communicating on-chip hardware stages.",
+        "parent": null,
+        "provenance": "parametric",
+        "age_band": "8-16y",
+        "confidence": "high",
+        "residual_problem": "Compile-time model specialization does not preserve a general runtime backend contract for irregular LLM graphs and evolving operator implementations.",
+        "is_frontier_leaf": false,
+        "is_collateral": true
+      }
+    ],
+    "notes": "Retrieved nodes are grounded and citable as prior art; parametric nodes reconstruct established ancestry for awareness only and carry no hard novelty claim. The collateral-family scan considered five mechanisms historically used against this residual: host command capture/batching, framework subgraph delegation, compiler graph fusion, device-side overlay instruction execution, and fully spatial streaming; concrete representatives are named where known, while no older concrete method was identified that jointly enforces strict framework admission, artifact identity, and replaceable FPGA implementation semantics. Frontier gap sites are only n4 and n5; collateral nodes are not gap sites or shared-ancestor evidence. A method may be treated as occupied ancestral ground only when the concrete named move matches, not from a vague similarity judgment."
+  },
+  "domain_pattern_distribution": {
+    "n_total": 10,
+    "n_on_topic": 5,
+    "patterns": [
+      {
+        "pattern_id": "unify_into_shared_representation",
+        "count": 3,
+        "share": 0.6,
+        "saturation_band": "saturated"
+      },
+      {
+        "pattern_id": "structural_prior_encoding",
+        "count": 2,
+        "share": 0.4,
+        "saturation_band": "mid_frequency"
+      },
+      {
+        "pattern_id": "heterogeneous_decomposition",
+        "count": 3,
+        "share": 0.6,
+        "saturation_band": "saturated"
+      },
+      {
+        "pattern_id": "decompose_and_delegate",
+        "count": 2,
+        "share": 0.4,
+        "saturation_band": "mid_frequency"
+      },
+      {
+        "pattern_id": "controlled_diagnostic_design",
+        "count": 1,
+        "share": 0.2,
+        "saturation_band": "untested"
+      },
+      {
+        "pattern_id": "architectural_operator_substitution",
+        "count": 1,
+        "share": 0.2,
+        "saturation_band": "untested"
+      },
+      {
+        "pattern_id": "reframe_as_solvable_object",
+        "count": 0,
+        "share": 0.0,
+        "saturation_band": "untested"
+      }
+    ],
+    "saturation_threshold_saturated": 0.5,
+    "saturation_threshold_untested_count": 1,
+    "notes": "The most-used patterns are unify_into_shared_representation and heterogeneous_decomposition; adjacent papers using them usually stop at a normalized interface, a selected backend, or a compiled accelerator without jointly validating live transition cost and strict framework execution semantics."
+  },
+  "state": "proceed",
+  "ood_reasons": [],
+  "remedial_steps": []
+}

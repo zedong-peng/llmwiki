@@ -1,0 +1,241 @@
+{
+  "intake": {
+    "domain": "systems and computer architecture for low-batch LLM inference on FPGA",
+    "venue": "systems/architecture research venue",
+    "time": "next systems/architecture submission cycle after July 2026",
+    "data": [
+      "Gemma 3 1B F16 execution on an AMD Alveo U280",
+      "native llama.cpp/GGML traces: pp512 has 1,626 GGML calls expanded to 224,936 XRT launches; tg128 has 104,877 calls expanded to 202,530 XRT launches",
+      "GGML operator, tensor, artifact, and XRT traces from a strict-zero-fallback U280 backend"
+    ],
+    "compute": "The user supplies one U280 prototype; the full falsification campaign is inferred as 80GB-class GPUs (A100/H100), up to 8 concurrent (one node), approximately 150 GPU-days over 5 months, plus a $10k inference/API budget.",
+    "expertise": "native C++ GGML/llama.cpp backend and XRT/FPGA systems engineering",
+    "preference": "empirical",
+    "baseline": "a native GGML/llama.cpp U280 backend with strict zero fallback, where every supported acceleration path must preserve native execution rather than silently redirect to a host implementation",
+    "limitation": "operator-granular native execution creates an extreme XRT launch count at low batch, yet any coarser delegation must preserve results, explicit failure, artifact identity, and zero fallback",
+    "contribution_type": "system",
+    "_inferred_fields": [
+      "venue",
+      "time",
+      "compute",
+      "expertise",
+      "preference",
+      "contribution_type"
+    ]
+  },
+  "bottleneck_statement": "The structural failure is a contract-granularity mismatch for native, low-batch LLM execution: an FPGA wants a preplanned compute, memory, and synchronization interval, while the existing GGML caller exposes a long, stateful sequence of observable calls whose result, alias/ownership behavior, failure behavior, and artifact identity remain part of the program. Under that condition, current machinery either retains the original fine-grained dispatch sequence, so launch and synchronization costs are amplified, or specializes a fixed model, precision, and host-device split without determining whether a larger native interval is semantically legal and HBM-feasible; it therefore cannot produce a trustworthy delegation decision for a strict-zero-fallback backend. The closest FPGA Big-PE study integrates with Llama2 but only demonstrates 8-bit TinyStories prompt processing and leaves decode, KV cache, and larger Llama behavior unaddressed [openalex:W4416342314]; LlamaF relies on W8A8 TinyLlama, keeps transformer control and KV caches on the processing system, and specializes its matrix-vector path [openalex:W4405909140]; XtraMAC improves a mixed-precision MAC but reports no complete Llama-layer or KV-path integration [arxiv:2605.06052v1].",
+  "closest_adjacent": [
+    {
+      "paper_id": "openalex:W4416342314",
+      "is_anchor": true,
+      "summary_and_residue": "This work couples an open-source Llama2 framework to a U55 FPGA through XDMA/AXI and replaces scalar systolic cells with 4x4 Big PEs for 8-bit TinyStories prompt-stage matrix multiplication. It does not establish decode, KV-cache, larger-model, native-GGML, or strict observable-failure behavior, so its compute-density result does not close the end-to-end execution-contract gap. [residue is abstract-level: anchor fulltext unfetchable]"
+    },
+    {
+      "paper_id": "openalex:W4405909140",
+      "is_anchor": false,
+      "summary_and_residue": "LlamaF uses W8A8 group-wise matrix-vector pipelines, asynchronous weight transfer, and a processing-system-resident transformer controller/KV cache for TinyLlama on ZCU102. Its acceleration contract is tied to quantized model-specific MVMs and explicitly leaves attention control and KV state outside the FPGA path, rather than covering an unmodified F16 GGML call stream."
+    },
+    {
+      "paper_id": "arxiv:2605.06052v1",
+      "is_anchor": false,
+      "summary_and_residue": "XtraMAC unifies integer, floating-point, and mixed-precision MAC formats through shared mantissa products and runtime operand packing on U55c. It resolves a DSP-level format-sharing issue but provides no complete Llama-layer, KV-cache, host-runtime, or native-artifact execution contract."
+    }
+  ],
+  "what_phase_0_did_not_address": [
+    "No retrieved frontier leaf establishes an observable end-to-end condition under which a heterogeneous native LLM call interval preserves its produced values, tensor/artifact identity, state effects, and explicit failure behavior while remaining valid across prefill and decode execution — stakes: strict-zero-fallback users can otherwise receive an unidentifiable or silently changed execution path, blocking trustworthy deployment and leaving systems results non-transferable across runtimes.",
+    "No retrieved frontier leaf establishes how low-batch execution can avoid launch-count-dominated latency when a long mixed GGML trace has dependencies, HBM capacity and access constraints, and runtime state that prevent treating arbitrary neighboring calls as one safe execution interval; the U280 pp512/tg128 traces are the primary instance — stakes: practitioners pay repeated XRT dispatch and synchronization costs that can erase accelerator benefit, while the field lacks a principled account of when coarse execution is actually legal rather than merely fast in a fixed benchmark.",
+    "No retrieved frontier paper tests whether the shared assumption that efficient LLM FPGA execution requires a compiler-owned, predeclared graph with fixed representation and host-device division is necessary rather than assumed — stakes: a negative answer would invalidate a common boundary in published accelerator conclusions, whereas leaving it unexamined can keep native-runtime deployment blocked despite apparently strong kernel or pipeline results."
+  ],
+  "method_lineage": {
+    "line": "LLM tensor execution from host-dispatched operators through compiler-owned static graph lowering to model-specific FPGA or persistent-engine implementations.",
+    "nodes": [
+      {
+        "node_id": "n0",
+        "method": "eager host-dispatched tensor/operator execution",
+        "move": "Executes each tensor operator through a host-visible runtime call and separate device work submission.",
+        "parent": null,
+        "provenance": "parametric",
+        "age_band": ">16y",
+        "confidence": "high",
+        "residual_problem": "Repeated launch and whole-operator synchronization boundaries leave cross-operator latency and data movement exposed.",
+        "is_frontier_leaf": false,
+        "is_collateral": false
+      },
+      {
+        "node_id": "n1",
+        "method": "ahead-of-time static graph/dataflow lowering",
+        "move": "Moves a predeclared tensor graph into compiler-owned IR, fixed task connectivity, planned storage, and generated host/device code.",
+        "parent": "n0",
+        "provenance": "parametric",
+        "age_band": "8-16y",
+        "confidence": "high",
+        "residual_problem": "Generic static lowering still leaves LLM-specific compute density, mixed formats, and external-memory pressure to later specialized designs.",
+        "is_frontier_leaf": false,
+        "is_collateral": false
+      },
+      {
+        "node_id": "f_streamtensor",
+        "method": "StreamTensor dataflow compiler",
+        "move": "Lowers PyTorch/MLIR programs into hierarchical dataflow tasks with generated DMA, stream converters, FIFOs, design-space exploration, and host runtime code.",
+        "parent": "n1",
+        "provenance": "retrieved:user_ref:arxiv_id:2509.13694",
+        "age_band": "0-2y",
+        "confidence": "high",
+        "residual_problem": "Its generated compiler/runtime owns the transformed PyTorch program, so it does not establish equivalence, artifact identity, or explicit no-fallback behavior for an unmodified GGML caller.",
+        "is_frontier_leaf": true,
+        "is_collateral": false
+      },
+      {
+        "node_id": "f_codo",
+        "method": "CODO holistic dataflow compiler",
+        "move": "Jointly repairs dataflow violations, chooses FIFO or ping-pong communication, manages HBM transfers, and co-optimizes parallelism for C++ or PyTorch inputs.",
+        "parent": "n1",
+        "provenance": "retrieved:user_ref:arxiv_id:2604.12618",
+        "age_band": "0-2y",
+        "confidence": "high",
+        "residual_problem": "It optimizes a compiler-transformed task graph but does not cover a native GGML call stream's observable ownership, failure, and zero-fallback requirements.",
+        "is_frontier_leaf": true,
+        "is_collateral": false
+      },
+      {
+        "node_id": "f_mpk",
+        "method": "MPK SM-level persistent mega-kernel",
+        "move": "Compiles a PyTorch tensor program to a static SM-level task/event graph and runs it through an in-kernel worker/scheduler runtime to avoid operator-level launches.",
+        "parent": "n1",
+        "provenance": "retrieved:user_ref:arxiv_id:2512.22219",
+        "age_band": "0-2y",
+        "confidence": "high",
+        "residual_problem": "The GPU/PyTorch mega-kernel assumes a compiler-produced static graph and does not establish an FPGA HBM path or a native GGML compatibility and failure contract.",
+        "is_frontier_leaf": true,
+        "is_collateral": false
+      },
+      {
+        "node_id": "f_bigpe",
+        "method": "coarse-grained Big-PE FPGA systolic array",
+        "move": "Uses 4x4 matrix-multiplying processing elements to raise systolic compute density and integrates the array with an open-source Llama2 framework.",
+        "parent": "n1",
+        "provenance": "retrieved:openalex:W4416342314",
+        "age_band": "0-2y",
+        "confidence": "high",
+        "residual_problem": "The reported path is 8-bit TinyStories prompt processing only; decode, KV state, larger models, and native-runtime semantics remain unclosed, with method-level residue unavailable after full-text top-up.",
+        "is_frontier_leaf": true,
+        "is_collateral": false
+      },
+      {
+        "node_id": "f_llamaf",
+        "method": "LlamaF quantized asynchronous GQMV pipeline",
+        "move": "Specializes TinyLlama W8A8 matrix-vector computation and overlaps weight transfer with FPGA execution while retaining transformer control and KV cache on the processing system.",
+        "parent": "n1",
+        "provenance": "retrieved:openalex:W4405909140",
+        "age_band": "0-2y",
+        "confidence": "high",
+        "residual_problem": "A model-specific quantized MVM contract leaves native F16 GGML execution, attention/KV ownership, and observable full-graph behavior outside its accelerated path.",
+        "is_frontier_leaf": true,
+        "is_collateral": false
+      },
+      {
+        "node_id": "f_xtramac",
+        "method": "XtraMAC datatype-adaptive MAC",
+        "move": "Shares DSP-oriented integer mantissa products across integer, floating-point, and mixed-precision MAC modes with runtime operand packing.",
+        "parent": "n1",
+        "provenance": "retrieved:arxiv:2605.06052v1",
+        "age_band": "0-2y",
+        "confidence": "high",
+        "residual_problem": "A MAC-level improvement alone leaves region-level dependencies, HBM lifetimes, complete Llama execution, and the host-visible execution contract unresolved.",
+        "is_frontier_leaf": true,
+        "is_collateral": false
+      },
+      {
+        "node_id": "c0",
+        "method": "persistent-thread/persistent-kernel device runtime",
+        "move": "Keeps device workers resident across multiple logical tasks to remove repeated host launch boundaries.",
+        "parent": null,
+        "provenance": "parametric",
+        "age_band": "8-16y",
+        "confidence": "high",
+        "residual_problem": "Avoids relaunches but by itself does not establish an FPGA HBM implementation or native caller semantics.",
+        "is_frontier_leaf": false,
+        "is_collateral": true
+      },
+      {
+        "node_id": "c1",
+        "method": "coarse-grained reconfigurable-array/overlay execution",
+        "move": "Time-multiplexes operations over programmable coarse processing elements instead of fixing a fully spatial datapath per model.",
+        "parent": null,
+        "provenance": "parametric",
+        "age_band": ">16y",
+        "confidence": "high",
+        "residual_problem": "Programmable execution flexibility alone does not prove compatibility with a native runtime's state, artifacts, or failure semantics.",
+        "is_frontier_leaf": false,
+        "is_collateral": true
+      },
+      {
+        "node_id": "c2",
+        "method": "Kahn-process-network/HLS streaming pipeline",
+        "move": "Uses statically connected producer-consumer processes and FIFO communication to overlap stages.",
+        "parent": null,
+        "provenance": "parametric",
+        "age_band": ">16y",
+        "confidence": "high",
+        "residual_problem": "A fixed stream topology does not decide whether a dynamic caller's interval is a legal region or preserve its observable fallback policy.",
+        "is_frontier_leaf": false,
+        "is_collateral": true
+      },
+      {
+        "node_id": "c3",
+        "method": "double-buffered DMA tiling",
+        "move": "Overlaps transfer and compute through explicit tile residency and ping-pong buffers.",
+        "parent": null,
+        "provenance": "parametric",
+        "age_band": ">16y",
+        "confidence": "high",
+        "residual_problem": "Memory-transfer overlap does not determine semantic region boundaries, identity, or explicit failure behavior.",
+        "is_frontier_leaf": false,
+        "is_collateral": true
+      }
+    ],
+    "notes": "Retrieved nodes identify the current frontier, including user-reference full-text records; parametric nodes are awareness-only and are not prior-art claims. The shared ancestry-chain assumption is n1's compiler-owned, predeclared graph and fixed representation/host-device boundary. Collateral nodes record distinct older mechanism families so they are neither treated as gap sites nor mistaken for descendants."
+  },
+  "domain_pattern_distribution": {
+    "n_total": 37,
+    "n_on_topic": 10,
+    "patterns": [
+      {
+        "pattern_id": "architectural_operator_substitution",
+        "count": 6,
+        "share": 0.60,
+        "saturation_band": "saturated"
+      },
+      {
+        "pattern_id": "heterogeneous_decomposition",
+        "count": 4,
+        "share": 0.40,
+        "saturation_band": "mid_frequency"
+      },
+      {
+        "pattern_id": "decompose_and_delegate",
+        "count": 3,
+        "share": 0.30,
+        "saturation_band": "mid_frequency"
+      },
+      {
+        "pattern_id": "unify_into_shared_representation",
+        "count": 1,
+        "share": 0.10,
+        "saturation_band": "untested"
+      },
+      {
+        "pattern_id": "controlled_diagnostic_design",
+        "count": 1,
+        "share": 0.10,
+        "saturation_band": "untested"
+      }
+    ],
+    "saturation_threshold_saturated": 0.50,
+    "saturation_threshold_untested_count": 1,
+    "notes": "Architectural_operator_substitution is most used; its closest papers improve a fixed compute or memory microarchitecture, but tend to leave native end-to-end runtime semantics and low-batch execution boundaries unestablished."
+  },
+  "state": "proceed",
+  "ood_reasons": [],
+  "remedial_steps": []
+}

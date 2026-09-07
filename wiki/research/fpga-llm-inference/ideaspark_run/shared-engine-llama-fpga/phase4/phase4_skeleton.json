@@ -1,0 +1,1297 @@
+{
+  "title": "Visibility-Sensitive Command Streaming for Native GGML FPGA Inference",
+  "title_zh": "<TODO[title_zh]: Chinese translation; keep proper nouns and method acronyms in English>",
+  "method_name": "<TODO[method_name]: short handle for the proposed method, e.g. 'Persistent Baseline GRPO (PB-GRPO)'>",
+  "hook": "At low batch, a native GGML trace may contain a small set of host-visible or stateful boundaries and a much larger device-only data-plane bulk, so treating every call as equally observable can manufacture most of the XRT launch cost. Visibility-Sensitive Trace Compression predicts that preserving the boundary set while streaming the bulk as exact device bytecode lowers p50 decode latency on Gemma 3 1B F16 U280 runs without changing the captured native result or explicit-error behavior.",
+  "abstract_draft": "<TODO[abstract_draft]: 150-250 words. Order: problem → bottleneck (cite ≥ 1 Phase 0 paper) → contribution (one sentence) → falsification prediction → expected outcome.>",
+  "motivation": {
+    "problem_framing": "<TODO[motivation.problem_framing]: 2-3 paragraphs framing the user's problem. Reference the bottleneck_statement from Phase 1 and the closest_adjacent papers. NOT a category label.>",
+    "why_now": "<TODO[motivation.why_now]: one paragraph on what makes this gap timely. Cite the most recent Phase 0 papers (within last 4-12 months) that get close but stop short.>",
+    "why_prior_stopped": [
+      {
+        "paper_id": "openalex:W4416342314",
+        "venue_year": "arXiv 2025-09",
+        "what_they_did": "<TODO[motivation.why_prior_stopped[0].what_they_did]: one sentence>",
+        "what_they_did_not_do": "<TODO[motivation.why_prior_stopped[0].what_they_did_not_do]: one sentence — the specific limit being lifted by the candidate>",
+        "structural_reason_they_stopped": "<TODO[motivation.why_prior_stopped[0].structural_reason_they_stopped]: one sentence — missing tool / missing assumption-relaxation / missing mechanism / missing measurement>"
+      },
+      {
+        "paper_id": "openalex:W4405909140",
+        "venue_year": "arXiv 2024-11",
+        "what_they_did": "<TODO[motivation.why_prior_stopped[1].what_they_did]: one sentence>",
+        "what_they_did_not_do": "<TODO[motivation.why_prior_stopped[1].what_they_did_not_do]: one sentence — the specific limit being lifted by the candidate>",
+        "structural_reason_they_stopped": "<TODO[motivation.why_prior_stopped[1].structural_reason_they_stopped]: one sentence — missing tool / missing assumption-relaxation / missing mechanism / missing measurement>"
+      },
+      {
+        "paper_id": "arxiv:2605.06052v1",
+        "venue_year": "arXiv 2026-05",
+        "what_they_did": "<TODO[motivation.why_prior_stopped[2].what_they_did]: one sentence>",
+        "what_they_did_not_do": "<TODO[motivation.why_prior_stopped[2].what_they_did_not_do]: one sentence — the specific limit being lifted by the candidate>",
+        "structural_reason_they_stopped": "<TODO[motivation.why_prior_stopped[2].structural_reason_they_stopped]: one sentence — missing tool / missing assumption-relaxation / missing mechanism / missing measurement>"
+      }
+    ],
+    "what_changes_when_gap_closes": "<TODO[motivation.what_changes_when_gap_closes]: 2-3 sentences naming downstream consequences. NOT \"better numbers\" — name the specific capability or theoretical statement that becomes available>"
+  },
+  "core_claim": "<TODO[core_claim]: one sentence; should mirror the candidate's hook stripped to its load-bearing assertion>",
+  "sub_claims": "<TODO[sub_claims]: list of {id, statement, supports_which_aspect}; 2-4 entries>",
+  "key_equations": "<TODO[key_equations]: optional 3-6 equations; each {id, linked_step_id, latex, description, description_zh}. Emit [] (literal empty list) for a pure-prose candidate.>",
+  "method_flow": {
+    "high_level_pipeline": "<TODO[method_flow.high_level_pipeline]: 3-5 sentences narrating the method end-to-end as a story: input → key transformation → output>",
+    "steps": "<TODO[method_flow.steps]: derive from candidate.core_mechanism_steps; emit a list where each entry is {step_id, title, what_changes, why_this_step, linked_component, linked_falsification, input, output}. Each step_id MUST be S1, S2, ... in reading order. linked_component ∈ {theory, engineering, both}; linked_falsification ∈ {metric_specification, mechanism_distinguisher, both}.>",
+    "design_reasoning_echo": "<TODO[method_flow.design_reasoning_echo]: one paragraph echoing or condensing candidate.core_mechanism_reasoning>"
+  },
+  "plain_motivation_en": "<TODO[plain_motivation_en]: plain-language English rendering of motivation for a reader outside this subfield. Simplify LANGUAGE only — never drop the load-bearing mechanism. Spell out every abbreviation on first use.>",
+  "plain_motivation_zh": "<TODO[plain_motivation_zh]: Chinese 普通版 counterpart. Same content; keep identifiers/symbols/acronyms in English.>",
+  "plain_method_steps_en": "<TODO[plain_method_steps_en]: list of {step_id, what_to_do, why_this_makes_sense}; SAME step_ids and SAME order as method_flow.steps.>",
+  "plain_method_steps_zh": "<TODO[plain_method_steps_zh]: Chinese 普通版 counterpart; English for identifiers/symbols/acronyms.>",
+  "plain_method_modules_en": "<TODO[plain_method_modules_en]: group the CONTRIBUTION steps into named modules; list of {module_id, purpose_oneline, step_ids}.>",
+  "plain_method_modules_zh": "<TODO[plain_method_modules_zh]: Chinese 普通版 counterpart.>",
+  "falsification_prediction": "Implement the exact supported Gemma 3 1B F16 path in llama.cpp on the AMD Alveo U280, run pp512 and tg128 with fixed 512-token prompts from the wikitext-2-raw-v1 test split, and compare native per-XRT dispatch, the naive resident descriptor engine, and VSTC while checking bytewise logits and explicit-error traces. If VSTC is correct, p50 and p95 tg128 per-token latency and pp512 latency decrease as the named load-bearing variable rho, the fraction of baseline XRT submissions represented by admitted B-template entries, rises above zero; XRT run submissions should fall in the same direction without a new CPU fallback. The negative control overrides the B admission result for exactly the otherwise eligible calls, forcing individual host-visible completion and materialization while retaining the same kernels and inputs; if p50/p95 latency does not return toward the naive resident-engine baseline, the claimed visibility-sensitivity mechanism is falsified rather than merely unmeasured. A secondary full-observation oracle can force every produced tensor to be checked against the native backend after each call, testing whether the capture premise rather than template execution caused any mismatch. Add control arms on the same Gemma U280 workloads and existing latency/error metrics: an all-eligible homogeneous template slice comparing the single-record and multi-record interpreter, and a mixed trace with B admission forced off while the same engine remains active, so the interpreter and H/B partition effects are independently identifiable.",
+  "compute_budget": "0.5 80GB-class GPU-day for trace-analysis and regression tooling plus 30 U280 board-days for HLS builds, hardware debug, and the full pp512/tg128 campaign; $0 paid API cost because the campaign uses local llama.cpp, Gemma 3 1B F16, XRT, and wikitext-2-raw-v1.",
+  "almost_prior_paper_id": "openalex:W4405909140",
+  "almost_prior_venue_year": "arXiv 2024-11",
+  "what_step_was_missed": "LlamaF would have needed to construct a per-original-GGML-call visibility-sensitivity ticket trace, including captured host-read, alias, state, and one-consumer conditions, then interpret eligible exact templates with individually surfaced completion states; concatenating fixed matrix groups cannot construct that dynamic native command representation.",
+  "feasibility_validation": {
+    "compute": {
+      "verdict": "feasible",
+      "rationale": "GPU line ≈ 0.5 vs 150 GPU-day (0%) → feasible; API line ≈ $0 vs $10000 (0%) → feasible. Overall (worse line) → feasible."
+    },
+    "data": {
+      "verdict": "<TODO[feasibility_validation.data.verdict]: feasible | tight | infeasible>",
+      "rationale": "<TODO[feasibility_validation.data.rationale]: one sentence: required data sources accessible; if any closed/private, name a public substitute>"
+    },
+    "theoretical": {
+      "verdict": "<TODO[feasibility_validation.theoretical.verdict]: feasible | tight | infeasible | n/a (only when the candidate has no theoretical contribution)>",
+      "rationale": "<TODO[feasibility_validation.theoretical.rationale]: one sentence; if tight, name the missing prerequisite>"
+    },
+    "engineering": {
+      "verdict": "<TODO[feasibility_validation.engineering.verdict]: feasible | tight | infeasible | n/a (only when the candidate has no engineering contribution)>",
+      "rationale": "<TODO[feasibility_validation.engineering.rationale]: one sentence; if tight, name the binding implementation cost>"
+    },
+    "falsification": {
+      "verdict": "<TODO[feasibility_validation.falsification.verdict]: feasible | tight | infeasible>",
+      "rationale": "<TODO[feasibility_validation.falsification.rationale]: one sentence: the falsification_prediction experiment is concrete enough to run with available tooling>"
+    },
+    "overall": "<TODO[feasibility_validation.overall]: feasible | tight | infeasible>"
+  },
+  "differentiation_from_lit": [
+    {
+      "paper_id": "openalex:W4416342314",
+      "venue_year": "arXiv 2025-09",
+      "delta": "Abstract-only inference: Big PE constructs a denser 4x4 8-bit systolic compute cell for TinyStories prompt processing, whereas VSTC constructs a visibility-sensitivity partition plus per-original-call completion protocol that compresses the native F16 command stream across prefill and decode without changing the caller's tensor allocation."
+    },
+    {
+      "paper_id": "openalex:W4405909140",
+      "venue_year": "arXiv 2024-11",
+      "delta": "LlamaF constructs model-specific Wq/Wk/Wv and W1/W3 matrix concatenations with two W8A8 GQMV kernels while retaining attention control and KV cache on the processing system; VSTC instead constructs patchable exact templates from the runtime GGML call stream and makes per-call eligibility depend on observed visibility, alias, state, and scratch facts."
+    },
+    {
+      "paper_id": "arxiv:2605.06052v1",
+      "venue_year": "arXiv 2026-05",
+      "delta": "Abstract-only inference: XtraMAC constructs a datatype-adaptive MAC with shared mantissa products, whereas VSTC constructs a control-plane representation that removes repeated host launch submissions even when every installed data-plane kernel remains the same F16 operation."
+    }
+  ],
+  "reviewer_concerns_and_responses": [
+    {
+      "attack": "Paper-pointed threat: semanticscholar:32c402c2cab23299458f1819bc823c79d7219e9c (collision_hits). CDA-GNN is the closest retrieved competitor because it reports a U280 asynchronous accelerator that exploits dependency chains to avoid synchronization. Its dependency chains are predetermined for GNN state propagation, however, whereas VSTC's claim depends on dynamically capturing per-GGML-call host observation, alias, state, unique-consumer, original-allocation, and explicit-error conditions before a B template is admitted. CDA-GNN therefore motivates a strong comparison but does not establish the candidate's exact native-runtime mechanism.",
+      "severity": "non_blocking",
+      "response": "<TODO[reviewer_concerns_and_responses[0].response]: 2-3 sentences: explain where in the candidate (which field) the defense is anchored; reference the Phase 3.2 verdict_rationale when relevant>",
+      "fields_changed_to_address": [
+        "core_mechanism_steps",
+        "falsification_prediction"
+      ]
+    },
+    {
+      "attack": "Un-retrieved mechanism family flagged by the audit (parametric knowledge, not in the retrieved pool): Dynamic command-graph and deferred-execution runtimes; query vocabulary: dynamic CUDA Graphs capture, runtime command buffer batching, XRT command-buffer dependency scheduling. — novelty vs this family is UNVERIFIED; run a targeted scoop-check on that vocabulary before investing.",
+      "severity": "non_blocking",
+      "response": "<TODO[reviewer_concerns_and_responses[1].response]: 1-2 sentences: state what a scoop-check on the named family must establish for the candidate's delta to survive (do NOT claim the check already passed)>",
+      "fields_changed_to_address": [
+        "core_mechanism_steps",
+        "falsification_prediction"
+      ]
+    },
+    {
+      "attack": "Gap-closure reject-check borderline on gap 1 (C04 (Decompose for Differentiated Treatment)): Presenting a sensitivity or redundancy proxy as the novelty invites the verdict that it rediscovers known mixed-precision or low-rank results unless it is sharply differentiated from the obvious prior; Skipping any analysis of why the heterogeneity exists — the data or value distribution that drives the partition — makes the technical novelty and the potential impact impossible to assess.; Bolting together established components (distillation plus pruning plus calibration) without an error bound or artifact specific to the new setting reads as incremental even when the target applicatio",
+      "severity": "non_blocking",
+      "response": "<TODO[reviewer_concerns_and_responses[2].response]: 2-3 sentences: anchor the defense in a specific candidate field>",
+      "fields_changed_to_address": [
+        "core_mechanism_steps",
+        "falsification_prediction"
+      ]
+    },
+    {
+      "attack": "Anti-pattern matched: audit_decomp_operator. Required mitigation: The operator's expressivity gain must be demonstrated on homogeneous data (where decomposition is unnecessary), and the decomposition's separate effect must be demonstrated on heterogeneous data with the operator held fixed. Each leg's contribution must be independently identifiable.",
+      "severity": "blocking",
+      "response": "<TODO[reviewer_concerns_and_responses[3].response]: 2-3 sentences: name how the candidate's core_mechanism delivers the mitigation>",
+      "fields_changed_to_address": [
+        "core_mechanism_steps",
+        "falsification_prediction"
+      ]
+    }
+  ],
+  "domain_landscape": {
+    "n_papers": 10,
+    "pattern_distribution": [
+      {
+        "pattern_id": "architectural_operator_substitution",
+        "count": 6,
+        "share": 0.6,
+        "saturation_band": "saturated"
+      },
+      {
+        "pattern_id": "heterogeneous_decomposition",
+        "count": 4,
+        "share": 0.4,
+        "saturation_band": "mid_frequency"
+      },
+      {
+        "pattern_id": "decompose_and_delegate",
+        "count": 3,
+        "share": 0.3,
+        "saturation_band": "mid_frequency"
+      },
+      {
+        "pattern_id": "unify_into_shared_representation",
+        "count": 1,
+        "share": 0.1,
+        "saturation_band": "untested"
+      },
+      {
+        "pattern_id": "controlled_diagnostic_design",
+        "count": 1,
+        "share": 0.1,
+        "saturation_band": "untested"
+      }
+    ],
+    "candidate_uses": [
+      {
+        "pattern_id": "heterogeneous_decomposition",
+        "role": "closes Gap 1",
+        "sub_pattern_id": "C04 (Decompose for Differentiated Treatment)",
+        "saturation_in_domain": "mid_frequency"
+      }
+    ],
+    "position_note": "<TODO[domain_landscape.position_note]: one sentence describing how the candidate's chosen patterns sit relative to the area's pattern usage; descriptive, not prescriptive>"
+  },
+  "literature_breakdown": {
+    "summary": {
+      "n_phase0_total": 37,
+      "n_phase0_on_topic": 25,
+      "n_phase0_outside_taxonomy": 12,
+      "n_phase3_collision": 165
+    },
+    "phase0_by_pattern": [
+      {
+        "pattern_id": "architectural_operator_substitution",
+        "pattern_name": "Substitute the Operator or Representation",
+        "papers": [
+          {
+            "paper_id": "openalex:W4405827855",
+            "title": "Sparse Convolution FPGA Accelerator Based on Multi-Bank Hash Selection",
+            "venue_year": "Micromachines 2024",
+            "bottleneck_targeted": "Sparse CNN acceleration wastes compute on zeros, suffers irregular off-chip access, and cache conflicts."
+          },
+          {
+            "paper_id": "openalex:W4416342314",
+            "title": "Hardware-Software Co-Design for Efficient LLM Inference on PCIe-Based FPGAs Using Coarse-Grained Systolic Arrays",
+            "venue_year": "arXiv 2025-09",
+            "bottleneck_targeted": "Scalar-PE systolic arrays have low compute density and high routing cost at LLM matrix dimensions."
+          },
+          {
+            "paper_id": "openalex:W4416582946",
+            "title": "Efficient Kernel Mapping and Comprehensive System Evaluation of LLM Acceleration on a CGLA",
+            "venue_year": "IEEE Access 2025",
+            "bottleneck_targeted": "LLM GPU energy cost and host-accelerator transfers limit CGRA deployment."
+          },
+          {
+            "paper_id": "openalex:W4405909140",
+            "title": "LlamaF: An Efficient Llama2 Architecture Accelerator on Embedded FPGAs",
+            "venue_year": "arXiv 2024-11",
+            "bottleneck_targeted": "Embedded FPGA LLM inference is constrained by memory, compute, and off-chip bandwidth."
+          },
+          {
+            "paper_id": "openalex:W4408894276",
+            "title": "PICACHU: Plug-In CGRA Handling Upcoming Nonlinear Operations in LLMs",
+            "venue_year": "arXiv 2025-03",
+            "bottleneck_targeted": "LLM nonlinear operations add latency and need flexible, user-defined precision."
+          }
+        ]
+      },
+      {
+        "pattern_id": "assumption_audit_and_pivot",
+        "pattern_name": "Audit and Pivot an Assumption",
+        "papers": [
+          {
+            "paper_id": "arxiv:2605.16976v1",
+            "title": "Securing LLM Agents Need Intent-to-Execution Integrity",
+            "venue_year": "arXiv 2026-05",
+            "bottleneck_targeted": "Existing LLM-agent defenses assume trusted tools and lack a compositional correctness property."
+          },
+          {
+            "paper_id": "arxiv:2606.30247v1",
+            "title": "Grounding LLM Reasoning under Incomplete Graph Evidence",
+            "venue_year": "arXiv 2026-06",
+            "bottleneck_targeted": "Hard grounding from incomplete graphs cannot both reject false unsupported paths and retain true unobserved ones."
+          }
+        ]
+      },
+      {
+        "pattern_id": "controlled_diagnostic_design",
+        "pattern_name": "Design a Confound-Isolating Diagnostic",
+        "papers": [
+          {
+            "paper_id": "arxiv:2605.03227v2",
+            "title": "Evaluating Prompting and Execution-Based Methods for Deterministic Computation in LLMs",
+            "venue_year": "arXiv 2026-05",
+            "bottleneck_targeted": "Prompting alone is unreliable for exact computation, and solver choices confound reliability."
+          },
+          {
+            "paper_id": "openalex:W4403556333",
+            "title": "Hardware Acceleration of LLMs: A comprehensive survey and comparison",
+            "venue_year": "arXiv (Cornell University) 2024",
+            "bottleneck_targeted": "Cross-paper accelerator comparisons are confounded by different process technologies."
+          }
+        ]
+      },
+      {
+        "pattern_id": "decompose_and_delegate",
+        "pattern_name": "Decompose and Delegate to Solvers",
+        "papers": [
+          {
+            "paper_id": "openalex:W4412513106",
+            "title": "ADFEmu: Enhancing Firmware Fuzzing with Direct Memory Access (DMA) Input Emulation Using Concolic Execution and Large Language Models (LLMs)",
+            "venue_year": "Computers, materials & continua/Computers, materials & continua (Print) 2025",
+            "bottleneck_targeted": "Firmware fuzzing stops when DMA peripheral inputs are absent or oversimplified."
+          },
+          {
+            "paper_id": "openalex:W7124982014",
+            "title": "Optimizing LLM inference for FPGAs",
+            "venue_year": "arXiv 2025-10",
+            "bottleneck_targeted": "Platform-specific low-level FPGA flows hinder portable LLM deployment, and host transfers hurt performance."
+          },
+          {
+            "paper_id": "openalex:W4410887369",
+            "title": "Paradigm-Based Automatic HDL Code Generation Using LLMs",
+            "venue_year": "arXiv 2025-04",
+            "bottleneck_targeted": "LLMs hallucinate or misinterpret HDL specifications, lowering generated Verilog correctness."
+          },
+          {
+            "paper_id": "arxiv:2605.05920v1",
+            "title": "LLM-Driven Design Space Exploration of FPGA-based Accelerators",
+            "venue_year": "arXiv 2026-05",
+            "bottleneck_targeted": "FPGA accelerator DSE needs expert manual effort across architecture, dataflow, and memory."
+          },
+          {
+            "paper_id": "arxiv:2604.02375v1",
+            "title": "KAIJU: An Executive Kernel for Intent-Gated Execution of LLM Agents",
+            "venue_year": "arXiv 2026-03",
+            "bottleneck_targeted": "ReAct agent workflows suffer serial latency, context growth, and unsafe LLM-coupled execution."
+          }
+        ]
+      },
+      {
+        "pattern_id": "generative_process_redesign",
+        "pattern_name": "Liberate a Fixed Generative Component",
+        "papers": [
+          {
+            "paper_id": "arxiv:2604.00491v2",
+            "title": "Executing as You Generate: Hiding Execution Latency in LLM Code Interpreters",
+            "venue_year": "arXiv 2026-04",
+            "bottleneck_targeted": "Code-interpreter LLM systems serialize generation and execution, leaving both idle."
+          }
+        ]
+      },
+      {
+        "pattern_id": "heterogeneous_decomposition",
+        "pattern_name": "Decompose for Differentiated Treatment",
+        "papers": [
+          {
+            "paper_id": "openalex:W4411486169",
+            "title": "Hybe: GPU-NPU Hybrid System for Efficient LLM Inference with Million-Token Context Window",
+            "venue_year": "arXiv 2025-06",
+            "bottleneck_targeted": "Long-context inference underutilizes GPUs in memory-bound decode and exhausts GPU KV capacity."
+          },
+          {
+            "paper_id": "openalex:W4406866670",
+            "title": "A Coarse- and Fine-Grained Co-Exploration Approach for Optimizing DNN Spatial Accelerators: Improving Speed and Performance",
+            "venue_year": "Electronics 2025",
+            "bottleneck_targeted": "Design-space exploration cannot jointly achieve analytical-model speed and cycle-accurate fidelity."
+          },
+          {
+            "paper_id": "openalex:W4403617301",
+            "title": "InstInfer: In-Storage Attention Offloading for Cost-Effective Long-Context LLM Inference",
+            "venue_year": "arXiv (Cornell University) 2024",
+            "bottleneck_targeted": "Long-context KV cache on GPU VRAM and PCIe transfer throttle SSD offloading."
+          },
+          {
+            "paper_id": "openalex:W4407857898",
+            "title": "Accelerating LLMs using an Efficient GEMM Library and Target-Aware Optimizations on Real-World PIM Devices",
+            "venue_year": "arXiv 2025-02",
+            "bottleneck_targeted": "Host-PIM transfer limits PIM LLM serving despite high internal bandwidth."
+          },
+          {
+            "paper_id": "arxiv:2606.05868v1",
+            "title": "YouZhi: Towards High-Concurrency Financial LLMs via Adaptive GQA-to-MLA Transition",
+            "venue_year": "arXiv 2026-06",
+            "bottleneck_targeted": "High-concurrency financial LLMs are KV-cache constrained, and uniform GQA-to-MLA conversion loses quality."
+          }
+        ]
+      },
+      {
+        "pattern_id": "reframe_as_solvable_object",
+        "pattern_name": "Reframe as a Solvable Object",
+        "papers": [
+          {
+            "paper_id": "openalex:W4404955792",
+            "title": "A Scalable, Efficient, and Robust Dynamic Memory Management Library for HLS-based FPGAs",
+            "venue_year": "arXiv 2024-11",
+            "bottleneck_targeted": "HLS lacks dynamic memory allocation with simultaneous scale, low latency, and low allocation failure."
+          }
+        ]
+      },
+      {
+        "pattern_id": "self_supervised_signal_engineering",
+        "pattern_name": "Manufacture the Supervisory Signal",
+        "papers": [
+          {
+            "paper_id": "arxiv:2607.05391v2",
+            "title": "LLM-as-a-Verifier: A General-Purpose Verification Framework",
+            "venue_year": "arXiv 2026-07",
+            "bottleneck_targeted": "LLM capability scaling lacks fine-grained, training-free verification feedback."
+          }
+        ]
+      },
+      {
+        "pattern_id": "structural_prior_encoding",
+        "pattern_name": "Encode Structure by Construction",
+        "papers": [
+          {
+            "paper_id": "openalex:W4412944030",
+            "title": "Injecting Structured Knowledge into LLMs via Graph Neural Networks",
+            "venue_year": "arXiv 2025-01",
+            "bottleneck_targeted": "LLMs miss explicit linguistic structures and world knowledge."
+          },
+          {
+            "paper_id": "arxiv:2604.24153v1",
+            "title": "Right-to-Act: A Pre-Execution Non-Compensatory Decision Protocol for AI Systems",
+            "venue_year": "arXiv 2026-04",
+            "bottleneck_targeted": "AI-generated actions lack a deterministic pre-execution legitimacy gate."
+          }
+        ]
+      },
+      {
+        "pattern_id": "unify_into_shared_representation",
+        "pattern_name": "Unify Heterogeneous Inputs into One Space",
+        "papers": [
+          {
+            "paper_id": "arxiv:2605.06052v1",
+            "title": "XtraMAC: An Efficient MAC Architecture for Mixed-Precision LLM Inference on FPGA",
+            "venue_year": "arXiv 2026-05",
+            "bottleneck_targeted": "Mixed-precision FPGA MACs waste DSPs through fixed formats and weak resource sharing."
+          }
+        ]
+      }
+    ],
+    "phase0_outside_taxonomy": [
+      {
+        "paper_id": "openalex:W4401945586",
+        "title": "FPGA-Based Sparse Matrix Multiplication Accelerators: From State-of-the-Art to Future Opportunities",
+        "venue_year": "ACM Transactions on Reconfigurable Technology and Systems 2024",
+        "bottleneck_targeted": "FPGA sparse-matrix accelerators lack a consolidated comparison of compression, throughput, and resource use."
+      },
+      {
+        "paper_id": "openalex:W4408685170",
+        "title": "FPGA Overlay processor for AI computing",
+        "venue_year": "Scientia Sinica Informationis 2025",
+        "bottleneck_targeted": "Custom FPGA neural-network accelerators have fixed dataflows and poor model-switching flexibility."
+      },
+      {
+        "paper_id": "openalex:W4405029393",
+        "title": "InputSnatch: Stealing Input in LLM Services via Timing Side-Channel Attacks",
+        "venue_year": "arXiv (Cornell University) 2024",
+        "bottleneck_targeted": "LLM cache sharing leaks inputs through timing, with a large candidate-input search."
+      },
+      {
+        "paper_id": "openalex:W4416047857",
+        "title": "iDSE: Navigating Design Space Exploration in High-Level Synthesis Using LLMs",
+        "venue_year": "arXiv (Cornell University) 2025",
+        "bottleneck_targeted": "HLS directives create combinatorial design-space cost and weak Pareto search."
+      },
+      {
+        "paper_id": "openalex:W4411950606",
+        "title": "AI-Powered, But Power-Hungry? Energy Efficiency of LLM-Generated Code",
+        "venue_year": "arXiv 2025-04",
+        "bottleneck_targeted": "Energy and performance quality of LLM-generated code is under-measured beyond correctness."
+      },
+      {
+        "paper_id": "openalex:W4416151146",
+        "title": "Implementation and Performance Analysis of LLaMA on a CGLA",
+        "venue_year": "Lecture notes in networks and systems 2025",
+        "bottleneck_targeted": "Not stated in the retrieved record."
+      },
+      {
+        "paper_id": "openalex:W4403214722",
+        "title": "Code Generation and Algorithmic Problem Solving Using Llama 3.1 405B",
+        "venue_year": "arXiv 2024-10",
+        "bottleneck_targeted": "Llama code generation struggles on complex quantum, bioinformatics, and AI problems."
+      },
+      {
+        "paper_id": "openalex:W4409214894",
+        "title": "LLM-enhanced representation learning for graph collaborative filtering recommendation models",
+        "venue_year": "Journal of Intelligent Information Systems 2025",
+        "bottleneck_targeted": "Not stated in the retrieved record."
+      },
+      {
+        "paper_id": "openalex:W4406214400",
+        "title": "A Survey on Hardware Accelerators for Large Language Models",
+        "venue_year": "Applied Sciences 2025",
+        "bottleneck_targeted": "LLM scale creates hardware performance and energy challenges."
+      },
+      {
+        "paper_id": "openalex:W4409568286",
+        "title": "A Survey on Deep Learning Hardware Accelerators for Heterogeneous HPC Platforms",
+        "venue_year": "ACM Computing Surveys 2025",
+        "bottleneck_targeted": "Deep-learning HPC needs a classification of diverse accelerator options."
+      },
+      {
+        "paper_id": "openalex:W7117652229",
+        "title": "A Review of FPGA-Driven LLM Acceleration",
+        "venue_year": "arXiv 2025-12",
+        "bottleneck_targeted": "FPGA LLM deployment suffers resource and memory-bandwidth limits."
+      },
+      {
+        "paper_id": "openalex:W4405825769",
+        "title": "Graph neural network based on graph kernel: A survey",
+        "venue_year": "Pattern Recognition 2024",
+        "bottleneck_targeted": "Not stated in the retrieved record."
+      }
+    ],
+    "phase3_collision": [
+      {
+        "paper_id": "openalex:W4415002699",
+        "title": "TornadoViz: Visualizing Heterogeneous Execution Patterns in Modern Managed Runtime Systems",
+        "venue_year": "2025"
+      },
+      {
+        "paper_id": "openalex:W7164172704",
+        "title": "Building a C-Subset Compiler for the FRISC Architecture: From Formal Languages to Executable Code",
+        "venue_year": "Zenodo (CERN European Organization for Nuclear Research) 2026"
+      },
+      {
+        "paper_id": "openalex:W7167747646",
+        "title": "Differentiate the Evaluator, Not the Program: An Efficient Runtime Representation for Neuro-Symbolic Learning",
+        "venue_year": "arXiv (Cornell University) 2026"
+      },
+      {
+        "paper_id": "openalex:W7165817740",
+        "title": "What You See Is Not What You Execute: Memory-Based Runtime SBOM Generation for Supply Chain Security",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2604.26889v1",
+        "title": "Revealing NVIDIA Closed-Source Driver Command Streams for CPU-GPU Runtime Behavior Insight",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2512.11920v1",
+        "title": "CXL-SpecKV: A Disaggregated FPGA Speculative KV-Cache for Datacenter LLM Serving",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "arxiv:2601.14204v1",
+        "title": "Native linear-optical protocol for efficient multivariate trace estimation",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "openalex:W4404570913",
+        "title": "Deegen: A JIT-Capable VM Generator for Dynamic Languages",
+        "venue_year": "Proceedings of the ACM on Programming Languages 2026"
+      },
+      {
+        "paper_id": "openalex:W7154539093",
+        "title": "Infernux: A Python-Native Game Engine with JIT-Accelerated Scripting",
+        "venue_year": "arXiv (Cornell University) 2026"
+      },
+      {
+        "paper_id": "openalex:W7171268151",
+        "title": "NVIDIA-labs OO Agents: Native Python Object-Oriented Agents",
+        "venue_year": "arXiv (Cornell University) 2026"
+      },
+      {
+        "paper_id": "openalex:W7161055456",
+        "title": "FirmCross: Detecting Taint-style Vulnerabilities in Modern C-Lua Hybrid Web Services of Linux-based Firmware",
+        "venue_year": "2026"
+      },
+      {
+        "paper_id": "openalex:W7134291504",
+        "title": "Real-World Fault Detection for C-Extended Python Projects with Automated Unit Test Generation",
+        "venue_year": "arXiv (Cornell University) 2026"
+      },
+      {
+        "paper_id": "arxiv:2602.22152v1",
+        "title": "Stream Neural Networks: Epoch-Free Learning with Persistent Temporal State",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2512.23709v2",
+        "title": "Stream-DiffVSR: Low-Latency Streamable Video Super-Resolution via Auto-Regressive Diffusion",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "arxiv:2511.08441v1",
+        "title": "Maximizing the Score in \"Ticket to Ride\"",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "arxiv:2604.12213v1",
+        "title": "Modality-Native Routing in Agent-to-Agent Networks: A Multimodal A2A Protocol Extension",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2602.11549v2",
+        "title": "Native Reasoning Models: Training Language Models to Reason on Unverifiable Data",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2605.10216v2",
+        "title": "The Impact of Editorial Intervention on Detecting Native Language Traces",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "openalex:W4400025596",
+        "title": "Designing Transport-Level Encryption for Datacenter Networks",
+        "venue_year": "2026"
+      },
+      {
+        "paper_id": "openalex:W7154946960",
+        "title": "Exploring the Implementation Space of Abstract Syntax Tree and Bytecode Interpreters",
+        "venue_year": "Kent Academic Repository (University of Kent) 2025"
+      },
+      {
+        "paper_id": "openalex:W7130368696",
+        "title": "Efficient Java Bytecode Analysis and Sequence Identification for Embedded Systems",
+        "venue_year": "VAWKUM Transactions on Computer Sciences 2025"
+      },
+      {
+        "paper_id": "openalex:W7164318503",
+        "title": "Interpreter Memory Safety via Differential Fuzzing with a CHERI on Top",
+        "venue_year": "2026"
+      },
+      {
+        "paper_id": "openalex:W4415002400",
+        "title": "Copy-and-Patch Just-in-Time Compiler for R",
+        "venue_year": "2025"
+      },
+      {
+        "paper_id": "openalex:W7124465542",
+        "title": "Approche indépendante du langage fondée sur des métamodèles pour la génération de tests unitaires à partir de traces d’exécution",
+        "venue_year": "theses.fr (ABES) 2025"
+      },
+      {
+        "paper_id": "arxiv:2603.16039v2",
+        "title": "Residual Stream Duality in Modern Transformer Architectures",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2510.14924v2",
+        "title": "StarStream on Gaia: Stream discovery and mass loss rate of globular clusters",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "arxiv:2601.13948v3",
+        "title": "Stream-Voice-Anon: Enhancing Utility of Real-Time Speaker Anonymization via Neural Audio Codec and Language Models",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2606.15549v2",
+        "title": "One Goal, Many Commands: Characterizing Denylist Fragility in AI Agents",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2511.06955v1",
+        "title": "FPGA-Accelerated RISC-V ISA Extensions for Efficient Neural Network Inference on Edge Devices",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "arxiv:2512.24713v2",
+        "title": "FPGA Co-Design for Efficient N:M Sparse and Quantized Model Inference",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "arxiv:2603.06580v1",
+        "title": "RISCBench: Benchmarking RISC-V Orchestration Efficiency in FPGA and FPGA-Like Computing Engines",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "arxiv:2603.18511v2",
+        "title": "Norm-trace and Kloosterman sums in finite semi-simple algebras",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2605.25038v1",
+        "title": "TRACE: A taxonomy-grounded synthetic dataset for teaching-program generation and session interpretation in Applied Behavior Analysis",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2604.16416v1",
+        "title": "Tensor Manifold-Based Graph-Vector Fusion for AI-Native Academic Literature Retrieval",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2606.13967v1",
+        "title": "Choric Masking in Ambient Release Systems: A Finite Certificate Calculus for Trace Indistinguishability under Bounded Audiences",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2512.07065v1",
+        "title": "Persistent Homology-Guided Frequency Filtering for Image Compression",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "openalex:W7134860508",
+        "title": "SafarDB: FPGA-Accelerated Distributed Transactions via Replicated Data Types",
+        "venue_year": "arXiv (Cornell University) 2026"
+      },
+      {
+        "paper_id": "openalex:W7167959307",
+        "title": "A comprehensive review on green AI methods, strategies &amp; measurement frameworks",
+        "venue_year": "Journal of King Saud University - Computer and Information Sciences 2026"
+      },
+      {
+        "paper_id": "openalex:W7152446207",
+        "title": "Cold Start Latency Optimization Strategies for Function as a Service Platforms",
+        "venue_year": "Jisuanji shenghuojia. 2026"
+      },
+      {
+        "paper_id": "openalex:W7163595983",
+        "title": "PyFEX: Uncovering Evasive Python-based Threats via Resilient and Exhaustive Path Exploration",
+        "venue_year": "arXiv (Cornell University) 2026"
+      },
+      {
+        "paper_id": "openalex:W7124870361",
+        "title": "FPGA Based Quantum Circuit Simulator: Processing 30 Qubit Systems",
+        "venue_year": "Research Square 2026"
+      },
+      {
+        "paper_id": "openalex:W7167276900",
+        "title": "Author response: Efficient and reproducible pipelines for spike sorting large-scale electrophysiology data",
+        "venue_year": "2026"
+      },
+      {
+        "paper_id": "openalex:W7167219996",
+        "title": "eLife Assessment: Efficient and reproducible pipelines for spike sorting large-scale electrophysiology data",
+        "venue_year": "2026"
+      },
+      {
+        "paper_id": "openalex:W7167238901",
+        "title": "Reviewer #2 (Public review): Efficient and reproducible pipelines for spike sorting large-scale electrophysiology data",
+        "venue_year": "2026"
+      },
+      {
+        "paper_id": "openalex:W7167257866",
+        "title": "Reviewer #1 (Public review): Efficient and reproducible pipelines for spike sorting large-scale electrophysiology data",
+        "venue_year": "2026"
+      },
+      {
+        "paper_id": "openalex:W4413597621",
+        "title": "A Conceptual Framework for Cloud Cost Optimization through Automated Query Refactoring and Materialization",
+        "venue_year": "International Journal of Multidisciplinary Research and Growth Evaluation 2023"
+      },
+      {
+        "paper_id": "openalex:W4385299378",
+        "title": "Asynchronous Multi-Agent Reinforcement Learning for Collaborative Partial Charging in Wireless Rechargeable Sensor Networks",
+        "venue_year": "IEEE Transactions on Mobile Computing 2023"
+      },
+      {
+        "paper_id": "openalex:W4390939129",
+        "title": "Multi-Objective Prioritized Task Scheduler Using Improved Asynchronous Advantage Actor Critic (a3c) Algorithm in Multi Cloud Environment",
+        "venue_year": "IEEE Access 2024"
+      },
+      {
+        "paper_id": "openalex:W4402401481",
+        "title": "PWSA3C: Prioritized Workflow Scheduler in Cloud Computing Using Asynchronous Advantage Actor Critic (A3C) Algorithm",
+        "venue_year": "IEEE Access 2024"
+      },
+      {
+        "paper_id": "openalex:W4402654857",
+        "title": "Efficient deep reinforcement learning based task scheduler in multi cloud environment",
+        "venue_year": "Scientific Reports 2024"
+      },
+      {
+        "paper_id": "semanticscholar:fd5a5557fcf8e9ed741bd3bf2d7f218400b2d821",
+        "title": "DistFlow: A Fully Distributed RL Framework for Scalable and Efficient LLM Post-Training",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "semanticscholar:ef23e2234139db8af287079a4761cc8681a33272",
+        "title": "AsyncLane: Decoupling Refinement from Advancement in Diffusion Language Model Decoding",
+        "venue_year": "2026"
+      },
+      {
+        "paper_id": "semanticscholar:22274f8474c88978033dc5320072ed5643dc50aa",
+        "title": "PreMatch: A Prediction-based Scheduler for Dataflow Asynchronous Processing on the Computing Continuum",
+        "venue_year": "ACM Symposium on Applied Computing 2025"
+      },
+      {
+        "paper_id": "semanticscholar:e600c867fdc7896485e391b00e2da1c84a916727",
+        "title": "ACGraph: An Efficient Asynchronous Out-of-Core Graph Processing Framework",
+        "venue_year": "Proc. ACM Manag. Data 2025"
+      },
+      {
+        "paper_id": "semanticscholar:9bdf824b09332c74e65fbd94303f8a86f2f2c55b",
+        "title": "Relax and don't Stop: Graph-aware Asynchronous SSSP",
+        "venue_year": "FCPC@PPOPP 2025"
+      },
+      {
+        "paper_id": "semanticscholar:873a2a12b5d034663121cb40cd5e8d2d2afe4740",
+        "title": "An Asynchronous Multi-Task Iterative Auction-Based Method for Distributed Multi-UAV Task Scheduling",
+        "venue_year": "Cybersecurity and Cyberforensics Conference 2025"
+      },
+      {
+        "paper_id": "semanticscholar:fcfedbd5c79f4d3f0e3d2bf981aab8f6f6ff8a9d",
+        "title": "Asynchronous Multi-Agent Reinforcement Learning for Collaborative Partial Charging in Wireless Rechargeable Sensor Networks",
+        "venue_year": "IEEE Transactions on Mobile Computing 2024"
+      },
+      {
+        "paper_id": "semanticscholar:017f19409d3262280d7334f8dcb2c8324871ac48",
+        "title": "Dynamic Task Scheduling with Data Dependency Awareness Using Julia",
+        "venue_year": "IEEE Conference on High Performance Extreme Computing 2024"
+      },
+      {
+        "paper_id": "semanticscholar:60adfd8456770deebcdd2763aba5c5d69c845b31",
+        "title": "Energy Optimization for Federated Learning on Consumer Mobile Devices With Asynchronous SGD and Application Co-Execution",
+        "venue_year": "IEEE Transactions on Mobile Computing 2024"
+      },
+      {
+        "paper_id": "semanticscholar:7c617830e3e6b6d81a79db335440f9f768c7954a",
+        "title": "Marco: A Stochastic Asynchronous Concolic Explorer",
+        "venue_year": "International Conference on Software Engineering 2024"
+      },
+      {
+        "paper_id": "arxiv:2403.18364v2",
+        "title": "Intent-Aware DRL-Based NOMA Uplink Dynamic Scheduler for IIoT",
+        "venue_year": "arXiv 2024"
+      },
+      {
+        "paper_id": "arxiv:2409.03915v3",
+        "title": "Asynchronous Stochastic Approximation with Applications to Average-Reward Reinforcement Learning",
+        "venue_year": "arXiv 2024"
+      },
+      {
+        "paper_id": "arxiv:2603.10093v2",
+        "title": "Equivariant Asynchronous Diffusion: An Adaptive Denoising Schedule for Accelerated Molecular Conformation Generation",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2607.09207v1",
+        "title": "Bidirectional Resource Scheduling for Disaggregated and Asynchronous RL Post-Training",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2502.21003v1",
+        "title": "Dual tunability of selective reflection by light and electric field for self-organizing materials",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "arxiv:2310.12099v1",
+        "title": "Zigzag materials: selective interchain couplings control the coexistence of one-dimensional physics and deviations from it",
+        "venue_year": "arXiv 2023"
+      },
+      {
+        "paper_id": "arxiv:2409.01764v1",
+        "title": "Gradient events: improved acquisition of visual information in event cameras",
+        "venue_year": "arXiv 2024"
+      },
+      {
+        "paper_id": "arxiv:2312.09326v2",
+        "title": "WaveCert: Translation Validation for Asynchronous Dataflow Programs via Dynamic Fractional Permissions",
+        "venue_year": "arXiv 2023"
+      },
+      {
+        "paper_id": "arxiv:2212.08099v1",
+        "title": "DFEE: Interactive DataFlow Execution and Evaluation Kit",
+        "venue_year": "arXiv 2022"
+      },
+      {
+        "paper_id": "arxiv:2504.07206v2",
+        "title": "A New Execution Model and Executor for Adaptively Optimizing the Performance of Parallel Algorithms Using HPX Runtime System",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "arxiv:2401.05626v1",
+        "title": "A Composable Dynamic Sparse Dataflow Architecture for Efficient Event-based Vision Processing on FPGA",
+        "venue_year": "arXiv 2024"
+      },
+      {
+        "paper_id": "openalex:W4321636588",
+        "title": "GraphFly: Efficient Asynchronous Streaming Graphs Processing via Dependency-Flow",
+        "venue_year": "2022"
+      },
+      {
+        "paper_id": "openalex:W4393241305",
+        "title": "Dynamic Task Offloading in Edge Computing Based on Dependency-Aware Reinforcement Learning",
+        "venue_year": "IEEE Transactions on Cloud Computing 2024"
+      },
+      {
+        "paper_id": "openalex:W4402025544",
+        "title": "Workflow scheduling based on asynchronous advantage actor–critic algorithm in multi-cloud environment",
+        "venue_year": "Expert Systems with Applications 2024"
+      },
+      {
+        "paper_id": "openalex:W4394891416",
+        "title": "Catalyzing green entrepreneurial behavior: the role of intentions and selective factors",
+        "venue_year": "Cogent Business & Management 2024"
+      },
+      {
+        "paper_id": "openalex:W4377029236",
+        "title": "Improvement of superconducting properties in <mml:math xmlns:mml=\"http://www.w3.org/1998/Math/MathML\"><mml:mrow><mml:msub><mml:mi>La</mml:mi><mml:mrow><mml:mn>1</mml:mn><mml:mo>−</mml:mo><mml:mi>x</mml:mi></mml:mrow></mml:msub><mml:msub><mml:mi>Sr</mml:mi><mml:mi>x</mml:mi></mml:msub><mml:mi>Ni</mml:mi><mml:msub><mml:mi mathvariant=\"normal\">O</mml:mi><mml:mn>2</mml:mn></mml:msub></mml:mrow></mml:math> thin films by tuning topochemical reduction temperature",
+        "venue_year": "Physical Review Materials 2023"
+      },
+      {
+        "paper_id": "openalex:W4364382874",
+        "title": "FlexMoE: Scaling Large-scale Sparse Pre-trained Model Training via Dynamic Device Placement",
+        "venue_year": "Proceedings of the ACM on Management of Data 2023"
+      },
+      {
+        "paper_id": "openalex:W4417291546",
+        "title": "Supporting Dynamic Agentic Workloads: How Data and Agents Interact",
+        "venue_year": "arXiv (Cornell University) 2025"
+      },
+      {
+        "paper_id": "semanticscholar:eaff9b240d724c1cfd822d0b006f6a61e9fe5ebc",
+        "title": "DepAsync: An Asynchronous SNN Accelerator Based on Core-Dependency",
+        "venue_year": "IEEE transactions on computers 2026"
+      },
+      {
+        "paper_id": "semanticscholar:29e9752589939d85e1ae8cc229315ac6816da187",
+        "title": "FedOptima: Optimizing resource utilization in federated learning",
+        "venue_year": "Future generations computer systems 2025"
+      },
+      {
+        "paper_id": "semanticscholar:8a8e15a2cd4d59a4b5b5f528901d5a371d9abe84",
+        "title": "Asynchronous Federated Deep-Reinforcement-Learning-Based Dependency Task Offloading for UAV-Assisted Vehicular Networks",
+        "venue_year": "IEEE Internet of Things Journal 2024"
+      },
+      {
+        "paper_id": "semanticscholar:aae63573571164586ae1defb7467af9640460208",
+        "title": "TERA-Scheduler for a Dependency-based Orchestration of Microservices",
+        "venue_year": "International Conference on Advanced Aspects of Software Engineering 2022"
+      },
+      {
+        "paper_id": "semanticscholar:c17c0b7d1e7a651992692363d2ed1829adcbd4c8",
+        "title": "Gradientsys: A Multi-Agent LLM Scheduler with ReAct Orchestration",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "semanticscholar:ff0607d5b7fc6c749e7c572a0e4fc3930f8b3187",
+        "title": "AReaL-Hex: Accommodating Asynchronous RL Training over Heterogeneous GPUs",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "semanticscholar:d6cc5fbc8002a894b724d0fc09a6855cffc3d8e9",
+        "title": "Time to Talk: LLM Agents for Asynchronous Group Communication in Mafia Games",
+        "venue_year": "Conference on Empirical Methods in Natural Language Processing 2025"
+      },
+      {
+        "paper_id": "semanticscholar:4cb0c4de7380582f4749b17b09dd1c2cce47f85e",
+        "title": "TOP: Task-Based Operator Parallelism for Asynchronous Deep Learning Inference on GPU",
+        "venue_year": "IEEE Transactions on Parallel and Distributed Systems 2025"
+      },
+      {
+        "paper_id": "semanticscholar:c5ae70154d81a5e72f72c6616a2d908458acb55b",
+        "title": "User-friendly scheduler Using a hybrid architecture and supercomputing for big data processing",
+        "venue_year": "bioRxiv 2025"
+      },
+      {
+        "paper_id": "semanticscholar:2f876a641e2f3787bf761f0d5a7d89a997433b0f",
+        "title": "Breaking the Storage-Compute Bottleneck in Billion-Scale ANNS: A GPU-Driven Asynchronous I/O Framework",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "semanticscholar:4ce2fad4774e2cfcc06253a65424917c1eadad08",
+        "title": "Evaluating Asynchronous Semantics in Trace-Discovered Resilience Models: A Case Study on the OpenTelemetry Demo",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "semanticscholar:4b6a567736fbf0e38f088806af06fba4a59f79e2",
+        "title": "AR-Diffusion: Asynchronous Video Generation with Auto-Regressive Diffusion",
+        "venue_year": "Computer Vision and Pattern Recognition 2025"
+      },
+      {
+        "paper_id": "semanticscholar:2726fc251b6fbd05aa5841b69ebf4ba4815a09c3",
+        "title": "AsyncFlow: An Asynchronous Streaming RL Framework for Efficient LLM Post-Training",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "semanticscholar:bd4dd6b2beb899c27186be52e19f108ccc36956e",
+        "title": "Approach to Improving Asynchronous Traffic Shaping Performance Using a Combination of Shaper",
+        "venue_year": "International Symposium on Industrial Electronics 2024"
+      },
+      {
+        "paper_id": "semanticscholar:cb5dc452a24ff6ab1461a70db6ff2403c02ede28",
+        "title": "FlashANNS: GPU-Driven Asynchronous I/O Pipelining for Eliminating Storage-Compute Bottlenecks in Billion-Scale Similarity Search",
+        "venue_year": "Proceedings of the ACM on Management of Data 2026"
+      },
+      {
+        "paper_id": "semanticscholar:994e0e3cc24cc63e415a5cfd7cd6de20a7302bd4",
+        "title": "GART: Graph Neural Network-Based Adaptive and Robust Task Scheduler for Heterogeneous Distributed Computing",
+        "venue_year": "IEEE Access 2025"
+      },
+      {
+        "paper_id": "semanticscholar:f2a884f97f6559cc0ee8c1b71f0dc41539cfd38c",
+        "title": "TPipe: Efficient Spiking Transformer Training with Time Parallelism and Asynchronous Pipeline",
+        "venue_year": "IEEE Conference on Computer Communications 2026"
+      },
+      {
+        "paper_id": "semanticscholar:b478c0990e2fb25ec100e32f4acc18573fe6eff5",
+        "title": "From Fork-Join to Asynchronous Tasks: Parallelizing Tiled Cholesky Decomposition with OpenMP and HPX",
+        "venue_year": "2026"
+      },
+      {
+        "paper_id": "openreview:FPBtaGBv81",
+        "title": "Dynamic Trust Region Adaptation for \\\\ Human-in-the-Loop Reinforcement Learning \\\\ in Code Refinement",
+        "venue_year": "ICLR 2026 (in review)"
+      },
+      {
+        "paper_id": "openreview:K4ngUOra9m",
+        "title": "Masked Skill Token Training for Hierarchical Off-Dynamics Transfer",
+        "venue_year": "ICLR 2026 (in review)"
+      },
+      {
+        "paper_id": "openreview:3Gre3i1tSD",
+        "title": "GRACE-MoE: Grouping and Replication with Locality-Aware Routing for Efficient Distributed MoE Inference",
+        "venue_year": "ICLR 2026 (in review)"
+      },
+      {
+        "paper_id": "openreview:uKrcWZ2V0F",
+        "title": "Training as Computation: A Resource-Bounded Theory of Continual Self-Play Learning",
+        "venue_year": "ICLR 2026 (in review)"
+      },
+      {
+        "paper_id": "arxiv:2501.09449v1",
+        "title": "AR-SFQ: Asynchronous Reset Library Using α-Cell Design",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "arxiv:2412.08149v1",
+        "title": "AsyncDSB: Schedule-Asynchronous Diffusion Schrödinger Bridge for Image Inpainting",
+        "venue_year": "arXiv 2024"
+      },
+      {
+        "paper_id": "arxiv:2606.19662v1",
+        "title": "Learning When to Denoise: Optimizing Asynchronous Schedules for Latent Diffusion",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2506.03694v1",
+        "title": "LRScheduler: A Layer-aware and Resource-adaptive Container Scheduler in Edge Computing",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "arxiv:2509.11663v2",
+        "title": "ConEQsA: Concurrent and Asynchronous Embodied Questions Scheduling and Answering",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "arxiv:2306.01207v1",
+        "title": "CSMAAFL: Client Scheduling and Model Aggregation in Asynchronous Federated Learning",
+        "venue_year": "arXiv 2023"
+      },
+      {
+        "paper_id": "arxiv:2310.04813v1",
+        "title": "Age of Information Guaranteed Scheduling for Asynchronous Status Updates in Collaborative Perception",
+        "venue_year": "arXiv 2023"
+      },
+      {
+        "paper_id": "arxiv:2312.10356v1",
+        "title": "End-to-End Asynchronous Traffic Scheduling in Converged 5G and Time-Sensitive Networks",
+        "venue_year": "arXiv 2023"
+      },
+      {
+        "paper_id": "arxiv:2401.11377v1",
+        "title": "Joint User Scheduling and Computing Resource Allocation Optimization in Asynchronous Mobile Edge Computing Networks",
+        "venue_year": "arXiv 2024"
+      },
+      {
+        "paper_id": "arxiv:2605.17463v1",
+        "title": "Teachers' Vocal Expressions and Student Engagement in Asynchronous Video Learning",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2309.00410v2",
+        "title": "Selective Scene Text Removal",
+        "venue_year": "arXiv 2023"
+      },
+      {
+        "paper_id": "arxiv:2603.02204v2",
+        "title": "Partial Causal Structure Learning for Valid Selective Conformal Inference under Interventions",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2210.03026v1",
+        "title": "Computing Race Variants in Message-Passing Concurrent Programming with Selective Receives",
+        "venue_year": "arXiv 2022"
+      },
+      {
+        "paper_id": "arxiv:2312.05021v1",
+        "title": "A Negative Result on Gradient Matching for Selective Backprop",
+        "venue_year": "arXiv 2023"
+      },
+      {
+        "paper_id": "arxiv:2304.08532v1",
+        "title": "Hybrid Materialization in a Disk-Based Column-Store",
+        "venue_year": "arXiv 2023"
+      },
+      {
+        "paper_id": "arxiv:2503.04366v1",
+        "title": "Twisted heterobilayer photonic crystal based on stacking and selective etching of 2D materials",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "arxiv:2504.04924v3",
+        "title": "Inter-event Interval Microscopy for Event Cameras",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "arxiv:2403.12523v1",
+        "title": "GraphERE: Jointly Multiple Event-Event Relation Extraction via Graph-Enhanced Event Embeddings",
+        "venue_year": "arXiv 2024"
+      },
+      {
+        "paper_id": "arxiv:2310.02642v1",
+        "title": "GET: Group Event Transformer for Event-Based Vision",
+        "venue_year": "arXiv 2023"
+      },
+      {
+        "paper_id": "arxiv:2602.23204v4",
+        "title": "Motion-aware Event Suppression for Event Cameras",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2606.26701v1",
+        "title": "SegFold: Accelerating Sparse GEMM with a Fine-Grained Dynamic Dataflow",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2603.10443v1",
+        "title": "3D Spectrum Awareness for Radio Dynamic Zones Using Kriging and Matrix Completion",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2510.15112v2",
+        "title": "AndroByte: LLM-Driven Privacy Analysis through Bytecode Summarization and Dynamic Dataflow Call Graph Generation",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "arxiv:2406.14733v1",
+        "title": "Suki: Choreographed Distributed Dataflow in Rust",
+        "venue_year": "arXiv 2024"
+      },
+      {
+        "paper_id": "arxiv:2504.11400v1",
+        "title": "FlowUnits: Extending Dataflow for the Edge-to-Cloud Computing Continuum",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "arxiv:2309.13762v3",
+        "title": "Veer: Verifying Equivalence of Dataflow Versions in Iterative Data Analytics (Extended Version)",
+        "venue_year": "arXiv 2023"
+      },
+      {
+        "paper_id": "arxiv:2410.20225v1",
+        "title": "Recursive Function Definitions in Static Dataflow Graphs and their Implementation in TensorFlow",
+        "venue_year": "arXiv 2024"
+      },
+      {
+        "paper_id": "arxiv:2604.12618v1",
+        "title": "CODO: An Automated Compiler for Comprehensive Dataflow Optimization",
+        "venue_year": "arXiv 2026"
+      },
+      {
+        "paper_id": "arxiv:2507.07597v1",
+        "title": "Quantum Executor: A Unified Interface for Quantum Computing",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "openalex:W4308762017",
+        "title": "Matching-based Scheduling of Asynchronous Data Processing Workflows on the Computing Continuum",
+        "venue_year": "2022"
+      },
+      {
+        "paper_id": "openalex:W4385764425",
+        "title": "Spatial-Temporal Self-Attention for Asynchronous Spiking Neural Networks",
+        "venue_year": "2023"
+      },
+      {
+        "paper_id": "openalex:W4399073645",
+        "title": "A Multidimensional Communication Scheduling Method for Hybrid Parallel DNN Training",
+        "venue_year": "IEEE Transactions on Parallel and Distributed Systems 2024"
+      },
+      {
+        "paper_id": "openalex:W4391791538",
+        "title": "Decomposition and Meta-DRL Based Multi-Objective Optimization for Asynchronous Federated Learning in 6G-Satellite Systems",
+        "venue_year": "IEEE Journal on Selected Areas in Communications 2024"
+      },
+      {
+        "paper_id": "openalex:W4296079434",
+        "title": "DRAS: Deep Reinforcement Learning for Cluster Scheduling in High Performance Computing",
+        "venue_year": "IEEE Transactions on Parallel and Distributed Systems 2022"
+      },
+      {
+        "paper_id": "openalex:W4391621067",
+        "title": "AoI-Aware Energy-Efficient SFC in UAV-Aided Smart Agriculture Using Asynchronous Federated Learning",
+        "venue_year": "IEEE Open Journal of the Communications Society 2024"
+      },
+      {
+        "paper_id": "openalex:W4414223135",
+        "title": "DynTaskMAS: A Dynamic Task Graph-driven Framework for Asynchronous and Parallel LLM-based Multi-Agent Systems",
+        "venue_year": "Proceedings of the International Conference on Automated Planning and Scheduling 2025"
+      },
+      {
+        "paper_id": "openalex:W4313334805",
+        "title": "Robust-stable scheduling in dynamic flow shops based on deep reinforcement learning",
+        "venue_year": "Journal of Intelligent Manufacturing 2022"
+      },
+      {
+        "paper_id": "openalex:W4392382424",
+        "title": "Exploring Humic Acid as an Efficient and Selective Adsorbent for Lead Removal in Multi-Metal Coexistence Systems: A Review",
+        "venue_year": "Separations 2024"
+      },
+      {
+        "paper_id": "openalex:W4414100373",
+        "title": "Synergetic Catalysis of Pd Single Atom and Subnanometer Cluster Enables Ambient Temperature H<sub>2</sub>O<sub>2</sub> Production via Selective Hydrogenation of 2-Ethylanthraquinone",
+        "venue_year": "ACS Catalysis 2025"
+      },
+      {
+        "paper_id": "openalex:W4386504997",
+        "title": "DFCPP Runtime Library for Dataflow Programming",
+        "venue_year": "2023"
+      },
+      {
+        "paper_id": "openalex:W4404371576",
+        "title": "LightVA: Lightweight Visual Analytics With LLM Agent-Based Task Planning and Execution",
+        "venue_year": "IEEE Transactions on Visualization and Computer Graphics 2024"
+      },
+      {
+        "paper_id": "openalex:W4410095894",
+        "title": "A Unified Portable and Programmable Framework for Task-Based Execution and Dynamic Resource Management on Heterogeneous Systems",
+        "venue_year": "2025"
+      },
+      {
+        "paper_id": "openalex:W4400582453",
+        "title": "Natural Symbolic Execution-Based Testing for Big Data Analytics",
+        "venue_year": "Proceedings of the ACM on software engineering. 2024"
+      },
+      {
+        "paper_id": "openalex:W4391623927",
+        "title": "DataFlower: Exploiting the Data-flow Paradigm for Serverless Workflow Orchestration",
+        "venue_year": "2023"
+      },
+      {
+        "paper_id": "openalex:W4413876816",
+        "title": "Quasi-Static Scheduling for Deterministic Timed Concurrent Models on Multi-Core Hardware",
+        "venue_year": "ACM Transactions on Embedded Computing Systems 2025"
+      },
+      {
+        "paper_id": "openalex:W4385840381",
+        "title": "EDGELESS Project: On the Road to Serverless Edge AI",
+        "venue_year": "2023"
+      },
+      {
+        "paper_id": "openalex:W4405433444",
+        "title": "Large Action Models: From Inception to Implementation",
+        "venue_year": "arXiv (Cornell University) 2024"
+      },
+      {
+        "paper_id": "semanticscholar:9f9cdf9027de1d9b79a7b595b50eca01c543e110",
+        "title": "Complete Visibility Algorithm for Autonomous Mobile Luminous Robots under an Asynchronous Scheduler on Grid Plane",
+        "venue_year": "arXiv 2023"
+      },
+      {
+        "paper_id": "semanticscholar:c609f1f1ec2701e5efc3fe3a6aa66574e3d321a7",
+        "title": "AsyncDiff: Parallelizing Diffusion Models by Asynchronous Denoising",
+        "venue_year": "Neural Information Processing Systems 2024"
+      },
+      {
+        "paper_id": "semanticscholar:6196254750f0e683ef1641d935c09cba832f50f9",
+        "title": "Asynchronous Sharpness-Aware Minimization For Fast and Accurate Deep Learning",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "semanticscholar:8657bf6e5364dad6224edbfc88de9f0d81984beb",
+        "title": "Boosting Blockchain Throughput: Parallel EVM Execution with Asynchronous Storage for Reddio",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "semanticscholar:9b6979f4216f92f38f1cf4ff01243e6561d45094",
+        "title": "Towards Robust Real-World Multivariate Time Series Forecasting: A Unified Framework for Dependency, Asynchrony, and Missingness",
+        "venue_year": "arXiv 2025"
+      },
+      {
+        "paper_id": "semanticscholar:0bcf3d6044029d72de07ea06988a32990a53e9da",
+        "title": "Using Parallel Computing Approaches to Enhance Brute Force Algorithm for Optimal Scheduling in Asynchronous Hierarchical System",
+        "venue_year": "International Conference on Advanced Infocomm Technology 2025"
+      },
+      {
+        "paper_id": "semanticscholar:21d7ea14d6f699c8e277f6d12b9baba1b7b74ddb",
+        "title": "Asynchronous Gathering of Finite Memory Robots on a Circle under Limited Visibility",
+        "venue_year": "International Journal of Foundations of Computer Science 2025"
+      },
+      {
+        "paper_id": "semanticscholar:5bb2fa7c8bf3358d333a757341bb3ce06516d4a2",
+        "title": "Laminar: A Scalable Asynchronous RL Post-Training Framework",
+        "venue_year": "European Conference on Computer Systems 2025"
+      },
+      {
+        "paper_id": "semanticscholar:6632a9f96f8074743985b9c99bbb26ad922ad327",
+        "title": "Accelerated Asynchronous Parallel Stochastic Gradient Descent Algorithm for High-Dimensional and Sparse Data Low-rank Representation",
+        "venue_year": "International Conference on Networking, Sensing and Control 2024"
+      },
+      {
+        "paper_id": "semanticscholar:32c402c2cab23299458f1819bc823c79d7219e9c",
+        "title": "CDA-GNN: A Chain-driven Accelerator for Efficient Asynchronous Graph Neural Network",
+        "venue_year": "Design Automation Conference 2024"
+      },
+      {
+        "paper_id": "semanticscholar:d5da887c6b77a8e4d7e38fd94987888ba9553dec",
+        "title": "Asynchronous Real-Time Federated Learning for Anomaly Detection in Microservice Cloud Applications",
+        "venue_year": "IEEE Transactions on Machine Learning in Communications and Networking 2025"
+      },
+      {
+        "paper_id": "semanticscholar:a2b955d9c7a895a71b43b1d3d38aa1d2d15e2441",
+        "title": "A Fairness-Guaranteed Framework for Semi-Asynchronous Federated Learning",
+        "venue_year": "IEEE Transactions on Network Science and Engineering 2025"
+      },
+      {
+        "paper_id": "semanticscholar:ec2f41443b2156e205bc05a2c9b642abc1144cbf",
+        "title": "An Asynchronous Multi-core Accelerator for SNN inference",
+        "venue_year": "arXiv 2024"
+      },
+      {
+        "paper_id": "semanticscholar:1fc142dea8a36d67ba830ecb890f9e9a8f8e5e35",
+        "title": "Holistic Performance Analysis for Asynchronous Many-Task Runtimes",
+        "venue_year": "IEEE International Conference on Cluster Computing 2024"
+      },
+      {
+        "paper_id": "semanticscholar:3a19335f139a7d9036a7f4918b2e10ff5d43a3aa",
+        "title": "Accelerating Sparse-Sparse-Dense Graph Matrix Operator using Asynchronous Execution in GPUs",
+        "venue_year": "IEEE International Parallel and Distributed Processing Symposium 2026"
+      },
+      {
+        "paper_id": "semanticscholar:758ece42471fc450798d62b96bf270ab82c9fd87",
+        "title": "DFA-SpTRSV: A Depth-First Asynchronous Algorithm for Sparse Triangular Solver",
+        "venue_year": "IEEE International Parallel and Distributed Processing Symposium 2026"
+      },
+      {
+        "paper_id": "openreview:DdGCjvrFs0",
+        "title": "BioSensGraph: Predicting Biopolymer Interactions via Knowledge Graph Embedding on a Property Graph of Molecular Entities",
+        "venue_year": "ICLR 2026 (in review)"
+      },
+      {
+        "paper_id": "openreview:CyVUxyDc4U",
+        "title": "IDAP++: Advancing Divergence-Based Pruning via Filter-Level and Layer-Level Optimization",
+        "venue_year": "ICLR 2026 (in review)"
+      }
+    ]
+  }
+}

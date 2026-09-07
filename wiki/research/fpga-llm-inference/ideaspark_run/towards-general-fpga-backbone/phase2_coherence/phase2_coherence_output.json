@@ -1,0 +1,468 @@
+{
+  "trace_report": {
+    "formalized_procedure": [
+      {
+        "step": "S1",
+        "consumes": [
+          "GGML tensor descriptor T: dimensions ne[0..n-1], byte strides nb[0..n-1], type, root-view byte offset o, root allocation/BO identity",
+          "process-local monotonic allocation_id"
+        ],
+        "produces": [
+          "normalized set of half-open byte intervals F(T), keyed by allocation identity",
+          "overflow/bounds-validity result"
+        ],
+        "note": "Verbatim: \"1. Add allocation_id and root-view tracking to the existing GGML FPGA tensor metadata; input GGML tensor descriptors produce normalized, overflow-checked F16 footprint interval sets keyed by the owning XRT BO.\" For an F16 tensor with n dimensions, the defensible intended reading is one 2-byte interval at o + sum(i_k*nb_k) for every 0 <= i_k < ne_k, followed by interval union. The core equation's s_k is otherwise a free/undefined index. A second defensible reading applies the same equation to all GGML types because the mechanism claims unchanged admission; that reading is false for block-quantized types. The patch makes the F16-only reading explicit and leaves other accepted nodes on the existing path."
+      },
+      {
+        "step": "S2",
+        "consumes": [
+          "accepted GGML node N with arity m",
+          "F(T) for each operand tensor",
+          "implementation-specific operand-role/effect entry"
+        ],
+        "produces": [
+          "Read(N): normalized allocation-interval set",
+          "Write(N): normalized allocation-interval set",
+          "overlap edges between node effects"
+        ],
+        "note": "Verbatim: \"2. Add explicit read/write operand-role tables for the currently accepted implementations and run the effect extractor before graph launch; input nodes and canonical footprints produce per-node effects plus overlap edges.\" Reading A treats a role table as logical input/output roles only; this misses padding, vector over-read/over-write, implementation scratch, and conditional operands. Reading B treats it as a complete physical-access contract for each implementation. Only Reading B can establish exact effects, so the wording is patched to require completeness and fail closed for region eligibility."
+      },
+      {
+        "step": "S3",
+        "consumes": [
+          "two complete ordered trace sequences, pp512 and tg128",
+          "per-node signatures, effects, purity/state classification, and baseline wait durations",
+          "candidate lengths L in {2,3,4,5,6}"
+        ],
+        "produces": [
+          "eligible repeated-region occurrence sets",
+          "one selected region signature R*"
+        ],
+        "note": "Verbatim: \"3. Scan the existing complete Gemma 3 1B F16 pp512/tg128 traces for repeated contiguous DAG regions of two to six pure accepted nodes, reject any region with KV mutation, in-place writes, external aliases, or non-closed effects, and deterministically emit R* using the wait-mass selection rule.\" 'Contiguous DAG region' admits at least two readings: consecutive nodes in captured topological order, or a connected subgraph whose nodes need not be consecutive. 'Repeated ... in pp512/tg128' can mean repeated in each trace or repeated in their union. 'Attributable wait mass' can double-count overlapping occurrences. These ambiguities affect selection and are patched to consecutive trace indices, combined-corpus recurrence, integer-duration aggregation, and a deterministic non-overlapping occurrence set."
+      },
+      {
+        "step": "S4",
+        "consumes": [
+          "R* signature and effects",
+          "boundary tensor type/shape/stride records",
+          "bounded dimensions/status schema/artifact UUID"
+        ],
+        "produces": [
+          "serialized region-seal manifest",
+          "digest-qualified substitution entry, or no entry"
+        ],
+        "note": "Verbatim: \"4. Serialize R* into a region-seal manifest containing node signatures, boundary metadata, normalized effects, bounded dimensions, status codes, and artifact UUID; the manifest checker either emits a digest-qualified substitution entry or leaves every node on the current strict FPGA path.\" Since S1 effects are keyed by process-local allocation_id, digesting them literally makes the seal process-specific. The patched reading alpha-renames allocation identities to canonical manifest slots and validates a live slot-to-allocation binding at launch."
+      },
+      {
+        "step": "S5",
+        "consumes": [
+          "defined R*",
+          "checked manifest and bounded tensor dimensions",
+          "existing arithmetic implementations where reusable"
+        ],
+        "produces": [
+          "one U280 xclbin kernel/artifact that writes fresh terminal-output BOs and one status record"
+        ],
+        "note": "Verbatim: \"5. Implement and synthesize exactly one U280 HLS artifact for R*, reusing the current arithmetic kernels where practical but writing terminal results to fresh BOs and a status record; its output is one xclbin kernel whose bounded control returns only after all R* arithmetic completes.\" S5 has no input if S3 finds no eligible repeated region. The patch makes that outcome an explicit failed premise rather than allowing an undefined R* to reach synthesis."
+      },
+      {
+        "step": "S6",
+        "consumes": [
+          "live GGML graph at graph-compute boundary",
+          "digest-qualified substitution entry",
+          "live allocation identities/ranges",
+          "matched artifact"
+        ],
+        "produces": [
+          "one started run plus one synchronous wait result for each exact non-overlapping R* occurrence, or execution of its original nodes on the strict FPGA path"
+        ],
+        "note": "Verbatim: \"6. At the unchanged GGML graph-compute boundary, rerun the seal check against live allocation_ids and ranges, start the digest-matched artifact once, and synchronously wait once; a mismatch executes the same accepted nodes through the current strict per-node FPGA path, never CPU fallback.\" The step presumes that the backend can recognize an occurrence once, skip all original nodes in that occurrence, and resume at the next node without changing graph admission. No concrete new GGML API is assumed here, but the exact backend control operation remains an implementation obligation."
+      },
+      {
+        "step": "S7",
+        "consumes": [
+          "XRT wait outcome",
+          "artifact status",
+          "fresh terminal-output BOs",
+          "old terminal tensor bindings"
+        ],
+        "produces": [
+          "on success: terminal GGML tensors bound to fresh output storage",
+          "on fault/timeout: explicit existing backend error and old bindings retained"
+        ],
+        "note": "Verbatim: \"7. On successful XRT wait and zero artifact status, atomically replace each unaliased terminal tensor's backend BO ownership record with its fresh BO so downstream GGML nodes consume the new values; on timeout or fault, retain old bindings, release staging BOs after device reset/quiescence, and return the existing explicit error.\" 'Atomically replace each' admits per-tensor sequential replacement and all-terminal transactional replacement readings. Neither is tied to a stated GGML/backend-buffer operation. A GGML tensor commonly denotes an offset inside a backend buffer rather than owning an independently swappable BO, so this step consumes an unstated rebinding capability and cannot be completed on paper."
+      },
+      {
+        "step": "S8",
+        "consumes": [
+          "implemented RegionSeal path",
+          "overlap/reuse/mismatch/status/timeout/downstream-consumer fixtures",
+          "CPU and strict-FPGA references"
+        ],
+        "produces": [
+          "regression comparison results",
+          "binding-preservation and no-fallback assertions"
+        ],
+        "note": "Verbatim: \"8. Add regression tests with overlapping offset/strided views, allocation reuse, forced digest mismatch, injected nonzero artifact status, XRT timeout, and downstream consumers; outputs are compared with the unchanged CPU path and current strict FPGA path, and every negative case must preserve old bindings and produce no fallback.\" The tests can detect a violation but do not construct the missing rebinding or timeout-quiescence semantics."
+      },
+      {
+        "step": "S9",
+        "consumes": [
+          "strict baseline, RegionSeal, and manifest-disabled implementations",
+          "fixed Gemma 3 1B F16 GGUF",
+          "pp512 and tg128 regimes",
+          "30 post-warmup repetitions per arm"
+        ],
+        "produces": [
+          "paired wall-clock samples and medians",
+          "calls/starts/waits/output/token/status/publication/UUID traces"
+        ],
+        "note": "Verbatim: \"9. Run llama-bench pp512 and tg128 on the existing Gemma 3 1B F16 GGUF for 30 post-warmup repetitions per arm, recording end-to-end wall clock, GGML calls, XRT starts/waits, outputs, tokens, status traces, allocation publications, and artifact UUIDs for strict baseline, RegionSeal, and manifest-disabled control.\" The paired estimator targets the declared per-regime median wall clock if pairing and the median-of-paired-run values are specified consistently; the text says 'paired median' but does not say median paired difference versus difference of paired medians. This ambiguity does not alter the storage-contract obstacle and is left as a note because the repair contract forbids edits to the falsification prediction."
+      }
+    ],
+    "dry_run": {
+      "instance": "A two-node pure F16 region repeated at consecutive trace indices in separate pp512 and tg128 processes. Each tensor has shape ne=(2), stride nb=(2), root offset 0, and a dedicated 4-byte logical footprint. In pp512, A,B,C,X,O have process-local allocation_ids 1,2,3,4,5; in tg128 the corresponding allocations have ids 101,102,103,104,105. N1 is X=A+B and N2 is O=X*C. Values are A=[1,2], B=[3,4], C=[2,3], so X=[4,6] and O=[8,18]. The pp512 trace has two non-overlapping occurrences with node-wait pairs (7,5) and (6,4) microseconds. The tg128 trace has two with (8,5) and (7,4) microseconds. A competing three-node signature Q has non-overlapping combined wait mass 42 microseconds.",
+      "execution": {
+        "mode": "unexecuted",
+        "script": "",
+        "output": "No code-execution tool is available in this isolated context; all arithmetic below is hand-computed and marked unexecuted."
+      },
+      "computed_quantities": [
+        {
+          "quantity": "F16 footprints in pp512",
+          "value": "F(A)={(1,[0,4))}, F(B)={(2,[0,4))}, F(C)={(3,[0,4))}, F(X)={(4,[0,4))}, F(O)={(5,[0,4))}",
+          "arithmetic": "For each ne=(2), nb=(2) tensor: i=0 gives [0,2), i=1 gives [2,4); normalized union is [0,4). Unexecuted."
+        },
+        {
+          "quantity": "Node effects and closure",
+          "value": "Read(N1)=F(A) union F(B), Write(N1)=F(X); Read(N2)=F(X) union F(C), Write(N2)=F(O). The only internal dependency is allocation 4 [0,4), written by N1 and later read by N2.",
+          "arithmetic": "Allocations 1,2,3,4,5 are distinct, so all cross-allocation intersections are empty; N2's internal read equals N1's prior write. Unexecuted."
+        },
+        {
+          "quantity": "Arithmetic result",
+          "value": "X=[4,6], O=[8,18]",
+          "arithmetic": "X=[1+3,2+4]=[4,6]; O=[4*2,6*3]=[8,18]. Unexecuted."
+        },
+        {
+          "quantity": "Deterministic wait mass under the patched combined/non-overlapping reading",
+          "value": "R has 46 us versus Q's 42 us, so R*=R",
+          "arithmetic": "pp512 R mass=(7+5)+(6+4)=22 us; tg128 R mass=(8+5)+(7+4)=24 us; combined=22+24=46 us; 46>42. Unexecuted."
+        },
+        {
+          "quantity": "Naive direct-write fault versus staged output",
+          "value": "naive visible O=[8,100] after a fault following element 0; staged RegionSeal leaves old O=[100,100] in the abstract ownership-map model",
+          "arithmetic": "Starting O=[100,100], direct execution stores O[0]=4*2=8 and faults before O[1], exposing [8,100]. Staged execution stores 8 only into fresh S and discards S, so old O remains [100,100]. Unexecuted."
+        },
+        {
+          "quantity": "Process-boundary seal identity",
+          "value": "literal canonical-effect records differ: pp contains allocation ids 1..5 while tg contains 101..105; therefore their serialized bytes and digests differ unless allocation identities are alpha-renamed",
+          "arithmetic": "For example, pp Write(N2) contains (5,[0,4)) while tg Write(N2) contains (105,[0,4)); 5 != 105, so literal serializations are unequal. Unexecuted."
+        },
+        {
+          "quantity": "Q4_0 counterexample to the unqualified logical-index formula",
+          "value": "formula span 576 bytes versus actual one-block storage 18 bytes for ne0=32, block size 32, type size/nb0=18",
+          "arithmetic": "Treating all 32 logical scalar indices as independent stored elements gives starts 0,18,...,31*18=558 and 18-byte intervals whose union is [0,576). One Q4_0 block stores those 32 logical values in 18 bytes, [0,18). The formula overstates the physical footprint by 558 bytes and 32x. Unexecuted."
+        }
+      ],
+      "anomalies": [
+        "The core footprint equation uses s_k outside a binding that selects k. For F16 the only exact end offset in this instance is start+2; the undefined symbol prevents literal execution until patched.",
+        "Without alpha-renaming, the same logical R has pp512 effect id 5 and tg128 effect id 105 at its terminal output, so a digest over literal canonical effects cannot match both process boundaries.",
+        "The block-quantized probe computes [0,576) where storage is [0,18), so the footprint claim is not exact under the all-GGML-types reading.",
+        "The success trace stops at S7: the candidate names no existing operation that changes O from backend-buffer allocation 5 to fresh BO S while retaining the same GGML tensor, downstream resolution, and ownership. The abstract map update used to illustrate fault isolation is not an executable GGML/XRT operation.",
+        "The timeout trace also stops at S7: a timeout says completion is not known. Releasing S can race an outstanding writer, while a device reset may invalidate the old BO that the procedure promises to retain. No stated quiescence transition resolves both obligations.",
+        "A single region removes three baseline host waits per two-node occurrence (four waits become two waits across two occurrences), but the supplied procedure gives no numeric end-to-end baseline for this instance. Therefore wall-clock movement remains an empirical result, not a constructed consequence of 46 us baseline wait mass."
+      ]
+    },
+    "degenerate_probes": [
+      {
+        "probe": "empty pp512 and tg128 trace sets",
+        "behavior": "S3 emits no R*, while unpatched S5 requires exactly one R* artifact.",
+        "finding": "Undefined artifact input. Patched to terminate candidate construction as a failed recurrence premise with the strict path unchanged."
+      },
+      {
+        "probe": "k=0 eligible regions after alias/effect filtering",
+        "behavior": "No maximum or tie-break exists over the empty candidate set.",
+        "finding": "Same undefined-R* defect as the empty trace probe; patched explicitly."
+      },
+      {
+        "probe": "single accepted node",
+        "behavior": "Length 1 is outside the specified 2..6 range, so no region is selected and the failed-premise rule applies.",
+        "finding": null
+      },
+      {
+        "probe": "all-identical node signatures in a length-7 trace",
+        "behavior": "A length-2 signature occurs at starts 0,1,2,3,4,5. Summing all six occurrences double-counts five nodes and cannot describe a runnable substitution set.",
+        "finding": "Attributable wait mass and executable occurrence count are ambiguous; patched to score a deterministic maximum-weight pairwise non-overlapping occurrence set."
+      },
+      {
+        "probe": "ties at every selection threshold",
+        "behavior": "More-occurrences and lexicographic signature tie-breaks choose between distinct signatures only after wait aggregation and occurrence counting have been defined. Equal signatures with alternative overlapping occurrence sets remain unresolved.",
+        "finding": "Patched with integer wait units and lexicographic occurrence-index-list tie-breaking for the maximum non-overlapping set."
+      },
+      {
+        "probe": "two internal output views write overlapping ranges [0,4) and [2,6) of one allocation, with no outside alias",
+        "behavior": "Under 'pure means no external state' both nodes can pass the written external-alias tests even though bytes [2,4) have two writers; under 'pure means single-assignment storage' they are rejected.",
+        "finding": "reading_dependent under the external-state reading, plus an operative ambiguity under both readings. Patched to require one writer per byte and only ordered producer-to-consumer read-after-write overlap."
+      },
+      {
+        "probe": "maximum-size metadata ne=(2^32,2^32), F16 contiguous",
+        "behavior": "The logical byte count is 2*2^32*2^32=2^65, exceeding a 64-bit byte range, and literal tuple enumeration requests 2^64 intervals.",
+        "finding": "Overflow checking detects the 2^65 bound, but the unpatched text does not state the outcome and literal enumeration is not viable. Patched to make overflow/invalid bounds ineligible and permit an equivalent checked row-interval construction."
+      },
+      {
+        "probe": "Q4_0 ne0=32, block size 32, type size 18",
+        "behavior": "Logical-scalar enumeration with nb0=18 yields [0,576), not the actual [0,18) block storage.",
+        "finding": "reading_robust for any reading that applies the written formula to block-quantized tensors. Patched by limiting RegionSeal eligibility to the stated F16 path; block-quantized accepted nodes remain on the strict path."
+      },
+      {
+        "probe": "XRT timeout while artifact still may write staging BO S",
+        "behavior": "Immediate release risks outstanding access; reset/quiescence is named but no transition, completion evidence, or ownership effect is defined.",
+        "finding": "Blocking: timeout recovery cannot preserve both staging lifetime and old live bindings as written."
+      }
+    ],
+    "claim_step_map": [
+      {
+        "claim": "exact F16 byte footprints",
+        "established_by": "S1",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "F16 storage width is exactly 2 bytes for every logical element",
+          "all implementation reads/writes are exactly represented, including padding or overfetch",
+          "offset/stride arithmetic is checked and within the owning allocation",
+          "non-F16 block layouts do not enter RegionSeal eligibility"
+        ],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "complete explicit read/write effects for every admitted region node",
+        "established_by": "S2",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "every implementation variant has a complete physical-access entry",
+          "conditional accesses, scratch, padding, and vector overfetch are represented",
+          "unknown entries fail region eligibility"
+        ],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "R* selection leaves no free region choice to the implementer",
+        "established_by": "S3",
+        "strength_grade": "overclaim",
+        "assumptions_missing": [],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "the seal is reusable across exact pp512/tg128 matches",
+        "established_by": "S4",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "process-local allocation identities are canonicalized to symbolic manifest slots",
+          "launch-time validation proves a bijection from slots to live allocation identities/ranges"
+        ],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "one finite artifact plus one synchronous wait has no unresolved dependent kernel",
+        "established_by": "S5",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "the artifact launches no child/dependent work outside the waited run",
+          "successful wait means all device accesses to staging and status storage are complete",
+          "all loops and data-dependent accesses obey sealed bounds"
+        ],
+        "arbitration": "proof-obligations",
+        "measured": null
+      },
+      {
+        "claim": "support decisions and zero-CPU-fallback behavior remain unchanged",
+        "established_by": "S4/S6",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "region recognition does not bypass per-node admission checks",
+          "mismatch and every excluded node execute the existing strict FPGA branch",
+          "the backend can skip a matched occurrence without changing graph support traversal"
+        ],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "successful publication preserves continuous tensor state while retaining GGML object, dimensions, strides, and ownership",
+        "established_by": "UNESTABLISHED",
+        "strength_grade": "overclaim",
+        "assumptions_missing": [],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "a fault cannot expose partial output and prior bindings remain valid after timeout/reset",
+        "established_by": "UNESTABLISHED",
+        "strength_grade": "overclaim",
+        "assumptions_missing": [],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "a single R* can produce measurable pp512 or tg128 end-to-end wall-clock reduction",
+        "established_by": "S9",
+        "strength_grade": "empirical",
+        "assumptions_missing": [],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "effect closure prevents writes to immutable input or outside-region storage",
+        "established_by": "S1/S2/S3/S4",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "physical effects are complete",
+          "allocation identities are live and not reused during execution",
+          "internal overlapping writers are rejected explicitly"
+        ],
+        "arbitration": "argument",
+        "measured": null
+      }
+    ],
+    "naive_comparison": {
+      "declared_branch": "(i) false-premise",
+      "naive_version": "Detect the repeated two-node signature N1,N2, execute one fused artifact, and write O directly into its original destination BO without allocation-range proof or staged publication.",
+      "instance_behavior": {
+        "naive": "On success it computes O=[8,18]. If it faults after storing element 0, old O=[100,100] becomes visibly partial O=[8,100].",
+        "mechanism": "Before S7, staging computes [8,18] on success; on the same injected fault it has written only staging value 8 and leaves old O=[100,100]. The success case cannot complete because actual BO rebinding is unstated.",
+        "divergence": "Fault case differs in one visible element: naive O[0]=8 versus RegionSeal-model O[0]=100; successful arithmetic divergence is none."
+      },
+      "verdict": "confronts_obstacle",
+      "reasoning": "The naive mechanism demonstrably violates failure isolation on the concrete fault: one of two destination elements changes. Fresh staging is the machinery that prevents that partial write, but RegionSeal still lacks an executable publication and timeout-recovery operation, so this positive T5 result does not clear the blocking findings."
+    }
+  },
+  "verdict": "patched",
+  "unrepaired": [
+    {
+      "finding": "S7 requires a per-tensor, all-terminal atomic backend-BO rebinding operation that is neither produced by an earlier step nor stated to exist in GGML. An unaliased tensor range may still be an offset inside a backend buffer/BO that owns other tensors; replacing the buffer invalidates those owners, while changing a fictional per-tensor BO field need not change the storage resolved by downstream tensors or views. This is the central publication obstacle, so restricting RegionSeal to conveniently rebindable outputs or silently copying back would sidestep/change the declared mechanism and is not an allowed repair.",
+      "severity": "blocking",
+      "why_not_repaired": "A sound repair needs an actual existing GGML/backend-buffer ownership transition, graph rewrite, or a failure-atomic copy/indirection protocol. None is stated, and choosing one would redesign the storage-publication mechanism or invent an API.",
+      "verbatim_step_quote": "7. On successful XRT wait and zero artifact status, atomically replace each unaliased terminal tensor's backend BO ownership record with its fresh BO so downstream GGML nodes consume the new values; on timeout or fault, retain old bindings, release staging BOs after device reset/quiescence, and return the existing explicit error.",
+      "executed_evidence": "Unexecuted hand trace (no execution tool available): let backend buffer B/BO id 5 own terminal tensor O at offset 0 with old F16 values [100,100], and let fresh BO S contain [8,18]. Before S7, every stated operation is defined. To publish, the text asks for O's 'backend BO ownership record' to become S. No prior step produces such a per-tensor record or a rebinding operation. If O continues to resolve through B+0, its value remains [100,100], not [8,18]. If the owning backend buffer B is replaced by S, every other tensor owned by B changes ownership and any pre-existing B-relative view becomes invalid. For two terminal tensors, sequential record changes also do not establish all-terminal atomicity. Thus the dataflow has no executable transition from (O->B,S=[8,18]) to (same O->S) with all other owners/views preserved.",
+      "reading_dependence": "reading_robust"
+    },
+    {
+      "finding": "The timeout branch names 'device reset/quiescence' without defining an XRT operation or state transition that proves the timed-out run can no longer access staging BOs while also preserving every prior tensor BO binding. Timeout is not completion; releasing staging before proven completion can race the artifact, while resetting the device may invalidate or require recreation of the old BOs that the branch promises to retain.",
+      "severity": "blocking",
+      "why_not_repaired": "The honest fix requires concrete XRT timeout, abort/reset, BO-lifetime, and backend-reinitialization semantics. Adding a generic wait, reset, or leak policy would either invent an API, fail to guarantee quiescence, or change the explicit failure/continuity contract.",
+      "verbatim_step_quote": "7. On successful XRT wait and zero artifact status, atomically replace each unaliased terminal tensor's backend BO ownership record with its fresh BO so downstream GGML nodes consume the new values; on timeout or fault, retain old bindings, release staging BOs after device reset/quiescence, and return the existing explicit error.",
+      "executed_evidence": "Unexecuted state trace (no execution tool available): at t=10 ms, wait reports timeout while run K may still write staging BO S. State is K=possibly-running, S=allocated, old O->B. Branch A releases S immediately: K may issue a later write to released storage, violating lifetime safety. Branch B resets the device: the candidate provides no fact that old BO B survives reset, so O->B is not proven usable and 'prior bindings unchanged' is only a host-record statement. Branch C retains S until K completion: no completion/quiescence operation or upper bound is specified after timeout, so S cannot be safely released as promised. The three exhaustive actions available in the written procedure do not establish both quiescence and old-binding validity.",
+      "reading_dependence": "reading_robust"
+    }
+  ],
+  "applied_revisions": [
+    {
+      "scope": "coherence",
+      "op": "append_sentence",
+      "field": "core_mechanism",
+      "value": "For RegionSeal eligibility the footprint equation is restricted to F16 and its undefined s_k is the constant stored width 2, so F(T) is the checked union of [o + sum_k i_k nb_k, o + sum_k i_k nb_k + 2); block-quantized and other non-F16 accepted nodes remain on the existing strict path.",
+      "outcome": "applied",
+      "delta_summary": "Repairs the T1 undefined-width defect and the T2 576-byte-versus-18-byte block-quantized counterexample without changing baseline admission."
+    },
+    {
+      "scope": "coherence",
+      "op": "append_sentence",
+      "field": "core_mechanism",
+      "value": "Equivalent checked row-interval construction may replace per-element enumeration, and any offset, multiplication, end bound, or owning-allocation check that is unrepresentable or invalid makes the node ineligible for the region rather than producing a partial footprint.",
+      "outcome": "applied",
+      "delta_summary": "Repairs the T3 2^65-byte overflow and 2^64-interval maximum-size procedural failure."
+    },
+    {
+      "scope": "coherence",
+      "op": "append_sentence",
+      "field": "core_mechanism_steps",
+      "value": "For Step 2, a node is region-eligible only when its implementation variant has a complete physical read/write entry covering conditional operands, padding, vector over-read or over-write, and implementation-visible scratch; an absent or incomplete entry leaves that node on the current strict path.",
+      "outcome": "applied",
+      "delta_summary": "Repairs the T1 dual-reading defect in which logical operand roles alone do not establish exact implementation effects."
+    },
+    {
+      "scope": "coherence",
+      "op": "append_sentence",
+      "field": "core_mechanism",
+      "value": "Effect closure additionally requires one region writer per byte, permits write-read overlap only from an earlier declared producer to its later consumers, and rejects overlap among terminal outputs or between a terminal output and any live outside tensor.",
+      "outcome": "applied",
+      "delta_summary": "Repairs the T3 overlapping-internal-writes ambiguity that could otherwise admit two writers for bytes [2,4) or destroy terminal alias relations."
+    },
+    {
+      "scope": "coherence",
+      "op": "append_sentence",
+      "field": "core_mechanism",
+      "value": "The manifest alpha-renames process-local allocation_ids to canonical boundary and internal allocation slots, digests those slots and ranges, and requires the live seal check to establish a one-to-one slot-to-current-allocation binding before launch; raw process-local allocation_id values are not digest inputs.",
+      "outcome": "applied",
+      "delta_summary": "Repairs the T2 pp512/tg128 process-boundary mismatch where literal ids 5 and 105 produce different seals for the same logical region."
+    },
+    {
+      "scope": "coherence",
+      "op": "append_sentence",
+      "field": "core_mechanism_steps",
+      "value": "For Step 3, a region is a consecutive interval in captured trace order, recurrence means at least two exact signature occurrences in the combined pp512 and tg128 trace corpus, and each signature is scored by summed integer wait duration over its deterministic maximum-weight pairwise non-overlapping occurrence set, with ties broken by occurrence count, serialized signature, and lexicographic occurrence-index list in that order.",
+      "outcome": "applied",
+      "delta_summary": "Repairs the T1/T3 ambiguity and double counting for overlapping all-identical occurrences and makes R* selection deterministic across pp512/tg128 boundaries."
+    },
+    {
+      "scope": "coherence",
+      "op": "append_sentence",
+      "field": "core_mechanism_steps",
+      "value": "If Step 3 finds no eligible repeated region, it records P2 as failed and terminates RegionSeal candidate construction before manifest generation or synthesis, with the existing strict backend left unchanged.",
+      "outcome": "applied",
+      "delta_summary": "Repairs the T3 empty-set and k=0 undefined-R* consumption by S5 while preserving recurrence as the declared falsifiable premise."
+    }
+  ],
+  "final_candidate": {
+    "title": "RegionSeal: Atomic FPGA Artifacts at the Unchanged GGML Boundary",
+    "hook": "Against the current strict backend's 11 accepted operator families and 112 graph signatures, RegionSeal adds exactly one recurring-region artifact and no new operator-family wrapper, yet predicts a measurable pp512 or tg128 wall-clock reduction while retaining the same GGML admission and failure boundary.",
+    "hook_shape_rationale": "This is counter-intuitive minimalism: the strongest local baseline's breadth axis is its 11-family, 112-signature strict FPGA path, while the candidate is no broader on operator support and adds only one independently replaceable artifact. A surprising empirical reveal was also viable, but rejected because the direction of launch/wait reduction is expected; the defensible surprise is that one narrowly sealed region can test useful acceleration without whole-graph ownership or all-family vectorization.",
+    "gap_closure": [
+      {
+        "gap": "No retrieved frontier leaf establishes that a framework-native backend can retain exact support decisions, explicit failure behavior, tensor-state continuity, and accelerator-artifact identity while execution no longer incurs one host-visible completion cycle per admitted unit — stakes: backend maintainers otherwise face either silent semantic drift and wrong outputs or a formally correct integration whose launch overhead blocks useful deployment and wastes FPGA development effort.",
+        "main_pattern": "structural_prior_encoding",
+        "sub_pattern": "C13 (Encode Structure by Construction)",
+        "companion_pattern": "heterogeneous_decomposition",
+        "how_closed": "C13 encodes the GGML tensor-effect connectivity as a verifiable region seal, and heterogeneous_decomposition uses that seal to substitute one pure effect-closed recurring region while mutable or externally aliased work stays on the strict per-node FPGA path; corpus support is thin in FPGA runtimes, with the closest C13 exemplars coming from relational-topology domains."
+      }
+    ],
+    "core_mechanism": "RegionSeal first assigns every backend allocation a monotonic allocation_id and represents a tensor T by F(T) = {(allocation_id, [o + sum_k i_k nb_k, o + sum_k i_k nb_k + s_k)) for every valid logical index tuple i}, where o is the tensor's root-view byte offset, nb_k are GGML byte strides, and s_k is the stored byte width for the F16 element at that index; interval unions are normalized, bounds-checked, and derived from the complete GGML tensor metadata before launch. For every already-accepted node, a read/write effect is the pair of normalized footprint sets it may read and write, obtained from the operator implementation's explicit operand-role table rather than inferred from names. A candidate region is effect-closed only if every node is pure, every internal read is supplied by a region input or earlier region write, no write intersects any immutable input or tensor outside the region, every terminal output has no external storage-range alias, and the region contains no KV update, in-place mutation, or externally visible state. Among repeated contiguous DAG regions of length 2 through 6 in the complete pp512 and tg128 traces, the sole implemented region R* is selected by maximum baseline XRT wait time attributable to its occurrences, with ties broken by more occurrences and then lexicographic serialized GGML signature; thus no free region choice is left to the implementer. structural_prior_encoding produces the region seal: a digest over ordered node signatures, canonical effects, boundary tensor types/shapes/strides, the artifact kernel UUID, bounded loop limits, and a status schema, and a static checker certifies the stated disjointness and effect-closure conditions under the captured graph and allocation metadata. heterogeneous_decomposition consumes that seal by routing only exact R* matches to one finite HLS artifact and leaving every other accepted node, including all mutable or aliased state, on the existing strict per-node FPGA path rather than CPU fallback. The artifact executes synchronously into fresh output BOs, writes one status record, and has no externally outstanding dependent kernel; after one xrt::run wait, the backend publishes the fresh BO bindings only when both XRT and artifact status report success, otherwise it discards them and returns the existing explicit backend error with prior tensor bindings unchanged. Because publication changes only unaliased terminal tensor bindings and retains their GGML objects, types, dimensions, strides, and ownership records, later strict nodes observe continuous tensor state while a fault cannot strand a dependency or expose a partial candidate output. The novelty claim is the independently replaceable, digest-bound region contract and atomic publication rule at the unchanged GGML backend boundary, not the ordinary fact that R*'s arithmetic is combined inside one artifact. For RegionSeal eligibility the footprint equation is restricted to F16 and its undefined s_k is the constant stored width 2, so F(T) is the checked union of [o + sum_k i_k nb_k, o + sum_k i_k nb_k + 2); block-quantized and other non-F16 accepted nodes remain on the existing strict path. Equivalent checked row-interval construction may replace per-element enumeration, and any offset, multiplication, end bound, or owning-allocation check that is unrepresentable or invalid makes the node ineligible for the region rather than producing a partial footprint. Effect closure additionally requires one region writer per byte, permits write-read overlap only from an earlier declared producer to its later consumers, and rejects overlap among terminal outputs or between a terminal output and any live outside tensor. The manifest alpha-renames process-local allocation_ids to canonical boundary and internal allocation slots, digests those slots and ranges, and requires the live seal check to establish a one-to-one slot-to-current-allocation binding before launch; raw process-local allocation_id values are not digest inputs.",
+    "core_mechanism_reasoning": "BLOCK 1 — PREMISES ledger:\nP1. GGML views and backend tensors expose sufficient root allocation, offset, shape, stride, and type metadata to derive exact F16 byte footprints; the current backend already resolves these fields to launch accepted operators.\nP2. Pure recurring regions exist in both llama-bench pp512 and tg128 traces — untested — falsification target; recurrence and attributable wait mass must be established from the supplied complete traces before R* is built.\nP3. A strict node outside R* can consume a successfully rebound backend BO without changing its support decision; this follows from support being keyed by operator/type/shape and is verified against all downstream R* consumers.\nP4. A finite single artifact plus one synchronous wait has no unresolved cross-kernel dependency after return; all loop bounds are sealed and any XRT timeout or nonzero status is propagated before publication.\nobservation-model: the 2,422 accepted U280 dispatch observations and pp512/tg128 traces are complete for the measured Gemma 3 1B F16 llama-bench runs because hooks record every accepted GGML call, XRT start, and wait, but they are not an unbiased sample of other models or prompts, so claims remain scoped to this path.\nESTIMAND: for each fixed llama-bench regime pp512 and tg128 on the baseline Gemma 3 1B F16 GGUF and one U280, the target is the paired median end-to-end wall-clock time across 30 post-warmup runs, together with the fraction of baseline XRT wait time and starts attributable to exact R* occurrences.\nBLOCK 2 — NAIVE-BASELINE AUDIT: The naive runnable version detects a repeated GGML node sequence, replaces it with one fused XRT kernel, and writes directly to the original destination BO. Branch (i): it falsely assumes node sequence, shape, and tensor name determine non-aliasing and that a failed launch may safely have touched the destination; legal GGML views can overlap one canonical allocation, so RegionSeal confronts this with exact allocation-range effects, exclusion of external aliases, fresh output BOs, and publish-after-success. Alias/effect analysis is a standard compiler tool, but this instance is not solved by that tool alone because an unchanged GGML backend neither owns graph rewriting nor may change per-node admission, explicit no-fallback behavior, XRT artifact identity, or tensor-storage lifetime; the seal binds those runtime-specific obligations to an independently replaceable artifact.\nBLOCK 3 — The anchor is one gap with a chain, so the same seal is deliberately the intermediate object: structural encoding constructs it and heterogeneous decomposition consumes it; no auxiliary module is added. Ordinary fusion, command capture, a persistent overlay, compiler-owned dataflow, asynchronous version polling, and MVCC/COW epochs were rejected because they land on occupied lineage nodes or recreate progress and alias hazards; direct writes were rejected because failure could expose partial storage, and all-11 wrappers were rejected because one R* is sufficient for the minimal wall-clock test.",
+    "core_mechanism_steps": "1. Add allocation_id and root-view tracking to the existing GGML FPGA tensor metadata; input GGML tensor descriptors produce normalized, overflow-checked F16 footprint interval sets keyed by the owning XRT BO.\n2. Add explicit read/write operand-role tables for the currently accepted implementations and run the effect extractor before graph launch; input nodes and canonical footprints produce per-node effects plus overlap edges.\n3. Scan the existing complete Gemma 3 1B F16 pp512/tg128 traces for repeated contiguous DAG regions of two to six pure accepted nodes, reject any region with KV mutation, in-place writes, external aliases, or non-closed effects, and deterministically emit R* using the wait-mass selection rule.\n4. Serialize R* into a region-seal manifest containing node signatures, boundary metadata, normalized effects, bounded dimensions, status codes, and artifact UUID; the manifest checker either emits a digest-qualified substitution entry or leaves every node on the current strict FPGA path.\n5. Implement and synthesize exactly one U280 HLS artifact for R*, reusing the current arithmetic kernels where practical but writing terminal results to fresh BOs and a status record; its output is one xclbin kernel whose bounded control returns only after all R* arithmetic completes.\n6. At the unchanged GGML graph-compute boundary, rerun the seal check against live allocation_ids and ranges, start the digest-matched artifact once, and synchronously wait once; a mismatch executes the same accepted nodes through the current strict per-node FPGA path, never CPU fallback.\n7. On successful XRT wait and zero artifact status, atomically replace each unaliased terminal tensor's backend BO ownership record with its fresh BO so downstream GGML nodes consume the new values; on timeout or fault, retain old bindings, release staging BOs after device reset/quiescence, and return the existing explicit error.\n8. Add regression tests with overlapping offset/strided views, allocation reuse, forced digest mismatch, injected nonzero artifact status, XRT timeout, and downstream consumers; outputs are compared with the unchanged CPU path and current strict FPGA path, and every negative case must preserve old bindings and produce no fallback.\n9. Run llama-bench pp512 and tg128 on the existing Gemma 3 1B F16 GGUF for 30 post-warmup repetitions per arm, recording end-to-end wall clock, GGML calls, XRT starts/waits, outputs, tokens, status traces, allocation publications, and artifact UUIDs for strict baseline, RegionSeal, and manifest-disabled control. For Step 2, a node is region-eligible only when its implementation variant has a complete physical read/write entry covering conditional operands, padding, vector over-read or over-write, and implementation-visible scratch; an absent or incomplete entry leaves that node on the current strict path. For Step 3, a region is a consecutive interval in captured trace order, recurrence means at least two exact signature occurrences in the combined pp512 and tg128 trace corpus, and each signature is scored by summed integer wait duration over its deterministic maximum-weight pairwise non-overlapping occurrence set, with ties broken by occurrence count, serialized signature, and lexicographic occurrence-index list in that order. If Step 3 finds no eligible repeated region, it records P2 as failed and terminates RegionSeal candidate construction before manifest generation or synthesis, with the existing strict backend left unchanged.",
+    "falsification_prediction": "On one Alveo U280, run the unchanged llama.cpp llama-bench executable and the existing Gemma 3 1B F16 GGUF in pp512 and tg128 modes for 30 post-warmup repetitions under the current strict backend and RegionSeal, then compare paired median end-to-end wall clock, XRT starts/waits, output tensors, and generated tokens. If the candidate works, at least one of pp512 or tg128 has lower median full-path wall clock, exact R* occurrences collapse to one start and one wait each, CPU fallback remains zero, and outputs satisfy the current matched-reference checks. The load-bearing variable is sealed wait coverage W_R, defined as baseline XRT wait time attributable to exact effect-closed R* occurrences divided by baseline end-to-end time; the negative control forces W_R to zero by disabling only the seal digest match while retaining all instrumentation and is predicted to move end-to-end wall clock back toward the strict baseline. Fault injection and overlapping-view tests are a second falsifier: any published BO after nonzero status, any changed aliased byte, any missing explicit error, or no wall-clock movement despite substantial W_R falsifies the contract or performance mechanism.",
+    "compute_budget": "0 GPU-day + $0 API; approximately 14-18 engineer-weeks, one U280, 40-80 Vitis synthesis/place-and-route runs, and about 200 board-hours, feasible within five months.",
+    "differentiation_from_lit": [
+      {
+        "paper_id": "arxiv:2607.17415v1",
+        "delta": "Its selector replays measured per-operator and directed transition costs without an integrated runtime, whereas RegionSeal constructs and executes a live digest-bound GGML region with canonical BO-range effects, one synchronous completion, and publish-after-success storage semantics."
+      },
+      {
+        "paper_id": "arxiv:2601.19263v1",
+        "delta": "Its host agent may choose CPU execution and retrieves FPGA output before subsequent layer progress, whereas RegionSeal preserves zero fallback and substitutes only a statically effect-closed pure region while every excluded node remains on the existing strict FPGA path."
+      },
+      {
+        "paper_id": "arxiv:2607.07643v1",
+        "delta": "ATLAS generates whole-model hardware through a universal GEMM abstraction, whereas RegionSeal constructs a single independently replaceable artifact contract over native GGML signatures, canonical view ranges, failure status, and atomic BO publication at the unchanged backend boundary (abstract-only inference because its full text is unavailable in the supplied cache)."
+      }
+    ],
+    "almost_prior_paper_id": "arxiv:2607.07643v1",
+    "what_step_was_missed": "ATLAS would have needed to derive canonical GGML allocation-range effects and bind them, explicit failure status, artifact identity, and publish-after-success tensor rebinding into a per-region contract that remains valid without owning or rewriting the application graph.",
+    "signature_terms": [
+      "artifact-bound GGML region contract",
+      "canonical BO range effects",
+      "publish-after-success tensor binding",
+      "single-wait U280 substitution",
+      "effect-closed pure region"
+    ],
+    "alias_terms": [
+      "transactional accelerator call",
+      "capability-sealed code object",
+      "failure-atomic remote procedure",
+      "effect-typed dynamic linking"
+    ],
+    "composition_note": ""
+  },
+  "falsification_rewritten": false
+}

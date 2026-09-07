@@ -1,0 +1,143 @@
+{
+  "gap_closure_reject_check": {
+    "entries": [
+      {
+        "gap": "No retrieved frontier leaf establishes that a framework-native backend can retain exact support decisions, explicit failure behavior, tensor-state continuity, and accelerator-artifact identity while execution no longer incurs one host-visible completion cycle per admitted unit — stakes: backend maintainers otherwise face either silent semantic drift and wrong outputs or a formally correct integration whose launch overhead blocks useful deployment and wastes FPGA development effort.",
+        "main_pattern": "architectural_operator_substitution",
+        "sub_pattern": "C12 (Substitute the Operator or Representation)",
+        "tactical_failure_mode_quoted": "The recurring failure is a substitution that is mechanically valid but whose payoff is absent or unverified. Authors successfully swap the operator, wiring, or parameter-locus, then stall in one of three ways: they prove preservation with a borrowed or trivial argument that exposes no new structure; they claim the property the new slot was supposed to buy — parallelism, aggressive pruning, scalability — without actually delivering or measuring it; or they port an architecture from another domain and add a coupling mechanism without grounding it in the target problem, producing an uncoordinated assembly rather than an insight.",
+        "reject_lessons_evaluated": [
+          {
+            "lesson_quoted": "Proving the substitute operator preserves universal approximation via a trivial adaptation of known proofs, while never connecting that result to the practical advantage (e.g. sparsification) that motivated the swap, makes the contribution read as incremental.",
+            "candidate_match": "no",
+            "reasoning": "The candidate does not invoke universal approximation and directly connects ordered-descriptor preservation to launch amplification and full-path wall clock."
+          },
+          {
+            "lesson_quoted": "Claiming the rewired structure delivers a systems property — such as parallel forward/backward execution — that the underlying algorithm does not actually provide invites reviewers to falsify the headline claim head-on.",
+            "candidate_match": "yes",
+            "reasoning": "Steps 5, 6, and 8 claim dependency-safe asynchronous progress and first-fault epoch completion, but specify neither an executable XRT dependency/abort protocol nor memory-order rules, so the stated version gate can deadlock after a producer fault."
+          },
+          {
+            "lesson_quoted": "A training-time re-parameterization that yields only marginal accuracy gains at higher training cost, without strong matched-baseline comparisons, reads as added overhead rather than as an insight.",
+            "candidate_match": "no",
+            "reasoning": "The candidate is an inference-runtime intervention, not a training-time re-parameterization, and it names matched baseline and ablation arms."
+          },
+          {
+            "lesson_quoted": "An elegant geometric reanalysis tool validated only on toy data, with no quantitative metric and an unclear delta over existing sensitivity measures, fails to show the substitution buys anything new.",
+            "candidate_match": "no",
+            "reasoning": "The proposal is not a geometric reanalysis and names live Gemma pp512/tg128 metrics on the U280."
+          },
+          {
+            "lesson_quoted": "Rewiring the dependency chain and reporting only throughput/speedup while omitting accuracy validation at scale leaves the essential preserved-property claim unverified.",
+            "candidate_match": "no",
+            "reasoning": "The evaluation includes bytewise observable tensors, committed KV state, logits/tokens, support/error traces, artifact identity, and zero fallback in addition to timing."
+          },
+          {
+            "lesson_quoted": "Porting a two-component architecture from a separate domain and bolting on a cross-pathway coupling, without a unifying contribution grounded in the target task, reads as an uncoordinated assembly rather than a substitution insight.",
+            "candidate_match": "borderline",
+            "reasoning": "Receipts, version gates, COW state, and atomic commit surround a simpler descriptor-batching change, and the missing progress and alias artifacts make this look like an overengineered transaction assembly despite its GGML-specific framing."
+          }
+        ],
+        "verdict": "triggered"
+      },
+      {
+        "gap": "No retrieved frontier leaf demonstrates on live hardware that reducing transition and synchronization amplification across a complete autoregressive run preserves the connected model's outputs and costs once dispatcher, framework, state-management, and failure paths are included — stakes: edge-LLM practitioners can spend most runtime in control overhead despite accelerating accepted operators, while replay-only conclusions may not transfer to deployed heterogeneous runtimes.",
+        "main_pattern": "controlled_diagnostic_design",
+        "sub_pattern": "C02 (Design a Confound-Isolating Diagnostic)",
+        "tactical_failure_mode_quoted": "Papers attempting this tactic fail most often when the constructed instrument isolates the confound only inside an artificial regime and never demonstrates that the isolated signal transfers to real deployment conditions — the synthetic-to-real gap is asserted rather than shown. A second recurring shape is circularity: the diagnostic is validated against the same definition, assumption, or system population it was built to interrogate, so it cannot independently confirm what it claims.",
+        "reject_lessons_evaluated": [
+          {
+            "lesson_quoted": "A diagnostic that only re-confirms a shortcut already known in advance, surfacing no previously unmeasurable failure, is read as confirmatory rather than as a contribution.",
+            "candidate_match": "no",
+            "reasoning": "The live full-path divergence between launch collapse and wall-clock improvement is not established by the replay-only closest work and is not knowable from launch count alone."
+          },
+          {
+            "lesson_quoted": "Validating a synthetic-ground-truth instrument only on synthetic data, without demonstrating that the controlled finding transfers to real-world instances, leaves ecological validity unestablished and undermines the central claim.",
+            "candidate_match": "no",
+            "reasoning": "The diagnostic runs unchanged llama.cpp and Gemma 3 1B F16 on a real Alveo U280 rather than synthetic instances."
+          },
+          {
+            "lesson_quoted": "Building the instrument around one contested definition of the target property means it cannot independently confirm that the definition is correct, and reviewers flag the resulting circularity.",
+            "candidate_match": "no",
+            "reasoning": "Launch starts, waits, wall clock, byte equality, support decisions, and artifact identity are independently instrumented operational quantities rather than a contested self-defined score."
+          },
+          {
+            "lesson_quoted": "Resting an unsupervised evaluation on the unverified premise that the systems under test can reliably judge one another stakes the entire method on an assumption that collapses under scrutiny.",
+            "candidate_match": "no",
+            "reasoning": "Neither arm judges the other; hooks and bytewise comparisons provide an external ledger and oracle."
+          },
+          {
+            "lesson_quoted": "Pairing a single-task or small-sample instrument with broad capability claims triggers a scope-mismatch rejection, and assembling retrieval or engineering blocks without an isolating scientific insight reads as application rather than research.",
+            "candidate_match": "borderline",
+            "reasoning": "The experiment is confined to one model, board, dtype, and two workload regimes while the title and first gap frame a general framework-native FPGA backbone, although the estimand itself is explicitly bounded to that path."
+          }
+        ],
+        "verdict": "borderline"
+      }
+    ],
+    "verdict": "triggered",
+    "reasoning": "The first gap under architectural_operator_substitution drives the aggregate verdict because the candidate matches the lesson ‘Claiming the rewired structure delivers a systems property — such as parallel forward/backward execution — that the underlying algorithm does not actually provide invites reviewers to falsify the headline claim head-on.’ Its asynchronous version-gated execution lacks a progress, abort, and memory-order mechanism, while the C02 entry is additionally borderline because one U280/model path supports narrower claims than the general-backbone framing."
+  },
+  "recipe_application_check": {
+    "entries": [
+      {
+        "gap": "No retrieved frontier leaf establishes that a framework-native backend can retain exact support decisions, explicit failure behavior, tensor-state continuity, and accelerator-artifact identity while execution no longer incurs one host-visible completion cycle per admitted unit — stakes: backend maintainers otherwise face either silent semantic drift and wrong outputs or a formally correct integration whose launch overhead blocks useful deployment and wastes FPGA development effort.",
+        "sub_pattern": "C12 (Substitute the Operator or Representation)",
+        "tactical_pattern_quoted": "Within a deep, multi-stage compositional architecture (layered network, stacked blocks, probabilistic circuit), this cluster relocates or swaps a structural slot rather than tuning weights: it moves where trainable parameters live, rewires the inter-stage routing topology, or substitutes the per-stage aggregation/representation primitive.",
+        "instantiation_in_core_mechanism": "Step 4 replaces K per-tile xrt::run starts with one finite descriptor-loop kernel, but it explicitly preserves every GGML operator boundary and arithmetic operator; this is batched operator invocation and completion relocation, not C12's distinctive substitution of forward-graph wiring, parameter locus, or per-stage aggregation/representation primitive.",
+        "verdict": "bypassed"
+      },
+      {
+        "gap": "No retrieved frontier leaf demonstrates on live hardware that reducing transition and synchronization amplification across a complete autoregressive run preserves the connected model's outputs and costs once dispatcher, framework, state-management, and failure paths are included — stakes: edge-LLM practitioners can spend most runtime in control overhead despite accelerating accepted operators, while replay-only conclusions may not transfer to deployed heterogeneous runtimes.",
+        "sub_pattern": "C02 (Design a Confound-Isolating Diagnostic)",
+        "tactical_pattern_quoted": "The shared move is to construct a controlled set of evaluation instances in which exactly one named confound is either structurally blocked or independently varied, then report the divergence between apparent and de-confounded performance as the primary result rather than an aggregate leaderboard score.",
+        "instantiation_in_core_mechanism": "Step 10 holds prompts, clocks, model, board, and application path fixed and uses descriptor-unpacked and per-call-wait arms to vary launch packing and completion timing independently, with the reconciled ledger and output comparisons serving as an oracle external to either arm.",
+        "verdict": "applied"
+      }
+    ],
+    "verdict": "bypassed",
+    "reasoning": "The first gap drives the aggregate because core_mechanism Step 4 batches an existing tile-call list into one invocation but does not perform C12's signature structural-slot substitution; the C02 matched diagnostic is applied in Step 10."
+  },
+  "anti_pattern_check": {
+    "composition_set": [
+      "architectural_operator_substitution",
+      "controlled_diagnostic_design"
+    ],
+    "matched_pattern_id": null,
+    "required_mitigation_quoted": null,
+    "mitigation_substantively_delivered": "n/a",
+    "reasoning": "The composition contains no heterogeneous_decomposition pattern, so none of the three reject-favored pairs matches."
+  },
+  "paper_pointed_threat": {
+    "threat_paper_id": "no_threat_found",
+    "threat_source": "n/a",
+    "threat_channel": null,
+    "subsumption_argument": null,
+    "addressable_via": null,
+    "parametric_family_concern": "The mechanism plainly resembles asynchronous accelerator command-buffer/dataflow runtimes and transactional MVCC/COW state management; a scoop-check should query ‘XRT ERT command dependencies or command chaining’ and ‘future/event-backed tensor execution with versioned commit’."
+  },
+  "falsification_structure_check": {
+    "minimal_experiment_named": "yes",
+    "outcome_metric_named": "yes",
+    "load_bearing_variable": "launch amplification A",
+    "negative_control_target": "outcome_metric",
+    "verdict": "sound",
+    "reasoning": "The matched U280 experiment names baseline, mechanism, descriptor-unpacked, and per-call-wait arms; it predicts reduced pp512/tg128 full-path wall clock, and disabling descriptor packing is predicted to return that downstream metric toward the current backend."
+  },
+  "blocking_findings_disposition": [
+    {
+      "finding_ref": "The deferred-wait graph has no executable XRT dependency, memory-order, progress, or failure-propagation protocol.",
+      "status": "upheld",
+      "basis": "The faulting-producer trace satisfies the candidate's premises and shows that a dependent version gate can remain false forever, so the claimed strict deferred-completion mechanism requires a new dependency, abort, progress, and memory-order protocol rather than a field-level clarification."
+    },
+    {
+      "finding_ref": "Mutable KV alias correctness consumes an alias relation that no prior step produces.",
+      "status": "upheld",
+      "basis": "The overlapping A/V view instance is legal under the stated tensor-ID/version model and shows that COW correctness requires a canonical storage-range alias artifact plus descriptor rebinding and overlap-aware commit rules, which the mechanism does not produce."
+    }
+  ],
+  "verdict": "abandon",
+  "verdict_layer": "hard_floor",
+  "verdict_rationale": "gap_closure_reject_check.entries[0].reject_lessons_evaluated[1].lesson_quoted is triggered: ‘Claiming the rewired structure delivers a systems property — such as parallel forward/backward execution — that the underlying algorithm does not actually provide invites reviewers to falsify the headline claim head-on,’ and the supplied producer-fault trace demonstrates exactly that missing progress property. recipe_application_check.entries[0].verdict is bypassed because the novelty-bearing implementation is batched operator invocation rather than C12's structural-slot substitution, while both blocking findings require redesign of the dependency/failure and alias-state mechanisms. Implementing 11 vector wrappers plus those absent protocols, alias-safe COW, regression, and U280 validation is not credibly supported by the stated six-to-eight-week development estimate inside the user-relative five-month scope.",
+  "revision_targets": []
+}

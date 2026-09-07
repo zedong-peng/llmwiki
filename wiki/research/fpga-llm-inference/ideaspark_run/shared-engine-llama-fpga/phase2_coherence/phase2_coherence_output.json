@@ -1,0 +1,389 @@
+{
+  "trace_report": {
+    "formalized_procedure": [
+      {
+        "step": "S1",
+        "consumes": [
+          "GGML operator/layout metadata with dtype, rank, dimensions, and strides",
+          "compiled U280 XRT kernels"
+        ],
+        "produces": [
+          "K: Map[(operator, F16 layout/type) -> stable kernel_id] with a reject result for an absent key"
+        ],
+        "note": "Verbatim step: 1. Build the supported U280 F16 kernel set behind the existing llama.cpp/GGML backend and assign each installed operator/layout pair a stable kernel ID; input: GGML operator metadata and compiled XRT kernels; output: an exact-kernel registry that rejects all unregistered combinations. An unregistered key cannot form an H descriptor, so the later H/B-only classification needs an explicit error branch."
+      },
+      {
+        "step": "S2",
+        "consumes": [
+          "current call c_i, tensor metadata and logical byte spans a_i",
+          "source tickets p_i, alias/view facts, state flag, and host-observation facts"
+        ],
+        "produces": [
+          "r_i: record with typed operands, z_i bytes, flags, and initially unresolved future-consumer field",
+          "e_i: one completion-ring index"
+        ],
+        "note": "Verbatim step: 2. At each supported backend call, record r_i from the ggml_tensor operation, type, dimensions, strides, call arguments, source tickets, view/alias metadata, state flag, and native host-observation hook; input: current GGML call and backend state; output: a pending per-call record and completion-ring index. The future set u_i cannot be complete at this point; it must remain unresolved until the trace closes."
+      },
+      {
+        "step": "S3",
+        "consumes": [
+          "a closed ordered sequence R = (r_1, ..., r_n) and its captured consumer graph U, where u_i is a typed set of later readers/consumers",
+          "K, a scratch-slot table whose slots have byte capacities, and record/command capacities"
+        ],
+        "produces": [
+          "B records with a concrete exclusive scratch lease [producer-done, successor-consumption-complete] and one ticket-aware successor",
+          "H records with registered kernels, or per-call explicit-error records for unregistered/mandatory-capacity failures"
+        ],
+        "note": "Verbatim step: 3. Scan pending records in native call order to compute the captured consumer set u_i and apply the B admission rule using the installed-kernel registry and current HBM scratch capacity; input: pending records and free-slot table; output: either protected class H or eligible class B for every call. Dual readings were traced: reading A treats current capacity as a non-reserving per-record test and corrupts the T2 fan-in trace; reading B treats it as liveness-aware exclusive reservation and is sound. The unregistered-key path also cannot be H because S1 rejects it."
+      },
+      {
+        "step": "S4",
+        "consumes": [
+          "a registered H record, its original allocation address/span, source ticket/status dependencies, and K[record]"
+        ],
+        "produces": [
+          "one individual H descriptor in the ordered engine stream",
+          "a direct-materialized original-allocation result or that call's explicit error status"
+        ],
+        "note": "Verbatim step: 4. Emit each H record as an individual engine descriptor that DMA-materializes the result into the original GGML allocation and writes its completion-ring status; input: H descriptor and original allocation address; output: a native-visible tensor result or that call's explicit error. The descriptor must consume producer tickets, including B tickets, and must be scheduled with the B entries; neither fact is explicit in the original dataflow."
+      },
+      {
+        "step": "S5",
+        "consumes": [
+          "adjacent B records with kernel IDs, type/rank/stride templates, patched addresses/dimensions/scalars, producer tickets, and assigned scratch-slot IDs"
+        ],
+        "produces": [
+          "T_k: a reusable exact template",
+          "one host-pinned command-ring entry per maximal B run"
+        ],
+        "note": "Verbatim step: 5. Canonicalize adjacent eligible B records by their kernel-ID/type/rank/stride sequence and create or reuse template T_k, patching only current addresses, dimensions, scalar arguments, producer-ticket IDs, and scratch-slot IDs; input: B records; output: a host-pinned XRT command-ring entry referencing T_k. Template reuse is distinct from counting every original B invocation for rho."
+      },
+      {
+        "step": "S6",
+        "consumes": [
+          "T_k command entries, individual H descriptors, and per-call producer tickets/statuses"
+        ],
+        "produces": [
+          "ordered exact F16 invocations",
+          "B results in leased scratch slots, H results in original allocations, and done/error completion-ring states"
+        ],
+        "note": "Verbatim step: 6. Doorbell the existing U280 shared engine with command-ring entries; input: T_k entries and per-call tickets; output: exact F16 kernel invocations in producer-consumer order, with a B producer written to its temporary slot and its unique successor reading that slot by ticket. The literal input omits H descriptors and gives no failed-ticket rule; the repair puts both descriptor forms in one ticket-ordered stream and prevents a successor from reading an errored producer's scratch slot."
+      },
+      {
+        "step": "S7",
+        "consumes": [
+          "a successor-consumption-complete event for its final input byte",
+          "the predecessor ticket's use count and scratch lease"
+        ],
+        "produces": [
+          "a decremented use count and a reclaimable scratch slot only after the final read"
+        ],
+        "note": "Verbatim step: 7. Decrement the recorded one-consumer use count after the successor starts and reclaim the scratch slot deterministically; input: engine completion event and ticket use count; output: reclaimed HBM capacity without publishing a device-residency map for GGML tensors. The operative word starts has two defensible readings: descriptor launch versus input-consumption completion. The launch reading gives the executed 198-versus-20 overwrite; the repair names the latter reading."
+      },
+      {
+        "step": "S8",
+        "consumes": [
+          "a native host-observation request and e_i",
+          "the corresponding completed value or explicit/dependency-error status"
+        ],
+        "produces": [
+          "the original tensor bytes when materialized and required, or the original-call explicit error without CPU fallback"
+        ],
+        "note": "Verbatim step: 8. At every native host-observation point, read only that call's completion-ring slot, synchronize its direct-materialized result when required, and surface queued engine errors as the original call's explicit failure; input: host observation request and ring entry; output: the original tensor bytes or strict-zero-fallback error, never a CPU implementation. A B call must be disqualified if this observation is not captured; dependency errors must already have been written by S6."
+      },
+      {
+        "step": "S9",
+        "consumes": [
+          "the completed VSTC trace and a same-workload baseline expansion vector l_i: baseline XRT submissions attributable to original call i"
+        ],
+        "produces": [
+          "H/B partition, rejection/status/log records, output hashes, and rho = sum_(i in B) l_i / sum_i l_i, or rho = NA when the denominator is zero"
+        ],
+        "note": "Verbatim step: 9. Log the H/B partition, template coverage rho, scratch-pressure rejections, per-call statuses, XRT submission count, and output hashes for each run; input: completed trace; output: the evidence needed to distinguish a true command-stream effect from an unchecked scheduling claim. As written it logs neither the baseline denominator nor whether reused templates count once or per original call, so it cannot construct the declared estimand."
+      }
+    ],
+    "dry_run": {
+      "instance": "Executed closed three-call trace. c1 produces 10 and c2 produces 20; each has c3 as its sole later consumer. c3 is H because it is host-observed and computes c1+c2. All three installed exact F16 kernels have one baseline XRT submission each. c1/c2 are adjacent B candidates with z1=z2=4 bytes. The literal non-reserving reading has one currently free 4-byte scratch slot; the lease reading has two 4-byte slots. The script also executes the minimal start-versus-consumption release subcase and rho accounting subcases.",
+      "execution": {
+        "mode": "executed",
+        "script": "# Concrete VSTC trace checks; stdlib only.\n\n\ndef fmt_ratio(numerator, denominator):\n    return 'undefined (0/0)' if denominator == 0 else '{}/{} = {:.6f}'.format(numerator, denominator, numerator / denominator)\n\n\n# Main trace: c1=10 and c2=20 each have the sole consumer c3; c3 is host-observed.\n# Every baseline call expands to one submission in this minimal instance.\nbaseline_c1, baseline_c2 = 10, 20\nbaseline_c3 = baseline_c1 + baseline_c2\nprint(f\"baseline: c1={baseline_c1}, c2={baseline_c2}, c3={baseline_c3}, submissions=3, materializations=3\")\n\n# Literal non-reserving reading of \"z_i fits current HBM scratch capacity\":\n# each 4-byte output sees the same currently free 4-byte slot during admission.\nscratch = {'s0': None}\nticket_slot = {'t1': 's0', 't2': 's0'}\nscratch[ticket_slot[\"t1\"]] = baseline_c1\nscratch[ticket_slot[\"t2\"]] = baseline_c2\nliteral_c3 = scratch[ticket_slot[\"t1\"]] + scratch[ticket_slot[\"t2\"]]\nprint(f\"literal_nonreserving: slots=t1->s0,t2->s0; after writes s0={scratch['s0']}; c3={literal_c3}; error={literal_c3 - baseline_c3}\")\n\n# Lease reading: liveness-aware admission reserves a distinct slot until c3 consumes it.\nscratch = {'s0': baseline_c1, 's1': baseline_c2}\nreserved_c3 = scratch[\"s0\"] + scratch[\"s1\"]\nprint(f\"reserved_leases: slots=t1->s0,t2->s1; c3={reserved_c3}; submissions=2 (one B run plus c3 H); materializations=1\")\n\n# Literal \"reclaim after successor starts\" can free an input before the successor's last read.\nscratch = {'s0': 10, 's1': None}\nscratch[\"s0\"] = 99  # independent B producer reuses s0 after c2 starts but before it reads.\nlate_read_c2 = 2 * scratch[\"s0\"]\nprint(f\"early_release: expected_c2=20; s0_overwritten=99; observed_c2={late_read_c2}; error={late_read_c2 - 20}\")\n\nprint(f\"rho_call_weighted={fmt_ratio(2, 3)}\")\nprint(f\"rho_template_weighted={fmt_ratio(1, 3)}\")\nprint(f\"rho_empty_trace={fmt_ratio(0, 0)}\")\n",
+        "output": "baseline: c1=10, c2=20, c3=30, submissions=3, materializations=3\nliteral_nonreserving: slots=t1->s0,t2->s0; after writes s0=20; c3=40; error=10\nreserved_leases: slots=t1->s0,t2->s1; c3=30; submissions=2 (one B run plus c3 H); materializations=1\nearly_release: expected_c2=20; s0_overwritten=99; observed_c2=198; error=178\nrho_call_weighted=2/3 = 0.666667\nrho_template_weighted=1/3 = 0.333333\nrho_empty_trace=undefined (0/0)\n"
+      },
+      "computed_quantities": [
+        {
+          "quantity": "Baseline c3 result",
+          "value": "30",
+          "arithmetic": "10 + 20 = 30; the independent per-call materializing baseline has 3 submissions and 3 materializations."
+        },
+        {
+          "quantity": "Non-reserving scratch result",
+          "value": "40, error +10",
+          "arithmetic": "Both 4-byte B outputs pass a non-reserving 4-byte free-slot check and receive s0; after c1 writes 10 then c2 writes 20, c3 reads s0 + s0 = 20 + 20 = 40."
+        },
+        {
+          "quantity": "Reserved-lease result and command count",
+          "value": "30; 2 submissions; 1 materialization",
+          "arithmetic": "Assign c1 to s0 and c2 to s1 until c3 consumes them: 10 + 20 = 30. The maximal B run is one command entry and c3 is one H descriptor."
+        },
+        {
+          "quantity": "Release-at-start overwrite",
+          "value": "198, error +178",
+          "arithmetic": "A successor expected to compute 2 * 10 = 20 starts but has not read s0; reuse writes 99 to s0, so its late read computes 2 * 99 = 198."
+        },
+        {
+          "quantity": "rho readings",
+          "value": "2/3 = 0.666667 per original B call; 1/3 = 0.333333 per reused template; empty trace is undefined (0/0)",
+          "arithmetic": "In the instance two original calls are B but one B template entry represents them; the candidate does not choose either numerator."
+        }
+      ],
+      "anomalies": [
+        "reading_dependent: under the non-reserving reading of current HBM scratch capacity, c3 is 40 instead of baseline 30 because both live outputs use s0.",
+        "reading_dependent: under the descriptor-launch reading of after the successor starts, the observed value is 198 instead of 20 because a slot is reused before the final input read.",
+        "reading_robust: rho is not constructible as written: the same trace permits 0.666667 or 0.333333, and its empty-trace denominator is 0/0."
+      ]
+    },
+    "degenerate_probes": [
+      {
+        "probe": "Empty trace / no baseline XRT submissions",
+        "behavior": "The scan and engine can halt with no descriptors, but rho has denominator zero.",
+        "finding": "rho is undefined as 0/0; log rho=NA rather than emitting a numeric fraction."
+      },
+      {
+        "probe": "k=0 interpreted as |u_i|=0 (a terminal record with no later consumer)",
+        "behavior": "The stated |u_i|=1 rule makes the record H, so a registered terminal result is direct-materialized and can halt normally.",
+        "finding": null
+      },
+      {
+        "probe": "All-identical operator/layout records",
+        "behavior": "They may reuse T_k but still require distinct per-call tickets and nonoverlapping live leases; values are not merged merely because templates match.",
+        "finding": "Without the lease clarification, matching templates do not prevent the non-reserving overwrite demonstrated by 40 versus 30."
+      },
+      {
+        "probe": "Tie at scratch capacity: z_i equals slot capacity",
+        "behavior": "The normal intended decision is admission when z_i <= capacity, but the original term fits has no explicit equality rule.",
+        "finding": "Define fit as z_i <= capacity(slot) and require an exclusive live lease; this removes threshold ambiguity."
+      },
+      {
+        "probe": "Single registered call",
+        "behavior": "It has no later consumer, is H, produces one individually completed native-visible result, and has rho=0/1 when its baseline expansion has one submission.",
+        "finding": null
+      },
+      {
+        "probe": "Unregistered operator/layout",
+        "behavior": "S1 rejects K[record], S3 says every non-B record is H, and S4 then lacks a kernel for the required descriptor.",
+        "finding": "The H/B-only output is inconsistent with the stated unsupported-layout explicit-error behavior; emit a per-call error class instead."
+      },
+      {
+        "probe": "Engine error on a B producer before its ticketed successor",
+        "behavior": "The written steps create an error ring slot for the producer but specify no status transition that prevents the successor from reading absent scratch bytes.",
+        "finding": "The unified engine stream needs a failed-ticket rule: mark the dependent call explicit-error and do not launch/read it."
+      },
+      {
+        "probe": "Maximum trace/ring capacity",
+        "behavior": "No maximum record-buffer, template, or command-ring capacity is declared, even though S3 needs a closed pending trace and S5 allocates a ring entry.",
+        "finding": "There is no maximum the specification allows to execute; add configured capacities and a per-call explicit-error path for a mandatory allocation failure before B admission."
+      }
+    ],
+    "claim_step_map": [
+      {
+        "claim": "The visibility-sensitivity partition retains protected boundaries and admits only safe data-plane bulk.",
+        "established_by": "S2-S3",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "Every actual later reader/consumer and observation is captured and correctly typed.",
+          "The trace has a declared closed boundary before classification."
+        ],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "B bytecode is exact because it uses installed F16 kernels and patches only current runtime fields.",
+        "established_by": "S1, S5, S6",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "The registered kernel has baseline-equivalent arithmetic and layout semantics.",
+          "All semantically relevant dynamic fields are among the patched fields."
+        ],
+        "arbitration": "proof-obligations",
+        "measured": null
+      },
+      {
+        "claim": "An H call has its own completion status and direct materialization into its original GGML allocation.",
+        "established_by": "S4, S8",
+        "strength_grade": "established",
+        "assumptions_missing": [],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "A B result is forwarded only through its producer ticket to its unique captured successor and released at final use.",
+        "established_by": "S3, S6, S7",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "The sole successor is ticket-aware and all other readers disqualify B.",
+          "Scratch leases are exclusive over the full producer-to-consumption interval.",
+          "Consumption-complete is emitted after the final input read."
+        ],
+        "arbitration": "proof-obligations",
+        "measured": null
+      },
+      {
+        "claim": "The host GGML allocation is never rebound and no completion-conditioned residency map is published.",
+        "established_by": "S4, S6, S7",
+        "strength_grade": "established",
+        "assumptions_missing": [],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "Every logical call has queued, done, or explicit-error status with strict zero fallback and no terminal region-wide wait.",
+        "established_by": "S2, S6, S8",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "Failed producer tickets deterministically suppress dependent reads and write their explicit statuses.",
+          "All host-observation sites use the per-call ring slot."
+        ],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "E_H is zero by direct materialization.",
+        "established_by": "S4",
+        "strength_grade": "overclaim",
+        "assumptions_missing": [],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "E_B is conditionally zero when capture is complete, the same microkernel and dependent ordering are used, and no uninstrumented host reader exists.",
+        "established_by": "S1, S3, S5, S6, S8",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "All consumers, including unsupported/native and CPU readers, are either captured and ticket-aware or disqualify B.",
+          "No live scratch lease is reused before consumption-complete.",
+          "Kernel/error semantics and ordering match the baseline for the tested trace."
+        ],
+        "arbitration": "proof-obligations",
+        "measured": null
+      },
+      {
+        "claim": "The reported H/B distribution and rho make heterogeneity measurable rather than assumed.",
+        "established_by": "S3, S9",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "A same-workload baseline expansion count l_i is captured for every original call.",
+          "rho counts original B invocations rather than unique template dictionary entries."
+        ],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "The companion mechanism replaces repeated XRT launches for admitted bulk.",
+        "established_by": "S5-S6",
+        "strength_grade": "empirical",
+        "assumptions_missing": [],
+        "arbitration": "argument",
+        "measured": null
+      },
+      {
+        "claim": "The gap is closed by protecting the high-impact minority while aggressively compressing the low-influence bulk under conditional observational fidelity.",
+        "established_by": "S3-S9",
+        "strength_grade": "conditional",
+        "assumptions_missing": [
+          "The trace has an eligible B minority/majority split under the stated capture rule.",
+          "The conditional fidelity proof obligations above hold on the tested workload."
+        ],
+        "arbitration": "argument",
+        "measured": null
+      }
+    ],
+    "naive_comparison": {
+      "declared_branch": "(i) false-premise",
+      "naive_version": "Independently from the anchor gap, the obvious safe native-runtime implementation is to submit each supported GGML call separately, wait for its completion, and materialize its output into the original allocation before allowing the next call to consume it.",
+      "instance_behavior": {
+        "naive": "c3 = 30, with 3 submissions and 3 materializations/waits.",
+        "mechanism": "Under the lease reading required by the repair, c3 = 30 with 2 submissions and 1 materialization; under the literal non-reserving reading, c3 = 40 and is invalid.",
+        "divergence": "After repair, 1 fewer submission and 2 fewer materializations while preserving 30; before repair the value divergence is +10."
+      },
+      "verdict": "confronts_obstacle",
+      "reasoning": "The independently derived baseline has exactly the named false premise: it materializes and waits at every caller boundary. With ticket-aware consumption and exclusive leases, VSTC removes that unnecessary boundary work on the same instance, so its extra machinery is not cosmetic; the T1-T3 defects are local coherence repairs rather than an obstacle hole."
+    }
+  },
+  "verdict": "patched",
+  "unrepaired": [],
+  "applied_revisions": [
+    {
+      "scope": "coherence",
+      "op": "replace",
+      "field": "core_mechanism",
+      "value": "Visibility-Sensitive Trace Compression (VSTC) is inserted at the supported GGML backend boundary and emits one record for each original call before that call expands into XRT submissions. For call i, the record r_i = (o_i, q_i, a_i, p_i, u_i, z_i, c_i) contains the GGML operation and tensor type/rank/dim/stride metadata o_i, patchable scalar arguments q_i, logical host-allocation identifiers and byte spans a_i, producer ticket IDs p_i, the captured typed set u_i of all later readers or consumers (ticket-aware supported device, unsupported/native device, or host/CPU), temporary-byte demand z_i, and flags c_i for host observation, alias escape, and KV or other state effects; a_i is only access-capture metadata and never an XRT BO identity or a replacement for a GGML artifact. VSTC holds records pending until a declared closed GGML graph-execution boundary, so no B decision uses an unresolved u_i. It assigns i to the bulk class B only when all operands have an exact installed F16 engine kernel, every later reader or consumer is captured, no host observation/status barrier, state write, or escaped alias is captured, exactly one consumer is ticket-aware, and a concrete exclusive scratch lease of size z_i can be reserved from producer completion through that successor's consumption-complete event. A registered call that fails B admission is in the protected boundary class H; an unregistered layout or a mandatory record, descriptor, or command-ring allocation failure receives that original call's explicit error, while an unavailable B scratch lease routes a registered call to H. The backend first reports the observed H/B distribution on the pp512 and tg128 traces, making the claimed heterogeneity measurable rather than assumed. An H call receives an individual descriptor in the same ticket-ordered engine stream, direct materialization to its original native allocation, and its own completion status, whereas a maximal consecutive run of B calls with matching operation/type/stride templates becomes a dictionary entry T_k containing exact kernel IDs plus patch slots for the current addresses, dimensions, scalars, producer tickets, and reserved scratch-slot IDs. The U280 shared engine interprets H descriptors and T_k entries in original producer-consumer order, forwards a B result only through its producer ticket to its unique ticket-aware successor, and releases that scratch slot only after a recorded consumption-complete event proves the final input read; the host ggml_tensor data allocation is never rebound and no completion-conditioned residency state is published. Every original logical call owns a completion-ring slot with queued, done, or explicit-error state. If a producer ticket errors, its dependent call is marked explicit-error without reading scratch; otherwise unsupported layouts, mandatory capacity failure, or engine failure return the defined explicit error at that call's observation point with strict zero fallback and without a terminal region-wide wait. Define E as the count of original calls whose observed value, ordering, or terminal status differs from the baseline, and decompose E = E_H + E_B. E_H is zero only when the individually dispatched kernel, allocation, ordering, and error semantics match baseline, and E_B is zero only when capture is complete, all consumers satisfy the ticket rule, the same F16 microkernel and dependent ordering are used, scratch leases are respected, and no uninstrumented host reader exists; these are conditional fidelity claims checked with bytewise logits and explicit-error/order traces rather than consequences of direct materialization alone.",
+      "outcome": "applied",
+      "delta_summary": "Repairs T1/T4 findings by making future-consumer capture, unsupported/error handling, ticketed H scheduling, dependency errors, and the conditional E_H/E_B claims explicit."
+    },
+    {
+      "scope": "coherence",
+      "op": "replace",
+      "field": "core_mechanism_steps",
+      "value": "1. Build the supported U280 F16 kernel set behind the existing llama.cpp/GGML backend and assign each installed operator/layout pair a stable kernel ID; input: GGML operator metadata and compiled XRT kernels; output: an exact-kernel registry that rejects all unregistered combinations.\n2. During each declared closed GGML graph execution, record r_i at every supported backend call from the ggml_tensor operation, type, dimensions, strides, call arguments, source tickets, view/alias metadata, state flag, and native host-observation hook; input: current GGML call and backend state; output: a pending per-call record with an unresolved later-consumer field and a completion-ring index. Do not enqueue a B or H execution until the trace boundary has closed.\n3. After the trace boundary, scan the complete pending records in native call order to compute typed captured consumer sets and apply admission. A record is B only when it has a registered exact kernel, every later reader/consumer is captured, exactly one consumer is ticket-aware, no host observation/status barrier, state write, or escaped alias is captured, and z_i <= the capacity of a concrete scratch slot whose full producer-to-consumption live interval can be reserved exclusively. A registered non-B record is protected H; an unregistered layout or inability to allocate a mandatory record, descriptor, or command entry writes that call's explicit error, while a scratch-lease admission failure routes a registered record to H.\n4. Emit each registered H record as an individual engine descriptor in the same ticket-ordered stream, declaring its producer-ticket dependencies, DMA-materializing its result into the original GGML allocation, and writing its completion-ring status; input: H record, original allocation address, producer tickets, and registered kernel; output: a native-visible tensor result or that call's explicit error.\n5. Canonicalize adjacent eligible B records by their kernel-ID/type/rank/stride sequence and create or reuse template T_k, patching only current addresses, dimensions, scalar arguments, producer-ticket IDs, and reserved scratch-slot IDs; input: B records and their leases; output: a host-pinned XRT command-ring entry referencing T_k.\n6. Doorbell the existing U280 shared engine with both H descriptors and T_k command-ring entries; input: the ordered entries and per-call tickets/statuses; output: exact F16 kernel invocations in producer-consumer order, with a B producer written to its temporary slot and its unique successor reading that slot by ticket. If a producer ticket has explicit-error status, mark its dependent call explicit-error and do not launch a scratch read.\n7. Decrement a recorded one-consumer use count only after a successor-consumption-complete event proves that successor has performed its final input read, then reclaim the scratch slot deterministically; input: consumption-complete event, ticket use count, and lease; output: reclaimed HBM capacity without publishing a device-residency map for GGML tensors.\n8. At every native host-observation point, read only that call's completion-ring slot, synchronize its direct-materialized result when required, and surface queued or dependency errors as the original call's explicit failure; input: host observation request and ring entry; output: the original tensor bytes or strict-zero-fallback error, never a CPU implementation.\n9. For each workload, log the H/B partition, scratch-pressure rejections, per-call statuses, VSTC XRT submission count, and output hashes, and capture the same-workload baseline expansion count l_i for every original call. Compute rho = sum_(i in B) l_i / sum_i l_i, counting every original B invocation even when T_k is reused; when sum_i l_i = 0, log rho = NA. Output: evidence that distinguishes a command-stream effect from an unchecked scheduling claim.",
+      "outcome": "applied",
+      "delta_summary": "Repairs T1-T3 findings: it closes the forward reference in u_i, reserves scratch for full liveness, makes release safe, gives H/B/error a single executable schedule, and constructs the declared rho estimand."
+    },
+    {
+      "scope": "coherence",
+      "op": "append_sentence",
+      "field": "core_mechanism_reasoning",
+      "value": "REPAIR CLARIFICATIONS: P1 is an admission condition, not an inference rule: when VSTC cannot enumerate every later reader/consumer for a record, that record is not B. For the stated estimand, the baseline pass records l_i, the number of baseline XRT submissions attributable to original call i, and rho(W) = sum_(i in B) l_i / sum_i l_i on that same closed trace; reused dictionary templates do not change the numerator, and a zero denominator is logged as NA. The E_H and E_B statements are conditional fidelity claims requiring the explicit kernel, ordering, ticket, lease, and error conditions in the repaired procedure, with bytewise values and explicit-error/order traces as the empirical checks.",
+      "outcome": "applied",
+      "delta_summary": "Repairs the T1 estimand-match and T4 conditional-claim findings without changing the candidate's pattern bindings, falsification fields, or novelty surface."
+    }
+  ],
+  "final_candidate": {
+    "title": "Visibility-Sensitive Command Streaming for Native GGML FPGA Inference",
+    "hook": "At low batch, a native GGML trace may contain a small set of host-visible or stateful boundaries and a much larger device-only data-plane bulk, so treating every call as equally observable can manufacture most of the XRT launch cost. Visibility-Sensitive Trace Compression predicts that preserving the boundary set while streaming the bulk as exact device bytecode lowers p50 decode latency on Gemma 3 1B F16 U280 runs without changing the captured native result or explicit-error behavior.",
+    "hook_shape_rationale": "This is a surprising empirical reveal: the named metric is p50 tg128 decode-token latency, and the non-obvious regime split is whether the trace's visibility-sensitive calls are a minority of its XRT launch expansion. Counter-intuitive minimalism is rejected because VSTC adds a descriptor interpreter, and structural reframe is rejected because the claim is an observed low-batch execution effect rather than a newly named assumption.",
+    "gap_closure": [
+      {
+        "gap": "No retrieved frontier leaf establishes how low-batch execution can avoid launch-count-dominated latency when a long mixed GGML trace has dependencies, HBM capacity and access constraints, and runtime state that prevent treating arbitrary neighboring calls as one safe execution interval; the U280 pp512/tg128 traces are the primary instance — stakes: practitioners pay repeated XRT dispatch and synchronization costs that can erase accelerator benefit, while the field lacks a principled account of when coarse execution is actually legal rather than merely fast in a fixed benchmark.",
+        "main_pattern": "heterogeneous_decomposition",
+        "sub_pattern": "C04 (Decompose for Differentiated Treatment)",
+        "companion_pattern": "architectural_operator_substitution",
+        "how_closed": "VSTC uses a trace-derived visibility-sensitivity partition to retain the high-impact boundary descriptors as individually completed native calls while encoding the repetitive, single-consumer data-plane bulk as exact engine bytecode; the companion replaces the repeated XRT launch primitive for that bulk. Corpus support is thin for native FPGA-runtime trace compression, but C04's structural move is followed directly: protect the high-impact minority and aggressively compress the low-influence bulk under a conditional observational-fidelity decomposition."
+      }
+    ],
+    "core_mechanism": "Visibility-Sensitive Trace Compression (VSTC) is inserted at the supported GGML backend boundary and emits one record for each original call before that call expands into XRT submissions. For call i, the record r_i = (o_i, q_i, a_i, p_i, u_i, z_i, c_i) contains the GGML operation and tensor type/rank/dim/stride metadata o_i, patchable scalar arguments q_i, logical host-allocation identifiers and byte spans a_i, producer ticket IDs p_i, the captured typed set u_i of all later readers or consumers (ticket-aware supported device, unsupported/native device, or host/CPU), temporary-byte demand z_i, and flags c_i for host observation, alias escape, and KV or other state effects; a_i is only access-capture metadata and never an XRT BO identity or a replacement for a GGML artifact. VSTC holds records pending until a declared closed GGML graph-execution boundary, so no B decision uses an unresolved u_i. It assigns i to the bulk class B only when all operands have an exact installed F16 engine kernel, every later reader or consumer is captured, no host observation/status barrier, state write, or escaped alias is captured, exactly one consumer is ticket-aware, and a concrete exclusive scratch lease of size z_i can be reserved from producer completion through that successor's consumption-complete event. A registered call that fails B admission is in the protected boundary class H; an unregistered layout or a mandatory record, descriptor, or command-ring allocation failure receives that original call's explicit error, while an unavailable B scratch lease routes a registered call to H. The backend first reports the observed H/B distribution on the pp512 and tg128 traces, making the claimed heterogeneity measurable rather than assumed. An H call receives an individual descriptor in the same ticket-ordered engine stream, direct materialization to its original native allocation, and its own completion status, whereas a maximal consecutive run of B calls with matching operation/type/stride templates becomes a dictionary entry T_k containing exact kernel IDs plus patch slots for the current addresses, dimensions, scalars, producer tickets, and reserved scratch-slot IDs. The U280 shared engine interprets H descriptors and T_k entries in original producer-consumer order, forwards a B result only through its producer ticket to its unique ticket-aware successor, and releases that scratch slot only after a recorded consumption-complete event proves the final input read; the host ggml_tensor data allocation is never rebound and no completion-conditioned residency state is published. Every original logical call owns a completion-ring slot with queued, done, or explicit-error state. If a producer ticket errors, its dependent call is marked explicit-error without reading scratch; otherwise unsupported layouts, mandatory capacity failure, or engine failure return the defined explicit error at that call's observation point with strict zero fallback and without a terminal region-wide wait. Define E as the count of original calls whose observed value, ordering, or terminal status differs from the baseline, and decompose E = E_H + E_B. E_H is zero only when the individually dispatched kernel, allocation, ordering, and error semantics match baseline, and E_B is zero only when capture is complete, all consumers satisfy the ticket rule, the same F16 microkernel and dependent ordering are used, scratch leases are respected, and no uninstrumented host reader exists; these are conditional fidelity claims checked with bytewise logits and explicit-error/order traces rather than consequences of direct materialization alone.",
+    "core_mechanism_reasoning": "BLOCK 1 - PREMISES ledger:\nP1: The native GGML backend hooks can capture every supported call, view/alias escape, and host-observation point; this is credible because the proposed backend owns the supported execution path, but it is load-bearing.\nP2: Gemma 3 1B F16 pp512/tg128 contains a high-impact boundary minority and a repetitive single-consumer data-plane bulk under the stated capture rule; untested - falsification target.\nP3: Replaying the installed F16 microkernel with the same dependent order produces the same logical result for an eligible B call; this is credible only for the exact kernel/layout combinations installed in the U280 engine.\nP4: Scratch capacity can hold an eligible B result until its one captured successor begins; this is a resource premise checked by the declared z_i admission test.\nOBSERVATION-MODEL: Each benchmark run is a complete census of backend-hooked GGML and XRT events for the tested executable, not an unbiased sample of all possible applications; uninstrumented CPU reads or unsupported calls are recorded as ineligible rather than inferred away.\nESTIMAND: For a fixed model, binary, prompt/token workload W, and U280 build, rho(W) is the exact fraction of baseline XRT submissions represented by admitted B-template entries, and the target deployment outcomes are p50/p95 pp512 latency and tg128 per-token latency over W.\nBLOCK 2 - NAIVE-BASELINE AUDIT: The naive runnable version sends every supported GGML call to a resident U280 descriptor engine but materializes its output and waits before the next GGML call. It fails because it silently assumes every caller boundary is a host-observation boundary, a false premise when the next supported backend call can consume a producer ticket without the CPU reading the tensor; VSTC confronts that premise with captured read/alias/state facts and refuses B admission whenever they are absent. A persistent command queue is a standard tool, but this setting remains unsolved by it because dynamic GGML views and aliases, growing KV state, and different prefill/decode shapes create runtime-specific eligibility and explicit-error requirements that compiler-owned fixed graphs do not encode; the claimed contribution is the capture-and-gating protocol, not the queue alone.\nBLOCK 3 - DESIGN RATIONALE: The one selected gap has one shared object, the visibility-sensitivity ticket stream, so the partition and bytecode interpreter are two causal halves of one mechanism rather than separate legs. Static graph lowering was rejected because it regresses to the method-lineage node that assumes a compiler-owned predeclared graph, a generic persistent runtime was rejected because it would reduce to the collateral persistent-kernel family, and an artifact-bound delegated-region design was rejected because it changes the mechanism family rather than testing the claimed trace heterogeneity. Uniform per-call dispatch and approximate tensor compression were also rejected because the former leaves launch cost intact and the latter violates the F16 native-value requirement. REPAIR CLARIFICATIONS: P1 is an admission condition, not an inference rule: when VSTC cannot enumerate every later reader/consumer for a record, that record is not B. For the stated estimand, the baseline pass records l_i, the number of baseline XRT submissions attributable to original call i, and rho(W) = sum_(i in B) l_i / sum_i l_i on that same closed trace; reused dictionary templates do not change the numerator, and a zero denominator is logged as NA. The E_H and E_B statements are conditional fidelity claims requiring the explicit kernel, ordering, ticket, lease, and error conditions in the repaired procedure, with bytewise values and explicit-error/order traces as the empirical checks.",
+    "core_mechanism_steps": "1. Build the supported U280 F16 kernel set behind the existing llama.cpp/GGML backend and assign each installed operator/layout pair a stable kernel ID; input: GGML operator metadata and compiled XRT kernels; output: an exact-kernel registry that rejects all unregistered combinations.\n2. During each declared closed GGML graph execution, record r_i at every supported backend call from the ggml_tensor operation, type, dimensions, strides, call arguments, source tickets, view/alias metadata, state flag, and native host-observation hook; input: current GGML call and backend state; output: a pending per-call record with an unresolved later-consumer field and a completion-ring index. Do not enqueue a B or H execution until the trace boundary has closed.\n3. After the trace boundary, scan the complete pending records in native call order to compute typed captured consumer sets and apply admission. A record is B only when it has a registered exact kernel, every later reader/consumer is captured, exactly one consumer is ticket-aware, no host observation/status barrier, state write, or escaped alias is captured, and z_i <= the capacity of a concrete scratch slot whose full producer-to-consumption live interval can be reserved exclusively. A registered non-B record is protected H; an unregistered layout or inability to allocate a mandatory record, descriptor, or command entry writes that call's explicit error, while a scratch-lease admission failure routes a registered record to H.\n4. Emit each registered H record as an individual engine descriptor in the same ticket-ordered stream, declaring its producer-ticket dependencies, DMA-materializing its result into the original GGML allocation, and writing its completion-ring status; input: H record, original allocation address, producer tickets, and registered kernel; output: a native-visible tensor result or that call's explicit error.\n5. Canonicalize adjacent eligible B records by their kernel-ID/type/rank/stride sequence and create or reuse template T_k, patching only current addresses, dimensions, scalar arguments, producer-ticket IDs, and reserved scratch-slot IDs; input: B records and their leases; output: a host-pinned XRT command-ring entry referencing T_k.\n6. Doorbell the existing U280 shared engine with both H descriptors and T_k command-ring entries; input: the ordered entries and per-call tickets/statuses; output: exact F16 kernel invocations in producer-consumer order, with a B producer written to its temporary slot and its unique successor reading that slot by ticket. If a producer ticket has explicit-error status, mark its dependent call explicit-error and do not launch a scratch read.\n7. Decrement a recorded one-consumer use count only after a successor-consumption-complete event proves that successor has performed its final input read, then reclaim the scratch slot deterministically; input: consumption-complete event, ticket use count, and lease; output: reclaimed HBM capacity without publishing a device-residency map for GGML tensors.\n8. At every native host-observation point, read only that call's completion-ring slot, synchronize its direct-materialized result when required, and surface queued or dependency errors as the original call's explicit failure; input: host observation request and ring entry; output: the original tensor bytes or strict-zero-fallback error, never a CPU implementation.\n9. For each workload, log the H/B partition, scratch-pressure rejections, per-call statuses, VSTC XRT submission count, and output hashes, and capture the same-workload baseline expansion count l_i for every original call. Compute rho = sum_(i in B) l_i / sum_i l_i, counting every original B invocation even when T_k is reused; when sum_i l_i = 0, log rho = NA. Output: evidence that distinguishes a command-stream effect from an unchecked scheduling claim.",
+    "falsification_prediction": "Implement the exact supported Gemma 3 1B F16 path in llama.cpp on the AMD Alveo U280, run pp512 and tg128 with fixed 512-token prompts from the wikitext-2-raw-v1 test split, and compare native per-XRT dispatch, the naive resident descriptor engine, and VSTC while checking bytewise logits and explicit-error traces. If VSTC is correct, p50 and p95 tg128 per-token latency and pp512 latency decrease as the named load-bearing variable rho, the fraction of baseline XRT submissions represented by admitted B-template entries, rises above zero; XRT run submissions should fall in the same direction without a new CPU fallback. The negative control overrides the B admission result for exactly the otherwise eligible calls, forcing individual host-visible completion and materialization while retaining the same kernels and inputs; if p50/p95 latency does not return toward the naive resident-engine baseline, the claimed visibility-sensitivity mechanism is falsified rather than merely unmeasured. A secondary full-observation oracle can force every produced tensor to be checked against the native backend after each call, testing whether the capture premise rather than template execution caused any mismatch.",
+    "compute_budget": "0.5 80GB-class GPU-day for trace-analysis and regression tooling plus 30 U280 board-days for HLS builds, hardware debug, and the full pp512/tg128 campaign; $0 paid API cost because the campaign uses local llama.cpp, Gemma 3 1B F16, XRT, and wikitext-2-raw-v1.",
+    "differentiation_from_lit": [
+      {
+        "paper_id": "openalex:W4416342314",
+        "delta": "Abstract-only inference: Big PE constructs a denser 4x4 8-bit systolic compute cell for TinyStories prompt processing, whereas VSTC constructs a visibility-sensitivity partition plus per-original-call completion protocol that compresses the native F16 command stream across prefill and decode without changing the caller's tensor allocation."
+      },
+      {
+        "paper_id": "openalex:W4405909140",
+        "delta": "LlamaF constructs model-specific Wq/Wk/Wv and W1/W3 matrix concatenations with two W8A8 GQMV kernels while retaining attention control and KV cache on the processing system; VSTC instead constructs patchable exact templates from the runtime GGML call stream and makes per-call eligibility depend on observed visibility, alias, state, and scratch facts."
+      },
+      {
+        "paper_id": "arxiv:2605.06052v1",
+        "delta": "Abstract-only inference: XtraMAC constructs a datatype-adaptive MAC with shared mantissa products, whereas VSTC constructs a control-plane representation that removes repeated host launch submissions even when every installed data-plane kernel remains the same F16 operation."
+      }
+    ],
+    "almost_prior_paper_id": "openalex:W4405909140",
+    "what_step_was_missed": "LlamaF would have needed to construct a per-original-GGML-call visibility-sensitivity ticket trace, including captured host-read, alias, state, and one-consumer conditions, then interpret eligible exact templates with individually surfaced completion states; concatenating fixed matrix groups cannot construct that dynamic native command representation.",
+    "signature_terms": [
+      "visibility-sensitive GGML command stream",
+      "per-call FPGA completion tickets",
+      "native trace bytecode interpreter",
+      "low-batch XRT dispatch compression"
+    ],
+    "alias_terms": [
+      "asynchronous dependency scheduler",
+      "selective result materialization",
+      "evented microoperation worklist",
+      "dynamic dataflow executor"
+    ],
+    "composition_note": ""
+  },
+  "falsification_rewritten": false
+}

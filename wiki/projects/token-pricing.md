@@ -9,7 +9,7 @@ tags: [infrastructure, llm, token, pricing]
 
 # 低价 Token 渠道记录
 
-基于 hvoy 的《AI API中转站推荐与评测》在 2026-04-20 12:20 的更新，当前不建议再把“最低价”直接等同于“最好中转站”。
+基于 hvoy https://hvoy.ai/APIreview.html 的《AI API中转站推荐与评测》。
 
 ## 结论
 
@@ -59,4 +59,3 @@ tags: [infrastructure, llm, token, pricing]
 ## 参考链接
 
 - hvoy 评测页：https://hvoy.ai/APIreview.html
-- 中转站监控面板：https://relaypulse.top
