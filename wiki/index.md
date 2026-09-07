@@ -3,7 +3,7 @@ title: Super Personal Wiki Index
 domain: root
 type: overview
 status: active
-updated: 2026-04-24
+updated: 2026-09-07
 tags: [index]
 ---
 
@@ -19,6 +19,10 @@ tags: [index]
 | Research | [[research/index]]    | 研究主入口；先看这里，再进入具体 area   |
 | Projects | [[projects/overview]] | GitHub 项目、工程经验、可复用技术记录  |
 | Admin    | [[admin/overview]]    | 证件、合同、签证、财务、手续类材料的非敏感索引 |
+## Recent Research References
+
+- [[research/fpga-llm-inference/vitis-ai-dpu-finn-pynq]]：Vitis AI DPU、FINN 与 PYNQ/PINN 消歧，工具链架构、官方资料和 U280 LLM 部署边界。
+
 ## Operating Files
 
 | File | Purpose |
