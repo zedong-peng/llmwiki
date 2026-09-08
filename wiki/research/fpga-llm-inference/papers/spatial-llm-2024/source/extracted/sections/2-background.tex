@@ -1,0 +1,90 @@
+\section{Background}
+\label{sec:background}
+This section provides backgrounds on Transformer models and introduces parallelization schemes for LLM inference.
+
+% \yx{Do we need a section for normal and AI-optimized FPGAs? We can introduce the AI Engine there.}
+
+\subsection{Transformer Models}
+\label{sec:transformer}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\linewidth]{figs/transformer-2stage.pdf}
+    \caption{Transformer model. Red blocks represent linear operators, and blue blocks signify non-linear operators.}
+    \label{fig:transformer}
+\end{figure}
+
+The Transformer model consists of both encoder and decoder blocks~\cite{vaswani2017transformer}.
+Recent employment on LLMs mostly uses decoder-only models, which leverage an auto-regressive approach for text generation~\cite{radford2019gpt2,openai2023gpt4,touvron2023llama}.
+We will mainly discuss decoder-only models in this paper, but since encoders and decoders share the core building blocks with subtle architectural variances, our approach can also be extended for encoder-only models~\cite{devlin2018bert,lan2020albert,liu2019roberta}.
+
+As illustrated in Figure~\ref{fig:transformer}, generative inference of LLMs has two stages: prefill stage and decode stage~\cite{pope2022googleinf}.
+In the prefill stage, the model takes in user prompts, normally a long sequence with $l_{\text{input}}$ tokens, goes through the whole Transformer model, and generates the first token.
+In the decode stage, the model takes in the previously generated token and generates $l_{\text{gen}}$ new tokens one at a time in an auto-regressive way.
+Since each token depends on the previously generated tokens, the decode stage is purely sequential.
+
+We then go through the detailed model architecture.
+The input tokens are first passed into an embedding layer that maps the discrete tokens into high-dimensional continuous representations while incorporating positional encoding for each token.
+Subsequently, it generates a tensor (i.e., hidden states) of shape $(l,d)$, where $l$ represents sequence length, and $d$ is the size of hidden dimensions.
+We omit the batch dimension to simplify the analysis, focusing solely on single-batch inference in this paper, but our approach can be easily extended to different batch sizes for LLM serving by adding an additional batch dimension~\cite{kwon2023vllm,li2023alpaserve}.
+
+The hidden states then pass through a series of $N$ Transformer blocks.
+Each Transformer block consists of two sublayers: a multi-head attention (MHA) module and a feed-forward network (FFN).
+Residual connections and layer normalization (LayerNorm) functions are applied between these sublayers, although the specific order and application may vary across different models~\cite{xiong2020preln}.
+The MHA module plays a crucial role in capturing token relationships within the input sequence.
+The input is initially partitioned into $h$ segments, where $h$ corresponds to the number of attention heads.
+To compute the attention scores for each head, the input sequence of length $l$ undergoes three linear projections: query, key, and value.
+These projections, which are trainable, yield matrices $Q$, $K$, and $V$ respectively.
+Attention scores are then computed using a scaled dot-product (SDP) operator between $Q$, $K$, and $V$, as specified by the formula:
+\begin{equation}
+\text{Attention}(Q,K,V)=\mathrm{softmax}\left(QK^T\Big/\sqrt{d_k}\right)V\,,
+\end{equation}
+where $d_k$ is the size of the hidden dimension.
+The output from this operator involves $h$ outputs, which are subsequently concatenated and processed through an additional linear projection.
+In the prefill stage, the generated $K$ and $V$ tensors will be stored as \emph{KV cache} and later be concatenated before SDP during the decode stage~\cite{pope2022googleinf}.
+
+The FFN module comprises a linear layer followed by a non-linear activation function and another linear layer.
+This module transforms the outputs of MHA into embedding matrices, which are then further processed by subsequent Transformer layers.
+
+Finally, the output tensor will go through a softmax function to obtain a distribution.
+The model will sample a token from this distribution and feed it into the decode stage.
+For encoder-only models, there is only a prefill stage involved, and the distribution will be directly used for different downstream tasks like text classification~\cite{devlin2018bert,liu2019roberta,lan2020albert}.
+
+In this paper, we only focus on analyzing the core Transformer blocks and accelerating them on FPGAs.
+Embedding layers and output sampling~\cite{generation_strategies,chen2023speculative} require extensive random memory accesses, which may not be suitable for FPGA acceleration.
+Also, they only take a small fraction of overall compute that does not affect the overall latency~\cite{kim2023survey}, so we leave them to execute on CPUs or GPUs as usual.
+
+% \zz{we also need to properly discuss the distinction between the prefill and decode stages and their implications on hardware acceleration (we can put the implication part in a different section).}
+
+\subsection{Parallelization Schemes}
+\label{sub:parallelism_intro}
+
+% \input{fig-tex/3d-parallelism}
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figs/3d-parallel.pdf}
+    \caption{An example of tensor parallelism of a Transformer layer with two devices.
+    TP rank is the unique identifier given to a device within a TP group.
+    SM is the softmax function, LN is LayerNorm, and GL is the GeLU function.}
+    % \yx{we need to explain ``TP rank'', or just use ``device'' instead.}
+    \label{fig:3d-parallelism}
+\end{figure}
+
+% \zz{Parallelization Schemes}
+% \zz{later we say we exploit/use/employ certain data/tensor/pipeline parallelism}
+As model sizes continue to expand, it becomes increasingly common for a single device to be insufficient for accommodating the entire model.
+Consequently, the exploration of diverse parallelization schemes within a device and across devices becomes necessary.
+Parallelism techniques in deep learning can be roughly classified into data, tensor, and pipeline parallelism, together known as 3D parallelism~\cite{shoeybi2019megatron,narayanan2021megatronv2,korthikanti2022reducing,chen2024slapo}.
+During the era of CNNs, data parallelism was the norm, involving the partitioning of input tensors along the batch dimension and their distribution across multiple devices~\cite{li2020ptddp,abadi2016tensorflow}.
+DeepSpeed ZeRO~\cite{rajbhandari2020zero} and FSDP~\cite{fsdp} extended data parallelism by proposing a three-stage parallelism strategy that partitions optimizer states, gradients, and parameters to minimize memory usage.
+However, this approach may incur high communication overheads during inference.
+
+A more recent parallelism scheme for LLM inference is tensor parallelism (TP)~\cite{li2023alpaserve,aminabadi2022dsinf,shoeybi2019megatron,narayanan2021megatronv2,pope2022googleinf}, which distributes model parameters across multiple devices and conducts explicit collective operations to ensure model correctness.
+Megatron-LM~\cite{shoeybi2019megatron} is the first to explore tensor parallelism for Transformer-based models, proving to be efficient in both training and inference due to relatively low communication costs.
+As shown in Figure~\ref{fig:3d-parallelism}, tensor parallelism requires two \texttt{all\_reduce} operations inside a Transformer layer to ensure the results are correct.
+Our accelerator design also explores tensor parallelism, as detailed in \S\ref{subsub:parallelism_schemes}.
+
+Lastly, pipeline parallelism~\cite{narayanan2019pipedream,yang2021pipemare,narayanan2021pipe2bw} divides the model across network layers.
+Multiple layers are grouped into a pipeline stage, and different stages are assigned to different devices.
+Pipeline parallelism is typically employed across multiple nodes.
+Since both tensor parallelism and pipeline parallelism handle only portions of the network model, they are collectively referred to as model parallelism.
+We revisit these parallelization schemes in \S\ref{subsub:parallelism_schemes}.

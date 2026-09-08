@@ -1,0 +1,126 @@
+%% ----------------------------------------------------------------
+\section{Computing Architecture}
+
+\begin{figure}[!tp]
+  \centering
+  \includegraphics[width=\linewidth]{Figures/Hardware/hw-overall.pdf}
+  \vspace{-15pt}
+  \caption{The overall architecture of FlightLLM, including task scheduler, memory controller and computing cores.}
+  \vspace{-15pt}
+  \label{fig:hw-overall}
+\end{figure}
+
+\subsection{Overall Architecture}
+We design a high-performance FPGA-based accelerator for generative LLMs by making full use of FPGA resources. Combined with compression techniques like sparsification and quantization, FlightLLM can effectively accelerate the generative LLMs and reduce the inference overhead. 
+As shown in Fig.~\ref{fig:hw-overall}, the overall hardware architecture of FlightLLM mainly includes a task scheduler, memory controller, and multiple computing cores (short as cores).
+The accelerator uses model parallelism on multiple cores to complete the LLM inference task. The task scheduler assigns tasks to different cores and controls data synchronization. 
+% Model parallelism can minimize inference latency compared to other parallelism approaches (\textit{e.g.}, data parallelism).
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=\linewidth]{Figures/Hardware/hw-mpe.pdf}
+  \vspace{-15pt}
+  \caption{The unified Matrix Processing Engine (MPE) can perform multiple types of matrix multiplications. (a) MPE includes multiple Matrix Processing Units (MPUs), which are composed of multiple Vector Processing Units (VPUs). By configuring the MPU, the MPE can support both (b) matrix-matrix multiplication (MM) mode and (c) matrix-vector multiplication (MV) mode. (d) We utilize DSP resources on the FPGA to implement the VPU.}
+  \vspace{-10pt}
+  \label{fig:hw-mpe}
+\end{figure*}
+
+The components of each core include the unified Matrix Processing Engine (MPE), Memory Management Unit (MMU), Special Function Unit (SFU), and Instruction Scheduler. The instruction scheduler decodes the input instructions and schedules different hardware units to perform computations. The main functions of the remaining hardware units are as follows: \textbf{MPE} handles all matrix (\textit{i.e.}, dense and sparse) operations in LLMs. MPE utilizes the configurable sparse DSP chain to reduce the hardware overhead on FPGA.
+\textbf{MMU} reduces memory access overheads by designing customized quantization units for low-bit mixed-precision and optimizing data placement for off-chip memory.
+\textbf{SFU} handles miscellaneous operations (\textit{e.g.}, Softmax, etc.) besides matrix processing operations. It also provides an additional data path to share data with other SFUs in different cores, accelerating the MV operation.
+
+
+\vspace{-5pt}
+\subsection{Unified Matrix Processing Engine}
+
+Although sparsification can bring huge theoretical benefits to LLM inference, they cannot directly achieve these benefits on existing architectures. To maximize the benefits of sparsification, we design the unified Matrix Processing Engine (MPE) to handle all operations related to matrix computation, including General Matrix Multiplication (GEMM), Sparse Matrix-Matrix multiplication (SpMM), General Matrix-Vector multiplication (GEMV), Sparse Matrix-Vector multiplication (SpMV), and Sampled-Dense-Dense Matrix Multiplication (SDDMM). As shown in Fig.~\ref{fig:hw-mpe}(a), the MPE includes multiple Matrix Processing Units (MPUs), which transfer weights from the weight buffer using the streaming approach. The activation buffer and the global buffer store the input and output activations of the MPE, respectively.
+By configuring the MPU, the MPE can support both matrix-matrix multiplication (MM) (Fig.~\ref{fig:hw-mpe}(b)) and matrix-vector multiplication (MV) mode (Fig.~\ref{fig:hw-mpe}(c)). The MPU is composed of multiple vector processing units (VPUs). The VPU is the basic component in the MPE, which performs the dot product of two vectors.
+
+% The generative LLM inference process consists of two stages: prefill and decode. The token size processed by the prefill stage is related to the input text length, which is generally on the order of thousands, so the operation of the prefill stage can be abstracted as a GEMM operator. The input processed by the decode stage is a token of the output of the previous layer, so the operation of the decode stage can be abstracted as a GEMV operator. The sparsity of the generative LLM is reflected in the following aspects: weight sparsity and attention sparsity. Therefore, the generative LLM that takes sparsity into account also needs to support the three operators, which are GEMV, SpMV, and SDDMM. \liujun{delete or move this paragraph to background?}
+
+We build the unified MPE to support all the five operator on the same hardware achitecture. FlightLLM overcomes the challenge of low computational efficiency through hardware/software co-design. 
+To do this, we first introduce the MPU, which exploits configurable sparse DSP chain to reduce hardware overhead while supporting sparse reduction. We use the MM mode as an example to illustrate the main idea and the implementation of MPU. Then, we re-design MPE's parallel scheme to maximize the performance in the MV mode. Finally, we introduce the SDDMM support through simple instruction scheduling.
+
+% In the following section, we will start with a typical dense hardware architecture and introduce sparse computation support on the MPE. Then, we describe how to expand MV and SDDMM in the same architecture. Finally, we illustrate how to implement the VPU according to the characteristics of FPGA.
+
+\vspace{-5pt}
+\subsubsection{MPU Design}
+In transformer-based LLMs, sparsification methods including sparse attention and weight pruning are widely used to accelerate the LLM inference. 
+The sparse pruning generates sparse matrix, whose densities and sparse patterns are uncertain. It brings great challenges to hardware design, especially for FPGA-based architectures that use the fixed DSP48 as the multiplication unit. Existing work introduces large additional hardware architectures to support sparse computations, which leads to a significant increase in hardware resources (about 5$\times$~\cite{matraptor-2020}). Without proper architectural design, the benefit of sparsification is weakened.
+
+We utilize the DSP48 engine on FPGA to support sparse operations.
+% DSP48 is a hard-core unit on FPGA for matrix multiplication. 
+In order to reduce the hardware overhead, previous work cascades the DSPs to take full advantage of the hardware resources in DSP48. DSP cascading makes the most use of the accumulator, the result carry-out port, and the result carry-in port, improving the hard-core utilization. However, the fully cascaded DSP architecture are not friendly to sparse computation since the cascaded chain is a fixed path. 
+In FlightLLM, we propose a \textbf{configurable sparse DSP chain (CSD-Chain)} to supplement the fixed DSP chain. In the CSD-Chain, a long DSP chain is divided into several DSP groups. A DSP group (DG) has several DSP48 cores, that are cascaded in a fixed manner. \revise{We pack two INT8 MACs on DSP48~\cite{wp486}.} Different DGs are cascaded with a configurable path. A VPU is made up of a CSD-Chain and a MPU consists of several VPUs. 
+Fig.~\ref{fig:hw-mpe}(d) shows the architecture of the CSD-Chain based VPU. Each DG has two DSP48 cores. We use configurable cascading to support sparse matrix operations by adding three units to the fixed DSP chain.
+
+\textbf{Sparse Mux}. As shown in Fig.~\ref{fig:hw-mpe}(d), two activations (A and B) are delivered to one DSP48 core simultaneously for weight reuse. Before the delivery, they are sent to a sparse MUX unit. In the sparse MUX unit, each activation is selected from multiple inputs according to the sparse index (shown in Fig.~\ref{fig:hw-mpe}(b)). With this sparse-based multiplexer, only nonzero inputs are sent to the DSP48 core.
+
+\textbf{Reduction Node (RN)}. Compared to GEMM operations, calculating SpMM may produce more outputs, as demonstrated in Fig.~\ref{fig:hw-vpu}(b). Thus, DSPs are grouped in our design to implement non-breaking MAC and a reduction node are inserted at the end of a DG. When a SpMM operation wants to generate multiple outputs, the RN will break the configurable cascade path between DGs, and calculate the output. Other DGs on the CSD-Chain will start a new SpMM computation by selecting zero in the Z-MUX.
+
+\textbf{Overflow Adjust Unit (OAU)}. When a DSP48 shares a weight with two activations, only 18 bits can be accessed for each activation. As a result, a long cascade accumulation may overflow. Therefore, we adjust the output data before sending it to the next DG. In the overflow adjust unit, the result is split into a most significant part (MSP) and a least significant part (LSP). 
+The LSP cascades to the next DSP48 with limited bits to avoid accumulation overflow. The MSP are delivered to the RN in the next DG to calibrate the output result. 
+In this way, all accumulators in DSP48 are fully utilized. Since a 18-bit integer will never overflow if no more than eight 16-bit integer are accumulated, the OAU is skipped with no more than eight DSP48 cores.
+
+
+Due to the configurable cascade path, VPU with the CSD-Chain can efficiently work on both dense and sparse multiplications. 
+As shown in Fig.~\ref{fig:hw-vpu}, all DSP48 cores are fully used in both cases. The only difference is that the RN in sparse case will break the CSD-Chain into two individual DSP chains to execute two different MACs and produce two outputs.
+
+Supporting sparse matrix multiplication could improve the computation efficiency. But arbitrary sparsity may cause data mismatch between different DGs, leading to unexpected efficiency decrease. 
+% To solve this problem, we propose a hardware/software co-design architecture for high-performance sparse matrix multiplication. 
+Existing work shows that N:M sparse pattern is a promising sparsification method. It maintains the same sparsity ratio within each matrix block, and allocates different sparsity ratios among different matrix blocks. Where M is an integer power of 2, and N is the partial factor of M. For example, M=16, N=0, 2, 4, 8, 16. The N:M sparse method restricts the number and position of nonzero elements while maintaining flexible sparsity. It can be easily mapped to a CSD-Chain. For a N:M sparse architecture, a CSD-Chain can be splited into N groups. Each DSP will select one input from M inputs. In each cycle, the entire CSD-Chain can produce one MAC output in dense case and N MAC outputs in N:M sparse case. Fig.~\ref{fig:hw-vpu} shows the case of a VPU supporting 2:4 sparse pattern.
+
+\begin{figure}[!tp]
+  \centering
+  \includegraphics[width=0.95\linewidth]{Figures/Hardware/hw-vpu.pdf}
+  \vspace{-10pt}
+  \caption{By configuring the VPU, the MPE can support both (a) dense and (b) sparse cases.}
+  \vspace{-15pt}
+  \label{fig:hw-vpu}
+\end{figure}
+
+% \liujun{@wenheng, reedit next paragraph}
+% To maximize hardware efficiency, we built the VPU using DSP resources on the FPGA. VPUs are the basic units in the whole MPE, which perform the dot product of two vectors. DSP is the hardware IP used to perform fixed-point multiplication in FPGA. The DSP can internally complete 18-bit and 30-bit addition, 18-bit and 27-bit multiplication, and 48-bit addition/subtraction/logic operations, respectively. In Fig.~\ref{fig:hw-vpu}, DSP48 selectively simplifies the internal architecture of the actual hardware for describing easily.
+% Firstly, the bit width of the multiplier inside DSP is large, which provides the opportunity to decrease the multiplier overhead. In the case of shared multiplicand, one DSP can complete the multiplication of two 8-bit values. The two VPUs share weights with the horizontal direction in the MPU (MM mode). Therefore, we use the same DSP to implement two multiplication in these two VPUs. Combined with the characteristics of DSP, we design a dedicated reduction node (RN). The RN performs the accumulation function or the forward transmission function based on the control signals (C0, C1, and C2). As shown in Fig.~\ref{fig:hw-vpu}, we illustrates the correspondence between VPUs and DSPs in the MPU.
+
+\subsubsection{Matrix-Vector Multiplication Analysis}
+% In the decode stage, since the size of the input token is 1, the calculation of the self-attention layer and the FFN layer is changed from matrix multiplication to matrix-vector multiplication. Directly performing MV computation on the above hardware architecture faces the problem of low memory bandwidth utilization and low computation utilization, which leads to a significant increase in latency in inference. 
+We explore the hyper-parameter space of compute tiling to fully utilize the off-chip memory bandwidth.
+We model the memory access time $T_{mem}$ and computing time $T_{cmp}$ of general MM in equation~\ref{eq:design_space}.
+$M\times K$, $K\times N$, and $M\times N$ denote the shapes of two input matrices and one output matrix, respectively. $p_M$, $p_K$, and $p_N$ denote the three dimensions of computational parallelism in matrix computation. $BW$ denotes the off-chip bandwidth.
+
+\begin{equation}
+\begin{aligned}
+T_{mem} &= \frac{M \cdot K + K \cdot N + M \cdot N}{BW} \\
+T_{cmp} &= \frac{M \cdot K \cdot N}{p_M \cdot p_K \cdot p_N}
+\label{eq:design_space}
+\end{aligned}
+\end{equation}
+
+To overlap the computation and memory access with double-buffer, we need to make sure that $T_{mem} < T_{cmp}$.
+For MV operations, $M=1$ and $p_M=1$ are set.
+For the MV mode, we can iterate through the space to obtain a set of $[p_K', p_N']$ to guarantee the bound for double-buffer.
+In other words, under the configuration of [$p_K'$, $p_N'$], we can realize that the MPE can still fully utilize the off-chip memory bandwidth in MV mode, although the computing resources in the MPE are partially idle at this time (Fig.~\ref{fig:hw-mpe}(c)). By redesigning the computational parallelism, MPUs can maximize the execution performance of executing GEMV and SpMV on FPGAs.
+
+\subsubsection{SDDMM Support}
+SDDMM is the key operator of the sparse self-attention layer. The block-wise sparsity of SDDMM can be used to reduce the amount of computation and improve the hardware energy efficiency. Therefore, we can treat SDDMM as multiple GEMMs in a block-wise manner. We only need to do some processing on the SDDMM operator with the instruction scheduler to efficiently complete the SDDMM computation on the MPE.
+
+% \subsubsection{Mixed-precision Support}
+% The low-bit mixed-precision strategy can significantly reduce the parameters and the off-chip memory access for LLMs. However, GPU with the low-bit mixed-precision strategy (2/3/4/8-bit) makes it difficult to reduce memory access overhead. GPU uses SIMT-based computing architecture, which cannot efficiently process irregular and different bit-width data in memory. 
+% Therefore, we design a dedicated mixed-precision dequantization unit on the FPGA, which can efficiently process the compactly stored mixed-precision data in the buffer and convert it into a unified INT8 format to the MPE. The dequantization unit consists of a set of parallel bit-width expansion units, which automatically expand the input data to 8 bits according to the control signal, scale factor, and sign bit.
+
+\begin{figure}[!tp]
+  \centering
+  \includegraphics[width=0.95\linewidth]{Figures/Hardware/hw-sfu.pdf}
+  \vspace{-10pt}
+  \caption{SFU contains a MISC ALU, an instruction controller, a micro-operator controller, and a remote SFU access engine.}
+  \vspace{-15pt}
+  \label{fig:hw-sfu}
+\end{figure}
+
+\vspace{-5pt}
+\subsection{Special Function Unit}
+Besides MM and MV computations, there are many other operations in LLMs, including softmax, layer normalization, etc. These miscellaneous (MISC) operations can be classified into two types: (a) Element-wise operation, which generates the result element by element (such as element-add and concat); (b) Two-phase operation, which will perform a reduction operation to get one or more parameters before the element-wise operation (such as softmax and layer normalization). Unlike MM and MV operations, these operations are not compute-intensive. Thus, we design a Special Function Unit (SFU) to handle all MISC operators, as shown in Fig.~\ref{fig:hw-sfu}. The SFU splits a MISC instruction into micro-operations, and delivers each micro-op to the ALU. The ALU will calculate the output according to the micro-op. All the input data is fetched from the MMU. For two-phase operations, the SFU will read an entire vector data from MMU to generate necessary parameters and read the same data again calculating the final output. For accuracy consideration,  softmax and layer normalization operations are calculated in fp16 since the hardware cost of SFU is acceptable. 
+
+Hiding the computation latency of MISC operations is important to improve the end-to-end latency in LLMs. For MM and multi-head MV operations, MISC calculations can be hidden between different vectors. For MISC operations after single-head MV calculations, the SFU breaks the entire vector into several sub-vectors and performs MISC operations in fine granularity to hide the computation latency. In consideration of the scalability, multiple SFUs in different PEs may work together by accessing remote SFUs. A SFU can share parameters and calculation results with other SFUs. Thus, although a vector may be generated by different PEs simultaneously, the result could be sent to all other PEs without writing back to HBM. It reduces the end-to-end latency and the wire overhead on FPGA.
+

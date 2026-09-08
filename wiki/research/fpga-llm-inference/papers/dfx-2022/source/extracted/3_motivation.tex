@@ -1,0 +1,72 @@
+
+% \vspace{-0.1in}
+\section{Motivation}
+\label{motivation}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t] 
+%\vspace{0.05in}
+\centering
+\footnotesize
+\includegraphics[width=3.0in]{Figures/Motiv2.pdf}
+\vspace{-0.05in}
+\caption{Latency of text generation with increased number of input tokens (leftward) and output tokens (rightward) on GPU for GPT-2 1.5B model.}
+\label{fig-motiv2} 
+\vspace{0.1in}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% \vspace{-0.05in}
+\subsection{Sequential Characteristic} \label{motivation_sequential}
+
+As described in Section \ref{background_gpt}, GPT-2's summarization and generation stage have different computational property. The summarization stage needs multiple tokens simultaneously, so processing multiple tokens in parallel is advantageous. On the other hand, the generation stage is a rather sequential process that processes a single token one by one. Thus, the opportunity for parallel processing is low. In datacenters, GPU is typically used to run the text generation applications. GPU is ideal for processing large input tokens in the summarization stage with its massively parallel compute units and high memory bandwidth, but it shows significant performance degradation in the generation stage. The sequential process of the generation stage is not parallelizable, and the operations are not compute-intensive enough to effectively utilize GPU's large compute units. As a result, significant underutilization occurs in the GPU. Figure \ref{fig-motiv2} shows that each additional output token leads to a large increase in latency, 75.45ms on average, whereas each additional input token increases the latency only by 0.02ms on average for the GPU with GPT-2 1.5B model. Since text generation workloads typically create long output tokens, devising an architecture that speeds up the generation stage while maintaining high throughput in both stages is imperative.
+
+We also examine the effect of batch size on the latency and throughput of the GPT-2. On the application level, if the datacenter chooses to batch the input of different users, the latency increases with the batch size because of the time spent gathering the input from different users \cite{fowers2018configurable}. Consequently, current datacenters prefer to run the model without fully gathering the input (i.e., non-batched input). In this case, the utilization decreases linearly by the number of unfilled inputs in the given batch, so an optimized datapath that can run a single input token with low latency is required. 
+
+% If the datacenter chooses to run the model without fully gathering the input, the utilization decreases linearly by the number of unfilled inputs in the given batch. 
+
+%, and the hardware may not have enough logic to handle large computations. 
+
+
+\subsection{End-to-End Acceleration} \label{motivation_endtoend}
+
+Most previous works target the acceleration of only the attention mechanism in transformers \cite{ham2020a3, ham2021elsa, zadeh2020gobo}, and few include the feed-forward network \cite{wang2021spatten}. However, GPT-2 contains additional processes: token embedding, layer normalization, residual, and LM head. Previous works disregard accelerating these additional processes because the time spent on the attention mechanism outweighs other processes. However, if these architectures are to run GPT-2 end-to-end on an existing application or service, the rest of the processes would need to be completed on the host. As the model repeats the decoder layer processing many times, extensive data transactions between the host and accelerator through the PCIe would easily become the bottleneck in the system performance. We need an accelerator that supports the entire GPT-2 process without missing any functions in the middle for practical usage.
+
+Moreover, GPT-2 contains operations that are suboptimal for the GPU to complete. Figure \ref{fig-breakdown} shows that the time spent for layer normalization and residual is at 22.8\% for the GPU even when the number of raw mathematical operations that accounts for them is extremely low at 0.11\%. This breakdown demonstrates that low-level operations of the layer normalization and residual are inefficient in the GPU. Domain-specific accelerators allow for hardware design that is specialized for these complex computations. Therefore, an alternative accelerator optimized for all GPT-2 operations is necessary.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t]
+% \vspace{0.05in}
+\centering
+\footnotesize
+\includegraphics[width=3.33in]{Figures/Breakdown.pdf}
+\vspace{-0.05in}
+\caption{GPT-2 latency and number of operations breakdown on GPU.}
+\label{fig-breakdown} 
+\vspace{0.1in}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Figures
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure*}[t] 
+% \vspace{-0.2in}
+\centering
+\footnotesize
+\includegraphics[width=6.0in]{Figures/Architecture.pdf}
+\vspace{-0.05in}
+\caption{Overall DFX appliance architecture. Left is the illustration of GPT-2 model parallelism. Center is the mapping of the partitioned models into the \sysname{} appliance. Right is the accelerator's microarchitecture.}
+\label{fig-architecture} 
+% \vspace{-0.15in}
+\end{figure*}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\subsection{Parallel Computing} \label{motivation_parallel}
+
+GPT-2 requires massive computations with large model parameters, which suggests the need for a parallelism scheme that divides the large model into multiple nodes for parallel computation. With the growing dimensions of the GPT-2 model, a single device is not sufficient because it lacks both memory bandwidth and capacity to do the required computations. The latency is also critical in text generation workloads, so multiple devices must share the workload to reduce the overall execution time for the given input token. To address this shortcoming, a multi-device system that adopts model parallelism and efficient network is necessary to maximize the amount of parallel computation with minimal additional latency.
+
+
+% \subsection{Cost} \label{motivation_cost}
+% Amazon Web Service (AWS), Naver Clova, and other companies provide NLP-based services through their datacenters. Most datacenters install multitude of datacenter GPUs such as NVIDIA V100 and A100 or their server solutions such as DGX and DGX A100 to run their services. However, the total cost of ownership is extremely high for these datacenters due to the upfront cost of acquiring the hardware and the operating cost of running the hardware. Therefore, a server appliance that has low product cost and energy-efficient implementation but does not compromise on performance is highly demanded.

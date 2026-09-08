@@ -1,0 +1,33 @@
+%% ----------------------------------------------------------------
+\section{Overview}
+
+\subsection{Methodology Overview}
+\todo{unify Figure and Fig.}
+
+\todo{Mentions the importance of non-batched input.}
+
+
+% \begin{figure}[h]
+%   \centering
+%   \includegraphics[width=\linewidth]{Figures/Background/overview.png}
+%   % \vspace{-15pt}
+%   \caption{PLACEHOLDER: The overview}
+%   % \vspace{-10pt}
+%   \label{fig:overview}
+% \end{figure}
+
+\subsection{Mapping Flow Overview}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{Figures/Software/compile_flow.pdf}
+  \vspace{-15pt}
+  \caption{The overall deployment flow}
+  \vspace{-10pt}
+  \label{fig:compile_flow}
+\end{figure}
+
+Figure \ref{fig:compile_flow} shows our entire deployment flow. First, the original LLM model undergoes sparsification and quantization to create a compressed LLM model. Subsequently, the intermediate representation (IR) is exported, encompassing the model's structure, weights, sparse indexes, and attention masks, which is achieved through automated parsing of the model's structure. Following that, the generated IR undergoes optimization, which involves operations like removing the \texttt{view()} layers that do not impact the data arrangement and performing layer fusion. More specifically, the attention layer will be fused with the softmax layer, and the linear layer will be fused with ReLU, SiLU, and element-wise layers. Subsequently, all the data in the optimized IR will be assigned HBM or DDR storage addresses. Additionally, the data stored in the HBM will be partitioned into appropriate channels to prevent inefficient access across different channels, thus leveraging the FPGA's high bandwidth effectively. Lastly, the compiler will generate binary instructions for hardware operations using the optimized IR and schedule the on-chip buffer according to manually defined templates.
+
+In addition, we also support generating corresponding RTL for different FPGA platforms. Specifically, the RTL Generator takes parameters of different FPGA platforms (including the amount of DSP, the capacity and bandwidth of HBM/DDR and on-chip RAM resources) to dynamically adjust the computing parallelism and buffer size of the proposed hardware architecture. This is done to generate corresponding RTL code for implementation and configurations for compilation, in order to maximize the optimal performance on different platforms.
+

@@ -4,13 +4,20 @@ domain: research
 area: fpga-llm-inference
 type: comparison
 status: active
-updated: 2026-09-07
+updated: 2026-09-08
 tags: [fpga, llm-inference, systems, compiler, accelerator, related-work]
 ---
 
 # FPGA LLM Inference System Landscape
 
 ## Scope
+
+Current evidence correction (2026-09-08): the local Q4 profile executes one whole graph per
+call with HBM-resident KV. Older per-node launch measurements and VSTC proposals below describe
+the July Gemma implementation. For current qualification and deployment limits, use
+[[research/fpga-llm-inference/manuscript-evidence-recheck-20260908]] and
+[[research/fpga-llm-inference/backend-niche-and-baseline-audit]]. Native framework integration
+has a SECDA-LLM precedent and is not unique to the local backend.
 
 这份地图优先收录满足至少一项条件的工作：
 
@@ -38,7 +45,7 @@ tags: [fpga, llm-inference, systems, compiler, accelerator, related-work]
 | [BAQET](https://doi.org/10.1145/3706628.3708849) | 2025, FPGA | Transformer | BRAM-aware quantization and stream architecture | quantization/resource co-design |
 | [SpeedLLM](https://arxiv.org/abs/2507.14139) | 2025, HPDC | TinyLlama/Llama2-style; U280 | pipeline, memory reuse and operator fusion | model-level host-timed design, but limited evaluation detail |
 | [StreamTensor](https://arxiv.org/abs/2509.13694) | 2025, MICRO | GPT-2, Qwen, Llama, Gemma; U55C | Torch-MLIR compiler, stream tensor type, block fusion, FIFO sizing | direct compiler baseline and CODO predecessor |
-| [CODO](https://arxiv.org/abs/2604.12618) | 2026, ISCA | GPT-2 Medium; U280 | eliminate coarse/fine dataflow violations, communication optimization, DSE | priority comparison; exact GPT TTFT/decode table |
+| [CODO](https://arxiv.org/abs/2604.12618) | 2026, ISCA | GPT-2 Medium; U280 | eliminate coarse/fine dataflow violations, communication optimization, DSE | priority fixed-graph comparison; exact GPT TTFT/decode table, not a demonstrated persistent-KV runtime |
 | [TeLLMe v2](https://arxiv.org/abs/2510.15926) | 2026, FPGA | BitNet 0.73B W1.58A8; KV260 | ternary table-lookup matmul, separate prefill/decode datapaths | strong low-power full-phase edge baseline |
 | [FAST-Prefill](https://arxiv.org/abs/2602.20515) | 2026, FCCM | Llama 3.2/Qwen 1-3B; U280 | dynamic sparse long-context prefill and two-tier KV cache | phase-specialized long-context baseline |
 | [LUT-LLM](https://doi.org/10.1109/FCCM68464.2026.00027) | 2026, FCCM | LLM on FPGA | memory/LUT-based computation | low-bit arithmetic direction |
@@ -55,7 +62,7 @@ tags: [fpga, llm-inference, systems, compiler, accelerator, related-work]
 | StreamTensor | PyTorch/Torch-MLIR compiler | regenerate fused block per model | whole Transformer block | block invocation with streaming intermediates | direct evidence that block fusion reduces memory/launch cost |
 | CODO | high-level program/Torch-MLIR | compiler fixes dataflow violations and explores parallelism | large fused dataflow graph | generated kernel/host/link artifacts | strongest compiler comparison for GPT-2 |
 | TeLLMe | model-specific edge inference stack | ternary model and specialized prefill/decode | full decoder datapaths | PS+PL, LM head on PS | shows full-phase design under 5 W |
-| Current project | unchanged `llama.cpp`/GGML application | support-gated operator/type/shape onboarding | accepted GGML node today; region is future target | native backend + XRT | unique framework/ABI evidence, currently too fine-grained |
+| Current Q4 profile | `llama.cpp`/GGML with FPGA-specific hooks | fixed GPT-2 Medium package and graph admission | whole model graph per call | native backend + XRT, HBM-resident KV | specialized path; board correctness/full qualification remain false; integration has SECDA-LLM precedent |
 
 ## Representative Reported Results
 
@@ -97,11 +104,13 @@ On U55C, W4A8 GPT-2 Medium:
 | `[128:128]` | 696.65 | 125.35 | 224.05 |
 | `[256:256]` | 1387.76 | 272.85 | 229.61 |
 
-It fuses one entire Transformer block, then invokes that block sequentially with different weights for all layers. This is the most relevant structural contrast to the current per-node XRT execution.
+It fuses one entire Transformer block, then invokes that block sequentially with different
+weights for all layers. This contrasts with the historical per-node XRT implementation,
+not with the current Q4 profile's one-graph-per-call execution boundary.
 
 ### CODO
 
-CODO reports GPT-2 Medium on U280/W4A8/300 MHz at 231.48 decode token/s, with TTFT 20.40, 32.64 and 110.40 ms for input lengths 32, 64 and 128. See [[research/fpga-llm-inference/codo-2026]] for the exact table and artifact-boundary audit.
+CODO reports GPT-2 Medium on U280/W4A8/300 MHz at 231.48 decode token/s, with TTFT 20.40, 32.64 and 110.40 ms for input lengths 32, 64 and 128. These numbers describe its fixed-shape graph/dataflow execution boundary; the public artifact does not establish cross-token persistent KV management or KV-specific optimization. See [[research/fpga-llm-inference/codo-2026]] and [[research/fpga-llm-inference/kv-cache-runtime-boundary-comparison]] for the exact table and artifact-boundary audit. Do not merge this row into the current stateful llama.cpp throughput table.
 
 ### Embedded KV260 LLaMA2-7B
 
@@ -130,7 +139,9 @@ Three independent lines converge:
 2. **Decode is a bandwidth problem after launch overhead is controlled.** FlightLLM, EdgeLLM and the KV260 LLaMA2 work emphasize weight layout, effective bandwidth and persistent state.
 3. **Prefill and decode need different datapaths or scheduling.** Spatial LLM, GLITCHES, TeLLMe and FAST-Prefill all treat their asymmetry as architectural, not a minor parameter choice.
 
-The current backend has not reached the second regime because launch/wait expansion dominates before HBM bandwidth becomes the clean limiting factor.
+The historical Gemma backend had not reached the second regime because launch/wait expansion
+dominated. That diagnosis must not be transferred to the current Q4 graph runtime without
+its own phase measurements.
 
 ## 2026-07-28 Architecture Refresh
 
@@ -173,6 +184,7 @@ The updated conclusion is therefore narrower: the current system should seek a *
 
 - [[research/fpga-llm-inference/foundations]]
 - [[research/fpga-llm-inference/codo-2026]]
+- [[research/fpga-llm-inference/kv-cache-runtime-boundary-comparison]]
 - [[research/fpga-llm-inference/end-to-end-evaluation]]
 - [[research/fpga-llm-inference/project-status-2026-07]]
 - [[research/fpga-llm-inference/literature-search-2026-07-28]]

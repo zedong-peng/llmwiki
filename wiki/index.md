@@ -3,7 +3,7 @@ title: Super Personal Wiki Index
 domain: root
 type: overview
 status: active
-updated: 2026-09-07
+updated: 2026-09-08
 tags: [index]
 ---
 
@@ -21,7 +21,13 @@ tags: [index]
 | Admin    | [[admin/overview]]    | 证件、合同、签证、财务、手续类材料的非敏感索引 |
 ## Recent Research References
 
+- [[research/fpga-llm-inference/manuscript-evidence-recheck-20260908]]：复查论文的实验和交付证据，区分 SECDA 初步集成、完整生成入口及固定图计时；纠正 FlexLLM 精度和 CODO 发表信息。
+
+- [[research/fpga-llm-inference/backend-niche-and-baseline-audit]]：按实验数据、公开复现路径和发表记录筛选对照；核查 SECDA、Positron、Achronix 与原生 FPGA backend 的可替代性和公开价值。
+- [[research/fpga-llm-inference/feature-level-evidence-matrix]]：九项实验工作加本地 FPGA backend；SECDA 转为正文集成先例，本地正确性未通过及公开 artifact 未核实均明确标注。
+
 - [[research/fpga-llm-inference/vitis-ai-dpu-finn-pynq]]：Vitis AI DPU、FINN 与 PYNQ/PINN 消歧，工具链架构、官方资料和 U280 LLM 部署边界。
+- [[research/fpga-llm-inference/kv-cache-runtime-boundary-comparison]]：区分 K/V 计算、持久 KV 状态、KV-specific 优化，以及 fixed-graph 与完整 runtime 的测量边界。
 
 ## Operating Files
 

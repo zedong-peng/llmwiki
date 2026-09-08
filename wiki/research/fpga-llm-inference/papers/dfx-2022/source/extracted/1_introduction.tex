@@ -1,0 +1,51 @@
+
+% \vspace{0.1in}
+
+\section{Introduction}
+\label{introduction}
+Transformer\cite{vaswani2017attention} is a deep learning language model that uses the mechanism of attention, which gives a different weight of significance to each part of the input data. By solving the recursion and lack of global dependency problem of recurrent neural network (RNN)\cite{cho2014learning} and long short-term memory (LSTM)\cite{hochreiter1997long}, the transformer is becoming the de facto standard for natural language processing (NLP) applications such as text generation\cite{zhang2020pointer, pascual2021plug}, text classification\cite{gonzalez2020comparing, garg2020bae}, and machine translation\cite{wu2016google, wang2019learning}. Among them, text generation, broadly referred to as natural language generation (NLG), is related to the automatic generation of human-readable text by a computer. It has become of great importance in emerging applications such as dialogue system~\cite{lin2020caire, budzianowski2019hello, wolf2019transfertransfo} and topic-to-essay generation~\cite{feng2018toe, yang2019toe, qiao2020toe}, with a rapid growth rate of 20\%~\cite{nlg} in the NLG market.  
+Among transformer models, the Generative Pre-trained Transformer (GPT) is widely used in cloud services, achieving remarkable performance particularly in text generation applications. 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Figures
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t] 
+% \vspace{-0.01in}
+\centering
+\footnotesize
+\includegraphics[width=3.33in]{Figures/Text_Gen.pdf} 
+\vspace{-0.1in}
+\caption{Illustration of transformer-based text generation.}
+\label{fig-intro} 
+\vspace{0.05in}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+In the text generation process, consisting of the summarization and generation stages, the language model continuously generates sequential output words (i.e., output tokens) using the input context made of multiple input words (i.e., input tokens), as shown in Figure \ref{fig-intro}. 
+%Text generation consists of summarization and generation stage.
+In the summarization stage, the language model processes a batch of input tokens with a single run and generates a new output token. The generation stage iterates the language model processing to generate the subsequent output tokens, in which each iteration takes the single output token from the previous iteration as input to generate a single output token. Meanwhile, the language model accumulates the contextual features throughout the iterations.
+%The single word is processed with the accumulation of intermediate features from previous language models in each iteration to retain the contextual information. 
+In current server platforms, GPU\cite{dgx} is used to accelerate text generation. Its massively parallel compute units yield high performance in the summarization stage as the input tokens can be computed simultaneously. However, a significant performance degradation occurs in the generation stage because GPU is not suitable for sequential processing, suffering from severe underutilization.
+
+% However, they are not applicable for transformer-based language services because they only accelerate a portion of the transformer process. In particular, the attention process has been their primary operation of concern because it is mostly composed of matrix multiplications that are computationally intensive but straightforward to accelerate. Moreover, the architectures of the previous works have not considered for the end-to-end acceleration of GPT because they use dedicated compute components for the few operations. 
+
+
+Several architectures~\cite{ham2020a3, ham2021elsa, wang2021spatten, lu2021sanger} have been proposed to accelerate the transformer. The attention mechanism \cite{vaswani2017attention}, composed of matrix multiplication and softmax for contextual understanding, has been their primary operation of concern because it is the most computationally intensive task in the transformer. However, a language service requires an architecture that considers the entirety of the transformer model. For datacenters to adopt the above accelerator architectures, the server platforms would need CPU or extra compute modules to cover the complete operations, which would lead to large processing overhead. Therefore, a unified and programmable architecture that can support the whole GPT operations end-to-end is necessary.
+%an architecture that supports GPT operations end-to-end and contains instruction-based programmable compute cores is necessary. 
+
+
+In this paper, we propose \sysname, a multi-FPGA acceleration appliance that specializes in text generation workloads covering end-to-end inference of variously sized GPT models. To address the sequential characteristic of text generation, \sysname{} compute core is optimized for single token processing, which is impracticable in GPU. It also uses an efficient tiling scheme and dataflow based on the characteristics of GPT for maximum high bandwidth memory (HBM) \cite{lee201425} bandwidth usage. To address the increasing model size, \sysname{} uses model parallelism on the multi-device system to increase the physical number of compute cores that work in parallel while evenly assigning full workload to each device. Furthermore, we exploit FPGAs because the transformer-based model continues to undergo modifications and expansions for different language services in the datacenter. The FPGA-based accelerator provides fully reprogrammable hardware to support new operations and larger dimensions of the evolving transformer with minimum cost for redesign when compared to an ASIC-based accelerator.
+
+The main contributions of our work are as follows.
+
+
+\begin{itemize}[leftmargin=*]
+\setlength\itemsep{0.01in}
+% \vspace{-0.07in}
+\item {We identify that the generation stage of text generation workload is the bottleneck on parallel hardware such as GPU due to its sequential characteristic.}
+\item {We design a custom programmable compute core optimized for the end-to-end acceleration of GPT inference with a high hardware utilization.}
+\item {We utilize the full HBM bandwidth complemented with an efficient tiling scheme and dataflow based on the characteristics of GPT to achieve low latency and high throughput.}
+\item{We apply model parallelism and efficient network to the multi-FPGA system by evenly distributing the model parameters to each FPGA in a way that requires minimal data synchronization among FPGAs and achieves maximal parallel computation.}
+% \item {We design the multi-FPGA system based on a lightweight router enabling FPGA-to-FPGA communication and apply model parallelism by evenly distributing the model parameters to each FPGA in a way that requires minimal data synchronization among FPGAs and achieves maximal parallel computation.}
+\item {We build a multi-FPGA appliance with low upfront and operating cost that accelerates transformer-based language services, achieving multiple times better performance and efficiency than the conventional GPU platform. We believe this new hardware platform is promising for handling ever-increasing text generation workloads in datacenters.}
+\end{itemize}

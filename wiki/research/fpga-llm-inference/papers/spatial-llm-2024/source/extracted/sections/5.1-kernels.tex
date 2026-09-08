@@ -1,0 +1,101 @@
+\subsection{HLS Kernels}
+\label{subsec:kernels}
+This section is not intended to propose new HLS kernels.
+Instead, we explore the efficient ways to reach the maximum available $M$ on FPGAs and implement the standard kernels as a library with parameterized quantization support, which is reusable across different models (e.g., BERT and GPT models implemented in \S\ref{sec:exp}).
+
+%We implement HLS kernels for each operator in the Transformer model.
+% https://docs.xilinx.com/r/en-US/ug1483-model-composer-sys-gen-user-guide/Setting-the-HDL-AIE-Block
+\noindent\textbf{Linear Operators.}
+Linear operators are the key operators in Transformer models because they are ubiquitous and compute-intensive.
+There are two types of linear operators in the Transformer layers, activation-weight matrix multiply (A-W GEMM) with bias, and activation-activation (A-A GEMM) matrix multiply.
+A-W GEMM includes the projection layers and the linear layers in the FFN, with weights buffered on-chip and activations streamed from an input FIFO;
+A-A GEMM includes the two GEMM operators in the SDP attention, with one of the input activations stored in a double buffer and the other one streamed.
+
+We adopt an output-stationary systolic array architecture to implement the A-W and A-A GEMM process engines.
+As shown in Figure~\ref{fig:sa}(a), the systolic array is a 2-D array of MAC units of shape $m_1\times m_2$ with FIFOs connecting different MAC units.
+The number of MAC units of linear operator $i$ is actually $M_i$ defined in \S\ref{sub:mac_analysis}.
+% \yx{really? how about throughput balancing?}
+% \yx{the following discussions only apply to A-W GEMM}
+We mainly discuss the A-W GEMM in the following, and the idea can also be applied to the A-A GEMM.
+The input activation from the previous layer will be first buffered in an activation buffer.
+After $m_1$ elements are buffered, they will be streamed into the systolic array together with the $m_2$ weights.
+There is also a fully partitioned output buffer on-chip that allows the outputs to directly write back.
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.7\linewidth]{figs/systolic_array.pdf}
+    \caption{Systolic array and DSP packing. The yellow blocks in the systolic array represent output buffers.}
+    % \yx{this figure only applies to A-W GEMM.}
+    \label{fig:sa}
+\end{figure}
+
+% \yx{the following discussions only apply to A-W GEMM}
+Each MAC unit can be implemented with a single DSP block and can provide one-MAC-per-cycle throughput.
+Based on the discussion in \S\ref{subsub:memory_packing}, we adopt the W4A8 quantization scheme for our accelerator design, which maximizes the utilization of available resources.
+As a result, the matrix multiplications involve either \texttt{int4} by \texttt{int8} or \texttt{int8} by \texttt{int8} operations, which are too large for LUTs, thus relying primarily on DSPs or specialized compute blocks (e.g., AIE~\cite{xilinxAIE}).
+% Additionally, in AMD FPGAs, we can pack two integer multipliers into one DSP48E2 if the bit precision is lower than 8, enabling a DSP to provide up to two MACs per cycle, which allows us to use fewer resources to achieve a larger $M$.
+% For instance, the DSP48E2 hard blocks on AMD Xilinx UltraScale+ Family FPGAs can support 18-bit by 27-bit multiplication and accumulation~\cite{u280}, allowing to pack two multiplications into a single DSP48E2 slice for a W4A8 quantized model to save DSP resources.
+In AMD FPGAs, the DSP48E2 hard blocks can support 18-bit by 27-bit multiplication and accumulation~\cite{u280}, enabling the packing of two multiplications into one slice for a W4A8 quantized model to save DSP resources and achieve a larger $M$.
+Figure~\ref{fig:sa}(b) shows the bit packing method for 4-bit by 8-bit integer multiplications.
+One activation is filled into the lower 8 bits of the 18-bit DSP input, and two weights are filled into 0-to-3 and 13-to-16 bit positions of the 27-bit DSP input to avoid overlapping results.
+Finally, the two multiplication results are extracted by bit-slicing the 45-bit DSP result.
+Notice that since the DSP output is wide enough, we can also pack two 8-bit by 8-bit integer multiplications into one DSP slice by further offsetting the second weight and output.
+With DSP packing, we can easily double $M$ to achieve higher performance but with much fewer DSPs.
+
+% According to~\cite{xilinxAIE}, one AIE tile is able to perform 128 MAC/cycle and AIE can work under 1 GHz clock frequency.
+% To make AIE and DSP comparable, we can scale the AIE clock frequency to 250 MHz. Hence, one AIE tile can provide 512 MAC units. 
+
+
+\noindent\textbf{Non-Linear Operators.}
+Since quantizing non-linear operators can lead to a significant degradation in model accuracy~\cite{sheng2020qbert,xiao2023smoothquant}, and these non-linear operators are not the bottleneck of the design, we directly implement the floating-point version of the operators in HLS.
+Specifically, we buffer a row of elements for softmax and LayerNorm functions, which requires conducting reduction along the last dimension.
+Consequently, this approach eliminates the need to wait for the complete results for the computation of these non-linear operators and effectively prevents dataflow stalling.
+
+\begin{comment}
+\subsubsection{Softmax.}
+Softmax function takes a row of numbers and calculates the probability distribution, as depicted in the following equation
+
+\begin{equation}
+     \text{softmax}(X)_{ij} = \frac{\mathrm{e}^{x_{ij}}}{\sum_{k=j}^{l} \mathrm{e}^{x_{ik}}}\,. 
+\end{equation}
+
+Implementing softmax on FPGA can be expensive due to its computational complexity.
+It requires the exponentiation of each input value, followed by a summation of the exponential values.
+It needs two passes on the input data to calculate the results.
+This exponentiation operation involves floating-point arithmetic, which is computationally expensive on FPGAs.
+If the input of softmax is an integer, we can create a look-up table to store all the possible values.
+However, since quantizing non-linear operators may significantly drop the model accuracy, and these non-linear operators are not the bottleneck of the design, we choose to leave it as it is.
+
+
+\subsubsection{Layer Normalization.}
+In contrast to batch normalization~\cite{he2016resnet}, layer normalization computes the normalization statistics directly from the sum of the inputs to neurons within a hidden layer~\cite{vaswani2017transformer}, as shown below,
+
+\begin{equation}
+    Y = \frac{X-\mathbb{E}[X]}{\sqrt{\mathrm{Var}[X] + \varepsilon}}\gamma + \beta\,.
+\end{equation}
+
+$\gamma$ and $\beta$ are fixed after the training process, while the expectation $\mathbb{E}[X]$ and the variance $\mathrm{Var}[X]$ of the input need to be dynamically calculated during inference.
+Notice the variance and expectation have the following relation,
+
+\begin{equation}
+\mathrm{Var}[X] = \mathbb{E}[X^2] - \mathbb{E}[X]^2\,.
+\end{equation}
+
+We can calculate LayerNorm in two passes.
+Similarly, if the LayerNorm is quantized, we can reuse the loop-up table for softmax.
+Otherwise, we directly calculate the floating point version.
+
+\subsubsection{GELU.}
+The Gaussian Error Linear Unit (GELU)~\cite{hendrycks2016gelu} is a non-linear activation function that weights inputs by their percentile, rather than gates inputs by their sign as in ReLUs~\cite{he2016resnet}.
+The GELU activation function is $x\Phi(x)$, where $\Phi(x)$ is the standard Gaussian cumulative distribution function.
+The full formula is depicted below,
+
+\begin{equation}
+\label{equ:GELU}
+\mathrm{GELU}\left(x\right) = x\mathbb{P}\left(X\leq{x}\right) = x\Phi\left(x\right) = x \cdot \frac{1}{2}\left[1 + \mathrm{erf}\left(\frac{x}{\sqrt{2}}\right)\right]\,.
+\end{equation}
+
+The original GELU function involves the computation of the cumulative distribution function (CDF) of the Gaussian distribution, which can be computationally expensive when implementing the function in hardware.
+To address this issue, researchers have proposed an approximate GELU function that can be more easily computed in hardware.
+We use a piecewise linear function that closely approximates the original GELU function~\cite{sheng2020qbert}.
+\end{comment}

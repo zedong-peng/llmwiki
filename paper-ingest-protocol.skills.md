@@ -18,7 +18,7 @@
 
 2. 下载材料
    - 先下载 arXiv source / e-print
-   - 再下载官方 repo 到 `repo/`
+   - 再下载官方 repo 到 `repo/<repo-name>/`
    - 最后下载 PDF
    - 保留原始文件名，例如 `2405.14831.pdf`、`2405.14831-source.tar.gz`
 

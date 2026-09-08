@@ -1,0 +1,63 @@
+\begin{figure*}
+    \centering
+    \includegraphics[width=\linewidth]{figs/gpt-architecture.pdf}
+    \caption{Overall dataflow architecture of a single Transformer layer that uses post-LayerNorm scheme~\cite{radford2019gpt2}.
+    SDP denotes scaled dot-product.
+    Orange nodes denote the GEMM kernels.
+    Yellow nodes are the non-linear kernels, including softmax (SM), LayerNorm (LN), and GELU (GL).
+    Green rectangles represent the FIFOs between kernels, and purple rectangles are the data loaders.}
+    \label{fig:arch}
+\end{figure*}
+
+\subsection{Accelerator Design}
+\label{sec:xcel}
+We integrate the proposed kernels in \S\ref{subsec:kernels} to create a high-performance hardware accelerator.
+The overall architecture of our proposed accelerator is depicted in Figure~\ref{fig:arch}.
+Different operators including linear and non-linear operators are connected with FIFOs, except that the KV cache discussed in \S\ref{subsubsec:memory_resource} leverages double buffers.
+This design reads input tensors from off-chip memory and stores the results back to memory after each layer.
+Intermediate activation values are directly streamed to the next operator.
+\revise{Initially, all parameters are stored in DRAM, and data loaders $L_{(\cdot)}$ are responsible for loading data from DRAM or streaming buffers.
+Storing parameters off-chip reduces the number of FPGA devices needed and avoids the need to build different bitstreams for different network layers.
+After completing a layer, the accelerator fetches new parameters from the host to the device for the subsequent layer.
+Since data loading is hidden from the computation, overall latency remains unaffected.}
+Given the contemporary trend of multi-die FPGA designs~\cite{guo2021autobridge,du2022hisparse}, explicit dataflow partitioning becomes necessary to meet timing requirements.
+Our target device, Alveo U280 FPGA~\cite{u280}, has three chip dies called super logic regions (SLRs).
+Consequently, we partition the dataflow into three regions to confine each region fully inside SLR.
+\revise{According to our placement constraints, AMD Vitis toolchain will automatically insert AXI Register Slice IPs to pipeline SLR crossing.}
+
+% \yx{I think there is no use to just list out what kernels are on which region. Instead, we should explain why we employ this division.}
+
+We leverage the proposed analytical framework to guide our accelerator design.
+Since typical Transformer models have $\dffn=4d$~\cite{devlin2018bert,radford2019gpt2} and $l<d$, according to work balancing of Equation~\eqref{eq:m}, we have $M_{q,k,v,p} = M$, $M_{a_1, a_2} < M$, and $M_{f1, f2} = 4M$.
+A straight-forward division is to put the PEs for $q$, $k$, $v$, SDP, and $p$ on SLR0, $f1$ on SLR1, and $f2$ on SLR2 so that each SLR roughly contains $4M$ MAC units.
+However, we observe that scaling up the linear operators in FFN poses significant challenges to timing closure. 
+Among various configurations of systolic arrays we tested, the maximum capacity of one SLR at 250 MHz is three of 8~\X16 systolic arrays; a single 16~\X16 one fails timing. 
+Therefore, we only leverage 8~\X8 and 8~\X16 systolic arrays for simplicity. 
+\revise{We also explore using LUT-based multipliers as they provide greater flexibility for placement compared to DSPs.
+However, the presence of additional inter-LUT wires results in a much lower frequency (191 MHz) compared to the DSP-based multipliers.}
+To minimize the number of SLR crossings, we put $q$, $k$, and $v$ on SLR0 and use 8~\X16 systolic arrays, which also ensures a relatively low latency for the first stage based on Equation~\eqref{eq:latency_prefill}.
+MHA and the $p$ projection are on SLR1, with $a_1$ and $a_2$ using 8~\X8, and $p$ using 8~\X16 systolic arrays.
+$f_1$ and $f_2$ operators on SLR2 using 8~\X16 systolic arrays.
+Therefore, it can still form a relatively balanced 3:2:2 resource utilization ratio for linear operators.
+% In this case, the latency of one layer would be $5ld^2/M$ based on Equation~\eqref{eq:latency_prefill}.
+
+% Region 0 consists of the input loader and the $q$, $k$, $v$ linear layers.
+% Input data resides in the High Bandwidth Memory (HBM) next to SLR0.
+% To facilitate efficient data transfer, three separate loaders read input from HBM for $k$ and $v$, $q$, and residual connection tensors.
+% This division is critical because the $kv$ path exhibits slower data transfer rates compared to the other two paths, necessitating storage of all results in a double buffer for the subsequent SDP operators.
+% Sharing a loader for these paths would risk deadlock scenarios, as the faster path could block the loader when the associated FIFO becomes full.
+% The loader streams data to the linear layers and forwards the output to the next region.
+
+% Region 1 includes the core SDP operators, along with the ensuing residual connection and LayerNorm operators.
+% Following double buffering of the $k$ and $v$ outputs, the $k$ tensor can be streamed directly into \texttt{matmul1} for matrix multiplication.
+% We calculate results for different heads sequentially to conserve memory.
+% After \texttt{matmul1}, the results are streamed into the softmax function and subsequently passed to \texttt{matmul2}.
+% Finally, the SDP results are concatenated and processed through the projection layer, merging with the input shortcut before undergoing the LayerNorm module.
+% The resulting output is transmitted to Region 2.
+
+% Region 2 mainly features the FFN module.
+% The connection is straightforward, but careful selection of FIFO sizes is crucial. Given that the production rate of \texttt{FFN1} exceeds the consumption rate of \texttt{FFN2}, a sufficiently large FIFO is required to store intermediate results between these two layers. Inadequate buffer size would lead to buffer overflow and backpressure, causing dataflow stalls. Similarly, a sizable buffer is necessary for the shortcut to prevent deadlock. Following the residual connection and LayerNorm operator, the results are written back to memory.
+
+% \yx{is this our true reason of doing such a division?}
+% This partitioning scheme is specifically designed to maintain a balanced pipeline stage by splitting it after the LayerNorm function, facilitating efficient communication with only a single output tensor relayed from Region 1 to Region 2.
+% Other partitioning points would entail communication with more than two tensors, thereby increasing communication overhead.

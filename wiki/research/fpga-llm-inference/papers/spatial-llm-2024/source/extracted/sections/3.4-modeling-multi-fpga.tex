@@ -1,0 +1,72 @@
+\subsection{Distributed Inference}
+\label{sub:multifpga}
+As a single FPGA may not be sufficient to process some extremely large models, we next extend our modeling to multiple FPGAs.
+We first characterize the communication cost between two FPGAs and discuss the impact of different parallelism schemes.
+
+\subsubsection{Communication.}
+Various methods exist for facilitating inter-FPGA communication, including communication through the host, PCI-E Peer-to-Peer (P2P), and on-device Ethernet.
+We mainly consider the third approach since it does not necessitate orchestration from the host and provides higher bandwidth compared to other alternatives.
+For example, the AMD Alveo U280 FPGA provides two QSFP ports~\cite{qsfp}, each capable of carrying 100 Gb/s Ethernet data over optical fibers, which ensures robust and high-speed inter-FPGA communication.
+Most of the time, we cannot fully utilize the network bandwidth and need to pay for the package header overheads.
+Suppose the theoretical network bandwidth between two FPGA devices is $B$ bits per second (bps), and the efficiency of the network is $\alpha$, so we can have the effective bandwidth as $\alpha B$, where $\alpha$ can be obtained through network benchmarking.
+
+% \begin{figure}[!htbp]
+%     \centering
+%     \includegraphics[width=\linewidth]{figs/network.pdf}
+%     \caption{Inter-FPGA communication with on-device Ethernet.}
+%     \label{fig:network}
+% \end{figure}
+% Figure~\ref{fig:network} illustrates the inter-FPGA communication using on-device Ethernet.
+% We have implemented the Ethernet stack directly on the FPGA, comprising two primary components: the network layer, responsible for managing the Internet Protocol, and the driver for the QSFP ports.
+% The network layer's functionality encompasses receiving data from the preceding Transformer layer, storing it in HBM, initiating the compute kernels, awaiting their completion, retrieving the output data from the Transformer layer in HBM, and forwarding it to the next FPGA device.
+% For managing the QSFP ports, we employ the CMAC IP provided by Xilinx~\cite{xilinx_cmac}. This driver facilitates the efficient handling of data transfer over the QSFP ports, ensuring smooth and high-speed inter-FPGA communication.
+
+\subsubsection{Parallelization Schemes.}
+\label{subsub:parallelism_schemes}
+As mentioned in \S\ref{sub:parallelism_intro}, we have various parallelization schemes when considering multiple devices.
+We first analyze tensor parallelism (TP).
+\revise{As shown in Figure~\ref{fig:3d-parallelism}, the parameters of the linear operations are partitioned across different devices. For example, suppose the weight parameters of the two FFN layers $f_1$ and $f_2$ are $A$ and $B$, then we can partition $A$ along its column and partition $B$ along its row, and obtain
+\[\sigma(ZA)B=\sigma\left(Z\begin{bmatrix}A_1 & A_2\end{bmatrix}\right)\begin{bmatrix}B_1\\B_2\end{bmatrix}=\sigma(ZA_1)B_1+\sigma(ZA_2)B_2\,,\]
+where $\sigma$ is the GeLU function.
+Therefore, apart from partitioning $A$ and $B$, we need to insert an all-reduce operation to aggregate the partial results on each device to ensure correctness.
+The partitioned parameters will be stored on different devices.
+For example, $A_1$ will be on the first FPGA, and $A_2$ will be on the second FPGA.
+A similar partition scheme can be applied for MHA, and we refer the readers to~\cite{shoeybi2019megatron} for more details.
+}
+
+Based on this partition scheme, TP requires two all-reduce operations within one Transformer layer.
+However, these communicative operations are implemented in a blocking way.
+Figure~\ref{fig:tp}(a) shows the subsequent FFN module needs to wait for the completion of the all-reduce process before it can conduct computation~\cite{wang2023overlap}.
+Notice that the all-reduce operation only involves fetching results from other devices and adding the result to its local tensor.
+Given that the output of MHA is a sequential stream, we can perform elementwise addition in a non-blocking manner.
+As soon as the kernel receives enough data, it can initiate data transfer to other devices without waiting for the remaining data to be computed.
+This leads to substantial synchronization time savings as shown in Figure~\ref{fig:tp}(b).
+% \yx{We cannot assume MHA and FFN takes the same amount time on GPU as FPGA.}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.6\linewidth]{figs/TP.pdf}
+    \caption{Blocking and non-blocking all-reduce in TP. The latency of different stages is not drawn to scale.}
+    \label{fig:tp}
+\end{figure}
+
+Since the size of the output tensor of MHA and FFN are both $ld$, the communication time for one all-reduce is
+\begin{equation}
+    % T_{\text{comm}}=\frac{ldb_A}{\alpha B}\,.
+    T_{\text{comm}}=ldb_A/(\alpha B)\,.
+\end{equation}
+
+\revise{As we have already implemented dataflow inside a device, pipeline parallelism (PP) essentially extends the dataflow to $p_2$ devices with a tensor of size $ld$ communicated in between.
+Here, we only split the pipeline between two Transformer layers so the results of the previous device can be directly streamed to the next device in the same PP group.
+Notice TP and PP can be combined to conduct model inference~\cite{narayanan2021megatronv2}}, and the latency of Equation~\eqref{eq:latency_prefill} becomes
+\begin{equation}
+    \label{eq:multilatency}
+    \small
+    T_{\text{prefill}} = \frac{1}{freq}\frac{N}{p_2C}\left(\frac{ld^2}{p_1M_k}+p_2C\max\left(\frac{ld^2}{p_1M_k},\frac{l^2d}{p_1M_{a_1}},\frac{ld\dffn}{p_1M_{f_1}}, T_{\text{mem}},T_{\text{comm}}\right)\right)\,,
+\end{equation}
+where $p_1$ and $p_2$ are the size of a TP group and a PP group~\cite{shoeybi2019megatron}.
+Additionally, the memory requirements of Equations~\eqref{eq:sram_constraint} and \eqref{eq:port_constraint} need to be divided by $p_1$ to satisfy the constraints of multiple devices.
+
+Notice we only discuss two basic parallelism schemes for Transformer models.
+Some recent works may partition the sequence dimension and leverage reduce-scatter and all-gather to reduce the overheads of all-reduce~\cite{narayanan2021megatronv2,korthikanti2022reducing}.
+The communication time can be similarly analyzed, and we will not discuss them here.
+The optimal parallelism scheme on multiple devices~\cite{pope2022googleinf,colin2022unity,zheng2022alpa,miao2022galvatron,xie2022optimalplacement} is out of the scope of this paper, and we will leave it as future works.

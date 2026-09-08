@@ -1,0 +1,275 @@
+
+
+% \vspace{-0.05in}
+
+\section{Appliance Implementation} \label{implementation}
+
+
+We build a \sysname{} appliance prototype that uses Intel Xeon Gold 6226R CPU and four Xilinx Alveo U280 data center acceleration cards \cite{alveo} for evaluation. Although it uses a single homogeneous multi-FPGA cluster with four FPGA cards, the appliance itself is capable of harnessing two sets of these configurations and/or increasing the number FPGA cards per cluster in a 4U server chassis. The server appliance can be easily extended as it is already based on a dual-socket motherboard with 20 PCIe Gen3 x16 slots. Installing more FPGA cards and configuring their clusters at the system would be sufficient. Figure \ref{fig-server} shows the setup of the \sysname{} server appliance hardware. 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t]
+% \vspace{-0.01in}
+\centering
+\includegraphics[width=3.33in]{Figures/Prototype.pdf}
+\vspace{-0.15in}
+\caption{Image of \sysname{} server appliance.}
+\label{fig-server}
+\vspace{-0.1in}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t]
+\centering
+\includegraphics[width=3.33in]{Figures/FPGA_layout.pdf}
+\vspace{-0.15in}
+\caption{FPGA layout and resource utilization on Xilinx Alveo U280.}
+\label{fig-fpga}
+\vspace{0.05in}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure*}[t]
+%\vspace{0.01in}
+\centering
+\includegraphics[width=6.95in]{Figures/Latency.pdf}
+\vspace{-0.1in}
+\caption{Inference latency of \sysname{} compared to the GPU appliance on various GPT-2 models.}
+\label{fig-latency}
+% \vspace{-0.02in}
+\end{figure*}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+U280 FPGA chip uses a chiplet-based (i.e., multi-die) design with three super logic regions (SLRs) and supports 8 GB of HBM with 32 channels. We integrate 4 \sysname{} cores, 1 core per device, across the four FPGAs. 
+%Since the target application is memory-bound, our design focus is to utilize all the available 32 channels of HBM to feed the massively-parallel matrix unit. 
+Considering the total bitwidth of data path is 32$\times$512, the place-and-route (PnR) over three different dies is challenging. Since the HBM controller is physically located in the bottom SLR (i.e., SLR0) and the \sysname{} core is large enough over the dies, we discover that the implementation is eventually constrained by the number of super long line routes (SLLs) which connect the logic between the dies.
+%The \sysname{} core is large enough to require hardware resources in all three SLRs, but the implementation of a core that spans across the SLRs is constrained by the number of super long line routes (SLL) that connect the logic die-to-die. 
+To handle this multi-die crossing issue effectively, we first decide to split the \sysname{} microarchitecture into kernels, in which the kernel represents a top-level design module to be implemented within a single die.
+%an encapsulating top-level module that will be implemented within a single die. 
+Then, we map the kernel with the DMA and MPU modules into the SLR closest to the HBM, or SLR0, because these modules frequently access the memory interconnect that requires the most amount of routing; otherwise, these routings would need to be SLR-crossing and exceed the number of available SLLs. However, when we try to map all the MPU lanes and memory channels in a single die, the kernel causes PnR failure due to routing congestion. 
+%It is understandable as the interconnect for 32 channels consumes a large amount of hardware resources as well.
+%However, an interconnect that utilizes all 32 HBM channel's bandwidth also consume large FPGA resources. Thus, the kernel causes place-and-route failure due to routing congestion. 
+As a result, we map the maximum possible lanes of MPU that can meet the routing constraint of SLR0 and map the rest into the other SLRs. 
+%Lastly, the result from the matrix-vector multiplication in the MPU is a subvector of only $lane$ dimension, so the register file and VPU are placed in a separate SLR. 
+%For the final implementation, we place and route the kernel with the DMA and 6 lanes of MPU into SLR0, the kernel with 10 lanes of MPU into SLR1, and the kernel with the register file, VPU, and router into SLR2.
+%The communication between the kernels implemented in different SLR are enabled through kernel to kernel streaming (K2K) that utilizes high-speed and lightweight AXI-Stream interface. 
+By having separate kernels that minimize die-crossing signals, the \sysname{} core overcomes the routing congestion and achieves the maximum bandwidth utilization out of the device. 
+%\sysname{} core overcomes the routing congestion and timing violation that occur when maximizing logic usage and utilizing high number of memory channels of the HBM.
+
+
+
+We run all U280 FPGAs at 200 MHz kernel frequency and 410 MHz memory interface frequency, utilizing 39.93\% of LUT, 42.52\% of FF, 59.13\% of BRAM, 10.83\% of URAM, and 39.15\% of DSP. Figure \ref{fig-fpga} shows the final FPGA layout and resource utilization of one of the U280s. We use Xilinx Vivado \cite{vivado} to synthesize the hardware written in SystemVerilog and the Xilinx Vitis 2020.2 platform \cite{vitis} for the host-FPGA communication. 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{table}[t]
+% \vspace{-0.16in}
+\centering
+\scriptsize
+\caption {GPT-2 Model Configuration} \label{tab:config} 
+\vspace{-0.1in}
+
+\begin{tabular}{c|c|c|c|c} 
+\toprule
+\begin{tabular}[c]{@{}c@{}}\textbf{Number of}\\\textbf{Parameters}\end{tabular} & 
+\begin{tabular}[c]{@{}c@{}}\textbf{Embedding}\\\textbf{Dimension}\end{tabular} & 
+\begin{tabular}[c]{@{}c@{}}\textbf{Number of}\\\textbf{Attention Heads}\end{tabular} & 
+\begin{tabular}[c]{@{}c@{}}\textbf{Head}\\\textbf{Dimension}\end{tabular} & 
+\begin{tabular}[c]{@{}c@{}}\textbf{Number of}\\\textbf{Layers}\end{tabular}  \\ 
+\hline\hline
+345M & 1024 & 16 & 64 & 24 \\ 
+\hline
+774M & 1280 & 20 & 64 &  36 \\ 
+\hline
+1.5B & 1536 & 24 & 64 &  48 \\
+\bottomrule
+\end{tabular}
+\vspace{0.1in}
+\end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% \vspace{-0.05in}
+
+\section{Evaluation}
+\label{evaluation}
+
+We use the \sysname{} appliance prototype to evaluate the system performance. We use a GPU appliance, a custom server of four NVIDIA V100 GPUs \cite{v100}, as the evaluation baseline to compare the results with \sysname{}.
+% \textcolor{red}{For a fair comparison, we choose V100 GPU, which is as similar as possible to U280 FPGA's hardware specification, especially the memory capacity and bandwidth.}  
+The V100 GPU has the most comparable hardware specification to the U280 FPGA, especially the memory capacity and bandwidth, to yield a fair comparison. We run the GPT-2 models on this GPU appliance using NVIDIA's GPU-optimized Megatron-LM source code \cite{shoeybi2019megatron} and CUDA Toolkit 11.1 with the provided parallelism scheme that supports both multi-GPU training and inference. In addition, we run the cloud TPU \cite{jouppi2017datacenter, tpucloud} to analyze the performance of different accelerator platforms. Regarding each model, we use the open-source 345M model from NVIDIA Megatron-LM \cite{shoeybi2019megatron}, and 774M and 1.5B model from OpenAI \cite{radford2019language}. We slightly adjust OpenAI’s 1.5B model’s number of attention heads from 25 to 24 because OpenAI’s configuration is difficult to parallelize for both hardware platforms to run. Table \ref{tab:config} shows the GPT-2 configuration for each model. We use Xilinx Board Utility (xbutil)  and NVIDIA system management interface (nvidia-smi) for power measurements. We measure the inference accuracy, latency, throughput, and energy efficiency. Furthermore, we discuss the scalability of \sysname{} and compare the cost of the two systems.
+
+\subsection{Inference Accuracy}
+
+\textbf{Methodology}
+To ensure that \sysname{} does not incur any accuracy loss on GPT-2, we compare the accuracy for widely used open-source datasets with the baseline V100 GPU on the 345M model. We compare Winograd Schema Challenge (WSC) \cite{levesque2012winograd}, Childrens' Book Common Noun (CBT-CN), and Children's Book Named Entities (CBT-NE) \cite{bajgar2016embracing}, which predict a word based on the given context.
+
+\textbf{Accuracy}
+% Table \ref{tab:accuracy} shows the accuracy comparison between \sysname{} and the GPU appliance with NVIDIA V100 GPUs. 
+\sysname{} achieves no loss, 0.3\% loss, and 0.15\% gain in accuracy for WSC, CBT-CN, and CBT-NE, respectively, when compared to the baseline GPU. The GPU runs its kernel with FP16 operators, a standard for NLP applications. To minimize the error in text generation applications, \sysname{} also runs its cores with FP16 operators based on the Xilinx Floating-Point Operator IP. Both FP16 operators are based on IEEE 754 with 1-bit sign, 5-bit exponent, and 10-bit mantissa. Since all the operations are identical in both systems except for the GELU operation, the difference comes from the subtle difference in approximation between the GPU and \sysname{}, which is negligible.
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \begin{table}[t]
+% \vspace{0.01in}
+% \centering
+% \scriptsize
+% \caption {GPT-2 Accuracy results} \label{tab:accuracy} 
+
+% \begin{tabular}{c|c|c|c} 
+% \toprule
+%     & \textbf{WSC} & \textbf{CBT-CN} & \textbf{CBT-NE}  \\ 
+% \hline\hline
+% GPU Appliance   & 59.65\%   & 89.50\%   & 79.15\% \\ 
+% \hline
+% DFX             & 59.65\%   & 89.20\%   & 79.30\% \\
+% \hline
+% \hline
+% Accuracy Loss   & 0.0\%   & 0.3\%    & -0.15\%  \\
+% \bottomrule
+% \end{tabular}
+% \vspace{-0.1in}
+% \end{table}
+
+
+% %GPU Appliance  & 58.02\%  & 87.28\%    & 69.00\%          \\ 
+% %DFX            & 60.35\%  & 86.26\%    & 67.00\%          \\
+% %Accuracy Loss  & -2.33\%  & 1.02\%     & 2.00\%          \\
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+% \vspace{-0.015in}
+
+\subsection{Performance Analysis}
+\label{performance}
+
+\textbf{Methodology}
+We evaluate the end-to-end performance of \sysname{} on various GPT-2 models (345M, 774M, and 1.5B) with different combinations of input and output token lengths to represent the dialogue system, topic-to-essay generation, and other text generation workloads. We use the same model and the same number of accelerators in both appliances for a fair comparison.
+%We run the model on \sysname{} and compare it against the GPU appliance.
+We compare one V100 GPU and one U280 FPGA for the 345M model, two V100 GPUs and two U280 FPGAs for the  774M model, and four V100 GPUs and four U280 FPGAs for the 1.5B model. Specifically, we run each model with input lengths of 32, 64, and 128 tokens and various output lengths between 1 and 256 tokens, which are the typical ranges of user requests for transformer-based language services in datacenters\cite{tokenratio}. 
+
+% and expand the model in-house to create the 2.5B and 8.3B models.
+
+
+\textbf{Latency} 
+Figure \ref{fig-latency} shows the text generation latency of the GPU appliance and \sysname{} on various GPT-2 models, as well as the speedup that \sysname{} achieves. Note that the Y-axis for latency is in log scale. The result shows that \sysname{} achieves an average of 5.58$\times$ speedup compared to the GPU appliance for the 1.5B model. For the workload with significantly more output tokens compared to the input token, i.e., 32:256, \sysname{} shows substantially lower latency, 10.03$\times$, than the GPU appliance. For the 345M and 774M models, \sysname{} achieves an average of 3.20$\times$ and 4.46$\times$ speedup, respectively, compared to the GPU appliance with the equivalent number of accelerators. The result presents that the additional number of output tokens leads to a more significant increase in latency on the GPU appliance than on \sysname{}. In fact, the speedup of \sysname{} over the GPU appliance can be greater for even smaller input and larger output sizes. Although the future NLG applications may require longer token generations, we only focus on the range of current use cases. 
+%It is noteworthy that \sysname{} is adaptable to any configuration with a programmable core tailored for text generation.
+The overall speedup of \sysname{} is attenuated with a larger input size because the GPU is able to take advantage of its massively parallel computation to execute the large input. As long as the ratio between the input and output lengths is lower than 4:1, which is the case for text generation workloads, \sysname{} performs better than the GPU appliance. 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t]
+% \vspace{-0.08in}
+\centering
+\includegraphics[width=2.9in]{Figures/Breakdown2.pdf}
+\vspace{-0.1in}
+\caption{Latency breakdown of 4 FPGAs on the 1.5B model.}
+\label{fig-breakdown2}
+% \vspace{0.05in}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t]
+% \vspace{0.01in}
+\centering
+\includegraphics[width=2.9in]{Figures/Throughput_Energy.pdf}
+\vspace{-0.1in}
+\caption{Throughput and energy efficiency of \sysname{} compared to the GPU appliance on the 1.5B model.}
+\label{fig-throughput}
+\vspace{0.1in}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t]
+% \vspace{0.05in}
+\centering
+\includegraphics[width=2.8in]{Figures/Gops.pdf}
+\vspace{-0.1in}
+\caption{Performance comparison with GPU, TPU, and DFX (1 FPGA) on the 345M model.}
+\label{fig-gops}
+% \vspace{-0.1in}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t]
+\centering
+\includegraphics[width=2.2in]{Figures/Scalability.pdf}
+\vspace{-0.1in}
+\caption{Scalability of \sysname{} on the 345M model.}
+\label{fig-scalability}
+\vspace{0.1in}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Figure \ref{fig-breakdown2} shows the latency breakdown of running the 1.5B model on 4 FPGAs. The result shows that the majority of the time is consumed by self-attention and feed-forward network at 72.6\%. At 17.3\%, synchronization may seem critical in \sysname{} when compared to the GPU appliance because GPU has high-speed communication such as NVLink \cite{li2019evaluating} to lower the synchronization latency. However, \sysname{} has 5.58$\times$ lower overall latency, so the high synchornization proportion is attributed to the speedup in other operations. %This claim is supported by the fact that synchronization only happens four times per layer, as mentioned in Section \ref{architecture_cluster}.
+
+
+%Although the synchronization overhead between GPUs is negligible due to its high-speed communication via NVLink \cite{li2019evaluating}, GPU performance does not scale because it is limited by its compute units that underperform for the sequential process in text generation. Hence, adding more GPU devices results in more underutilization without any performance gain, which confirms that GPU-based platform less suitable for text generation workloads.
+
+%Meanwhile, both \sysname{} and the GPU appliance effectively support models of various scales. 
+% Specifically, the \sysname{} architecture efficiently maps large models as shown in Figure \ref{fig-breakdown2}, in which the percentage of time spent on synchronization does not increase as the model size increases.
+
+
+
+\textbf{Throughput and Energy Efficiency} 
+Figure \ref{fig-throughput} shows the throughput and energy efficiency of the two appliances on the 1.5B model. \sysname{} achieves an average of 3.78$\times$ throughput and 3.99$\times$ high energy efficiency compared to the GPU appliance. The throughput was measured by dividing the number of output tokens by the text generation latency. The throughput result shows that GPU maintains a relatively constant throughput even when the output tokens are scaled up, which indicates that the performance is bottlenecked by low hardware utilization during the generation stage. Furthermore, we observe that 1) each V100 GPU consumes only 47.5W, on average, based on the nvidia-smi tool, and 2) the average power consumption decreases as the number of output tokens increases. Since the GPU runs at a high base clock frequency of 1.23GHz, the low power consumption can only be explained by low hardware utilization. Meanwhile, \sysname{} runs at an even lower 45W, not because of low hardware utilization but because the FPGA runs at a lower operating frequency of 200MHz.
+
+%Measure sumamrization and generation stage power separately
+
+We also analyze the GFLOPS performance of different accelerator platforms, DFX accelerator (1 FPGA), TPU, and GPU, for the 345M model with 64:64 tokens, as shown in Figure \ref{fig-gops}. The GPU and TPU show similar behavior with high throughput in the summarization stage (1632.1 and 674.5 GFLOPS) and signficantly reduced throughput in the generation stage (40.6 and 8.2 GFLOPS), which implies that these devices are highly utilized in a batched process but severely underutilized in a non-batchable process. Meanwhile, DFX retains an average of 184.1 GFLOPS during both summarization and generation stages because its dataflow is specialized for the iterative matrix-vector multiplication rather than the infrequent matrix-matrix multiplication.
+
+
+\textbf{Scalability}
+Figure \ref{fig-scalability} shows the scalability of U280 FPGA in \sysname{} for the 345M model with 64:64 tokens. On average, \sysname{} achieves 93.10 tokens/sec for 1 FPGA, 146.25 tokens/sec for 2 FPGAs, and 207.56 tokens/sec for 4 FPGAs. The performance of \sysname{} increases linearly with the number of FPGAs at the rate of 1.5, which means the processing unit for \sysname{} is designed to retain high utilization with more devices, even on relatively small models. The performance gain is not directly proportional to the number of devices because we do not parallelize layer normalization and residual due to their even larger synchronization overhead. There is also a marginal drop in throughput with each additional FPGA due to more data synchronization. 
+
+%Although the synchronization overhead between GPUs is negligible due to its high-speed communication via NVLink \cite{li2019evaluating}, GPU performance does not scale because it is limited by its compute units that underperform for the sequential process in text generation. Hence, adding more GPU devices results in more underutilization without any performance gain, which confirms that GPU-based platform less suitable for text generation workloads.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{table}[t]
+% \vspace{-0.01in}
+\centering
+\scriptsize
+\caption {Appliance Cost Analysis} \label{tab:cost} 
+\vspace{-0.1in}
+
+\begin{tabular}{l|l|l} 
+\toprule
+              & \textbf{GPU Appliance} & \textbf{DFX}                                                               \\ 
+\hline\hline
+CPUs          &   \begin{tabular}[c]{@{}l@{}}2 $\times$ Intel Xeon Gold\\14-Core @2.2 GHz\end{tabular}      & \begin{tabular}[c]{@{}l@{}}2 $\times$ Intel Xeon Gold\\16-Core @2.9 GHz\end{tabular}  \\
+\hline
+Memory        &  384 GB DDR4                                                                     & 512 GB DDR4                                                               \\ 
+\hline
+Storage       & 12 TB NVMe                                                                       & 4 TB NVMe                                                                          \\ 
+\hline
+Accelerators  &  \begin{tabular}[c]{@{}l@{}} 4 $\times$ NVIDIA Tesla V100\\32 GB HBM2 (900 GB/s)\end{tabular}     & \begin{tabular}[c]{@{}l@{}} 4 $\times$ XILINX Alveo U280\\8 GB HBM2 (460 GB/s)\end{tabular} \\ 
+\hline
+Performance     & 13.01 tokens/sec    & 72.68 tokens/sec                                                                       \\                                                      
+\hline
+Cost           & \$45,832 (\$11,458 per GPU) &   \$31,180 (\$7,795 per FPGA) \\
+\hline\hline
+\begin{tabular}[c]{@{}l@{}}Performance\\/ Cost\end{tabular}  &    283.86 tokens/sec/million\$   & 2330.98 tokens/sec/million\$ \\
+\bottomrule
+\end{tabular}
+\vspace{0.1in}
+\end{table}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Cost Analysis}
+Table \ref{tab:cost} shows the cost analysis of \sysname{} and the GPU appliance. \sysname{} has an upfront cost that is \$14,652 lower than that of the GPU appliance when 4 devices are installed on both appliances \cite{v100cost, v100cost-a, u280cost}. For comparison, we exclude the cost of components (e.g., CPU and storage) other than the accelerators. To measure the overall cost-effectiveness, we consider both performance and upfront cost (i.e., retail price). We choose the 1.5B model with the input-to-output token ratio of 64:64 to measure the performance per cost, which is representative of the chatbot service as described in Section \ref{background_gpt}. 
+% because this configuration is most commonly used in datacenters. 
+Comparing the performance-to-cost ratio, \sysname{} is 8.21$\times$ more cost-effective than the GPU appliance. %Note that the cost-effectiveness goes up to A$\times$ and B$\times$ if the input-to-output token ratio increases to C and D, respectively.
+
+We can draw similar conclusions between the \sysname{} and the NVIDIA DGX system because our custom GPU appliance is comparable in cost and performance to DGX-1 \cite{dgxcost}. DGX-1 is a purchasable GPU-based appliance that harnesses 8 Tesla V100 GPUs for machine learning workloads in datacenters. Our custom GPU appliance is an upgraded version of DGX-1 with the same number of GPUs, in which each GPU has a better performance grade and a larger HBM2 than those of DGX-1. As the GPU-based appliance would perform worse when scaled up to 8 devices, the stated improvement in cost-effectiveness for \sysname{} would be even greater when compared to real datacenter appliances.
+
+
+
+
+
+
+

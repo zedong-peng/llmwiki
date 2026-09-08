@@ -1,0 +1,34 @@
+\section{Related Work}
+\label{sec:related_work}
+\noindent\textbf{FPGA-Based Transformer Accelerators.}
+Most of the prior works on hardware accelerators leverage temporal or overlay architecture with one FPGA~\cite{liu2021fqbert, li2020ftrans, qi2021iccad, hur2023flexrun, khan2021npe,peng2021cbbp,li2021nmta,qi2021bmc}. 
+Their performance usually suffers from frequent data movements of intermediate results. 
+% FQ-BERT~\cite{liu2021fqbert} deploys a quantized BERT model on FPGA, but all the intermediate results need to be written back to off-chip memory, causing considerable performance degradation.
+% FTrans~\cite{li2020ftrans} introduces model optimization techniques for RoBERTa models on FPGA but still relied on an overlay design.
+% FlexRun~\cite{hur2023flexrun} also embraces an ISA design but confined its efforts to simulation without practical on-board implementation.
+% There have been several studies on Vision Transformers~\cite{wang2022via,sun2022autovit}, but none have ventured into the realm of pure dataflow design. 
+DFX~\cite{hong2022dfx} explores using multiple FPGAs to accelerate GPT2 inference, but it is still an overlay design.
+% however, it employs an ISA design, refrains from open-sourcing the hardware accelerator, and lacks kernel reusability.
+Some research has delved into software-hardware co-design to optimize the attention kernel~\cite{zhang2021attn_codesign}.
+These endeavors often lack in-depth analysis on resource utilization and cannot be easily generalized to other kernels.
+
+\noindent\textbf{Quantization on LLMs.} 
+% ith the expanding scale of LLMs, a myriad of quantization techniques have emerged from the research community, aiming to alleviate the associated memory and computational burdens.
+Initial investigations~\cite{xiao2023smoothquant, dettmers2022llmint8, yao2022zeroquant} demonstrate lossless 8-bit quantization for LLMs.
+Subsequent studies~\cite{frantar2022gptq, lin2023awq, yao2022zeroquant, yuan2023rptq, kim2023squeezellm, zhao2023atom} keep lowering the bit width;
+the latest advancements reveal that 2-bit~\cite{chee2023quip} and even 1-bit (binary) quantization~\cite{zhang2023binarized} are adequate for an accurate LLM.
+While these approaches offer valuable insights, our focus remains orthogonal to quantization, as we illustrate optimization techniques and provide high-performance building blocks for deploying quantized LLMs on FPGAs.
+
+\noindent\textbf{HLS Kernel Libraries.}
+Despite the existence of kernel libraries for accelerating Transformer models on GPUs~\cite{dao2022flashattention,wolf2019huggingface,xFormers2022}, the hardware domain has seen only a handful of initiatives in this regard.
+AMD provides Vitis HLS library~\cite{vitis_hls_library,vitis_ai} that only has basic kernel-level examples without comprehensive designs tailored for Transformer models.
+\revise{TRAC~\cite{patrick2022trac} attempts to provide an HLS-based Transformer library, but its kernel performance is unpredictable, and it exclusively focuses on the BERT model using a temporal architecture.}
+% The Rosetta benchmarking suite~\cite{zhou2018rosetta} provides examples of quantized neural networks in HLS, but does not offer reusable building blocks for Transformer workloads.
+% hls4ml~\cite{fahim2021hls4ml} introduces a source-to-source translation package that converts models from deep learning frameworks into HLS code.
+% Unfortunately, it struggles to scale effectively for large models and multi-die FPGAs.
+% FINN~\cite{yaman2017finn,blott2018finnr} aims at building efficient spatial (dataflow) designs with HLS, but remains constrained to small CNN designs and does not cater to LLMs.
+Some frameworks map deep learning frameworks to FPGAs~\cite{zhang2018dnnbuilder,fahim2021hls4ml,yaman2017finn,blott2018finnr,zhang2020dnnexplorer}, but can only handle small CNN designs and do not cater to LLMs.
+More recent tools allow hardware design using Python~\cite{lai2019heterocl,xiang2022heteroflow,huang2021pylog,yehpca2022scalehls,debjit2022dac}, but are still general-purpose and require hardware engineers to construct and optimize kernels from scratch.
+% lack reusable building blocks for Transformers and necessitate users to create kernels from scratch.
+Our work provides a Transformer kernel library designed for dataflow implementations and demonstrates their composability in constructing high-performance hardware accelerators.
+% DNNBuilder~\cite{zhang2018dnnbuilder} supplies Verilog building blocks for CNNs, yet users may find it challenging to modify kernels and perform additional optimizations.

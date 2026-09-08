@@ -1,0 +1,95 @@
+\section{Introduction}
+\label{sec:intro}
+% Motivation & challenges: Why FPGA + spatial architecture
+% 1. Transformer models
+% Why we need large models
+% Characteristics: Large model -> compute/memory
+% Demand: Latency-sensitive inference
+The rapid advancement of Transformer-based large language models (LLMs)~\cite{vaswani2017transformer,rishi2021foundation} has sparked a revolution across a wide range of natural language processing tasks, such as conversational AI~\cite{openai2023gpt4,zheng2023chatbotarena,cohen2022lamda} and code generation~\cite{chen2021codex,li2022alphacode,nijkamp2023codegen}. %\mh{lowercase transformer-based}
+%Recent research has unveiled the emergence of advanced capabilities of LLMs primarily manifest when the models are scaled up, emphasizing the need for LLMs with billions of parameters~\cite{wei2022emergence,wei2022cot}. However, this unprecedented scale presents formidable challenges, particularly in terms of computational and memory resources.
+Recent research has brought to light the phenomenon of ``emergence'' in LLMs, where advanced capabilities become evident as the models scale up to billions of parameters~\cite{wei2022emergence,wei2022cot}. 
+However, supporting this unprecedented scale poses significant challenges, particularly in terms of computational and memory resources.
+%In parallel, the demand for low-latency inference in real-time or interactive applications such as voice assistants and autonomous systems necessitates hardware accelerators that can keep up with the pace of user interactions~\cite{openai2023gpt4}.
+At the same time, the increasing use of LLMs in interactive applications like voice assistants and autonomous systems requires hardware accelerators capable of providing both low latency and high energy efficiency~\cite{openai2023gpt4,driess2023palme,pope2022googleinf}.
+%This requirement calls for a reevaluation of traditional hardware architectures to accommodate the unique demands of Transformer models.
+
+% 2. Hardware accelerators
+%Recent efforts have predominantly focused on enhancing Transformer model performance on GPUs~\cite{dao2022flashattention,chen2023slapo,aminabadi2022dsinf,fastertransformer2022}, yet GPUs are notorious for their substantial power consumption and may not be the ideal solution for latency-sensitive workloads~\cite{kim2023survey,pope2022googleinf}. Consequently, there has been a surge of interest in crafting specialized hardware accelerators tailored for Transformer models, with field-programmable gate arrays (FPGAs) emerging as a candidate for rapid prototyping of such accelerators~\cite{hong2022dfx,liu2021fqbert,li2020ftrans}.
+Recent efforts have primarily focused on improving the performance of LLM inference on GPUs~\cite{aminabadi2022dsinf,fastertransformer2022}, although GPUs are known for their high power consumption and are less suitable for latency-sensitive workloads~\cite{kim2023survey,pope2022googleinf}. There is also an active body of research dedicated to developing specialized hardware accelerators tailored for Transformer models, with several of these efforts using FPGAs as the target platforms~\cite{hong2022dfx,liu2021fqbert,li2020ftrans,peng2021cbbp,hur2023flexrun,qi2021iccad}.
+
+\input{fig-tex/temporal-spatial-arch}
+
+FPGA-based LLM accelerators can be broadly categorized into two architectural paradigms: \emph{temporal architecture} and \emph{spatial architecture}.
+%In the temporal architecture, a large compute unit \yx{shall we use ``compute unit'' or ``function unit''?} capable of performing various tasks is created and reused across different model layers~\cite{hong2022dfx}.
+%To maintain versatility, these accelerators often employ an instruction set architecture (ISA) to support various workloads. However, ISA introduces performance bottlenecks due to the need for separate decoding logic for instructions~\cite{hameed2010isca} and also incurs significant power consumption. \zz{this is called overlay in the FPGA community. we need to carefully discuss the pros/cons here} Furthermore, utilizing temporal architecture necessitates frequent off-chip memory access, as intermediate results must be written back to memory, incurring a cost that is two orders of magnitude higher than direct on-chip memory access~\cite{sze2017book}. Consequently, these FPGA-based accelerators fall short of the efficiency achieved by ASIC-based designs which have already hardened all the hardware logic.
+% \zz{let's use Processing Engine (PE) instead of FU; also good to show some connections between the PEs in the figure}\yx{--- we are already using PE to refer to compute elements in a systolic array}
+In a temporal architecture, a processing engine (PE) capable of performing various tasks is constructed and reused across different layers and models, as shown in Figure~\ref{fig:temporal-spatial-arch}(a). For flexibility, these accelerators typically employ an overlay approach~\cite{hong2022dfx,li2020ftrans,khan2021npe}, where a virtual hardware architecture that executes instructions is ``laid'' on top of the physical FPGA fabric. Overlays provide a more restricted configuration space, allowing for quicker compilation with bitstream reuse across multiple models. However, the use of such temporal architecture requires more frequent off-chip memory access, as intermediate results must be written back to memory. This incurs a cost in terms of both latency and energy consumption that is significantly higher than direct on-chip memory access. Additionally, one could argue that an FPGA overlay will inherently be less efficient than its hardened ASIC counterpart.
+
+In contrast, an FPGA-based spatial architecture typically involves the specialization of distinct PEs for specific operators or layers, facilitating direct communication between them using streaming buffers (e.g., FIFOs or multi-buffers)~\cite{xiang2022heteroflow,wang2021autosa,yaman2017finn,petrica2020dataflowcnn}, as depicted in Figure~\ref{fig:temporal-spatial-arch}(b-c).
+This dataflow-style execution substantially reduces off-chip memory accesses and enables the concurrent processing of multiple PEs in a pipelined manner. 
+Moreover, the fine-grained programmability of FPGAs allows efficient support of model-specific spatial architectures, which can further leverage efficiency optimizations such as low-bitwidth quantization, custom numerical types, and sparsity~\cite{zhang2021fracbnn,sun2022autovit,yang2023aim,peng2022sparsefpga}. These capabilities can potentially enable highly efficient LLM inference implementations that surpass GPUs, especially in small-batch low-latency scenarios.
+
+
+However, implementing a spatial architecture for LLM inference presents significant challenges.
+% \zz{need to shorten the paragraphs on challenges and have a longer one to describe our own work}
+
+\noindent\textbf{Challenge 1: Navigating diverse parallelism in LLMs.}
+% \fixme{Previous FPGA-based acceleration works often assume unlimited hardware resources.} \zz{rephrase}
+% While smaller convolutional neural network (CNN) models can be fully unfolded with sufficient onboard parallelism~\cite{zhang2015cnnfpga}, the constraints posed by LLMs require a more nuanced approach.
+% Designing suitable compute units under resource constraints becomes crucial, necessitating careful analysis of memory usage and parallelism.
+% As LLMs scale up in complexity and size, the design space expands exponentially, underscoring the importance of accounting for both inner-kernel and inter-kernel parallelism.
+% Prior works have primarily focused on inner-kernel parallelism~\cite{zhou2018rosetta}, inadvertently overlooking the potential benefits of model parallelism~\cite{shoeybi2019megatron,narayanan2019pipedream}, a well-trodden avenue in GPU optimizations.
+% This oversight becomes particularly salient when composing multiple kernels into a cohesive large-scale design.
+% Furthermore, it is worth noting that communication bandwidth assumes a position of paramount importance in scenarios involving multiple devices, a factor that cannot be ignored in this multifaceted challenge.
+The generative inference process of LLMs typically consists of two distinct stages: (1) simultaneously processing user prompts and (2) sequentially generating new tokens in an autoregressive manner.
+These two stages exhibit significantly different computational and memory characteristics (detailed in \S\ref{sec:modeling}), making it necessary to tailor hardware accelerators for their specific needs.
+This challenge cannot be directly addressed by leveraging techniques from the traditional convolutional neural network (CNN) designs~\cite{kim2023survey,zhang2015cnnfpga}.
+% \zz{leveraging CNN doesn't make sense -- do we mean leveraging techniques from CNN accelerators?}
+% During the initial stage, there is a substantial demand for computational resources, requiring a high-throughput accelerator to efficiently process the input tokens.
+% Conversely, in the subsequent stage, the requirement shifts to frequent memory access with limited parallelism, since each time only one token is processed and the generation needs to be done sequentially.
+The large number of parameters and intermediate tensors further complicates the choice between on-chip and off-chip storage.
+Additionally, harnessing multiple accelerators for distributed LLM inference adds complexity, particularly when dealing with intricate parallelization schemes~\cite{shoeybi2019megatron,narayanan2019pipedream,hong2022dfx}.
+
+\noindent\textbf{Challenge 2: Lack of standard LLM building blocks in hardware accelerators.}
+The rapid evolution of LLM architectures~\cite{rishi2021foundation,openai2023gpt4,touvron2023llama} contrasts with the comparatively slow pace of hardware development.
+While a plethora of building blocks for Transformers have been proposed in the software domain~\cite{xFormers2022,dao2022flashattention,kernl2022}, the absence of reusable blocks for hardware accelerator design hampers development progress.
+Many frameworks have been designed to automatically map deep learning models to  FPGAs~\cite{zhang2018dnnbuilder,yaman2017finn,fahim2021hls4ml,suhail2023flexcnn,zhang2020dnnexplorer}, but they are constrained to small CNN designs and lack support for complicated Transformer models.
+It is also hard to scale their designs to accommodate large models and multi-die FPGAs.
+% High-level synthesis (HLS) is frequently employed to transition software programs into hardware implementations, although it requires a plethora of dedicated optimizations to achieve high performance.
+% Dataflow architecture exacerbates the situation, requiring manual management of inter- and inner-kernel connections.
+% Despite the introduction of some programming frameworks to raise the level of abstraction~\cite{lai2019heterocl,xiang2022heteroflow,huang2021pylog}, none have efficiently generated high-performance Transformer kernels.
+
+To tackle these challenges,
+% \zz{but it's not clear how the 2nd one is addressed since we are also using HLS}
+this paper is to provide a comprehensive set of hardware design considerations for LLMs and try to answer the following question: {\emph{What role can FPGA-based spatial accelerators play in enabling efficient LLM inference?}
+% \emph{whether employing a spatial architecture on FPGAs can play an important role in accelerating LLM inference}. \zz{will rephrase}
+We start by conducting an in-depth analysis of the computational and memory requirements associated with each operator within Transformer models across two distinct stages of LLM generative inference -- prefill and decode.
+Subsequently, we extend our analysis to reveal the potential benefits of distributed inference using multiple FPGAs.
+\textbf{We believe that providing such an analysis, rather than presenting only positive results in selectively chosen settings for an FPGA LLM accelerator, offers more valuable insights to the community.}
+To validate the feasibility of our analytical framework, we implement a specific design point and demonstrate its viability.
+Leveraging this analytical framework, we employ specific optimizations in HLS to craft each kernel and compose them into a hardware accelerator that achieves the expected performance.
+While our primary focus is not to propose a new LLM accelerator architecture, we demonstrate that by using the analytical model, we can create a high-performance design that surpasses previous efforts.
+Our major contributions are as follows: 
+
+\begin{itemize}
+    \item %We introduce an analytical framework that illustrates the compute and memory characteristics of LLMs. This framework not only identifies the performance bottleneck but also provides valuable insights and guidance for future accelerator design.
+    We introduce an analytical framework that presents the first in-depth analysis of both the advantages and limitations of FPGA-based LLM spatial acceleration.
+    This framework not only allows us to estimate the performance of a specific accelerator configuration on a given FPGA device but also provides guidance for designing accelerators for LLM inference.
+    % \zz{this is rather vague -- does the model also offer insights on how to improve the FPGA architecture itself? I guess we don't plan to touch on this aspect?}
+    
+    \item %We develop a suite of composable and reusable HLS kernels tailored for emerging Transformer models. Moreover, we plan to open-source this kernel library and anticipate it will be valuable for benchmarking HLS and FPGA acceleration in general.
+    % To our knowledge, this is the first initiative to propose such an HLS library for Transformer hardware accelerator design.
+    We create a suite of modular and reusable HLS kernels designed for building FPGA-based spatial accelerators for different Transformer models. We plan to open-source this kernel library\footnote{\url{https://github.com/cornell-zhang/allo/tree/main/examples}} and expect it to serve as a valuable resource for benchmarking HLS and FPGA acceleration more broadly.
+    
+    \item Leveraging our kernel library, we design and implement a range of high-performance FPGA-based LLM accelerators that achieve speedups comparable to previous GPU and FPGA-based accelerators.
+    Specifically, for the BERT model, we achieve a 13.4$\times$ speedup over prior FPGA-based accelerators.
+    For GPT generative inference, we achieve speedups of 2.2$\times$ and 1.1$\times$ in prefill and decode stages respectively, when compared to DFX, an FPGA-based overlay architecture. 
+    Additionally, our accelerator is 1.9$\times$ faster and 5.7$\times$ more energy-efficient than the A100 GPU in the decode stage.
+\end{itemize}
+
+% The remainder of this paper is organized as follows:
+% Section~\ref{sec:background} provides necessary background information on Transformer models and parallelism schemes.
+% Section~\ref{sec:modeling} presents our comprehensive performance model, while Section~\ref{sec:kernels} delves into specific kernel optimizations.
+% Section~\ref{sec:xcel} outlines the overall architecture of our proposed accelerator, and Section~\ref{sec:exp} evaluates its performance.
+% Section~\ref{sec:discussion} and Section~\ref{sec:related_work} respectively discuss the potential of multi-FPGA in Transformer inference and related work.
+% Section~\ref{sec:conclusion} draws the conclusion.

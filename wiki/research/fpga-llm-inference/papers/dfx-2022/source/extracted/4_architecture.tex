@@ -1,0 +1,153 @@
+
+% \vspace{-0.1in}
+
+\section{\sysname~Architecture}
+\label{architecture}
+
+% \vspace{-0.07in}
+\subsection{Architecture Overview}
+\sysname{} architecture is designed to efficiently accelerate large transformer-based language models based on FPGAs. As shown in Figure \ref{fig-architecture}, \sysname{} is a server appliance architecture that consists of dual-socket CPUs and multiple FPGAs. One CPU and a homogeneous cluster of four FPGAs form a system to compute an independent workload. Each FPGA contains one compute core for a total of four cores per cluster. The FPGAs are connected to the host CPU via PCIe Gen 3 subsystem that transfers data at 16 GB/s. The FPGA-to-FPGA communication is enabled by a  QSFP transceiver that transfers data at 100 Gb/s. As each FPGA is limited to two QSFP ports, a ring network is chosen instead of other network topologies that require more node-to-node connections. 
+%We minimize the data synchronization and transfer needed between the FPGAs to only a few times per decoder layer. The internal core-to-core communication has no restrictions because it depends on the available resources. We balance the router efficiently so that the speed of the internal core-to-core communication is equal to that of the FPGA-to-FPGA communication. 
+Although we chose four FPGAs per cluster, it is scalable within a server appliance with only consideration of monetary cost.
+
+
+
+% \vspace{-0.01in}
+\subsection{Homogeneous Multi-FPGA Cluster}
+\label{architecture_cluster}
+In order to efficiently process the large-scale language model, we apply model parallelism to the model parameters. In particular, we adopt intra-layer parallelism scheme\cite{shoeybi2019megatron} instead of pipelined parallelism scheme\cite{tarnawski2020efficient}. A specific intra-layer partitioning method is applied to reduce the latency of matrix operations, proportional to the number of workers, with minimal synchronization overhead. In contrast, pipelining incurs high latency because all the workers execute entirety of each operation for a single input. Moreover, if the final output result of the model is the following input (i.e., feedback loop), like in text generation, the difference in latency between the two schemes would increase linearly per decoder layer. Figure \ref{fig-partition} illustrates \sysname{}'s intra-layer parallelism strategy. The weight matrices for multi-head attention are divided head-wise, and the weight matrices for the fully-connected layer are divided column-wise into two portions (i.e., the number of FPGAs) so that each FPGA can individually work on the assigned partition. 
+%Each core is assigned to operate on one of the portions. 
+To this end, the partitioned matrices are stored in the memory of the FPGA where their assigned core is, and each core executes identical operations in parallel with the partitioned model parameters.
+Each core then obtains the final result of the matrix operations, which is a subvector of the output vector. Each subvector is then circulated to the other FPGAs through the ring network for data synchronization. After synchronization, each core has the complete vector and is ready to proceed to the next vector operation, such as residual. Overall, we need this synchronization once during and once after self-attention and feed-forward network, which sums to a total of four times per decoder layer.
+%and the partial results are gathered through the synchronization process. 
+%Meanwhile, the model parameters for the rest of the operations (e.g., layer normalization and residual) are computationally inexpensive and require entirety of the data. Therefore, these model parameters are replicated in each core instead because the redistribution and post-synchronization process would require more latency than their computation. 
+Hence, we minimize the data synchronization and transfer needed among the FPGAs while taking advantage of model parallelism on the predominant self-attention and feed-forward network operations. Overall, each FPGA runs identical operations on identical hardware to run GPT-2 end-to-end, so the four FPGAs form a homogeneous cluster.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Figures
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t] 
+% \vspace{0.01in}
+\centering
+\footnotesize
+\includegraphics[width=3.4in]{Figures/Partition.pdf}
+\vspace{-0.15in}
+\caption{Intra-layer model parallelism strategy on 2 FPGAs.}
+\label{fig-partition} 
+\vspace{0.05in}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\textbf{Memory Mapping}
+The FPGA harnesses 8 GB HBM and 32 GB DDR, whose theoretical peak bandwidths are 460 GB/s and 38 GB/s, respectively. Since GPT-2 requires the partitioned model parameters frequently and in large portions, the memory bandwidth has a significant impact on the overall performance. Therefore, the weight matrices are stored in the HBM. On the other hand, input/output tokens, bias vectors, and other model parameters are stored in the DDR because these data are accessed once per few iterations of matrix operations or once per entire decoder stage (e.g., WTE and WPE), thus having a negligible effect on the overall performance. \sysname{} also utilizes the standard half-precision floating-point (FP16) model parameters to retain the inference accuracy. 
+
+
+
+% We implement two identical cores per FPGA because any other number of cores suffers from performance degradation. If only one core is implemented on a multi-die FPGA, the core becomes large, which causes placement and routing congestion problems and reduces the operating frequency. If more than two cores are implemented, each core becomes small, but the synchronization overhead increases. Therefore, we design a dual-core with custom instructions and dataflow to balance and reduce the placement and routing problems and synchronization overhead.
+
+\subsection{Instruction Set Architecture} \label{architecture_isa}
+
+% Features of ISA
+\sysname~has a flexible and custom instruction set architecture (ISA) at the assembly language level to support the end-to-end processing for GPT-2 inference, unlike previous NLP accelerators that primarily focus on attention \cite{ham2020a3, ham2021elsa, wang2021spatten}. 
+% accelerators that primarily focus on attention.
+
+% Description of instruction type and group
+\textbf{Instruction Set}
+There are three types in the \sysname~ISA: \texttt{compute}, \texttt{dma}, and \texttt{router} instructions. The \texttt{compute} instructions are for running the main processing units and have the format \texttt{(type, src1, src2, dst)} with additional bits to determine if the source or destination location is off-chip memory or on-chip register file. The \texttt{dma} and \texttt{router} instructions are for controlling the DMA and the network router to move data of the given transfer size to and from the cores and have the format \texttt{(type, src, dst, xfer\_size)}.
+
+Each instruction type is executed through the instruction chaining \cite{fowers2018configurable}, in which sequences of
+dependent instructions operate with minimal stalling. Meanwhile, instructions without dependencies work in parallel; for instance, \texttt{compute} processes data, \texttt{dma} fetches data, and \texttt{router} fill the buffer with data from the peer device simultaneously for synchornization. The combination of instruction chaining and parallel execution enables continuous use of memory and communication bandwidth. Algorithm \ref{algorithm_1} shows the pseudocode of GPT-2 decoder layer using the ISA.
+
+\textbf{Compute Instructions}
+The \texttt{compute} instructions account for the majority of the core instruction set and are composed of two groups to control the main processing units: matrix instructions and vector instructions.
+% using the \texttt{compute} instructions. 
+
+Matrix instructions are for executing matrix-vector multiplication and additional functions such as GELU and reduce max. Matrix is loaded in tiles, and vectors are also loaded in portions. Any matrix-matrix multiplications are done by a sequence of matrix-vector multiplications. The description of the major matrix instructions is as follows.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% GPT Decoder Block Algorithm
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{algorithm}[t]
+\footnotesize
+%\scriptsize
+\caption{\small{GPT-2 Decoder Layer}}
+\label{algorithm_1}
+\begin{algorithmic}
+\item
+{\bf{Input:}} $in\_emb$, input embedding vector
+\\
+{\bf{Output:}} $out\_emb$, output embedding vector
+\\
+{\bf{Parameter:}} $H$, number of attention heads 
+\begin{algorithmic}[1]
+\State{\textcolor{olive}{/* Layer Norm */}}
+\State{$lnorm1 = LayerNorm(in\_emb, \gamma_{l1}, \beta_{l1})$}
+\State{\textcolor{olive}{/* Self-Attention */}}
+\State{$value = Conv1D(lnorm1, W_v, b_v)$}
+\State{$key = Conv1D(lnorm1, W_k, b_k)$}
+\State{$query = Conv1D(lnorm1, W_q, b_q)$}
+\For{$h = 0$ \textbf{to} $H$}
+\State{$mat = MaskedMM(query[h], key^T[h])$}
+\State{$redu\_max = ReduMax(mat)$}
+\State{$score = Softmax(mat - redu\_max)$}
+\State{$attn'[h] = MM(score, value[h])$}
+\EndFor
+\State{$attn = Sync(attn')$}
+\State{$c\_attn' = Conv1D(attn, W_a, b_a)$}
+\State{$c\_attn = Sync(c\_attn')$}
+\State{\textcolor{olive}{/* Residual */}}
+\State{$c\_attn = c\_attn + in\_emb$}
+\State{\textcolor{olive}{/* Layer Norm */}}
+\State{$lnorm2 = LayerNorm(c\_attn, \gamma_{l2}, \beta_{l2})$}
+\State{\textcolor{olive}{/* Feed-Forward Network */}}
+\State{$ffn1' = GELU(Conv1D(lnorm2, W_{f1}, b_{f1}))$}
+\State{$ffn1 = Sync(ffn1')$}
+\State{$ffn2' = Conv1D(ffn1, W_{f2}, b_{f2})$}
+\State{$ffn2 = Sync(ffn2')$}
+\State{\textcolor{olive}{/* Residual */}}
+\State{$out\_emb = ffn2 + c\_attn$}
+\end{algorithmic}
+\end{algorithmic}
+\end{algorithm}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{enumerate} [leftmargin=*]
+\setlength\itemsep{0.01in}
+    \item \texttt{Conv1D}: This essential matrix instruction, written as the equation $Ax + b$, is used in $Query$, $Key$, $Value$ matrix generation and the feed-forward network. In this instruction, weight matrix $A$, input vector $x$, and bias vector $b$ are required for execution. \texttt{Conv1D} has a convolutional aspect in that if its input is longer than the maximum input size, the operation is performed through a sliding window.
+    \item \texttt{MaskedMM}: Masked matrix multiplication (MM) has the equation, $Ax$. \texttt{MaskedMM} calculates $Query \times Key^T$, also known as the $Score$ matrix. Note that the $Query$ matrix is loaded as vectors. The masking operation puts a $-\infty$ mask on the upper diagonal elements of the $Score$ matrix to indicate that the current token is not impacted by future contexts. In combination with \texttt{Softmax}, a vector instruction, \texttt{MaskedMM} creates a lower triangular matrix and outputs the maximum value of each row.
+    \item \texttt{MM} : \texttt{MM} instruction is the same as \texttt{MaskedMM} without masking. It is used in LM head for calculating logit, an intermediate value produced while converting the output embedding vector to its token ID, and in the attention layer for calculating $Score \times Value$. 
+    %Multiplying $Value$ also requires the transpose unit.
+\end{enumerate}
+
+Vector instructions execute low-level vector-vector and vector-scalar operations along with \texttt{load} and \texttt{store}. They support various basic operations, including \texttt{add}, \texttt{sub}, \texttt{mul}, \texttt{accum}, \texttt{recip\_sqrt}, \texttt{recip}, and \texttt{exp}. Thus, some high-level operations such as \texttt{LayerNorm} and \texttt{Softmax} are effectively implemented by several vector instructions.
+
+\begin{enumerate} [leftmargin=*]
+\setlength\itemsep{0.01in}
+    \item \texttt{LayerNorm}: Layer normalization has the equation 
+    $y(x_i)=\gamma_{i} \frac{x_i-\mu}{\sigma}+\beta_{i},$ in which the $\mu$ and $\sigma$ are mean and standard deviation, and $\gamma$ and $\beta$ are weight and bias vectors, respectively.
+    Calculating the mean requires \texttt{accum} and \texttt{mul} instructions, and the standard deviation  requires \texttt{recip\_sqrt} in addition. The formula is then executed by the \texttt{sub}, \texttt{mul}, and \texttt{add} instructions. The parameters are fetched to the register file through the \texttt{load} instruction.
+    \item \texttt{Softmax}: Softmax has the equation
+    $y(x_i)=\frac{e^{x_i}}{\sum_j{e^{x_j}}},$ 
+    in which $j$ is the number of elements in the row. This operation can be performed with basic vector instructions, such as \texttt{exp}, \texttt{add}, and \texttt{accum}. The summation is similar to calculating the mean in the \texttt{LayerNorm}. The division is substituted by the \texttt{recip} and \texttt{mul} instructions. %\vspace{-0.1in}
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Figures
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t] 
+% \vspace{0.01in}
+\centering
+\footnotesize
+\includegraphics[width=3.33in]{Figures/Core.pdf}
+\vspace{-0.05in}
+\caption{DFX compute core microarchitecture.}
+\label{fig-core} 
+\vspace{0.05in}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%\subsection{Quantization} \label{architecture_quantization}
+
+%To resolve the memory-intensive problem of GPT-2 inference, we quantize the model parameters from half-precision floating-point (FP16) to 8-bit minifloat (FP8) and preloaded into the HBM. This quantization method enables 2$\times$ the data transfer to and from the HBM and thus 2$\times$ the number of computations per cycle. FP8 is composed of 1-bit sign, 4-bit exponent, and 3-bit mantissa (1-4-3). Within the core, however, \sysname{} dequantizes FP8 back to standard FP16 (1-5-10) because having FP16 processing units and on-chip memory prevent further decrease in accuracy that occur from truncation or rounding. We tested different configurations of FP8 (e.g., 1-5-2, 1-4-3, and 1-3-4) and determine that 1-4-3 results in marginally better accuracy on average across the benchmarks, but our hardware is flexible to dequantize any data type configurations depending on the application. We do not consider fixed-point with higher precision than FP8 because NLP models have processes like layer normalization that require a large dynamic range \cite{tambe2021edgebert}. We also do not consider integer quantization with a higher quantization ratio because of the significant accuracy loss that occurs with such drastic compression. 
+

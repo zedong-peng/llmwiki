@@ -1,0 +1,214 @@
+
+% \vspace{-0.01in}
+
+\section{Microarchitecture}
+\label{microarchitecture}
+
+Figure \ref{fig-core} shows the proposed compute core's microarchitecture, which mainly consists of matrix processing unit and vector processing unit. The primary goal of microarchitecture is to efficiently process text generation workloads that have sequential processes with non-batched input. In the following subsections, we explain the details of microarchitecture.
+
+%Figure \ref{fig-core} shows the proposed compute core's microarchitecture, which consists of a control unit, DMA, register file manager, processing units, and router. In the following subsections, we explain the details of each unit.
+
+% \subsection{Dataflow} \label{architecture_dataflow}
+% The dataflow of \sysname{}, shown in Figure \ref{fig-core}, is designed based on the characteristics of the GPT model to efficiently support the ISA. Memory and network interfaces are responsible for sending data to and receiving data from the core via the AXI-Stream protocol. The memory interface sends data from the HBM and DDR to the core through the direct memory access (DMA) that supports a custom tiling scheme, and the network interface sends synchronization data between cores and between devices through the lightweight router.
+
+% \vspace{-0.02in}
+\subsection{Control Unit} \label{microarchitecture_control}
+The control unit contains logic to control the overall flow of data by keeping track of the state of each unit and arbitrating which modules to run. It is composed of the controller, scheduler, and scoreboard.
+
+\textbf{Controller}
+The controller's main job is to receive the start signal and system configuration from the host. %via the AXI-Lite interface, decode them, and pass them to the scheduler. 
+The system configuration includes the core ID and the number of cores in the system, and the number of decoder layers and tokens that the system needs to run on. These parameters determine the behavior of each core. 
+The core ID and the number of cores direct the corresponding core on which section of the model weights to work on and which peer device to receive from and transmit to. The number of decoder layers determines when single token processing completes, and the number of input and output tokens determines when the entire service completes. Since a different portion of the HBM needs to be accessed for each layer, the layer number designates the address the DMA needs to access. 
+The token number is used specifically for knowing where to mask during \texttt{MaskedMM}.
+Lastly, the controller returns the done signal back to the host once the entire GPT-2 operation finishes.
+ 
+\textbf{Scheduler}
+The scheduler receives the decoded system configuration from the controller and instructions from the instruction buffer. The scheduler contains multiple finite state machines for each instruction type that checks the status of the DMA, processing units, register file, and the router to decide whether to run or wait on each instruction type. The chosen instruction is sent to the scoreboard for the last dependency check with the running instruction.
+
+\textbf{Scoreboard}
+The register file needs to check for dependencies to run instructions based on the chaining method. Since a sequence of instructions may cause data hazards, the scoreboard monitors source and destination addresses. The scoreboard uses a RAM to represent the address space and marks the current instruction's address with a \texttt{stale} bit when in execution and with a \texttt{valid} bit when in writeback. If the source and destination addresses overlap, %or other hazards occur, 
+the next instruction stalls until the current computation finishes. %The instruction that passes the scoreboard executes.
+
+
+\subsection{Direct Memory Access} \label{microarchitecture_dma}
+The DMA, which contains the read and write interface, serves a vital role in distributing the data that is transferred at high bandwidth. To maximize the bandwidth of the HBM, the DMA's read and write interface is connected to all 32 HBM channels and handles single-channel data bitwidth of 512 bits at 200 MHz for a total of $32 \times 512$ bits per cycle. The DMA stores and loads tiled weights, $Key$, and $Value$ to and from the HBM optimized for the matrix operation. In our dataflow, the output $Value$ needs to be transposed when being written, so a transpose unit is placed in the DMA. Besides the HBM channels, the single DDR channel is also accessible by the DMA. 
+The input token, bias, WTE, and WPE are read from DDR to their corresponding buffers in the DMA. The final output token is also written from the DMA to DDR. 
+% Because the weights and biases cannot be reused in matrix-vector multiplication due to no input batching, they are buffered in the DMA and streamed into the processing units for the computation with the preloaded input.
+Moreover, weights and biases cannot be reused in matrix multiplications due to no input batching, so they are buffered in the DMA and streamed into the processing units for the computation with the preloaded input.
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \begin{figure}[t]
+% \centering
+% \includegraphics[width=2.5in]{Figures/KeyValue.pdf}
+% \vspace{-0.15in}
+% \caption{Memory requirement for key and value on various GPT-2 models.}
+% \label{fig-keyvalue}
+% \vspace{0.05in}
+% \end{figure}
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\textbf{Tiling Scheme} \sysname{} uses an optimized tiling scheme that maximizes the number of computations and throughput in the memory-intensive generation stage while retaining performance in the summarization stage. To process a single token in the generation stage, a large amount of weights needs to be read from the HBM for the matrix multiplication. Therefore, the weights are tiled in the HBM, and the DMA reads the tiled weights at the maximum read bandwidth of $32 \times 512$ bits per cycle. This dimension can be rearranged to $d \times l \times BW_{data}$ weight bits, in which $d$ is the tile dimension, $l$ is the number of lanes, and $BW_{data}$ is the data bitwidth. The number of lanes is the number of columns in a tile that can be computed in parallel by the matrix function units (see Section \ref{microarchitecture_pu}).
+Since \sysname{} uses FP16 data as its data type, $BW_{data}$ is set to 16. We propose a model-and-hardware-aware tiling scheme that finds 1) the optimal $d$ and $l$ value for loading the weights of size $\texttt{emb}\times\texttt{emb}$ or larger to the DMA and 2) the effective loading direction that translates to the order of matrix-vector multiplication. 
+
+
+We conduct a design space exploration to determine that the optimal $d$ and $l$ is 64 and 16, respectively. We evaluate the performance with different $d$ values, and the corresponding $l$ values are chosen to maximize the memory bandwidth with FP16 data: $(d,l)=\{(8,128), (16,64), (32,32), (64,16), (128,8)\}$. Figure \ref{fig-dse}(a) shows that $(d,l)=\{(16,64),(32,32), (64,16)\}$ have the best performance on multi-head attention with negligible difference. Since attention head dimension, $H$, for the state-of-the-art models, GPT-2 and GPT-3, is around 64 \cite{radford2019language, brown2020language}, we examine that $d>64$ leads to underutilized compute units and thus lower performance when computing the multi-head attention. Specifically, performance degradation occurs when computing $Query \times Key^T$ because $Key^T$ has $H$ rows which is smaller than $d$ when $d>64$. Similarly, $l>64$ also leads to performance degradation when calculating $Score \times Value$ because $Value$ has $H$ columns. Then, we synthesize the hardware resource utilization required for the three choices to find that $d=64$ requires the least amount of hardware resource as shown in Figure \ref{fig-dse}(b). For $d=16$ and $d=32$, larger $l$ is required to maintain the same number of operations. With larger $l$, the number of MAC remains unchanged, but the resources in the matrix processing unit (e.g., accumulator, operators in the special function unit, and the control logic) increase linearly. Therefore, we standardize the hardware with $d=64$ and $l=16$.
+
+%The reason for not using $d=32$ or $d<64$ is that the vector register file is designed to match the dimension of the matrix function unit (MFU) and vector function unit (VFU), so $d=32$ would cause the latency of VFU to double. Note that the latency of MFU in the case of $d=32$ would not be affected because the number of lanes can be proportionally increased to $l=32$. After choosing $d=64$, we choose $l=16$, which maximizes the memory bandwidth usage.
+
+%while staying within the resource constraint. Since $l$ determines the output vector dimension and also the number of partial sums, larger $l$ equates to greater number of intermediate buffers required, which can exceed the number of available hardware resources.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Figures
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t] 
+% \vspace{0.01in}
+\centering
+\footnotesize
+\includegraphics[width=3.33in]{Figures/Design_Choice.pdf}
+\vspace{-0.03in}
+\caption{Design choices in tile dimension and lane number and their impact on (a) multi-head attention performance and (b) resource utilization for the matrix processing unit.}
+\label{fig-dse} 
+\vspace{0.02in}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t] 
+\centering
+\footnotesize
+\includegraphics[width=3.15in]{Figures/Dataflow.pdf}
+\vspace{-0.05in}
+\caption{Illustration of tiling scheme for matrix-vector multiplication.}
+\label{fig-tiling} 
+\vspace{0.1in}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Furthermore, the DMA loads $d\times l$ weights in the horizontal direction to fill in a tile, and moves to the tile below, as shown in Figure \ref{fig-tiling}. Moving in the horizontal direction maximizes input reuse, but it requires a significant number of buffers to store the partial sums that are produced when the input of length $d$ iterates across many columns of the weight matrix. As the core's requirements of deep pipelining and other buffers cause a shortage of on-chip memory, completing the horizontal direction is infeasible. The vertical direction decreases the number of buffers to one, but it removes input reuse. The inability to reuse the input increases the amount of register file access, which decreases the throughput. Therefore, the zigzag direction with a tile size of $d \times d$ balances hardware resource and data reuse for maximum performance. 
+%Figure \ref{fig-tiling} shows the proposed tiling scheme.
+%The controller skips the computation for tiles formed entirely of $-\infty$ masks or zero attention score because they have no impact on the output attention.
+
+
+% \textbf{Transpose Scheme} In attention operation, there are key and value matrix. And their data size is too large, so it is infeasible to store in on-chip memory as shown Figure \ref{fig-keyvalue}. therefore, off-chip memory is necessary to store key and value.
+% In addition, they need matrix transpose. conventional transpose scheme is loading data into on-chip memory and perform transpose as shown in Figure \ref{fig-transpose}. But, this approach occurs latency in text generation. So we put transpose unit in between register file and memory controller to remove latency.
+
+
+\textbf{Transpose Scheme} 
+In a standard attention operation, $Key$ needs to be transposed, but in our dataflow, the multiplicand $Value$ needs to be transposed because the read from the HBM is column-wise and the write is row-wise; therefore, the intermediate matrices are transposed by default when loaded to the DMA.
+$Value$ requires high memory capacity (e.g., 0.31 MB per token for 1.5B model), so the conventional transpose scheme of transposing the entire matrix in the on-chip memory is inefficient. %The latency is also high because the transpose needs to be done in a stream after loading the entire matrix through sequential DMA read. 
+To address this issue, \sysname{} transposes the $Value$ matrix while its partial tiles are being written to the off-chip memory, instead of doing it when they are read. %which reduces the memory requirement. 
+%The latency problem remains, but the transpose latency can be completely hidden in this scheme as long as the transpose is finished before the transposed matrix is needed. 
+%The issue of transpose latency exists, but it can be completely hidden with the following scheme.
+The long latency of transpose can be completely hidden by changing the computation order.
+Based on GPT's order of operation, $Value^{T}$ is needed after $Query$, $Key$, and $Value$ are generated. Therefore, we rearrange the \sysname{} instructions so that $Value$ is calculated earlier than $Query$ and $Key$. This rearrangement guarantees a sufficient period of time for the $Value$ transpose, while $Query$ and $Key$ are being generated. %Since transpose needs to happen in a smaller dimension than the channel bitwidth, AXI-write strobe is used to write bytes of data to the channel. 
+
+% Since latency is critical in text generation, \sysname{} transposes the $Value$ data when it is being written to the off-chip memory, rather than reading it later.
+% %\sysname{} transposes the data earlier before DMA write. 
+% Since a vector is sequentially stored into memory and used only after the entire matrix is written, the latency is hidden, and the memory requirements are low. 
+
+%It also has a double buffer and generates the vector-related microcodes in runtime to get the same advantages as the matrix operand collector.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t]
+% \vspace{0.01in}
+\centering
+\includegraphics[width=3.33in]{Figures/Micro_Arch.pdf}
+\vspace{-0.1in}
+\caption{\sysname{} processing units. (a) Matrix processing unit. (b) Vector processing unit.}
+\label{fig-pu}
+% \vspace{0.05in}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\subsection{Processing Units} \label{microarchitecture_pu}
+The \sysname{} core has two processing units, matrix processing unit (MPU) and vector processing unit (VPU), as shown in Figure \ref{fig-pu}. These processing units are designed to execute main mathematical operations required for the end-to-end acceleration of GPT-2, and they fully exploit parallel computing and hardware resources. The two processing units consist of four main functional units, matrix function unit and vector function unit, each accompanied by a special function unit, which all consist of FP16 operators. The functional units are composed of deep and diversified pipelines for maximum throughput and utilize bypasses at each sub-computation to asynchronously execute instructions at low latency. 
+
+
+\textbf{Matrix Function Unit} The matrix instructions operate on the matrix function unit (MFU). Its primary workload is matrix-vector multiplication. The MFU contains a tree-based multiplier-accumulators (MACs) that take vectors of $d$ dimensions as input. The unit is also composed of $l$ lanes, which means $l$ number of tree-based MAC hardware are in parallel. Input remains constant throughout the lanes, but $l$ different multiplicands from different columns of the weight matrix are passed to each lane, so $d \times l$ multiplications are done in parallel. %which aligns with the custom tiling scheme. 
+The products in each lane are then passed to the parallel adder tree of depth $log_2(d)$ to calculate the partial sum. 
+% A new partial sum is calculated every cycle because of the deep pipelining. Overall, the partial sums from the lanes are stored in a buffer, loaded and added with the new partial sums, and repeated until the final results are calculated. 
+
+Each of the FP16 multiplier and adder is mapped to one digital signal processing slice (DSP) and two DSPs, respectively. The multiplier takes 6 cycles, and the adder takes 11 cycles. The MFU uses a total of $3\times(d \times l)$ DSPs: $d \times l$ DSPs for the multipliers, $2 \times (d-1) \times l$ DSPs for the adder trees, and $2 \times l$ DSPs for scalar additions.
+In our case, $d$ and $l$ are set to 64 and 16 as explained in Section~\ref{microarchitecture_dma}, comprising of 3072 DSPs for the MFU.
+
+%A total of $2\times d \times l-1$ DSPs are used for the tree-based MACs: $d \times l$ DSPs for the multipliers and $d \times l-1$ DSPs for the adder trees. The MFU uses $l$ more DSPs for adding scalars.
+
+%The tile is optimized to use the maximum number of MAC hardware thus the maximum number of DSPs. 
+% Because the GPT-2 model is memory-bound, the increase in the number of DSPs used yields a linear increase in performance.
+
+\textbf{Vector Function Unit}
+The vector instructions operate on the vector function unit (VFU). VFU is a floating-point arithmetic logic unit (ALU) that supports element-wise vector operations. Specifically, the VFU supports addition, subtraction, and multiplication of two vectors of $d$ dimension. 
+Similar to the MFU, DSP is used for all VFU operations. Addition, subtraction, multiplication, and exponential operation take 11 cycles, 11 cycles, 6 cycles, and 4 cycles, respectively. Exponential operation uses two DSPs, and other operations use one DSP each. No instruction requires more than one ALU operation, so all instructions are completed in the shortest possible cycles without synchronization. Additionally, VFU supports bypass to reduce unnecessary computational cycles. For instance, load and store instructions do not require any computation, so the data can skip the execution stage. As VFU has a bypass path that directly connects the input and output ports, the load and store instructions take only one cycle. The data hazards that occur with such asynchronous dataflow are handled in the scoreboard.
+
+%More complex bypass logic is located in the special function unit, which will be explained in the corresponding section. 
+
+% Separate yet redundant multiplier is used in both MFU and VFU for two reasons: 1) the multiplication in the VFU is only for vector-scalar multiplication or vector-self multiplication, thus adding control for such exceptions in the MFU would become an overhead, and 2) the special function (e.g., reduce mean and reduce sum) that is subsequent to VFU’s multiplier overlaps with that of the other ALU operations in the VFU, so larger redundancy would have occurred in the special function unit if the multiplier only existed in the MFU.
+
+\textbf{Special Function Units}
+The special function units (SFUs) handle the nonlinear functions in GPT-2. The output from the MFU and VFU is passed into SFU\textsubscript{M} and SFU\textsubscript{V}, respectively. The SFUs use the combination of DSP, combinational logic, and the lookup table method for optimal hardware utilization. 
+
+SFU\textsubscript{M} is responsible for executing computations that follow matrix-vector multiplication, such as 
+%and are required for the matrix instructions. It is composed of 
+masking, GELU, vectorization, and reduce max. The masking unit creates a lower triangular matrix based on the tile information, in which elements above the diagonal of the output matrix are masked with the closest representable value to $-\infty$, which is eventually zeroed out after softmax. For the division needed for dividing the result with the number of attention heads, a scalar constant, we use a multiplier instead to save hardware resources. To support GELU activation function with the equation $y(x)=0.5x(1+tanh[\sqrt{2/\pi}(x+0.044715x^3)]),$ the lookup table is used with linear approximation. We sample 2048 inputs that achieve a mean squared error of 0 in half-precision floating-point and choose $[-8, 8]$ as the range because the slope converges on either side at this range. Linear approximation is sufficient for GELU that has piecewise linear characteristics, and it reduces the hardware overhead of supporting complex mathematical operations. The vectorizer uses an asymmetric buffer to concatenate outputs to match the tiling, and it is placed after the above modules to increase hardware reuse. Lastly, the reduce max unit, which finds either max or argmax value of the given vector, is designed using a parallel tree of comparators.
+
+% Linear approximation samples $n$ inputs of equal interval from a set range,  $[min, max]$, and calculates the output of the GELU function at those input value. Using the inputs and outputs of two consecutive points, the slope and y-intercept of each interval are found, which are stored in the lookup table. At runtime, the address that represents the closest value to the given input is accessed, and the linear equation is applied to get the approximated GELU function value. We choose $[-8, 8]$ because the slope converges on either side at this range, and we sample 2048 inputs that achieves mean squared error of 0 in half-precision floating-point. Linear approximation is sufficient for GELU that has piecewise linear characteristics, and it removes the hardware overhead of supporting the complex mathematical operations in GELU.
+
+SFU\textsubscript{V} is responsible for computations that follow the vector operations by VFU;
+%which are required in the vector instructions. It is composed of an adder tree, accumulator, reciprocal, multiplier, scalar adder, and reciprocal square root module. 
+they are accumulation followed by scalar reciprocal, multiplication, addition, and reciprocal square root. An adder tree is in the SFU instead of in the VFU because VFU supports instructions that only require vector outputs. The rest of the functions are provided by the floating-point DSP. Similar to SFU\textsubscript{M}, SFU\textsubscript{V} uses a multiplier to divide a constant value of embedding size.
+
+Both SFUs also utilize bypasses so that operations that do not require certain hardware in the dataflow can skip the hardware without cycle penalties. %For instance, Figure \ref{fig-pu} shows how the result of the adder tree in SFU\textsubscript{V} can be sent directly to the multiplexer without going through the pipeline stages that match the latency of the nearby reciprocal and reciprocal square root modules. 
+% This asynchronous dataflow is more likely to cause data hazards, so the scoreboard is reused with negligible control overhead for bypass. 
+The ordering of GPT-2 operations can be conveniently alternated with the use of matrix and vector instructions, which is advantageous in speeding up the sequential generation.
+
+% However, the scoreboard is already required to handle other hazards in GPT-2's innate instruction sequence, so negligible control overhead is added to support bypass. 
+
+
+
+\subsection{Register File Manager} \label{microarchitecture_registerfile}
+The register file manager contains on-chip memory structures or register files for storing a multitude of FP16 data prior to and post computation in the processing units. We have two types of register files: vector and scalar register files. These register files are responsible for communicating with the memory interface via the DMA and network via the router.
+%to read and write data from the host and peer devices in an organized manner. 
+The register file manager also contains operand collectors that generate and collect the processing unit instructions and determine which register file data to access based on the instructions. 
+
+%\textbf{Vector and Scalar Register File}
+%The vector and scalar register files store only portions of intermediate results that maximize reuse because on-chip memory capacity is limited. Vector and scalar register files have bitwidth of $2 \times 64 \times 16 $-bit and $2 \times 16 $-bit, respectively. They both have two banks and a depth of 2048. In each register file, two banks are activated simultaneously to read a set of two data to the processing units per cycle. Sending two sets of data is essential for maximum throughput because two sources are required per instruction. The depth is chosen based on the maximum number of data the register file needs to hold at once during the GPT-2 process.
+
+%, which happens in LM head after processing matrix multiplication with the transpose of WTE. 
+
+
+
+\textbf{Matrix Operand Collector}
+The matrix operand collector generates matrix microcodes based on the instruction mentioned in Section \ref{architecture_isa} during runtime. %and holds these signals until the ready signal is given by the control unit's scoreboard. 
+The runtime generation of microcodes decreases the amount of instruction transfer from the host. The matrix operand collector passes these microcodes and operands, such as the input vector, weight matrix, and bias vector, to the MPU for execution. It reads a single input vector from the vector register file while taking the weight and bias from the DMA buffer. It counts the tiling order and allocates the corresponding input and weight to the MPU. The identical input vector is broadcasted to the parallel hardware, while different weights and biases are distributed to each vector lane. In addition, the double buffer is used for all operands to reduce the latency and obtain high throughput. 
+
+
+\textbf{Vector Operand Collector}
+The vector operand collector generates the microcodes the VPU to execute vector instructions, similar to the matrix operand collector. Since the VPU needs various operand types, the vector operand collector can read both vector and scalar register files. It can also access the DMA and network router buffers to perform the DMA or network instructions (i.e., load, store, and synchronization). 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Figures
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t] 
+% \vspace{0.01in}
+\centering
+\footnotesize
+\includegraphics[width=3.33in]{Figures/Router.pdf} 
+\vspace{-0.05in}
+\caption{Illustration of data synchronization with lightweight router.}
+\label{fig-router} 
+\vspace{0.05in}
+\end{figure}
+
+%Lightweight router for communication of core-to-core and peer-to-peer.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Router} \label{microarchitecture_router}
+The multi-FPGA network is enabled by the lightweight router. Each core utilizes the router to synchronize the data in the register files with every other core in peer devices across the ring network. Figure \ref{fig-router} shows the router structure and the data synchronization. The router seamlessly transfers $64 \times 16 $ bit data to fetch the output vector from the processing units and pass it peer-to-peer (inter-device). The router contains a control unit that indicates which device's core to communicate with, buffers to hold the transmitted and received vectors, and a reorder module that uses the core ID to organize the data order to be identical in every core. Unlike general routers, this router does not contain additional logic for packet encoding or decoding. The synchronization is necessary after executing a \texttt{Conv1D} instruction in the self-attention and feed-forward network because model parallelism leads to each core only computing a portion of the output matrix's row, and the next operation like layer normalization and residual requires the entire row. 
+
+The network's peer-to-peer communication is enabled by Aurora 64b/66b IP \cite{aurora}. The Aurora IP implements a light link-layer protocol for high-speed serial communication between two devices. The protocol uses 64b/66b encoding, which requires a low resource cost with only 3\% transmission overhead. Consequently, the router provides a lightweight communication interface between supported devices, resulting in low latency data communication.
+
+% The network's peer-to-peer communication is enabled by using two methods: kernel to kernel streaming (K2K) and via Aurora 64b/66b IP \cite{aurora}. The K2K performs streaming between two cores using the AXI-Stream interface, and the communication overhead is negligible. The Aurora IP implements a lightweight link-layer protocol for high-speed serial communication between two devices. The protocol uses 64b/66b encoding, which requires low resource cost with only 3\% transmission overhead. Consequently, the router provides lightweight communication interface between supported devices, resulting in low latency data communication.

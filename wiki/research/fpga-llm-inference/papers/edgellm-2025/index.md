@@ -3,14 +3,16 @@ title: "EdgeLLM: A Highly Efficient CPU-FPGA Heterogeneous Edge Accelerator for 
 domain: research
 area: fpga-llm-inference
 type: paper
-status: seed
-updated: 2026-07-24
+status: active
+updated: 2026-09-07
 tags: [paper, fpga, llm-inference]
 ---
 
 # EdgeLLM: A Highly Efficient CPU-FPGA Heterogeneous Edge Accelerator for Large Language Models
 
-> Bibliographic record and local public asset cache. Full paper notes are pending.
+EdgeLLM is a CPU-FPGA heterogeneous compiler/runtime reference for model-level generation on an
+embedded FPGA. This note uses the validated PDF because an arXiv source request returned a PDF
+payload rather than a TeX archive in this pass.
 
 ## Paper Meta
 
@@ -25,11 +27,10 @@ tags: [paper, fpga, llm-inference]
 
 - Paper PDF: [2407.21325.pdf](2407.21325.pdf) (14 pages; SHA-256 `fedc5f501a766cde554f1ba62dfb6a77ebe65e555289c00e63c7d2aea4197099`)
 
-## Ingest Status
+## Read Notes
 
-- Metadata: verified against the manuscript bibliography.
-- Paper PDF: `downloaded`.
-- Reading note: seed; no unverified method or performance claims added.
-- Source archive and code repository: not requested in this import pass.
+- The system evaluates GLM-6B and Qwen-7B on VCU128 and combines CPU control with an FPGA instruction engine; the reported boundary includes generation throughput, latency and power.
+- The architecture text describes a dedicated DMA path that transfers online-generated KV cache into HBM, plus a common tensor layout for burst access. This is explicit KV placement/traffic optimization, though not a reusable llama.cpp backend ABI.
+- PDF-first read completed; no TeX source was retained because the source endpoint did not return TeX. The numbers remain contextual rather than matched to the current U280/GPT-2 profile.
 
 Return to [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]].

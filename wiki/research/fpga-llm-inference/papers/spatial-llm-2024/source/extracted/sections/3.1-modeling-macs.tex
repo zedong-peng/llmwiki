@@ -1,0 +1,36 @@
+\subsection{Computational Demands}
+\label{sub:mac_analysis}
+Our first imperative is to calculate the computational demands of the model.
+Given that the predominant computation in the Transformer model is general matrix-matrix multiplication (GEMM or Matmul) or general matrix-vector multiplication (GEMV)~\cite{pope2022googleinf,kim2023survey}, we employ the number of multiply–accumulates (MACs) as the proxy metric for quantifying compute requirements of the linear layers, as depicted in Table~\ref{tab:flops}.
+\revise{For non-linear layers such as softmax and GeLU functions, they are elementwise operators that can be easily fused with the GEMM kernels in a pipeline design without affecting the final performance. More experimental results are provided in \S\ref{sub:ablation}.}
+
+We denote $X_{(\cdot)}$ as the output tensors from preceding layers, and $W_{(\cdot)}$ represents the weights of corresponding linear layers.
+For example, $X_{\text{sm}}$ is the output of the softmax operator.
+Our analysis here is restricted to a single batch; hence the tensors only have two dimensions.
+% As Transformer models often adhere to the convention that $d_{\text{FFN}}=4d$, a practice prevalent in widely-used Transformer variants~\cite{vaswani2017transformer,radford2019gpt2}, from Table~\ref{tab:flops}, we can observe that the FFN layers contribute most to the computation demand.
+% which requires more hardware resources to improve processing speed.\yx{I think we should mention throughput balancing of a spacial architecture before drawing this conclusion.}
+% The total FLOPs is $4ld^2+2ldd_{\text{FFN}}$.
+We can observe that the computational demand during the prefill stage far surpasses that of the decode stage.
+In the prefill stage, the required MACs of the two \texttt{Matmul}s within the SDP are quadratic to the sequence length (i.e., $l^2d$).
+Consequently, when input sequences exhibit substantial length, attention layers may extend computation time significantly.
+On the contrary, in the decode stage, each operator processes a single token at a time, making the MACs independent of the sequence length except for SDP.
+
+\begin{table}[t]
+    \centering
+    \caption{MACs of the prefill and decode stages of the linear layers in the Transformer model in Figure~\ref{fig:transformer} --- \textnormal{$l$ denotes input sequence length, $d$ denotes input feature dimension size, and $\dffn$ denotes FFN hidden dimension size.}}
+     % \yx{where are $X_{sm}$,$X_{sdp}$,$X_{mha}$, and $X_{act}$ defined?}
+    \label{tab:flops}
+    \small
+    % \resizebox{\linewidth}{!}{
+    \begin{tabular}{ccccc}\Xhline{1pt}
+        \textbf{Linear Layer}&  \textbf{Abbreviations} & \textbf{Input Matrices} & \textbf{Prefill} & \textbf{Decode}\\\Xhline{1pt}
+         Q/K/V linear&  $q$, $k$, $v$ & $XW_Q, XW_K, XW_V$ & $3ld^2$ & $3d^2$\\
+         Matmul$_1$&  $a_1$ & $QK^\mathrm{T}$ & $l^2d$ & $(l+1)d$\\
+         Matmul$_2$&  $a_2$ & $X_{\text{sm}}V$ & $l^2d$ & $(l+1)d$\\
+         Projection&  $p$ & $X_{\text{sdp}}W_{\text{Proj}}$& $ld^2$ & $d^2$\\
+         FFN$_1$&  $f_1$ & $X_{\text{mha}}W_{\text{FFN}_1}$ & $ldd_{\text{FFN}}$ & $dd_{\text{FFN}}$\\
+         FFN$_2$&  $f_2$ & $X_{\text{act}}W_{\text{FFN}_2}$ & $ldd_{\text{FFN}}$ & $dd_{\text{FFN}}$\\\Xhline{1pt}
+    \end{tabular}
+    % }
+\end{table}
+

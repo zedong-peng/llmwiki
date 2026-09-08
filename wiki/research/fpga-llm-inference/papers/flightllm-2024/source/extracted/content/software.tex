@@ -1,0 +1,55 @@
+\section{Software Design}
+
+\subsection{Instruction Set Architecture}\label{sec:ISA}
+
+Instruction Set Architecture (ISA) acts as a connection between the LLM and hardware accelerator, consisting of six instructions listed in Table~\ref{tab:ISA}. \texttt{LD} and \texttt{ST} stand for transmission between off-chip (HBM or DDR) and on-chip memory. \texttt{MM} and \texttt{MV} represent for matrix-matrix and matrix-vector multiplication respectively. \texttt{MISC} controls other computations, including layer normalization (LayerNorm), SiLU, Softmax, and Eltwise. \texttt{SYS} is responsible for synchronization between multiple Super Logic Regions (SLRs) after each layer or with the host CPU after each inference is completed. 
+
+\input{table/ISA}
+
+\vspace{-5pt}
+\subsection{Length Adaptive Compilation}
+
+\subsubsection{Challenges}
+\revise{The instructions of FPGA accelerators are usually generated using static compilation, leading to a large instruction volume for different input shapes.}
+Due to the fact that generative LLMs generate one token at a time, the token length increases by 1 with each inference. This means that each inference process of the LLM requires different instructions. However, due to the large computational and storage requirements of the LLM, even with coarse-grained instructions, the number of instructions is still enormous. Taking the example of deploying the LLaMA2-7B model on the U280 FPGA, the average volume of instructions required for the decode stage of each inference on each SLR is approximately 2.9 MB. For the prefill stage, the average volume of instructions required for each inference on each SLR is about 282.1 MB. Suppose we need to store instructions for all 3 SLRs, covering all token scenarios for prefill and decode 1-2048, in order to handle random input and output token quantities. In this case, the instructions would require approximately 1.67 TB. This size already far exceeds the capacity of U280 DDR. Unfortunately, due to sparse attention and N:M sparse pattern, each layer and each head in the LLM has a different sparse pattern, resulting in different instructions. Thus, it is not possible to reuse one set of instructions for multiple layers and attention heads. Therefore, we urgently need a method to reduce the size of the instruction sequence, allowing for the realization of inputs and outputs with arbitrary token lengths within limited storage.
+
+
+
+
+\subsubsection{Solutions}
+The fundamental reason for the large size of the instruction file is to adapt arbitrary lengths of prefill and decode stages, which requires storing instructions for all possible scenarios in memory. To address this issue, we can reuse the same instructions by allowing different lengths of prefill or decode. Specifically, by setting a threshold range, token lengths within this range can share the same instructions. For example, when the input token length is between 1 and 16, we can reuse the instructions for 16 tokens. Additionally, considering our N:M sparse block size (16$\times$16) and the size of the sparse attention block (64$\times$64), reusing instructions in this manner would not have a significant impact on performance.
+% To address this issue, reusing instructions in this way may lead to some performance degradation, but it can significantly reduce the storage space required for instructions. 
+
+\revise{We find that instructions are executed more frequently in the decode stage than in the prefill stage.} The bottleneck of the decode stage lies in memory access, which is directly proportional to the token length.
+\revise{Therefore, we use more refined thresholds in the decode stage to avoid too much redundant computation.} Moreover, we can reuse the same instruction file by configuring different base memory addresses of PEs of different SLRs through registers. The instruction size can be reduced to 4.77 GB with these optimizations, which the DDR of U280 can already store.
+
+\revise{We optimize the instructions for multiple HBM channels memory access to reduce the instruction size further.}
+For example, in each PE, the A buffer and the global buffer are connected to 8 HBM channels, and each HBM channel requires an \texttt{LD} or \texttt{ST} instruction each time the data is moved between the buffer and the HBM. We combine these similar instructions into one instruction, and the hardware decoder decodes the single instruction into eight hardware instructions. The eight hardware instructions will be launched to eight HBM channels simultaneously, enabling the concurrent read/write of multiple HBM channels to utilize the HBM bandwidth fully. 
+Through these optimizations, the instruction size is reduced to 3.25 GB and stored in the DDR memory with negligible performance loss.
+
+% In order to further reduce the instruction size and thus save DDR space for storing LLM activations and weights, we optimize the instructions for multiple HBM channels memory access in our hardware design. For example, in each PE, the A buffer and the global buffer are connected to 8 HBM channels, and each HBM channel requires an LD or ST instruction each time the data is moved between the buffer and the HBM. We combine these similar instructions into one instruction, and when the hardware inst decoder reads this instruction, 8 instructions will be launched to 8 HBM channels simultaneously, enabling the concurrent read/write of multiple HBM channels to utilize the HBM bandwidth fully. With these optimizations, the volume of the instruction file can be reduced to 3.25 GB and stored in the DDR memory with negligible performance loss.
+
+\begin{figure}[!tp]
+  \centering
+  \includegraphics[width=\linewidth]{Figures/Software/compile_flow.pdf}
+  \vspace{-20pt}
+  \caption{The overall mapping flow of FlightLLM.}
+  \vspace{-15pt}
+  \label{fig:compile_flow}
+\end{figure}
+
+\vspace{-5pt}
+\subsection{Analytical Model for RTL Generation}
+In this section, we analyze the relationship between the theoretical hardware resource utilization of FlightLLM on FPGA platforms and hardware implementation. For the main computation resource on FPGA, the usage of DSP is determined by the computing parallelism ($p_M * p_K * p_N$) of MPU and its amount. The theoretical usage of DSP can be estimated as follows: $ DSP = ( p_M * p_K * p_N * MPU) * MPE $. As for the on-chip buffers, their data width is designed based on the parallelism of the computation units. We implement activation buffer with URAM for its larger capacity, while the remaining buffers are implemented with BRAM36. The theoretical buffer usage are as follows: $URAM = ( p_M * p_K * Activation\_width/URAM\_width) * MPU * MPE$, $ BRAM = ( Weight\_buffer + Global\_buffer + \\Index\_buffer ) * MPE$.
+% \todo{more details?} 
+For memory bandwidth, the theoretical peak bandwidth is calculated as $Bandwidth = ( MPU/8 + 2) * MPE * 14.4GB/s$.
+The RTL generator determines the deployment of hardware modules of FlightLLM on a specific FPGA platform based on these theoretical models. It aims to fully utilize on-chip resources to improve the performance of the accelerator.
+
+
+\vspace{-5pt}
+\subsection{Mapping Flow}
+
+Fig.~\ref{fig:compile_flow} shows our entire deployment flow. \revise{FlightLLM takes the PyTorch-based LLM as input and converts it to ISA according to the customized intermediate representation (IR).}
+First, the original LLM undergoes sparsification and quantization to create a compressed LLM. Subsequently, the IR is exported, encompassing the model's structure, weights, sparse indexes, and attention masks, which is achieved through automated parsing of the model's structure. Following that, the generated IR undergoes optimization, which involves operations like removing the \texttt{view()} layers that do not impact the data arrangement and performing layer fusion. More specifically, the attention layer will be fused with the softmax layer, and the linear layer will be fused with ReLU, SiLU, and element-wise layers. Subsequently, all the data in the optimized IR will be assigned HBM or DDR storage addresses. Additionally, the data stored in the HBM will be partitioned into appropriate channels to prevent inefficient access across different channels, thus leveraging the FPGA's high bandwidth effectively. Lastly, the compiler will generate instructions using the optimized IR and schedule the on-chip buffer according to manually defined templates.
+
+In addition, we support generating corresponding RTL for different FPGA platforms. Specifically, the RTL Generator takes parameters of different FPGA platforms (including the amount of DSP, the capacity and bandwidth of HBM/DDR and on-chip RAM resources) to dynamically adjust the computing parallelism and buffer size. This is done to generate corresponding RTL code for implementation and configurations for compilation, in order to maximize the optimal performance on different platforms.

@@ -1,0 +1,23 @@
+\subsection{Related Work}
+% \todo{discuss more about the efficient LLMs}
+\subsubsection{Efficient Transformer}
+
+To tackle the extreme overhead of LLMs, various compression techniques are commonly used.
+Quantization~\citep{dettmers2022llm_int8, frantar2022gptq, yao2022zeroquant, xiao2023smoothquant,lin2023awq} approaches use low-bit integers to substitute the 16-bit floating point parameters and activations for inference. 
+Unlike small-sized models, LLMs often generate outlier activations with large magnitude, leading to large quantization error and accuracy loss for trivial quantization methods~\citep{dettmers2022llm_int8}. 
+State-of-the-art solutions try to solve the outlier problem through weight-activation scale transformation~\citep{xiao2023smoothquant} and salient channel scaling~\citep{lin2023awq}, pushing the limit of weight bit width to 4 bits on GPUs.
+However, given the lack of mix-precision support of GPU, no previous work utilizes mix-precision quantization to reduce the bit width further to the best of our knowledge.
+
+Sparse attention~\citep{child2019spTrans, zaheer2020bigbird, beltagy2020longformer, wang2021spatten, chen2023dynamic_nm} and weight pruning~\citep{frantar2023sparsegpt, kwon2022fast} approaches skip part of the attention matrix or weight matrix computing according to the defined sparse pattern. Various sparse patterns are proposed for different tasks and transformers, including local diagonal pattern~\citep{beltagy2020longformer}, block sparse~\citep{child2019spTrans, zaheer2020bigbird, kitaev2020reformer, kwon2022fast}, N:M sparse pattern~\citep{chen2023dynamic_nm, frantar2023sparsegpt}, row-column skipping pattern~\citep{wang2021spatten}, unstructured pattern~\citep{frantar2023sparsegpt} and so on.
+Previous work pushes the limit of attention and weight sparsity to 67\% (2 thousand tokens by~\citep{zaheer2020bigbird}) and 60\% (OPT-175B model by \citep{frantar2023sparsegpt}) or even higher. However, most of them fail to demonstrate corresponding speedup on GPU due to the lack of sparse computation support of the hardware~\citep{tay2020LRA}.
+
+\subsubsection{LLM-related Accelerators}
+Targeted at transformer models, previous work~\cite{li2020ftrans,ham2020a3,isca2021elsa,micro2021sanger,wang2021spatten,micro2022DFX,micro2022bufferfly,hpca23flat,isca2023fact,wang2023cosa} propose customized architecture design for transformer models. Some work~\cite{micro2021sanger,wang2023cosa} focuses on optimizing on-chip dataflow. They use techniques like operator fusion~\citep{micro2021sanger} and co-operative systolic arrays~\citep{wang2023cosa} to improve on-chip data reuse and reduce memory access. 
+Some work~\cite{CTA2023, micro2021sanger,wang2021spatten,micro2022bufferfly,li2020ftrans,isca2021elsa} lay more emphasis on accelerating sparse attention.
+They design specialized architectures to fully utilize the pre-defined static attention pattern~\cite{micro2022bufferfly,li2020ftrans} or dynamically generated attention pattern~\cite{isca2023fact,CTA2023,wang2021spatten,micro2021sanger}.
+Recently, FACT~\cite{isca2023fact} points out the importance of compressing linear layers with mixed-precision quantization to help reduce latency.
+However, these methods cannot accelerate the decode stage of LLMs since they mainly focus on the \textit{prefill} stage for discriminative models, like medium-sized BERT~\cite{devlin2019bert} model.
+% SpAtten~\cite{wang2021spatten} reduces attention computation in both \textit{prefill} and \textit{decode} stage by directly pruning attention heads. 
+
+Recent work DFX~\cite{micro2022DFX} emphasizes the acceleration of the decode stage of LLMs.
+It builds a multi-FPGA cluster with model parallelism for GPT-2. It mainly optimizes tiling scheme and dataflow to fully utilize all the channels of HBMs. However, it lacks hardware support for model compression of LLMs, making it hard to further expand model size or maximum token size.

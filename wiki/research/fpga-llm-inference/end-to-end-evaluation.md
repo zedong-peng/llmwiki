@@ -174,6 +174,10 @@ Primary plots:
 
 ### Matrix 2: CODO-compatible shape
 
+This is a separate fixed-shape graph/kernel axis. It is useful only when the executable, numerical
+semantics and timer boundary are matched; it must not be merged with the stateful KV-generation
+throughput table in Matrix 1 or with the application request metrics in Matrix 3.
+
 | Field | Required setting |
 |---|---|
 | Model | GPT-2 Medium, 24 layers, hidden 1024, FFN 4096, 16 heads |

@@ -1,0 +1,127 @@
+\section{Introduction}
+
+% \begin{figure}[t]
+%   \centering
+%   \includegraphics[width=0.95\linewidth]{Figures/Introduction/overview.pdf}
+%   \vspace{-5pt}
+%   \caption{FlightLLM on Alveo U280 FPGA outperforms NVIDIA V100S GPU \revise{(using vLLM~\cite{kwon2023efficient} and SmoothQuant~\cite{xiao2023smoothquant})} with better performance and cost efficiency. Further results show that, FlightLLM on Versal VHK158 FPGA (7nm) also beats NVIDIA A100 GPU (7nm) with 1.2$\times$ higher throughput.}
+%   \vspace{-15pt}
+%   \label{fig:animate}
+% \end{figure}
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth]{Figures/Introduction/overview.pdf}
+  \vspace{-5pt}
+  \caption{FlightLLM on Alveo U280 FPGA outperforms NVIDIA V100S GPU \revise{(using vLLM~\cite{kwon2023efficient} and SmoothQuant~\cite{xiao2023smoothquant})} with better performance and cost efficiency.}
+  \vspace{-20pt}
+  \label{fig:intro}
+\end{figure}
+
+Recently, we have witnessed the rapid development and significant impact of Large Language Models (LLMs)~\cite{bommasani2021opportunities, wei2022emergent}. 
+LLMs demonstrate amazing power to understand all the users' input requests (\textit{prefill} stage) and generate accurate responses token-by-token (\textit{decode} stage).
+% It comes as a powerful tool across various language generation tasks, 
+\revise{LLMs are being widely used in latency-sensitive scenarios~\cite{Naveed2023ACO}, }
+such as \revise{code completion~\cite{Wang2023PractitionersEO},} real-time chatbots~\cite{chen2023llm, thirunavukarasu2023large}, customer support~\cite{jeong2023study}, online legal advice~\cite{230616092}, and beyond. 
+\revise{The latency is critical for a good user experience, and the batch size is usually set as 1 to meet the real-time requirement.}
+However, current LLMs suffer from both heavy computation and memory overheads because of the explosive growth model size of LLMs. Taking GPT-3~\cite{brown2020language} as an example, it has 175 billion parameters (\textit{i.e.}, 350GB in FP16), requiring about 660TOPS of computation amount to complete a single inference.  
+% question answering~\cite{thirunavukarasu2023large},
+
+% \todo{add intro prefill and decode}
+
+% Recently, we have observed the rapid development and significant impact of Large Language Models (LLMs), which have emerged as powerful tools across various domains. LLMs have opened up new horizons for research and applications in artificial intelligence. What was initially a sub-discipline of computational linguistics has now become a linchpin, propelling advancements in fields such as human-machine interaction, sentiment analysis, logical reasoning, and beyond. They stand as a key technological stepping milestone towards the realization of Artificial General Intelligence (AGI).\fty{a little bit wordy?}
+
+% \begin{figure}[t]
+%   \centering
+%   \includegraphics[width=0.95\linewidth]{Figures/Introduction/overview.pdf}
+%   \vspace{-5pt}
+%   \caption{FlightLLM on Alveo U280 FPGA outperforms NVIDIA V100S GPU \revise{(using vLLM~\cite{kwon2023efficient} and SmoothQuant~\cite{xiao2023smoothquant})} with better performance and cost efficiency. Further results show that, FlightLLM on Versal VHK158 FPGA (7nm) also beats NVIDIA A100 GPU (7nm) with 1.2$\times$ higher throughput.}
+%   \vspace{-15pt}
+%   \label{fig:animate}
+% \end{figure}
+
+% \fty{For memory access. Decode, zero-padding, waste bandwidth. Ours: data arrangement.}
+% However, the growing size of LLMs poses many challenges on real-time inference for existing hardware, like GPU.
+% It is witnessed that the model size of LLMs grows by 240$\times$ every two years, posing much 
+% deploying LLMs on existing hardware platforms becomes increasingly costly and hard to achieve real-time inference.
+% \todo{should introduce the \textit{prefill} (summary) and \textit{decode} (generation) here?}
+%From the perspective of memory, loading enormous amount of LLM parameters to SRAM is a major latency bottleneck. 
+% The problem becomes even worse because of the auto-regressive generation nature of LLMs. 
+%To make matters worse, LLMs are auto-regressive, so they generate the response token-by-token.
+%It means only one world embedding vector is computed each time by multiplying with enormous parameter matrices. Unlike common matrix-matrix multiplication, these Matrix-Vector multiplications (MV) demonstrate low computational intensity and frequent memory access. 
+%The vector loading is also incompatible with the high parallel HBM access pattern of modern GPUs, resulting in x\% wasted bandwidth.
+
+% Modern GPUs are the SIMT-based architecture, which are diffcult to 
+
+% \fty{For compute, everyone is using model compressed methods, GPU is not good at it. why GPU not good at computing for compressed LLM.}
+Model compression methods \cite{deng2020model} (\textit{e.g.}, sparsification, quantization, etc.) are commonly applied to address the above issues.
+% yet their unique computation schemes are not well-supported by the existing hardware (\textit{e.g.,} GPUs) for LLMs. 
+However, the unique computation schemes of these methods are not efficiently supported by current hardware platforms, like GPUs, for LLMs.
+From the computation perspective, current GPUs only support structured sparsity (\textit{e.g.,} 2:4 sparsity), leading to significant algorithm accuracy loss of LLMs~\cite{frantar2023sparsegpt}. 
+In contrast, the unstructured sparsity ensuring algorithm accuracy cannot bring end-to-end acceleration for LLMs. 
+For example, the 75\% unstructured sparsity only leads to negligible end-to-end speedup~\cite{feng2023diffuser}. 
+From the memory perspective, quantization and large on-chip memory can reduce data access. 
+% However,\todo{GPU mem small(activation read-write => always on) and alignment(weight load => mix precision support), FPGA} The alignment feature of GPU's cache and SIMD architecture requires homogeneous bit-widths of LLM parameters for operator fusion and efficient memory bandwidth utilization \cite{xiao2023smoothquant}. However, existing memory-efficient LLM studies~\cite{dao2022flashattention} only focus on the \textit{prefill} stage, leaving no optimization for the dominating \textit{decode} stage (>90\% for long context generation~\cite{kwon2023efficient}) with mixed-precision quantization.
+Recent algorithm studies~\citep{squeezellm,llmint8} are pushing the limit of bit-width with mixed-precision quantization. 
+However, the alignment feature of GPU's cache and SIMD architecture requires homogeneous bit-widths of LLM parameters for weight access reduction~\cite{xiao2023smoothquant}. 
+Compounding the issue, GPU's KB-scaled share memory of SMs cannot hold all the activations for LLM text generation.
+
+% However, state-of-the-art LLM algorithm research shows that mixed-precision quantization leads to \guohao{xxxx}, which cannot be well supported on current GPU architectures.
+
+
+%Algorithms including sparse attention, weight quantization, and pruning are popular and theoretically effective for LLMs. 
+
+
+% \todo{simply say other transformer accelerator has the same problem as GPU, give an example}
+%However, experiments on GPU show that removing x\% attention, y\% weight and using z bit mixed-bit quantization, only yields x\%, y\% and z\% latency reduction for transformer models, respectively.
+%The lack of sparse and mixed-bit computation units of GPU motivates the design of many transformer accelerators. Previous works \todo{cite} achieve great advance by supporting either sparse or mix-bit computing for small discriminative transformer models. However, the systematic support of general compression methods for generative LLMs is still in great need.
+
+
+% However, compared to traditional Artificial Intelligence (AI) algorithms such as Convolutional Neural Networks  (CNNs) and Recurrent Neural Networks (RNNs), the computational complexity and parameter volume of LLMs have seen growth by five orders of magnitude in the last five years. This steep increase has posed significant challenges for existing hardware platforms. For example, latency-sensitive applications, such as intelligent customer service systems, usually require the generation of responses (typically consisting of hundreds of tokens) within 1-2 seconds for a single user. However, when running inference for the OPT-6.7B model on an NVIDIA RTX 3090, the throughput in a single batch is about 30 tokens per second, which falls considerably short of real-time requirements for intelligent customer service tasks. This is mainly due to the fact that LLMs primarily consist of two stages: prefill and decode.\fty{Having two stages is not the reason why LLMs are slow} 
+% The former processes\fty{process seems a little vague} input text, while the latter generates output. Given that LLMs are generative models, the decode stage typically constitutes 60-90\% of the end-to-end latency, due to two primary factors. On the one hand, the generation of each token in the decode stage is dependent on those generated earlier, necessitating iterative operations proportional to the length of the output text\fty{a little bit hard to understand}. On the other hand, due to the fact that decoding handles just one token per iteration, its computational density is low, resulting in memory-intensive operations (e.g., Matrix-Vector Multiplication (MVMult)) that cannot harness the high parallelism offered by GPUs.
+
+FPGAs are potential solutions to accelerate LLM inference and explore the benefits brought by model compression, which has been proven in previous deep learning models~\cite{guo2017angel, wang2022logic, gong2022n3h, sun2022film, zhang2021fracbnn}. However, efficient LLM inference on FPGAs needs to solve the following challenges (Fig.~\ref{fig:overview}):
+\begin{itemize}
+    \item \textbf{Low computation efficiency.} Flexible sparsity patterns (\textit{e.g.,} block sparsity~\cite{zaheer2020bigbird}, N:M sparsity~\cite{chen2023dynamic_nm}, etc.) in LLM leads to low computation efficiency.
+    \item \textbf{Underutilized memory bandwidth.} The \textit{decode} stage of LLM repetitively accesses fine-grained data from off-chip memory, leading to underutilized bandwidth (\revise{29-43\%}). 
+    \item \textbf{Large compilation overheads.} The dynamic sparsity patterns and input lengths of LLMs constitute a large design space. For example, generating instructions for 2048 input token length results in $\sim$TB storage overhead on FPGAs.  
+\end{itemize}
+%\todo{what kinds of sparse do we support: QKV+FFN+Attention -> }
+%The high customizability of FPGAs makes them ideal candidates for real-time and low-cost LLM inference. 
+% \fty{I think this order is fine given that we introduce in this order. I ulter the details.}
+%First, FPGAs' rich logic resources support the efficient execution of various LLM operators after compression, transforming theoretical benefits to actual latency reduction.
+% It ensures effective speedup after applying different compression methods for LLMs. 
+%Second, the latest FPGA platforms (\textit{e.g.}, Xilinx U280) incorporate heterogeneous memory systems with high bandwidth memory (HBM) and large-capacity DDR. It is suitable for the memory-intensive Matrix-Vector multiplication operators for the \textit{decode} stage.
+% and storage-consuming intermediate results. 
+% We already talk about this?
+% Third, as the \textit{decode} stage of LLMs produces the single output token one by one, GPU's massive parallel computing units are not fit for sequential processing. In contrast, FPGAs can provide low-latency and cost-efficient LLM inference solutions. 
+
+% The highly customizable nature of Field Programmable Gate Arrays (FPGAs) sets them apart from GPUs when accelerating LLM inference tasks, which are memory-intensive, thus positioning FPGAs as potential candidates for solving latency-sensitive LLM inference tasks. 
+% Firstly, FPGAs can design specialized memory access engines ensuring full utilization of HBM's bandwidth capabilities, addressing the issue of poor GPU bandwidth use (~xx\%). 
+% Secondly, FPGAs can design custom computational units to support lightweight compression methods, thereby reducing LLM's computational and storage volumes while achieving greater acceleration ratios than GPUs. 
+% However, there still lack FPGA-based end-to-end acceleration solutions for LLM inference. Much of the related work has been designed for transformers alone, only considering the Multi-Head Attention (MHA) mechanism (i.e., transformer layers) in LLMs and neglecting the optimization of feed-forward network layers (FFN), despite these typically constituting more than 50\% of the end-to-end latency\fty{I thought we also optimize attention layer}. Most recently, DFX proposed a distributed FPGA acceleration solution for LLMs, but without any lightweight acceleration applied to LLM. Thus, it still cannot meet the needs of latency-sensitive tasks.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth]{Figures/Introduction/intro-overall.pdf}
+  \vspace{-15pt}
+  \caption{Three challenges of LLM inference on FPGAs, and the corresponding solutions in FlightLLM.}
+  \vspace{-20pt}
+  \label{fig:overview}
+\end{figure}
+
+In this paper, we propose \textbf{FlightLLM}, enabling efficient LLMs inference with a complete mapping flow on FPGAs \revise{(Fig.~\ref{fig:intro})}. 
+FlightLLM innovatively points out that the computation and memory overhead of LLMs can be solved by utilizing FPGA-specific resources (\textit{e.g.}, DSP48 and heterogeneous memory hierarchy). 
+To address the challenges of low computation efficiency, FlightLLM exploits a configurable sparse DSP chain. We introduce a flexible cascaded DSP48 architecture to support different sparsity patterns with high computation efficiency (\textit{i.e.}, runtime DSP utilization). 
+To tackle the underutilized memory bandwidth, FlightLLM proposes an always-on-chip decode scheme. Activations reside in the on-chip memory during the \textit{decode} stage with the support of mixed-precision quantization. 
+% Furthermore, FlowLLM is also optimized for the dynamic input length of generative LLMs, which is not supported by current discriminative transformer accelerators. 
+% Since token lengths can range from few words to thousands, directly generating an instruction file for each input length would result in unacceptable storage overhead ($\sim$TB) on FPGAs. 
+To reduce the compilation overhead, FlightLLM proposes a length adaptive compilation method. Instructions for consecutive input token length are grouped, and the total storage overhead for instructions can be reduced.  
+
+The main contributions of this paper are as follows.
+\begin{itemize}
+    \item We propose a configurable sparse DSP chain to support different sparsity patterns. FlightLLM improves the computation efficiency by 1.6$\times$ with block-wise and N:M sparsity.
+    \item We propose an always-on-chip decode scheme with mixed-precision support. FlightLLM boosts the memory bandwidth from \revise{35.6\%} to 65.9\%.
+    \item We propose a length adaptive compilation method to reduce the instruction storage overhead by 500$\times$ ($\sim$GB), enabling deploying real-world LLMs onto FPGAs.
+\end{itemize}
+
+We implement FlightLLM on the Xilinx Alveo U280 FPGA~\footnote{Artifact is available at: \url{https://zenodo.org/doi/10.5281/zenodo.10422477}}. Evaluated on the OPT-6.7B and LLaMA2-7B, FlightLLM achieves better end-to-end latency than NVIDIA V100S GPU \revise{using vLLM~\cite{kwon2023efficient} and SmoothQuant~\cite{xiao2023smoothquant} under the batch size of one}. Besides, FlightLLM outperforms NVIDIA V100S and A100 GPU with 6.0$\times$ and 4.2$\times$ higher energy efficiency, and 1.8$\times$ and 1.4$\times$ better cost efficiency on average, respectively. When evaluated on the latest Versal VHK158 FPGA, FlightLLM beats NVIDIA A100 with 1.2$\times$ higher throughput. 

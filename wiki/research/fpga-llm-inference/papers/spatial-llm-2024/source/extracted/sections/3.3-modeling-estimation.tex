@@ -1,0 +1,58 @@
+\subsection{Performance Estimation}
+In this section, we estimate the overall latency based on the constraints and conduct work balancing for the dataflow.
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.6\linewidth]{figs/multi-pipeline.pdf}
+    \caption{Pipeline diagram. Different colors stand for different input samples.
+    Different blocks stand for different linear operators which also constitute the pipeline stages.
+    $h$ is the number of attention heads.}
+    \label{fig:pipeline}
+\end{figure}
+
+\subsubsection{Latency Estimation.}
+\label{subsubsec:latency}
+We construct the pipeline diagram as shown in Figure~\ref{fig:pipeline}.
+As mentioned in \S\ref{subsubsec:memory_resource}, since we need to store the $K$ and $V$ values after the linear operators, there is an implicit synchronization point between the $q$/$k$/$v$ operator and the latter SDP and FFN parts.
+The computation of them cannot be overlapped.
+Notice the $q$/$k$/$v$ operator can be performed in parallel since they do not have any dependencies.
+\revise{After $k$ and $v$ have been fully calculated, the subsequent computations of SDP and FFN can be greatly overlapped.
+This is because these operations do not need to wait for all the results to perform the next operation.
+The results of the previous operation can be directly streamed into the next operation as input.}
+Moreover, since different Transformer layers share the same architecture, their computation can also be overlapped without waiting for the result of the previous layer.
+
+Suppose the Transformer model has $N$ layers in total.
+Since we have $C$ layers on one FPGA, it needs to iterate $N/C$ times to process the whole model.
+We can calculate the latency of different stages, and the overall latency is the maximum latency of these stages (which defines the initiation interval of the pipeline) times the number of iterations, i.e.,
+\begin{align}
+    \label{eq:latency_prefill}
+    T_{\text{prefill}} &= \frac{1}{freq}\frac{N}{C}\left(\frac{ld^2}{M_k}+C\max\left(\frac{ld^2}{M_k},\frac{l^2d}{M_{a_1}},\frac{ld\dffn}{M_{f_1}},T_{\text{mem}}\right)\right)\,,\\
+    \label{eq:latency_decode}
+    T_{\text{decode}} &= \frac{1}{freq}\frac{N}{C}\left(\frac{d^2}{M_k}+C\max\left(\frac{d^2}{M_k},\frac{(l_{\max}+1)d}{M_{a_1}},\frac{d\dffn}{M_{f_1}},T_{\text{mem}}\right)\right)\,,
+\end{align}
+where the first term inside the parentheses is the latency of the $q$/$k$/$v$ linear operator (i.e., $t$ in Figure~\ref{fig:pipeline}).
+$T_{\text{mem}}$ is the off-chip memory access latency, which can be calculated based on Equation~\eqref{eq:bandwidth}.
+
+\subsubsection{Work Balancing.}
+% \zz{Throughput balancing is not a good term. do we mean work balancing?}
+As the overall latency is determined by the slowest stage in the dataflow, we can balance the execution time of each stage; hence we have
+% \yx{are we missing $M_p$ here?}
+\begin{align}
+    &\frac{ld^2}{M_{q,k,v,p}}=\frac{l^2d/h}{M_{a_{1},a_{2}}}h=\frac{ld\dffn}{M_{f_{1},f_{2}}}\\
+    \label{eq:m}
+    \implies& M=M_{q,k,v,p}=d/l M_{a_{1},a_{2}}=d/\dffn M_{f_{1},f_{2}}\,,
+\end{align}
+where $M$ is defined as the global compute power in MACs/cycle.
+Finally, Equation~\eqref{eq:latency_prefill} can be simplified to 
+\begin{equation}
+T_{\text{prefill}}=\frac{1}{freq}N\left(1+\frac{1}{C}\right)\frac{ld^2}{M}\,,
+\end{equation}
+which shows the overall latency with work balancing.
+We can obtain the latency for the decode stage using a similar analysis.
+
+To derive the optimal $M$ for a given model, we devise a linear search algorithm to identify the maximum available $M$ based on the constraints in Equations~\eqref{eq:mac_constraint}, \eqref{eq:sram_constraint}, and \eqref{eq:port_packed_constraint}.
+Notice the optimal $M$ represents an upper bound of the compute power.
+In practice, we also need to consider the routing issue to adjust the actual achievable $M$ as discussed in \S\ref{sec:xcel}.
+
+% \begin{equation}
+% T_{\text{decode}}=\frac{1}{freq}N\left(1+\frac{1}{C}\right)\frac{d^2}{M}\,.
+% \end{equation}

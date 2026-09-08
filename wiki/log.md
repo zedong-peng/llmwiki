@@ -3,7 +3,7 @@ title: Super Personal Wiki Log
 domain: root
 type: timeline
 status: active
-updated: 2026-07-24
+updated: 2026-09-08
 tags: [log]
 ---
 
@@ -336,3 +336,76 @@ tags: [log]
 - Added `wiki/research/fpga-llm-inference/vitis-ai-dpu-finn-pynq.md` with official documentation, FINN/FINN-R paper entry points, and explicit FINN/PYNQ/PINN name ambiguity.
 - Compared target-specific DPU instruction execution with FINN streaming dataflow and layer folding; documented CPU partitioning, artifact compatibility, parameter memory modes, DPU-PYNQ archival status, and unverified U280/Gemma deployment boundaries.
 - Linked the note from the root and area indexes and updated the system landscape and execution architecture taxonomy. Source review used official repositories after two search-service HTTP 503 failures; no toolchain installation or board measurements were performed.
+
+## [2026-09-07] ingest | Audited KV/runtime boundaries for FPGA LLM related work
+
+- Restored the wiki content from the public `llmwiki` main archive after a concurrent clone removed the working tree; the temporary recovery stub remains at `/home/zdpeng/llmwiki.stub-20260907-1354`.
+- Archived and extracted arXiv TeX sources for FlightLLM (`2401.03868`), Spatial LLM (`2312.15159`), StreamTensor (`2509.13694`) and CODO (`2604.12618`) under the corresponding paper directories, then read the relevant memory, accelerator, evaluation and model files.
+- Added `kv-cache-runtime-boundary-comparison.md`, separating K/V computation, persistent cross-token state and KV-specific placement/optimization. The page records that CODO's public GPT artifact computes current-input Q/K/V but exposes only a fixed-shape, single-graph execution path; it does not establish a persistent KV-cache runtime.
+- Linked the comparison from the root and FPGA inference indexes and refreshed the CODO deep-read page with the precise KV-cache boundary and fixed-graph versus stateful-generation metric distinction.
+
+## [2026-09-07] refine | Made the metric boundary explicit in the related-work comparison
+
+- Changed the comparison column to stateful end-to-end flow support: the current llama.cpp FPGA profile is documented as supporting GGUF load → GGML graph → persistent KV execution → logits → sampling, while CODO is marked “not established for this boundary” rather than used as a throughput baseline.
+- Added SHA-256 entries for the four archived arXiv TeX source bundles so the local comparison evidence is reproducible.
+- Added an explicit metric-boundary table separating fixed-shape graph/kernel latency (CODO) from stateful generation metrics (the llama.cpp FPGA backend).
+- Propagated the same boundary into the system landscape and evaluation protocol: CODO remains a fixed-graph comparison axis, while stateful KV-generation results stay in a separate table.
+- Added and read the DFX (`2209.10797`) arXiv TeX source; its architecture/microarchitecture/evaluation sections now anchor the table's claim about per-token K/V use, HBM DMA and model-level GPT text generation.
+- Added a dated FPGA-area snapshot distinguishing the newer GPT-2 profile-complete delivery from the older Gemma integration notes, and keeping CODO on the fixed-graph comparison axis.
+
+## [2026-09-08] audit | Defined feature-table evidence and checked public FPGA LLM artifacts
+
+- Added `feature-level-evidence-matrix.md` with E2E-generation, P+D, multi-model, automatic-mapping, persistent-KV, framework-backend and public-artifact predicates. Preserved the distinction between paper reports, source inspection and actual reproduction; left the manuscript unchanged rather than transferring old Model-scale marks to a different predicate.
+- Re-read CODO's complete main TeX and bibliography, cached a clean official committed repository snapshot from the existing local Git cache after remote cloning timed out, and confirmed its SHA through GitHub API. Read the GPT verification frontend/model/data/helpers, decode host, config, README and synthesis runner; updated the paper note and metadata without claiming board reproduction or initialized dependencies.
+- Discovered FlightLLM's official Zenodo package through its TeX link and retained/read the package README and catalog. Recorded its closed RTL, public binary-demo offering and separate VHK158 simulation profile. Did not download the 6.41 GB hardware archive or promote its artifact-read status.
+- Recorded a limited StreamTensor repository search as inconclusive, not as proof of no release. Linked the synthesis from root and area indexes. No FPGA execution or paper-performance reproduction was performed.
+
+## [2026-09-08] audit | Archived key references and revised the manuscript feature table
+
+- Downloaded/extracted TeX sources for FlexLLM, TeLLMe, PD-Swap, LUT-LLM and FAST-Prefill; archived pinned official FlexLLM, TeLLMe_FPGA_2026, LUT-LLM and Allo snapshots with URL/commit/SHA-256 receipts. Reused existing source/PDF caches. EdgeLLM source endpoints returned PDF; retained a correctly named PDF response and explicit fallback metadata.
+- Audited generation and KV paths in FlexLLM and TeLLMe. Distinguished vocabulary-only llama.cpp use and standalone PYNQ execution from a native framework backend. Confirmed LUT-LLM covers both phases and describes KV appends, while its AE E2E calculator extrapolates from block cycles.
+- Archived/extracted FlightLLM profile.zip and selectively read the 6.41 GB hardware ZIP via HTTP ranges: complete manifest, internal README, host binary and two case configurations. Full hardware download was stopped; missing tensors/bitstream, closed RTL and lack of board reproduction remain explicit.
+- Reclassified all 12 literature rows in feature-level-evidence-matrix.md and paper/main.tex, added six pinned artifact citations, and separated the unpublished local backend from the literature table. Hummingbird+ stays NR because full text returned HTTP 403. DFX multi-checkpoint support and PD-Swap automated DSE/template generation receive positive credit.
+- Kept new paper ingest states at extracted/targeted-review, not processed; full bibliography/repository reading and external assets remain pending. Updated existing FlightLLM/Spatial LLM notes, metadata and navigation. No FPGA was programmed and no published performance result was independently reproduced.
+- Built paper/build/main.pdf successfully (10 pages); final LaTeX log had no warnings, unresolved citations or overfull boxes. Inspected the rendered feature-table page. Validated 12 metadata YAML files, 43 local evidence links, exact wiki/LaTeX row agreement, 10 source/repository download receipts and FlightLLM's official profile checksum; retained consolidated hashes in feature-level-audit-receipts.json.
+
+## [2026-09-08] refine | Added SECDA-LLM and narrowed the main comparison scope
+
+- Archived SECDA-LLM's arXiv source and validated five-page PDF; read the complete TeX paper and bibliography before writing its formal note. Added the 84th paper record, bringing the collection to 51 validated paper PDFs; updated metadata, manifest, checksums and navigation.
+- Pinned the official repository at 183376a652b47a30b5b57cd34965b45e9297f39a and separately archived the exact llama.cpp and secda_tools gitlinks. Reviewed backend registration/admission/execution, host buffers, quantized MatMul driver paths, build/CLI configuration and framework KV operations. The later WiP code is explicitly separate from the 2024 paper; secda_tools remains unread, two parent-project symlinks were omitted from extraction, and no configured build or board run was attempted.
+- Promoted original Hummingbird's TeX archive from temporary cache into its paper directory with a hash receipt and targeted-reading metadata. Kept it unprocessed and distinct from inaccessible Hummingbird+.
+- Replaced the 12-work main table with ten representative works: removed unassessed Hummingbird+, moved FAST-Prefill and PD-Swap to thematic prose, and added SECDA-LLM. Retained positive evidence for excluded phase-focused works rather than treating their specialization as a deficiency. Added paper/artifact BibTeX entries and a dated source footnote for SECDA's registered backend and host-managed KV.
+- Corrected positioning: llama.cpp/GGML integration alone is not unique in view of SECDA-LLM. Device KV residency, operator coverage, state semantics and verified execution remain distinct comparison axes.
+- Rebuilt the 10-page manuscript without LaTeX warnings, unresolved citations or overfull boxes; inspected page 3. Validation passed 14 metadata files, 50 matrix links plus SECDA note links, 10-row agreement, 15 archive receipts, manifest counts and all 59 checksum-list entries. These checks do not establish source-to-bitstream reproducibility or published performance/correctness reproduction.
+
+## [2026-09-08] audit | Reassessed backend substitutes and baseline admission
+
+- Applied the user's evidence-based admission criterion before feature scoring: substantive evaluation data, a meaningful public reproduction path, or verified leading-conference publication. Re-read key evaluation passages and checked seven existing publication records through Crossref. All nine retained systems have evaluation data; CODO and FlexLLM remain preprint citations without assumed conference acceptance.
+- Moved SECDA-LLM to integration-precedent prose, not a principal performance baseline. Preserved its actual 1.7 seconds/token report and real later GGML backend while distinguishing these from a mature equivalent, a full reproduction and a matched benchmark. Did not dismiss public prior evidence based on arXiv status.
+- Added the user's backend as a separated local row. Re-read active Q4 runtime/context/model hooks and the frozen 32-output receipt: GPT-2 Medium, one sequence, context <=1024, resident HBM state, fixed-template preparation, failed board correctness/full qualification. Anonymous lookup of the configured origin returned 404; public artifact remains NR, not an asserted release.
+- Investigated official Positron Atlas and Achronix VectorPath LLM/console pages as API-level commercial alternatives. Checked the public Positron llama.cpp fork tree and registry without identifying a native FPGA backend there; a fork or API document is not an accelerator implementation release. Archived 26 official-page/API/discovery/Crossref records with hashes, without registering vendor accounts or running hardware.
+- Added backend-niche-and-baseline-audit.md with per-work admission, publicness levels, substitution boundaries, current implementation limitations and recommended comparisons. Updated root/area navigation and evidence matrix; manuscript now contains nine prior-system rows plus the local row, four commercial-source citations and explicit non-uniqueness/qualification boundaries.
+- Built the 11-page PDF without LaTeX warnings, undefined citations or overfull boxes and visually inspected page 3. Checks passed 14 metadata records, 52 matrix links, ten-row agreement, 15 paper/repository archive receipts, 26 new official-source hashes and the new note's links. No competitor or local FPGA performance was reproduced during this audit.
+
+## [2026-09-08] recheck | Separated experimental support from deployment claims
+
+- Inventoried 64 manuscript citation keys and performed targeted primary-text/artifact rechecks of ten principal systems and integration precedents. Documented unavailable local full texts without claiming a new full read of every thematic reference.
+- Added manuscript Table 2 on experimental support and delivery scope. Expanded SECDA's actual 1.7 s/token report, missing phase/workload/quality/power protocol, and later WiP backend limitations; retained the distinction between integration precedent and mature substitute.
+- Clarified CODO single-event timing and unchecked board-host success output, LUT-LLM's AE latency derivation, and the real FlexLLM/TeLLMe generation entry points. Recorded DFX's model/accuracy scope and measured versus simulated results.
+- Corrected FlexLLM's final quantization to W4A4KV8 using its original ablation. Confirmed CODO at ISCA 2026 using the official program and updated bibliography, metadata and notes. Earlier preprint-only statements in this log are historical.
+- Marked July Gemma/per-node/VSTC descriptions as historical and corrected the landscape's current row to the specialized Q4 whole-graph runtime, without removing its failed correctness/qualification gates.
+- Added manuscript-evidence-recheck-20260908.md and navigation links. Built the 13-page PDF with no final LaTeX warnings or bad boxes; visually checked Table 2 on page 5. Audit links, CODO YAML, ten-row count and paper whitespace checks pass. No board was programmed and no deployment/performance was independently reproduced.
+
+## [2026-09-08] recheck | Verified public endpoints and simplified manuscript tables
+
+- Removed manuscript Table 2 and Table 1's P+D column at the user's explicit request; retained phase evidence in prose and aligned the wiki matrix's six comparison dimensions. Historical validation entries above describe earlier versions.
+- Confirmed FlightLLM's accessible official repository and Zenodo README: profiling source and board binary cases are public, RTL is explicitly withheld. Rechecked Spatial LLM's BERT/GPT-2 versus projected-family boundary; inspected the separate linked Allo PLDI artifact's complete README and GPT host, which performs layer timing without token selection/feedback.
+- Found StreamTensor's official API documentation and resolved its GitHub link to hanchenye/streamtensor. Anonymous GitHub web/API checks returned 404; documentation availability does not establish accessible implementation source. DFX/EdgeLLM implementation discovery remains inconclusive, not proof of non-release.
+- Updated manuscript source citations, README, evidence-recheck note, feature matrix and StreamTensor paper note. The broad two-work shortlist requires accepting BERT and partial public artifacts; stricter generative-model/full-source criteria do not yield the same pair.
+- `make -C paper` passed and produced 12 pages. Final LaTeX log contains no warnings or bad boxes; only one table remains, with no P+D or removed-label references. Visually inspected page 3; scoped `git diff --check` passed. No FPGA build, board execution or independent usability trial was performed.
+
+## [2026-09-08] edit | Consolidated comparison and scope into Table 1
+
+- Following the user's successive requests, removed Auto mapping, Framework backend and Persistent KV columns. Table 1 now contains Work, E2E generation, Multi-model, Public artifact and Experimental and delivery scope.
+- Integrated the removed Table 2's per-work experimental/delivery summaries into the final column and shortened redundant footnotes. Retained mapping, integration and KV evidence in prose; SECDA remains an integration precedent outside the table.
+- Updated manuscript README, wiki matrix and evidence-recheck note. Built the 13-page PDF and inspected Table 1 on page 4. Final LaTeX log has no warnings or bad boxes; scoped whitespace checks pass. BibTeX retains five pre-existing missing-year warnings for undated web references; no publication dates were invented.

@@ -1,0 +1,38 @@
+\section{Discussion}
+\label{sec:discussion}
+\revise{In the previous sections, we provide details of the analytical framework and prove that it can achieve high accuracy compared to the latency of actual implementation. However, our framework may have limitations when analyzing the overlay designs or compressed models with sparsity, which requires changes in the resource and latency estimation.}
+In this section, we will delve into several unanswered questions and open challenges.
+% Certain studies~\cite{frantar2022gptq, chee2023quip, park2023lutgemm} focus solely on quantizing the model weights, which may present an efficient solution for GPU acceleration.
+% Conversely, other research endeavors~\cite{dettmers2022llmint8, xiao2023smoothquant, lin2023awq} aim to quantize both the activations and model weights, aligning precisely with the scope of this paper.
+% Specifically, the works of \cite{yuan2023rptq, yao2022zeroquant} employ the W4A8 quantization scheme, which is consistent with the approach undertaken in our paper.}
+
+\noindent\textbf{AI-Optimized FPGAs.} 
+In \S\ref{sec:case_study}, we demonstrate the potential of leveraging FPGAs with specialized compute engines to accelerate LLMs.
+Although AIEs and tensor blocks provide massive compute power~\cite{xilinxAIE,stratix10}, the memory layout and bandwidth requirements remain undiscovered. 
+Future FPGAs for AI workloads should provide enough memory bandwidth and efficient on-chip interconnect to facilitate the local data movements in a spatial architecture.
+Moreover, these specialized hardware blocks usually adopt a unique programming model with custom compilation flows.
+It is still an open question whether existing practices for programming those hardware blocks enable efficient execution of Transformer models.
+
+% Since AIEs have high processing speed, it is important to construct a multi-level cache in order to satisfy the demand of AIEs~\cite{zhuang2023charm,zhuang23automm}.
+% Only when the processing speed of the linear layers and non-linear operations can be balanced, the dataflow will not stall, and we can achieve high performance.
+
+\noindent\textbf{Timing Closure on Multi-Die FPGAs.} 
+We encounter timing problems in partitioning and scaling our design in \S\ref{sec:xcel}. 
+In general, it is hard to adequately explore the design space of multi-die partitioning and scaling. 
+% Such difficulty may be further amplified by targeting different models and FPGAs.
+There are automated frameworks~\cite{guo2021autobridge,moazin2023pasta} to generate floorplanning constraints, but they are currently not expressive enough to capture the various data movement schemes (e.g., residual connection, multi-head splitting) within Transformer models.
+We hope similar tools for Transformers could be derived from our analytical framework to speed up the design closure. %guide hardware architecture design in early design stages.
+
+% When increasing the parallelism factor $M$, it will become congest on-board, so how to place different operations in the SLRs and connect them together has a big impact on the routing, which will also impact the frequency.
+% Currently we only suppose the frequency is 250MHz, but in practice, instead of manual floorplanning, it is able to achieve higher frequency by leveraging .
+% Moreover, how to leverage all the AIEs for accelerating LLMs and efficiently connect AIEs with programming logic still remains an open question.
+
+\noindent\textbf{Heterogeneous Deployment.} 
+Nowadays, data centers are increasingly heterogeneous, with CPUs, GPUs, and FPGAs available at scale~\cite{caulfield2016microsoft,chung2018brainwave,narayanan2021megatronv2}.
+Therefore, it is possible to leverage the advantages of different hardware to accelerate Transformer models.
+For example, GPUs are good for the GPT prefill stage due to their high compute power; FPGAs can achieve low-latency decode stage with customized spatial architecture.
+The key challenge is to build a distributed system that efficiently manages hundreds of heterogeneous devices.
+We hope our analysis on resource constraints, latency, and scaling could assist future deployment and evaluation of LLMs in a heterogeneous and distributed environment.
+
+% Considering nowadays data centers are becoming more and more heterogeneous, it is possible to leverage GPUs for the prefill stage to generate the KV cache and FPGAs for the decode stage, so that GPUs are responsible for generating high
+% The optimal parallelization scheme is out of the scope of this paper, and we hope to have the actual evaluation on LLMs in a distributed environment.

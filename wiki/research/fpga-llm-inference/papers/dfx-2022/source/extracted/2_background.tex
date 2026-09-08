@@ -1,0 +1,87 @@
+
+% \vspace{-0.2in}
+
+\section{Background}
+\label{background}
+
+% \vspace{-0.05in}
+\subsection{GPT Language Model} \label{background_gpt}
+
+
+% Overall Architecture of GPT
+GPT is based on the transformer\cite{vaswani2017attention} structure that achieves the best accuracy in NLP. The primitive transformer has two parts, encoder and decoder, to process the input and output sequence, respectively. However, GPT includes only the decoder because it focuses on generating text (i.e., creating the next word sequence) by looking at the given context. GPT is able to remove the encoder by using an alternate method called token embedding, a process that uses pre-trained matrices in place of the encoder. Furthermore, the model size of GPT and its decoder layer is constantly increasing with more parameters and operations to gain better accuracy and sophistication in its token generation. Recently, OpenAI announced the latest GPT model, GPT-3, but the model itself is not available in the public domain~\cite{openaigpt3}. In this paper, we are based on the publicly available GPT-2 model. Note that our hardware acceleration strategies for GPT-2 are applicable to GPT-3 because it has the same model structure but with a larger size.
+Figure \ref{fig-gpt_structure} shows the GPT-2's model structure and GPT-2-based text generation workload.
+
+%, so the decoder layer within the decoder is becoming deeper and more complex. For example, the \textit{OpenAI GPT-2 Medium}\cite{radford2019language} model has 24 decoder layers, and one layer includes high-level operations like self-attention and feed-forward network.
+
+% Detailed explanation --> need to be summarize
+% Self-Attention (Process1 ~ Process 6)
+% \textbf{GPT Process.}
+% Figure \ref{fig-gpt_structure} (or Algorithm) shows the structure of a single block of the decoder layer. When input embedding enters the decoder layer, the layer normalization (\texttt{LayerNorm}) process is performed first. \texttt{LayerNorm} is a similar operation to batch normalization\cite{}, which often used in CNN, \texttt{LayerNorm} proceeds normalization for a single embedding vector. After the normalization, the result is multiplied with three weight matrices to get Query, Key, and Value. Then Query$\times$Key$^T$ and SoftMax are sequentially performed to obtain a Score matrix, and then multiply again with Value to get final attention matrix. This process is often called to as \textit{self-attention}\cite{}, and GPT uses a multi-head method\cite{} to increase the parallelism of computation in self-attention. The multi-head is a method of dividing Query, Key, and Value into $n$ column direction, and executes the previous process $n$ times. This method increases parallelism in self-attention, which has a large amount of computation, and helps to calculate the attention matrix faster. After concatenating all attention parts from each head, add with input embedding vector to perform Residual Layer.
+
+% Feed-Forward Network (Process7 ~ Process 9) and LM-Head
+% After finishing self-attention part, feed-forward network (FFN) is conducted based on the attention matrix to output next token. The FFN layer contains 4 process, layer normalization, two fully-connected (FC) layer, and residual layer. The GELU activation function is used between the first and second FC layer. Finally, another residual layer is conducted and outputs a result of a single decoder block. This block is repeated several times, \textit{24 blocks in GPT2-Medium}\cite{}, to get the final decoder result. After the last block is done, GPT applies an Language Model (LM) head operation to get actual token id that represents next word. LM head process contains matrix multiplication with embedding table and SoftMax to obtain the id by select maximum token id.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Figures
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t] 
+% \vspace{-0.01in}
+\centering
+\footnotesize
+\includegraphics[width=3.33in]{Figures/GPT_structure.pdf} 
+\vspace{-0.05in}
+\caption{GPT-2 structure and illustration of summarization and generation stages in text generation.}
+\label{fig-gpt_structure} 
+\vspace{0.05in}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Overview of decoder and explain token embedding / LM head
+\textbf{GPT-2 Structure}
+The token embedding, located at the beginning of the decoder, is responsible for converting an input word(s) into an embedding vector. The input word is converted to the numeric token ID based on a dictionary. Then, the pre-trained matrices, word token embedding (WTE) and word position embedding (WPE), are indexed with the token ID to obtain the corresponding vectors. WTE contains token-related encoding, and WPE contains position-related encoding. The two vectors are added to get the embedding vector. LM head, located at the end of the decoder, has the opposite role to the token embedding. It converts the output embedding vector into the token ID. This process requires a matrix multiplication with the transpose of WTE and selects the token ID with the highest probability value by applying the softmax function. The selected token ID represents the generated word.
+
+% Explain the rest of the decoder part
+GPT-2 has $N$ number of decoder layers between token embedding and LM head, in which $N$ is determined by the model size. As shown in Figure \ref{fig-gpt_structure}, one decoder layer is largely divided into four operations: self-attention, feed-forward network, layer normalization, and residual. Self-attention, a type of attention for the decoder, is a key part of the transformer \cite{vaswani2017attention}; it creates the $Query$, $Key$, and $Value$ matrix to obtain the attention matrix. $Query$ is related to a current given word, while $Key$ and $Value$ represent the flow of the entire context. GPT-2 uses the multi-head attention\cite{radford2019language}, a method of dividing attention weights into $H$ columns to execute $H$ independent matrix operations in parallel. $H$ represents the number of attention heads, and this hyperparameter is increasing with the model size. Another significant operation is the feed-forward network, which is commonly used in deep neural networks. It is made up of two fully connected (FC) layers and Gaussian Error Linear Unit (GELU) activation function \cite{hendrycks2016gaussian}. Lastly, the layer normalization and residual, well-known techniques in previous works \cite{ba2016layer, he2016deep}, are placed around self-attention and feed-forward network to fine-tune the large model. 
+
+%The first FC layer makes a vector of four times the column width for higher resolution \cite{hendrycks2016gaussian}, which is sent to the GELU function. The second FC layer restores the dimension of the vector to the original size.
+
+
+% Summarization and Generation Stage
+To generate tokens with the given context, GPT-2 contains a summarization and generation stage. The summarization stage takes the entire context as input, so the decoder's input dimension after the token embedding is $\texttt{n}\times\texttt{emb}$, in which \texttt{n} is the length of the context in tokens and \texttt{emb} is the length of the embedding vector; for reference, $\texttt{emb} = 1600$ for the 1.5B model. The embedding vector is fed to the decoder, which involves a series of matrix multiplications with weights of size $\texttt{emb}\times\texttt{emb}$ or larger, to produce an output matrix with the same initial dimension of $\texttt{n}\times\texttt{emb}$. Only the last row of the output matrix is processed in LM head, and the first subsequent token is generated. The $Key$ and $Value$ matrices that represent the context are also created in the summarization stage. In the generation stage, the previously generated token enters the decoder, so the input dimension is $\texttt{1}\times\texttt{emb}$. Since the tokens generated are determined by the previous context, the generation stage updates the $Key$ and $Value$ matrices by appending a row with each new input's context. For instance, if ``Hello, my name'' is the context with an input token length of 4,  $\texttt{4}\times\texttt{emb}$ $Key$ and $Value$ matrices are formed, and the first output token that represents the word, ``is,'' is generated in the summarization stage. If the requested output token length is 3, the output token enters two iterations of the generation stage, and the $Key$ and $Value$ matrices increase their row dimension by 1 after each iteration. From the decoder, the next tokens that represent ``James'' and ``.,'' are outputted sequentially. Finally, the generated tokens are detokenized altogether to form the sentence ``Hello, my name is James."
+
+The length of the given context and the length of the output words affect the amount of computation in the summarization and generation stage, respectively, so the time spent on either stage varies for different workloads.
+
+\textbf{GPT-2 Workload}
+Completing the processes above, GPT-2 is able to generate words or sentences from the input context. 
+%Therefore, GPT-2 is suitable for many workloads related to text generation. 
+Some prominent text generation workloads include dialogue system and topic-to-essay generation (e.g., chatbot and article writing). Depending on the workload, the ratio of context to generation varies. For instance, the chatbot service has an average input token request of length 50, then produces an output token of length 50, having a ratio of 1:1. In contrast, the article writing application from OpenAI allows the user to input up to 50 tokens, then produces up to 150 tokens, having a wide range of ratios from 50:1 to 1:150\cite{tokenratio}. In other less widely used applications for GPT-2 like question-and-answer, the input context is much longer to generate a few-word answer. In datacenters, GPT-2 is applied for language services that tend to require more output tokens in the generation stages than the input tokens in the summarization stage.
+
+
+
+\subsection{Parallelism in Deep Learning} \label{background_parallelism}
+
+To train or inference large NLP models, multiple computing devices, usually GPUs, are used\cite{shazeer2018mesh, huang2019gpipe}. Among various ways to process a single model through multiple workers, the following two parallelism schemes are mainly used.
+
+\textbf{Data Parallelism}
+Data parallelism\cite{cormen1996bridging} is the method of splitting the input batch across multiple workers. The workers individually perform operations with their own batch data. This method is suitable for training but not inference because a single batch size, or non-batched input, is commonly used for inference applications that involve dynamic user requests. 
+%Since more workers can continue to increase the batch size, it can be applied to models that require large training batch size.  However, machine learning models used in real industry applications are challenging to use in the inference phase due to their single batch. In addition, since one worker still processes the entire model, if the size of the model itself is very large, data parallelism would not be able to get computational advantages.
+
+\textbf{Model Parallelism}
+Model parallelism separates the model parameters across multiple workers and processes them simultaneously. It is beneficial for large models such as GPT-2\cite{radford2019language} and BERT\cite{devlin2018bert} because the size of the model allocated to each worker is reduced. 
+Two widely used model parallelism schemes are pipelined parallelism \cite{tarnawski2020efficient} and intra-layer parallelism \cite{shoeybi2019megatron}. In pipelined parallelism, only one worker performs a group of operations of the model and transfer its output to different workers that process other operations of the model. The entire process is pipelined for high throughput, but the latency cannot be reduced. In intra-layer parallelism, the parallelizable operations (e.g., matrix multiplication) can be divided into multiple devices, so the execution time of operation is significantly reduced. However, synchronization may be required before certain operations that require the entire output, so the performance is dependent on the number of synchronizations and physical devices.
+
+%\textcolor{red}{Furthermore, there are two schemes: inter-layer pipeline parallelism \cite{tarnawski2020efficient} and intra-layer parallelism \cite{shoeybi2019megatron}. In inter-layer pipeline parallelism, the model can be divided layer-wise into multiple devices, regardless of the type of operation in the layer. But, this approach cannot reduce the execution time of one input. In intra-layer parallelism, the matrix operation of model can be divided into multiple devices, so the execution time of operation can be reduced. However, there is a synchronization overhead after matrix operation, and the performance may decrease depending on the total number of devices in the entire system.}
+
+%However, since all workers must have the entire matrix before starting a layer, synchronization is required at the end of each layer, at the very least. Therefore, as the proportion of synchronization tasks increases, the performance may decrease depending on the connection between workers and the total number of nodes in the entire system. 
+
+%When the layer operation corresponding to one device is performed, its output is passed to the next device, and the operation is performed on the following input.
+
+% Recently, many research have been conducted to use model parallelism effectively, and several methods have been suggested in machine learning frameworks such as PyTorch\cite{} and TensorFlow\cite{shazeer2018mesh}. Nivida Megatron-LM\cite{shoeybi2019megatron} also used the model parallelism to train huge NLP models and succeeded in maintaining scalability up to 512 GPUs.
+% On the other hand, parallelism schemes that divide the model itself exist. There are two methods of parallelism: separating model parameters (model parallelism) or pipelining the layer of model architecture (layer pipelining). The model parallelism processes large weights and biases simultaneously with multiple workers. This method can benefit from several advantages for huge models such as GPT\cite{} or BERT\cite{} since the size of the model allocated to each worker is reduced. However, since all workers must have the entire input matrix before starting a layer, synchronization is required at the end of each layer. 
+
+% \textbf{Layer Pipelining}
+% In layer pipelining, only one worker performs a layer of the model and passes the output to the different workers that process other layers of the model. The synchronization between workers is not necessary for this method, and the size of the model per worker can be reduced. However, if the final output result of the model is the following input (i.e., feedback loop), like in NLP models, pipelining incurs a large communication overhead. Also, the number of workers cannot be greater than the number of layers, so there is a limitation to the scalability depending on the model.
+ 
+% With pipelining, the latency is likely worse due to the communication overhead between layers, so the performance benefit is only noticeable for inputs that stream continuously that take advantage of the gained throughput. 
+%However, there is a limit to increasing the number of workers because it cannot be used if the number of workers is greater than the number of layers. In addition, since latency is the same as before parallelization, it is not possible to get an advantage if the input does not stream. If the final output result of the model is the following input, like NLP models, it may be difficult to use pipelining.

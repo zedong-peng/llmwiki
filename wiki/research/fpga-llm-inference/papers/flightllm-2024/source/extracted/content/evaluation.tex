@@ -1,0 +1,138 @@
+\section{Evaluation}
+
+\begin{figure}[!tp]
+  \centering
+  \includegraphics[width=0.8\linewidth]{Figures/Evaluation/exp_FPGA_layout.pdf}
+  \vspace{-10pt}
+  \caption{(a) U280 FPGAs on the server (one card is used only). (b) FlightLLM implementation layout on U280 FPGA.}
+  \vspace{-15pt}
+  \label{fig:exp-layer_out}
+\end{figure}
+
+\input{table/hw-platform}
+
+\input{table/resource}
+
+\subsection{Evaluation Setup}
+
+\noindent \textbf{Models and Datasets.}
+We evaluate the effectiveness of FlightLLM with state-of-the-art large language models LLaMA2-7B~\citep{touvron2023llama2} and OPT-6.7B~\citep{zhang2205opt}. 
+We finetune the compressed model with a small sampled subset of RedPajama dataset~\cite{together2023redpajama} consisting 8192 rows with 56M tokens.
+The accuracy evaluation is performed on the commonly used
+WikiText-103 and WikiText-2~\citep{merity2016wikitext2} datasets.
+
+\noindent \textbf{Metrics.}
+We leverage latency and throughput to evaluate the difference between FlightLLM and other baselines comprehensively. Latency is used to measure the end-to-end time cost of the entire inference. Throughput is used to measure the speed of the decode stage by dividing the number of output tokens by the time of the decode stage. \revise{Unless otherwise noted, all results are evaluated under the batch size of 1 to accommodate latency-sensitive scenarios.}
+
+\noindent \textbf{FPGA Platforms.}
+We use two FPGA platforms for evaluation, including Xilinx Alveo U280~\cite{fpgaU280} and Versal VHK158~\cite{VersalVH1582}. Table~\ref{tab:exp_hardware_platforms} lists the hardware parameters of FPGA platforms. Alveo U280 FPGA is equipped with two kinds of memory: 8GB HBM with 460GB/s bandwidth and 32GB DDR with 38GB/s bandwidth. Versal VHK158 FPGA's HBM capacity and bandwidth are significantly improved compared to U280, reaching 32GB and 819GB/s. We implement FlightLLM on the real system with U280 FPGAs (Fig.~\ref{fig:exp-layer_out}(a)). \revise{For VHK158 evaluation, we implement a cycle-accurate simulator, which has been verified with RTL emulation using Vitis 2023.1.}
+% As FlightLLM enables automatic RTL generation, our design can be easily migrate to different platforms. 
+% Based on Vitis 2023.1, we synthesised our design on three platforms and primarily implemented and validated our functionality on U280.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.90\linewidth]{Figures/Evaluation/exp-perf-gpu.pdf}
+  \vspace{-10pt}
+  \caption{Latency and throughput of FlightLLM and V100S/A100 GPU. The horizontal axis represents [prefill size, decode size].}
+  \vspace{-10pt}
+  \label{fig:exp-perf-gpu}
+\end{figure*}
+
+\noindent \textbf{FPGA Implementation.}
+Fig.~\ref{fig:exp-layer_out} shows the layout of our implementation on U280 FPGA. Since cross-die connections are more likely to become the critical paths for timing closure, we instantiate multiple computing cores and place them on different SLRs. For the memory controller, we place it on SLR0 closest to the HBM for easy reading. The implementation report shows that our kernel runs at 225 MHz, while detailed hardware utilization is listed in Table~\ref{tab:exp_utilization}. We also measure the power of FlightLLM through the vendor-provided Xilinx Board Utility tool xbutil~\cite{xbutil}.
+
+\noindent \textbf{GPU Baselines.}
+We choose NVIDIA A100 and V100S as our GPU baselines, and their specifications are also listed in Table~\ref{tab:exp_hardware_platforms}. We conduct evaluations on the selected model with huggingface PyTorch as the GPU-\textit{naive} design, vLLM~\cite{kwon2023efficient}, and SmoothQuant~\cite{xiao2023smoothquant} as the GPU-\textit{opt} design. vLLM is the commonly used LLM framework with KV cache memory optimization, and SmoothQuant is the SOTA LLM quantization framework with INT8 CUDA kernel for both activations and weights. 
+% \revise{Besides, we select gpt-fast \cite{gpt-fast}, a new PyTorch-native LLM codebase, as the GPU-\textit{opt-2} design. Noted that gpt-fast currently provides no support of OPT models.} 
+We use nvprof~\cite{NvProf} to profile the GPU power consumption at runtime.
+
+\noindent \textbf{SOTA Accelerator Baselines.} 
+We also selected three domain-specific accelerators targeting at accelerating attention mechanism: DFX~\cite{micro2022DFX}, FACT~\cite{isca2023fact}, and CTA~\cite{CTA2023}. 
+It has to be mentioned that DFX is a multi-FPGA acceleration work, and we only evaluate its hardware performance of a single card. 
+Since there are no open-source codes for these accelerators, and they have not supported recent LLMs such as LLaMA2. We build C++ simulators based on corresponding hardware designs to evaluate their performance, \revise{ achieving less than 5\% deviation using their original data. For fairness, we align the hardware parameters (clock frequency, peak performance, bandwidth) for these baselines.}
+
+\input{table/LLM-ppl}
+
+\vspace{-5pt}
+\subsection{Evaluation Results}
+\subsubsection{Accuracy of Compressed LLMs}
+FlightLLM harnesses the power of state-of-the-art model compression methods by optimizing them to fit the distinct features of FPGA. 
+As depicted in Table~\ref{tab:evaluation_results}, we conduct experiments around different optimization configurations on LLMs.
+For sparsification, 
+% FlightLLM uses both block sparse for sparse attention and N:M sparse for weight pruning. To balance the trade-off between accuracy and efficiency, 
+FlightLLM builds upon previous work to use block sparse for sparse attention~\citep{zaheer2020bigbird} and N:M sparse for weight pruning~\cite{nm-sparse-arbitrary}. 
+FlightLLM uses gradient-based analysis~\citep{dettmers2022llm_int8} to quantify the importance of each weight and attention value and remove the unimportant values.
+% FlightLLM achieves 70\% attention sparsity and 50\% weight sparsity for both OPT-6.7B and LLaMA2-7B models. 
+For quantization, FlightLLM builds upon previous work~\cite{xiao2023smoothquant} and extends its single-precision scheme to mix-precision. 
+FlightLLM follows the same idea as sparsification and use the gradiant-based analysis to quantify weight importance and assign three, four or five bit width accordingly. 
+With this scheme, FlightLLM achieves average 3.5-bit for weights and 8-bit for activations.
+\revise{Note the compression methods are also compatible with GPU, but they need the customized units of FPGA to yield real wall-clock speedup.}
+By using the block sparse attention, N:M weight pruning and mixed-precision quantization all together, FlightLLM successfully compresses the original LLM with minimum perplexity influence.
+
+\input{table/BW-utilization}
+
+\vspace{-5pt}
+
+\subsubsection{Comparison with GPUs}
+We compare the end-to-end latency of GPUs and FlightLLM. Fig.~\ref{fig:exp-perf-gpu} shows that FlightLLM on VHK158 outperforms V100S and A100 GPU in latency on both models with different combinations of input token size and output token size. For OPT-6.7B/LLaMA2-7B model, FlightLLM on U280 improves the end-to-end latency by $1.5/1.6\times$ and $1.3/1.2\times$ compared to V100S-\textit{naive} and V100S-\textit{opt}, respectively. 
+% And for LLaMA2-7B model, FlightLLM on U280 reduces the geomean end to end latency by $1.6\times$, $1.2\times$, $1.2\times$ and $0.7\times$ compared to V100S-\textit{naive}, A100-\textit{naive}, V100S-\textit{opt} and A100-\textit{opt}, respectively. 
+\revise{Table~\ref{tab:BW-utilization} shows the bandwidth utilization of FlightLLM on FPGAs is better than A100 GPUs.}
+This is because FlightLLM can be customized to design hardware units, which can fully exploit the sparsity of LLM and the memory access optimization in the decode stage.
+
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=0.90\linewidth]{Figures/Evaluation/exp-lat-acc.pdf}
+  \vspace{-10pt}
+  \caption{Performance of FlightLLM, DFX, CTA, and FACT. The horizontal axis represents [prefill size, decode size].}
+  \vspace{-10pt}
+  \label{fig:exp-lat-acc}
+\end{figure*}
+\begin{figure*}[!tp]
+  \centering
+  \includegraphics[width=0.90\linewidth]{Figures/Evaluation/exp-gpu-energy.pdf}
+  \vspace{-10pt}
+  \caption{Energy efficiency of FlightLLM, NVIDIA V100S/A100 GPU. The horizontal axis represents [prefill size, decode size].}
+  \vspace{-10pt}
+  \label{fig:energy}
+\end{figure*}
+\vspace{-5pt}
+\subsubsection{Comparison with SOTA accelerators}
+% In order to make fair comparisons, we align the hardware parameters of SOTA architectures with our work in terms of frequency, bandwidth, and peak computational performance. 
+Fig.~\ref{fig:exp-lat-acc}(a) shows the latency of different architectures running on OPT-6.7B and LLaMA2-7B model. 
+% The latency is normalized based on DFX, which can be seen as a basic hardware implementation for dense and full precision models. 
+It can be seen that FlightLLM achieves a general speed-up in end-to-end latency compared to DFX, CTA and FACT. The geomean latency speedups of FlightLLM on U280 and on VHK158 are 2.7$\times$ and 4.6$\times$ compared to DFX for OPT-6.7B, respectively. And the geomean throughput speedups of FlightLLM on U280 and on VHK158 are 2.6$\times$ and 4.6$\times$ compared to DFX. 
+Compared to DFX, the acceleration effects of sparse attention in CTA and FACT are not significant, mainly because the attention computation does not account for a high proportion under small prefill size. However, our work adopts lower bit-width quantization scheme, which effectively alleviates the memory bottleneck in the decode stage. Fig.~\ref{fig:exp-lat-acc}(b) shows the geomean throughput of different architectures, with FlightLLM achieving the highest performance. Under the same hardware parameters, FlightLLM achieves better utilization of computing resources as well as bandwidth.
+% Our latency improvement can be mainly divided into two parts: In the compute-intensive prefill stage, FlightLLM introduces a higher level of sparsity into linear layers and attention computation, reducing the overall computational load. In the memory-intensive decode stage, FlightLLM employs lower-bit quantization methods, which alleviates the memory pressure.
+
+
+\begin{figure}[!tp]
+  \centering
+  \includegraphics[width=0.8\linewidth]{Figures/Evaluation/exp-perf-break.pdf}
+  \vspace{-10pt}
+  \caption{The latency breakdown of FlightLLM.}
+  \vspace{-10pt}
+  \label{fig:exp-perf-break}
+\end{figure}
+\begin{figure}[!tp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{Figures/Evaluation/exp-multi-batch.pdf}
+  \vspace{-10pt}
+  \caption{\revise{The multi-batch performance on LLaMA2-7B.}}
+  \vspace{-18pt}
+  \label{fig:exp-perf-batch}
+\end{figure}
+
+\vspace{-5pt}
+\subsubsection{Energy and Cost Efficiency}
+We consider energy efficiency as fair metrics to compare GPU and our FPGA-based FlightLLM. Fig.~\ref{fig:energy} shows the results of energy efficiency (Token/J). FlightLLM on U280 consistently outperforms GPUs and achieves $6.7\times$, $4.6\times$, $6.0\times$ and $4.2\times$ energy efficiency compared to V100S-\textit{naive}, A100-\textit{naive}, V100S-\textit{opt} and A100-\textit{opt} respectively for OPT-6.7B. For LLaMA2-7B, FlightLLM on U280 achieves achieves $6.0\times$, $4.4\times$, $5.5\times$ and $3.8\times$ energy efficiency.
+For cost efficiency (Token/s/dollor), GPU generally has higher product price compared to FPGA. The price of V100S, A100 and Aleveo U280 are approximately 12000\$, 17000\$ and 8000\$ respectively. Therefore, FlightLLM on U280 achieves 1.9$\times$ and 1.5$\times$ higher geomean cost efficiency over V100S-\textit{opt} and A100-\textit{opt} for OPT-6.7B, and achieves 2.3$\times$ and 1.4$\times$ higher geomean cost efficiency over V100S-\textit{opt} and A100-\textit{opt} for LLaMA2-7B.
+
+\vspace{-5pt}
+\subsubsection{Performance Breakdown}
+Fig.~\ref{fig:exp-perf-break} shows the latency breakdown of FlightLLM. We normalize the latency of the LLaMA-2 and OPT model running on a V100S GPU. We naively implement the LLaMA-2 model on the U280 FPGA, which has only 70\% of the performance of the V100S GPU. The gap is due to the larger peak memory bandwidth (1134GB/s vs. 460GB/s) and higher peak performance (130TOPS vs. 25TOPS) of the V100S GPU~\cite{a100-2021} compared to the U280 FPGA. After using the flexible sparse method and the configurable sparse DSP chain, the performance of FlightLLM is improved by 1.1-1.2$\times$, because we reduce the inference computation and make full use of DSP resources. After further using the always on-chip decoder, the performance improvement of FlightLLM achieves 1.6-1.7$\times$, because we effectively reduce the overhead of off-chip memory access.
+\vspace{-5pt}
+\subsubsection{\revise{Discussion}}
+\revise{gpt-fast\footnote{\url{https://github.com/pytorch-labs/gpt-fast}, released in 2023.11.30.} is a new SOTA Pytorch-native codebase optimized for LLM inference, achieving 196.8 tokens/s with INT4 quantization on the NVIDIA A100 GPU. However, the current version of gpt-fast has no support for OPT models and multi-batch processing. Evaluated on LLaMA2-7B, FlightLLM on the VHK158 FPGA achieves 92.5 tokens/s, and provides 2.9$\times$ better energy efficiency and higher bandwidth utilization (64.8\% vs. 44.6\%) than gpt-fast on the A100 GPU.}
+
+\revise{As for the multi-batch performance, gpt-fast has no support of multi-batch processing, so only the results of GPU-\textit{opt} (\textit{i.e.}, vllm and SmoothQuant) are reported. In Fig.~\ref{fig:exp-perf-batch}, as the batch size increases, the performance advantage of FlightLLM over GPU will gradually decrease. The main reason is that GPUs have more hardware resources (\textit{i.e.}, memory bandwidth and computing units with higher frequency) than FPGAs.}
+% Considering multi-batch performance, Fig.~\ref{fig:exp-perf-batch} shows that FlightLLM has obvious advantages over GPU in latency-sensitive scenarios (batch size is 1), which are FlightLLM focused. 

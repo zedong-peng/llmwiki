@@ -4,7 +4,7 @@ domain: research
 area: fpga-llm-inference
 type: overview
 status: active
-updated: 2026-09-07
+updated: 2026-09-08
 tags: [fpga, llm-inference, llama-cpp, ggml, xrt, end-to-end]
 ---
 
@@ -12,9 +12,12 @@ tags: [fpga, llm-inference, llama-cpp, ggml, xrt, end-to-end]
 
 这个 area 研究 FPGA 上的大语言模型推理，重点不是孤立 kernel 的峰值，而是从真实模型、推理框架和运行时出发，建立可验证的端到端系统。
 
-当前项目主线是：在 AMD/Xilinx Alveo U280 上实现原生 `llama.cpp`/GGML FPGA backend，以 Gemma 3 1B F16 为当前验证模型，通过明确的 operator contract、XRT 执行收据和 zero-fallback 证据保证语义闭合，再逐步收缩运行时开销。
+当前实现以 GPT-2 Medium Q4/Q6 U280 profile 为准：每次调用执行完整模型图，权重和 KV 常驻 HBM；仍有单模型、单序列及上下文限制，保留结果的板上正确性和完整验收未通过。详见 [[research/fpga-llm-inference/backend-niche-and-baseline-audit]]。下方 Gemma 3 1B F16 的逐算子测量和 VSTC 路线保留为历史记录。
 
-## Current Position
+本 area 同时保留不同日期、不同 profile 的证据；Gemma 1B 集成记录与下方 2026-09-07 GPT-2
+profile 快照不能混合计算性能。
+
+## Historical Position (July 2026)
 
 1. **系统集成已经成立，性能尚未成立。** 当前 backend 已严格执行 11 个 GGML operator family，开发板 trace 中有 2,422 次 accepted FPGA dispatch、zero fallback。
 2. **首要瓶颈不是单个矩阵核。** `pp512` 有 224,936 次 XRT launch，`tg128` 有 202,530 次；host-observed XRT wait 分别占 operator wall time 的 96.25% 和 79.58%。
@@ -22,14 +25,28 @@ tags: [fpga, llm-inference, llama-cpp, ggml, xrt, end-to-end]
 4. **直接比较数字前必须统一边界。** CODO 的公开 artifact 计时边界、模型、W4A8 数值格式和生成 harness 与当前 Gemma 3 1B F16 `llama-bench` 路径不同，不能把 `231.48 tok/s` 与当前 `1.32 tok/s` 直接解释成加速比。
 5. **一个受限 research idea 已通过审计，但尚无性能结论。** 新的 `idea-spark` run 生成了 Visibility-Sensitive Trace Compression (VSTC)：按原始 GGML 调用的可观察性分区来保留 H 边界、流式解释 B 模板，并以严格 zero fallback、artifact identity 和显式错误为前提。它是可证伪的提案，不是已测得的 U280 加速结果。
 
+### 2026-09-07 Profile Snapshot
+
+The newer GPT-2 Medium Q4/Q6 U280 delivery is a separate, profile-complete path: GGUF load →
+GGML graph verification → one stateful model-graph execution per call → persistent F16 KV →
+logits → llama.cpp sampling. Its CPU/FPGA numbers are kept in the project report's three-column
+table; Gemma remains an unmeasured row for that matched snapshot. CODO is intentionally retained as
+a fixed-shape graph/dataflow reference, not merged into the stateful throughput result. The detailed
+boundary and source ledger are in [[research/fpga-llm-inference/kv-cache-runtime-boundary-comparison]].
+
 ## Navigation
 
 | Page | Role |
 |---|---|
+| [[research/fpga-llm-inference/manuscript-evidence-recheck-20260908]] | 正文 64 个引用键盘点、10 项主要工作的实验与交付复查；SECDA 证据范围、FlexLLM 精度及 CODO 发表信息纠正 |
 | [[research/fpga-llm-inference/foundations]] | LLM 推理阶段、FPGA 资源、映射方法和性能瓶颈背景 |
 | [[research/fpga-llm-inference/system-landscape]] | DFX、FlightLLM、Spatial LLM、StreamTensor、CODO、EdgeLLM、TeLLMe 等工作地图 |
 | [[research/fpga-llm-inference/vitis-ai-dpu-finn-pynq]] | Vitis AI DPU、FINN、PYNQ/PINN 消歧；官方工具链、架构对照、版本与 U280/LLM 支持边界 |
+| [[research/fpga-llm-inference/papers/secda-llm-2024/index]] | SECDA-LLM source-first 正式笔记；2024 论文与后续 GGML backend 源码分开归因 |
 | [[research/fpga-llm-inference/codo-2026]] | CODO 论文与 artifact 深读，重点核对 GPT 端到端指标及其测量边界 |
+| [[research/fpga-llm-inference/kv-cache-runtime-boundary-comparison]] | KV computation、持久状态、KV-specific 优化与完整 runtime 流程的横向边界 |
+| [[research/fpga-llm-inference/backend-niche-and-baseline-audit]] | 对照准入、公开复现与生态替代性；SECDA 集成先例、Positron/Achronix 商业部署、当前 Q4 profile 边界 |
+| [[research/fpga-llm-inference/feature-level-evidence-matrix]] | 九项实验工作加本地行；SECDA 留在正文，本地正确性和公开 artifact 边界明确 |
 | [[research/fpga-llm-inference/project-status-2026-07]] | 远端论文草稿和 retained evidence 的项目状态综合 |
 | [[research/fpga-llm-inference/towards-idea-audit-2026-07]] | Idea Spark 对当前稿件和 RegionSeal 候选的失败审计、停止条件与重新启动证据门槛 |
 | [[research/fpga-llm-inference/end-to-end-evaluation]] | 与 CODO/DFX/StreamTensor 可辩护对比的端到端评测协议 |
@@ -40,7 +57,7 @@ tags: [fpga, llm-inference, llama-cpp, ggml, xrt, end-to-end]
 | [[research/fpga-llm-inference/papers/index]] | 68 篇原 Related Work 加 15 篇架构增量、50 份已验证全文 PDF、BibTeX、来源和完整性哈希 |
 | [[research/fpga-llm-inference/fpga-backbone-llamacpp-note]] | 2026-06-17 的早期 llama.cpp 集成判断，保留作历史快照 |
 
-## The Central Systems Gap
+## Historical Systems Gap (July 2026)
 
 当前系统与 CODO/StreamTensor 的最关键差异可以压缩成一张表：
 
@@ -59,7 +76,7 @@ tags: [fpga, llm-inference, llama-cpp, ggml, xrt, end-to-end]
 
 2026-07-28 的新 run 将这个问题收束为 VSTC：以每个原始 GGML 调用的 host-read、alias、state、consumer、allocation、scratch 和 explicit-error 事实决定其是否可进入 B 模板，并保留每个逻辑调用的 completion-ring 状态。它通过了 coherence、collision、独立 anti-pattern 修订和伪证复审；完整定义、负对照与停止条件见 [[research/fpga-llm-inference/ideaspark-shared-engine-2026-07-28]]。[[research/fpga-llm-inference/towards-idea-audit-2026-07]] 保留为 RegionSeal 的历史失败审计，而非当前候选。
 
-## Immediate Priorities
+## Historical Priorities (July 2026)
 
 1. 按 [[research/fpga-llm-inference/end-to-end-evaluation]] 冻结测量边界、trace schema 和每个原始 GGML 调用的 baseline XRT submission 计数。
 2. 在 pp512/tg128 上先观测 VSTC 的 H/B 分布、`rho`、拒绝原因和 scratch-pressure；没有可准入 B population 或 `rho = 0` 时停止该机制，而不是把普通 resident engine 重新命名为 VSTC。

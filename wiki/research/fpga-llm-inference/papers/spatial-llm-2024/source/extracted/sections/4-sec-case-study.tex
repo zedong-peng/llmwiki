@@ -1,0 +1,208 @@
+\section{Case Study}
+\label{sec:case_study}
+In this section, we leverage actual hardware configurations to estimate the model performance using our analytical framework and provide insights for LLM accelerator design.
+
+\subsection{Overview of Workloads and Hardware}
+\label{sub:workload_hardware}
+Table~\ref{tab:models} lists several widely used models that we choose for performance estimation. 
+Such models include BERT-base~\cite{devlin2018bert}, a representative encoder-only model,
+GPT2~\cite{radford2019gpt2}, the only open-sourced model in the GPT family,
+LLaMA-7B~\cite{touvron2023llama,touvron2023llama2}, an open-sourced model trained by Meta,  
+and Vicuna-13B~\cite{chiang2023vicuna}, the best non-commercial model on Chatbot Arena~\cite{zheng2023chatbotarena}.
+\begin{table}[t]
+    \centering
+    \caption{Models used in \S\ref{sec:case_study} and \S\ref{sec:exp}.}
+    \label{tab:models}
+    \small
+    % https://huggingface.co/spaces/lmsys/chatbot-arena-leaderboard
+    % \resizebox{\linewidth}{!}{
+    \begin{tabular}{ccccccc}\Xhline{1pt}
+        \multirow{2}{*}{\textbf{Model}} & \multirow{2}{*}{\textbf{Type}} & \multirow{2}{*}{\textbf{\# of params}} & \textbf{\# Layers} & \textbf{\# Heads} & \textbf{Hidden} & \textbf{FFN size}\\
+        &  & & \textbf{$N$} & \textbf{$h$} & \textbf{Size $d$} & \textbf{$d_{FFN}$}\\\Xhline{1pt}
+        % https://huggingface.co/bert-base-uncased/blob/main/conFigurejson
+        BERT~\cite{devlin2018bert} & Encoder & 110M & 12 & 12 & 768 & 3072 \\
+        % https://huggingface.co/gpt2/blob/main/conFigurejson
+        GPT2~\cite{radford2019gpt2} & Decoder & 355M & 24 & 16 & 1024 & 4096 \\
+        % https://huggingface.co/decapoda-research/llama-7b-hf/blob/main/conFigurejson
+        LLaMA2~\cite{touvron2023llama2} & Decoder & 7B & 32 & 32 & 4096 & 11008\\
+        % https://huggingface.co/lmsys/vicuna-13b-v1.5/blob/main/conFigurejson
+        Vicuna~\cite{chiang2023vicuna} & Decoder & 13B & 40 & 40 & 5120 & 13824\\
+        % https://huggingface.co/lmsys/vicuna-33b-v1.3/blob/main/conFigurejson
+        % Vicuna~\cite{} & 33B & 60 & 52 & 6656 & 17920\\
+        \Xhline{1pt}
+    \end{tabular}
+    % }
+\end{table}
+
+To see the performance differences between FPGAs and GPUs, we pick and list several representative devices in Table~\ref{tab:device}.
+For FPGAs, Alveo U280 and Agilex 7 are two FPGAs that are widely used in cloud servers but not specially optimized for AI workloads;
+Versal VCK5000 and Stratix 10 NX FPGAs are designed for accelerating AI applications with specialized hardware units such as AI Engine (AIE)~\cite{xilinxAIE} or Tensor Blocks~\cite{stratix10}.
+Versal VHK158 is the latest FPGA with HBM2e released by AMD in 2023.
+For GPUs, RTX 2080Ti is a high-end GPU designed for personal usage with a similar process node and release date to U280;
+A100 is the most deployed GPU in data centers to conduct LLM training and inference~\cite{openai2023gpt4}.
+
+\begin{table*}
+    \centering
+    \caption{Summary of FPGA and GPU devices.}
+    % \yx{I think it's also necessary to show the memory bandwidth}
+    \label{tab:device}
+    \small
+    \resizebox{\linewidth}{!}{
+    \begin{tabular}{llllllll}\Xhline{1pt}
+     & \multicolumn{3}{c}{\textbf{AMD Xilinx FPGA}} & \multicolumn{2}{c}{\textbf{Intel FPGA}} & \multicolumn{2}{c}{\textbf{Nvidia GPU}} \\
+     & \makecell[l]{\textbf{Alveo}\\\textbf{U280~\cite{u280}}} & \makecell[l]{\textbf{Versal}\\\textbf{VCK5000~\cite{vck5000}}} & \makecell[l]{\textbf{Versal}\\\textbf{VHK158~\cite{vhk158}}}& \makecell[l]{\textbf{Stratix 10}\\\textbf{NX 2100~\cite{stratix10}}} & \makecell[l]{\textbf{Agilex 7}\\\textbf{AGM039~\cite{agilex7}}} & \makecell[l]{\textbf{GeForce}\\\textbf{RTX 2080 Ti}} & \textbf{Tesla A100} \\\Xhline{1pt}
+     \textbf{Process Node} & TSMC 16nm & TSMC 7nm & TSMC 7nm & Intel 14nm & Intel 7nm & TSMC 12nm & TSMC 7nm\\
+     \textbf{Release Date} & 2018 & 2022 & 2023 & 2020 & 2022 & 2018 & 2021\\
+     \textbf{Thermal Design Power} & 225W & 225W & 180W & 225W & 225W & 250W & 300W\\
+     \textbf{Peak Throughput} & 24.5 INT8 TOPS & 145 INT8 TOPS & 56 INT8 TOPS & 143 INT8 TOPS & 88.6 INT8 TOPS & 14.2 TFLOPS & 312 TFLOPS\\
+     \textbf{Specialized Blocks} & - & \makecell[l]{400$\times$\\AI Engine} & - & \makecell[l]{3960$\times$\\AI Tensor Block} & - & \makecell[l]{544$\times$\\Tensor Cores} & \makecell[l]{432$\times$\\Tensor Cores}\\
+     \textbf{DSP/CUDA Cores} & 9024 & 1968 & 7392 & - & 12300 & 4352 & 6912\\
+     \textbf{BRAM18K/M20K} & 4032 & 967 & 5063 & 6847 & 18960 & - & -\\
+     \textbf{URAM/eSRAM} & 960 & 463& 1301 & 2 & - & - & -\\
+     \makecell[l]{\textbf{On-chip Memory}\\\textbf{Capacity}} & 41MB & 24MB & 63.62MB & 30MB & 46.25MB & 5.5MB & 40MB\\
+     \makecell[l]{\textbf{Off-chip Memory}\\\textbf{Capacity}} & \makecell[l]{8GB HBM2 \&\\32GB DDR} & 16GB DDR & \makecell[l]{32GB HBM2e \&\\32GB DDR}& 16GB HBM2 & 32GB HBM2e & 11GB DDR & 80GB HBM2e\\
+     \makecell[l]{\textbf{On-chip Memory}\\\textbf{Bandwidth}} & \makecell[l]{460GB/s \&\\38GB/s} & 102.4GB/s & \makecell[l]{819.2GB/s \&\\102.4GB/s} & 512GB/s & 820GB/s & 616GB/s & 1935GB/s\\
+     \Xhline{1pt}
+    \end{tabular}
+    }
+\end{table*}
+
+\subsection{Single-Device Performance Estimation}
+% \zz{Section title: Single-Device Performance Estimation? same change for the next subsection; avoid using ``evaluation'' in this section. we can use ``study'' instead since this section is about case studies}
+We first conduct experiments on a single device with pre-trained BERT-base and GPT2 models from HuggingFace Hub~\cite{wolf2019huggingface}.
+For GPU baselines, we run the models with PyTorch 2.0~\cite{paszke2019pytorch} and CUDA 11.7, and measure the performance on both RTX 2080Ti and A100 GPUs.
+% We have removed the embedding layers of the model, which will be conducted on CPUs in order to make a fair comparison with FPGAs.
+% \yx{if we have never mentioned the embedding layers before, we don't need to explain here}
+The host machine runs an Intel Xeon Silver 4114 CPU at 2.20GHz with 40 cores.
+We follow the common practice to measure the out-of-the-box FP16 performance~\cite{aminabadi2022dsinf,fastertransformer2022,radford2019gpt2}.
+% We warm up the experiments for a few rounds, and then measure the average latency of the model.
+
+In this section, we only estimate the performance of FPGAs using the proposed framework in \S\ref{sec:modeling}, and in \S\ref{sec:exp} we will evaluate the actual performance on FPGAs.
+The quantization scheme is 4-bit weight and 8-bit activation (W4A8) configurations for FPGA estimations, unless otherwise noted.
+
+\subsubsection{Latency of Different Stages.}
+\begin{figure*}
+    \centering
+    \includegraphics[width=\linewidth]{figs/exp/bert-gpt_latency.pdf}
+    \caption{Latency estimation of BERT and GPT2 on different FPGAs.
+    GPU results are obtained from actual profiling.}
+    \label{fig:bert_gpt_latency}
+\end{figure*}
+Based on the constraints of Equations~\eqref{eq:mac_constraint}, \eqref{eq:sram_constraint}, and \eqref{eq:port_packed_constraint}, we can calculate the latency one device can achieve at the maximum compute power $M$ (defined in Equation~\eqref{eq:m}).
+% \sout{optimal} \yx{avoid using words like ``optimal'', ``best'', ...} 
+
+\revise{From Figure~\ref{fig:bert_gpt_latency}(a) and (b), we observe that the 2080Ti and A100 GPUs maintain an almost constant curve when the sequence length is less than 1024.
+This behavior is primarily attributed to the high kernel launch overheads for hundreds of CUDA kernels in PyTorch, which overshadow the computation time.
+However, when the sequence length exceeds 1024, GPUs become computation-bound, resulting in higher latency.
+In contrast, the latency of FPGAs increases linearly with the sequence length, as described in Equation~\eqref{eq:latency_prefill}, and demonstrates significantly longer latency when the sequence length is large (e.g., 512).}
+It is worth noting that even when making use of state-of-the-art AI-optimized FPGAs like the Stratix 10 NX and Versal VCK5000, the situation does not improve significantly.
+This is because these modern FPGAs are equipped with DDR or older versions of HBM, which makes parameter loading from off-chip memory the bottleneck.
+Even though these FPGAs have highly efficient computation blocks, the compute units have to wait for the memory to fetch data, resulting in suboptimal performance.
+\revise{Moreover, many FPGAs struggle to achieve both high memory bandwidth and compute power simultaneously.
+Consequently, for VHK158, performance deteriorates when the sequence length reaches 4096, as it shifts from being memory-bandwidth bound to compute-bound.
+Further scaling the sequence length larger than 4096 may lead to out-of-memory for both FPGAs and GPUs, and only A100 can handle such large sequence lengths, so the latency is not plotted on the figure.}
+% Even using all the resources of U280 or Agilex 7 FPGAs, they cannot perform better than GPUs in this case.
+% Leveraging the latest AI-optimized FPGAs such as Stratix 10 and Versal VCK5000 that have specialized computation blocks may relieve the situation.
+% Their curves are always lower than the curves of GPUs, meaning FPGAs have chance to perform better than high-end server GPUs.
+
+The decode stage is on the contrary, as shown in Figure~\ref{fig:bert_gpt_latency}(c).
+When the sequence length is small, GPUs suffer from underutilizing the compute resources, and FPGAs can achieve a significantly lower latency compared to GPUs.
+The latency of RTX2080 and A100 GPUs increases since the memory access takes control compared to computation in the decode stage.
+Although FPGAs are also bounded by off-chip memory bandwidth, they can always perform better than GPUs since the computation is small when the sequence length is equal to one.
+% and they are able to achieve a fixed latency.
+Therefore, FPGAs can easily achieve GPU-level performance even with a small $M$.
+% \zz{remind people the meaning of M and where is defined} \yx{--- to be addressed in the previous paragraph}
+% Based on our calculation, when $M>22$, FPGA can deliver the performance of A100 for a single token on the GPT2 model.
+
+\stepcounter{insight}
+\textbf{Insight \RNum{\theinsight}: Existing FPGAs are inferior in the compute-intensive prefill stage but can outperform GPUs in the memory-intensive decode stage.}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.65\linewidth]{figs/exp/llama.pdf}
+    \caption{Latency estimation of LLaMA2 model.
+    The sequence length is set as 128, and the W4A8 quantization scheme is used in this experiment.
+    GPU results are obtained from actual profiling.}
+    \label{fig:llama}
+\end{figure}
+
+To further investigate what constrains the performance of FPGAs, we conduct an analysis on the LLaMA2 model by varying different $M$ and observing the changes in latency.
+As shown in Figure~\ref{fig:llama}, the VCK5000 FPGA exhibits the smallest off-chip memory bandwidth, which leads it to reach a latency plateau rather quickly.
+Conversely, the VHK158 FPGA has the largest off-chip memory bandwidth, so it can achieve the lowest latency in both prefill and decode stages.
+Moreover, we include the curve of ideal FPGA performance in Figure~\ref{fig:llama} to assess the compute power required to attain A100-level performance.
+Based on this estimation, we need around 30,000 MACs/cycle in order to achieve the A100-level performance in the prefill stage, assuming no memory bandwidth constraints.
+This is achievable by those AI-optimized FPGAs, which can conduct a large number of MACs efficiently.
+On the contrary, for the decode stage, once an FPGA has enough memory bandwidth, such as U280, it can reach the A100-level performance easily.
+
+\stepcounter{insight}
+\textbf{Insight \RNum{\theinsight}: The prefill stage requires large compute power $M$ to achieve the GPU-level performance, while the decode stage only requires a small $M$.}
+
+\subsubsection{Quantization Schemes.}
+\label{subsub:memory_packing}
+% \yx{this subsection needs major rewriting. We need to separately discuss the DSP and BRAM constraints and refer to the results in Section \ref{subsubsec:compute_resource} - \ref{subsubsec:memory_port}}
+We then investigate the impact of different quantization schemes and memory packing.
+We consider quantizing the weight parameters to $x$ bits and the activation to $y$ bits (abbreviated as W$\{x\}$A$\{y\}$).
+As shown in Figure~\ref{fig:bitwidth}(a), the red dashed line depicts the maximum available MACs/cycle on-board, which is calculated based on Equation~\eqref{eq:mac_constraint}.
+Different quantization schemes may have different requirements on BRAM usage constrained by Equation~\eqref{eq:sram_constraint}.
+W4A8 is the scheme that can almost fully utilize the compute resources.
+W8A8 and W16A16 require more memory resources, resulting in lower performance since the computation is bound by the limited BRAM resources on-board.
+Also, we can see quantizing the weights gives the most benefits, but quantizing activation only gives little benefit ($M$ does not change a lot under the same weight bitwidth), which is due to the fact that we employ a dataflow architecture and do not require large buffers to store the intermediate tensors on-board.
+
+\stepcounter{insight}
+\textbf{Insight \RNum{\theinsight}: Weight quantization is necessary for reducing memory usage, while activation quantization only has limited benefit.}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figs/exp/quantization.pdf}
+    \caption{(a) Impact of different quantization techniques on GPT2 prefilling stage on U280.
+    The sequence length is set as 128.
+    The cyan line shows the theoretical latency under different $M$ without memory bandwidth constraints.
+    Thin dashed lines depict the maximum $M$ constrained by available BRAM resources.
+    (b) Impact of memory packing in the W4A8 setting.
+    (c) Impact of different weight quantization schemes on memory bandwidth and overall latency.}
+    \label{fig:bitwidth}
+\end{figure}
+
+\subsubsection{Memory Packing.}
+Next, we further consider the impact of memory packing under the W4A8 setting.
+As shown in Figure~\ref{fig:bitwidth}(b), if we do not conduct memory packing, it even cannot satisfy the memory port constraint (Equation~\eqref{eq:port_constraint}) when $M$ is small (blue curve).
+This is because a large number of partitioned arrays require more BRAMs, and many BRAMs are not fully utilized causing a large waste of resources.
+The orange curve shows packing two \texttt{int4} elements to \texttt{int8}, and we can achieve a small $M$ under the resource constraint since the number of partitioned arrays is reduced.
+% \zz{rephrase memory port constraint later}
+The green curve packs 9$\times$\texttt{int4} elements to \texttt{int36}, and it can achieve more than four times of $M$ compared to the \texttt{int8} packing.
+The purple curve packs 18$\times$\texttt{int4} elements to \texttt{int72}, and the curve can almost intersect with the red line before intersecting with the blue line, which means it reaches the maximum DSP constraint on-board (Equation~\eqref{eq:mac_constraint}).
+This study shows that it is important to pack the parameters to reduce on-chip memory usage.
+
+\stepcounter{insight}
+\textbf{Insight \RNum{\theinsight}: Memory packing can efficiently reduce the required BRAMs to store the tensors.}
+
+\subsubsection{Memory Bandwidth.}
+Lastly, we investigate how quantization impacts the required memory bandwidth.
+As shown in Figure~\ref{fig:bitwidth}(c), the low-bit weight quantization can significantly alleviate the demands of off-chip memory access.
+By reducing the volume of data needed in each cycle, it can achieve a larger compute power $M$, thus leading to a better performance.
+In particular, quantizing the model to a 2-bit representation yields a performance boost exceeding an order of magnitude when compared to a 16-bit weight quantization scheme.
+Recent research~\cite{zhao2023atom,chee2023quip} has demonstrated that 4-bit or even 2-bit quantization can be implemented without compromising model accuracy, which makes efficient LLM deployment on FPGAs possible.
+
+\stepcounter{insight}
+\textbf{Insight \RNum{\theinsight}: Low-bit weight quantization can further help alleviate the demands of off-chip memory access.}
+
+\subsection{Multi-Device Performance Estimation}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.7\linewidth]{figs/exp/multi-fpga-merge.pdf}
+    \caption{Latency estimations of Vicuna-13B model on multiple FPGAs.}
+    \label{fig:multifpga}
+\end{figure}
+% Fix sequence length of 128
+For multiple devices, we use the Vicuna-13B model to estimate the performance of 2, 4, and 8 FPGAs based on our analytical model.
+As shown in Figure~\ref{fig:multifpga},
+% \zz{figure caption -- ``latency estimates'' not results}
+the latency can scale well when the number of devices increases.
+Since we employ a non-blocking communication scheme in our dataflow design as discussed in \S~\ref{sub:multifpga}, communication will not be the bottleneck of the design.
+% \zz{this could be misleading if not properly explained, since all FIFOs are blocking}
+Multiple FPGAs can reduce the number of required MACs on each device, but cannot increase the number of available MACs on an FPGA, so the performance is still limited by the maximum available resources on-board and the off-chip memory bandwidth.
+For the decode stage, leveraging two FPGAs can already reduce the inference latency of the Vicuna-13B model to less than 10ms based on the estimation.
+% which is much smaller than the latency of multiple GPUs~\cite{aminabadi2022dsinf}.
+
+\stepcounter{insight}
+\textbf{Insight \RNum{\theinsight}: Multiple FPGAs help reduce overall latency under the same $M$ on each device.}

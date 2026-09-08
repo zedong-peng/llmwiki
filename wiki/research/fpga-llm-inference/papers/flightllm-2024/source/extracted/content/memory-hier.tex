@@ -1,0 +1,56 @@
+\section{Always-on-chip decode}
+
+\subsection{On-chip Decode Dataflow}
+
+In the decode stage, the main efficiency constraint arises from the frequent access of off-chip memory for small data-volume activation vectors.
+To reduce off-chip memory access of activation vectors, we employ the concept of operator fusion and fuse the computation within each inference of decode stage. 
+Consequently, we can significantly increase the off-chip HBM (High Bandwidth Memory) bandwidth utilization from \revise{about 35.6\%} to 65.9\%. 
+% Comparing to \revise{about 35.6\%} bandwidth utilization of GPU, we achieve about 65.9\% bandwidth utilization.
+% and thereby improving the overall performance of the decode stage.
+
+
+
+Since the activations in the decode stage are small data-volume vectors instead of matrices, they can be fully accommodated by the on-chip buffer of the FPGA. 
+Therefore, to reduce the frequent read and write operations of the activation vectors, we fuse the computations of all layers during each inference of the decode stage. 
+% \revise{For example, for the Linear and SiLU layer, the case without fusion requires \texttt{LD+MV+ST} and \texttt{LD+MISC+ST} instructions, while fusion only needs \texttt{LD+MV+MISC+ST} instructions.}
+Finally, the computation result is written back to the off-chip memory at the end of each inference of the decode stage. 
+% enabling always-on-chip dataflow in the decode stage.
+
+As depicted in Fig.~\ref{fig:dataflow-optimization}(b), given that we can directly use the output activation of the current layer as the input activation for the subsequent layer without writing the activation to off-chip memory, we retain the output activations from linear or attention operations within the on-chip buffer.
+Through appropriate scheduling, the activation vector can consistently be stored in the on-chip buffer and then processed by either the MPE or SFU.
+
+Furthermore, as illustrated in Fig.~\ref{fig:dataflow-optimization}(a), since there is no hardware resource conflict between SFU and MPE computations, we fuse the computations of these two different units to reduce the off-chip memory access of the intermediate results. 
+Specifically, for the Softmax and LayerNorm operations, since they require a complete activation vector, it requires the \texttt{MV} operator in MPE to compute the activation vector before the \texttt{MISC} operator in SFU. For the activation functions (\textit{e.g.}, SiLU) and \revise{Element-wise addition/multiplication (Eltwise)}, they are \texttt{MISC} operators in SFU that can be computed immediately after the \texttt{MV} operators in MPE.
+
+\begin{figure}[!tp]
+    \centering
+    \includegraphics[width=0.9\linewidth]{Figures/Software/dataflow-optimization.pdf}
+    \vspace{-10pt}
+    \caption{(a) MISC fusion with attention or linear operation. And an example of always on-chip decode approach in the (b) decode and (c) prefill stage.}
+    \label{fig:dataflow-optimization}
+    \vspace{-15pt}
+\end{figure}
+
+\vspace{-5pt}
+\subsection{Discussion: Fusion in the Prefill}
+
+The MISC fusion for the prefill stage is similar to that of the decode stage. However, the decode stage uses \texttt{MV} \revise{(see Table~\ref{tab:ISA} in Sec.~\ref{sec:ISA})}, while the prefill stage uses \texttt{MM} for matrix multiplication. Thus, in the prefill stage, Softmax and LayerNorm can start after the \texttt{MM} has processed an activation vector, while Eltwise and SiLU can start the computation after each \texttt{MM}.
+
+In prefill attention computation, sparse attention can be applied. The sparse attention computation can be divided into 3 steps, computing $QK^T$, Softmax, and $SV$, as shown in Fig.~\ref{fig:dataflow-optimization}(c). 
+When computing $QK^T$, the computation result is sparse according to the attention mask. 
+When the zero attention mask completely covers the computation results, the corresponding \texttt{LD} and \texttt{MM} can be skipped. 
+If the zero attention mask covers a part of the computation results, the \texttt{MM} instruction writes only the required part of the computation results back into the global buffer and then performs Softmax. 
+When computing $SV$, the $S$ matrix is sparse, where the matrix $S$ stands for the attention matrix after the Softmax operation. 
+Thus, in the proposed fused attention dataflow, Softmax and $SV$ are only computed for the parts that are not covered by the zero attention mask. The idea of acceleration by fusion is similar to the decode stage.
+
+
+
+\vspace{-5pt}
+\subsection{Mixed-precision Support}
+The low-bit mixed-precision strategy can significantly reduce the parameters and the off-chip memory access for LLMs. However, GPU with the low-bit mixed-precision strategy (2/3/4/8-bit) makes it difficult to reduce memory access overhead. GPU uses SIMT-based computing architecture, which cannot efficiently process irregular and different bit-width data in memory. 
+Therefore, we design a dedicated mixed-precision dequantization unit on the FPGA, which can efficiently process the compactly stored mixed-precision data in the buffer and convert it into a unified INT8 format to the MPE. \revise{Specifically, we transform mixed-precision multiplication (2/3/4-bit) into INT8 multiplication, to avoid excessive LUT overhead.} The dequantization unit consists of a set of parallel bit-width expansion units, which automatically expand the input data to 8 bits according to the control signal, scale factor, and sign bit.
+
+\vspace{-5pt}
+\subsection{Memory Latency Optimization}
+We point out that the unique HBM+DDR hybrid memory system on FPGA has advantages over both HBM-only and DDR-only in reducing memory access overhead for generative LLMs. As we discussed in the previous section, the memory access patterns of SFU and MPE are significantly different. MPE needs to handle large-scale matrix multiplications, so single memory access is very large ($\sim$M Bytes). Using HBM can take full advantage of its high bandwidth. However, the operations processed by SFU include Eltwise, Softmax, etc., which are characterized by small single memory access data ($\sim$100 Bytes).
+Because the memory access latency of HBM is higher than DDR, and the refresh cycle is less than DDR~\cite{zhao2018bandwidth,wang2020shuhai}. As a result, the overhead of HBM exceeds that of DDR when accessing a small amount of data. Therefore, we utilize the unique HBM+DDR hybrid memory system on the U280 FPGA to optimize the inference of the generative LLM. Specifically, we store small single-access data (\textit{e.g.}, Softmax, Silu, and Gelu lookup tables) on DDR to take advantage of the low memory access latency of DDR. We store large single-access data (\textit{e.g.}, KV cache, weights) on HBM to take advantage of the high memory bandwidth of HBM.

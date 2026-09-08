@@ -4,13 +4,13 @@ domain: research
 area: fpga-llm-inference
 type: overview
 status: active
-updated: 2026-07-28
+updated: 2026-09-08
 tags: [papers, fpga, llm-inference, related-work]
 ---
 
 # FPGA LLM Inference Paper Library
 
-This directory materializes the 68 papers cited by the manuscript's Related Work section plus 15 direct additions from the 2026-07-28 architecture search. It uses one directory per paper, matching the repository's agent-memory, HLS and linear-attention collections.
+This directory materializes the 68 papers cited by the manuscript's Related Work section plus 15 direct additions from the 2026-07-28 architecture search and SECDA-LLM from the 2026-09-08 framework-integration audit. It uses one directory per paper, matching the repository's agent-memory, HLS and linear-attention collections.
 
 ## Coverage
 
@@ -18,8 +18,9 @@ This directory materializes the 68 papers cited by the manuscript's Related Work
 |---|---:|
 | Original Related Work papers | 68 |
 | Direct architecture-search additions | 15 |
-| Total paper records | 83 |
-| Validated full-paper PDFs | 50 |
+| Framework-integration audit additions | 1 |
+| Total paper records | 84 |
+| Validated full-paper PDFs | 51 |
 | Author presentation only | 0 |
 | Metadata only | 33 |
 
@@ -32,25 +33,40 @@ A downloaded PDF must be publicly reachable, begin with a valid PDF signature, o
 - `<paper-slug>/*.pdf`: validated public paper PDF, when available.
 - `manifest.yaml`: collection-wide status.
 - `related-work.bib`: the exact 68-entry citation subset.
-- `checksums.sha256`: integrity hashes for every cached PDF asset.
+- `checksums.sha256`: integrity hashes for every cached PDF asset and the selected source archives.
 
-Source archives and code repositories are intentionally deferred. They should be added per paper when that paper is selected for source-first reading.
+Most source archives and code repositories remain deferred. This pass completed source-first reading
+for the five papers most relevant to the current runtime-boundary question: DFX, FlightLLM, Spatial LLM,
+StreamTensor and CODO. Their archives and extracted trees live under the corresponding paper
+directories; the per-paper metadata records the exact status.
+
+The resulting cross-paper distinction is summarized in
+[[research/fpga-llm-inference/kv-cache-runtime-boundary-comparison]]: K/V computation, persistent
+cross-token state and KV-specific physical optimization are separate evidence items, as are
+fixed-graph kernel latency and a complete stateful generation request.
 
 The 2026-07-28 additions are selected from the unfiltered union search recorded in [[research/fpga-llm-inference/literature-search-2026-07-28]]; they are not claimed to be manuscript citations.
+
+The 2026-09-08 update adds [[secda-llm-2024/index|SECDA-LLM]] after reading its full TeX paper and
+bibliography. Its official repository and two exact gitlink dependencies are pinned and archived;
+backend/KV inspection is targeted and does not establish a reproduced build. Original Hummingbird's
+source is archived for targeted thematic review and remains unprocessed. The revised nine-system
+comparison plus local backend row and selection rationale are in [[research/fpga-llm-inference/feature-level-evidence-matrix]].
 
 ## Catalog
 
 | Paper | Year | Related Work category | Cache status | Canonical source |
 |---|---:|---|---|---|
+| [[secda-llm-2024/index|SECDA-LLM: Designing Efficient LLM Accelerators for Edge Devices]] | 2024 | Framework-integrated FPGA LLM inference | `processed; code audit partial` | arXiv 2408.00462 |
 | [[ftrans-2020/index|FTRANS: Energy-Efficient Acceleration of Transformers using FPGA]] | 2020 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2007.08563 |
 | [[sanger-2021/index|Sanger: A Co-Design Framework for Enabling Sparse Attention using Reconfigurable Architecture]] | 2021 | FPGA Transformer and LLM systems | `downloaded` | DOI `10.1145/3466752.3480125` |
-| [[dfx-2022/index|DFX: A Low-latency Multi-FPGA Appliance for Accelerating Transformer-based Text Generation]] | 2022 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2209.10797 |
-| [[flightllm-2024/index|FlightLLM: Efficient Large Language Model Inference with a Complete Mapping Flow on FPGAs]] | 2024 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2401.03868 |
-| [[spatial-llm-2024/index|Understanding the Potential of FPGA-Based Spatial Acceleration for Large Language Model Inference]] | 2024 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2312.15159 |
-| [[edgellm-2025/index|EdgeLLM: A Highly Efficient CPU-FPGA Heterogeneous Edge Accelerator for Large Language Models]] | 2025 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2407.21325 |
+| [[dfx-2022/index|DFX: A Low-latency Multi-FPGA Appliance for Accelerating Transformer-based Text Generation]] | 2022 | FPGA Transformer and LLM systems | `processed` | arXiv 2209.10797 |
+| [[flightllm-2024/index|FlightLLM: Efficient Large Language Model Inference with a Complete Mapping Flow on FPGAs]] | 2024 | FPGA Transformer and LLM systems | `processed` | arXiv 2401.03868 |
+| [[spatial-llm-2024/index|Understanding the Potential of FPGA-Based Spatial Acceleration for Large Language Model Inference]] | 2024 | FPGA Transformer and LLM systems | `processed` | arXiv 2312.15159 |
+| [[edgellm-2025/index|EdgeLLM: A Highly Efficient CPU-FPGA Heterogeneous Edge Accelerator for Large Language Models]] | 2025 | FPGA Transformer and LLM systems | `processed` | arXiv 2407.21325 |
 | [[glitches-2024/index|GLITCHES: GPU-FPGA LLM Inference Through a Collaborative Heterogeneous System]] | 2024 | FPGA Transformer and LLM systems | `downloaded` | DOI `10.1109/HPEC62836.2024.10938498` |
-| [[streamtensor-2025/index|StreamTensor: Make Tensors Stream in Dataflow Accelerators for LLMs]] | 2025 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2509.13694 |
-| [[codo-2026/index|CODO: An Automated Compiler for Comprehensive Dataflow Optimization]] | 2026 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2604.12618 |
+| [[streamtensor-2025/index|StreamTensor: Make Tensors Stream in Dataflow Accelerators for LLMs]] | 2025 | FPGA Transformer and LLM systems | `processed` | arXiv 2509.13694 |
+| [[codo-2026/index|CODO: An Automated Compiler for Comprehensive Dataflow Optimization]] | 2026 | FPGA Transformer and LLM systems | `processed` | arXiv 2604.12618 |
 | [[tellme-v2-2026/index|TeLLMe: An Efficient End-to-End Ternary LLM Prefill and Decode Accelerator with Table-Lookup Matmul on Edge FPGAs]] | 2026 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2510.15926 |
 | [[fast-prefill-2026/index|FAST-Prefill: FPGA Accelerated Sparse Attention for Long Context LLM Prefill]] | 2026 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2602.20515 |
 | [[flexllm-hls-2026/index|FlexLLM: Composable HLS Library for Flexible Hybrid LLM Accelerator Design]] | 2026 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2601.15710 |

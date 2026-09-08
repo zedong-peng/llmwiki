@@ -1,0 +1,165 @@
+\subsection{Resource Constraints}
+We then model the compute and memory resource constraints on an FPGA.
+In this section, we assume that one FPGA device can effectively compute at least a single Transformer layer, but our framework can be easily extended to more resource-constrained cases using a similar analysis proposed in \S\ref{sub:multifpga}.
+
+\subsubsection{Compute Resource Constraints.}
+\label{subsubsec:compute_resource}
+The core computational element for linear operators is the MAC unit.
+Let $M_i$ denote the compute power, in terms of the number of MACs per cycle allocated to each matrix multiplication kernel, where $i$ ranges over $q$, $k$, $v$, $a_1$, $a_2$, $p$, $f_1$, and $f_2$, based on the notation in Table~\ref{tab:flops}.
+% To maximize the performance of FPGA, we suppose the input tensors to those matrix multiplication kernels have been quantized to integers, which has been proven to be effective by many recent research works.
+We quantize the matrix multiplication to integer inputs for maximum efficiency, which has been proven to be effective by many recent studies ~\cite{xiao2023smoothquant,dettmers2022llmint8,sheng2020qbert,kim2021ibert}.
+Quantization enables single-cycle accumulation.
+As a result, one multiply-accumulator (MAC) unit can provide a 1 MAC/cycle throughput with a properly pipelined multiplier.
+Therefore, the latency for the $Q$ projection can be calculated as $ld^2/M_{q}$ cycles, considering that the total number of MACs computed in this operator is $ld^2$.
+
+% \zz{we also need to discuss the assumptions on the bitwidth somewhere}
+Suppose we want to deploy $C$ Transformer model layers on an FPGA. 
+The total MAC units must not exceed the capacity of the device.
+Since we employ a dataflow design that unfolds all the layers on-board, the required MAC units are simply the sum of the MAC units for each layer.
+This requirement can be expressed as:
+\begin{equation}
+    \label{eq:mac_constraint}
+     \sum{M_i}C < M_{\text{tot}}, {i\in\{q,k,v, a_1, a_2, p, f_1, f_2\}}\,,
+\end{equation}
+where $M_{\text{tot}}$ represents the total available compute power of an FPGA in terms of MACs per cycle,
+which can be obtained from the official data sheets.
+\revise{For FPGAs with specialized compute blocks (e.g., AI Engine~\cite{vck5000} and AI Tensor Blocks~\cite{stratix10}), we can convert their compute power to match the frequency of the programming logic, thus obtaining an overall value $M_{\text{tot}}$ for the entire FPGA.
+For example, the VCK5000 FPGA~\cite{vck5000} has 400 AI Engines, each of which can compute 128 MACs/cycle at 1GHz.
+Therefore, the equivalent compute power at 250MHz is 128$\times$400$\times$1GHz/250MHz, which is 204800 MACs/cycle.}
+% \sout{MAC units} \yx{compute power in number of MACs per cycle (to make this definition compatible with AIEs)}
+% , and $M_{nl}$ denotes the additional MAC units necessitated by non-linear operations.
+% \yx{We cannot say the non-linear operators also do multiply-accumulate. I suggest we only focus on linear operators for now.}
+
+\subsubsection{Memory Capacity Constraints.}
+\label{subsubsec:memory_resource}
+The demand for memory capacity stems from a variety of on-chip buffers, including weight buffers for parameters, buffers for $K$ and $V$ matrices, and FIFOs interconnecting different stages.
+
+\textbf{Parameter buffers.}
+To optimize an FPGA-based dataflow design, we assume that all the quantized parameters can be accommodated in on-chip or off-chip memory.
+% \yx{some analysis to support this assumption, probably in the to-be-added quantization section}
+Suppose all the linear weights are quantized to $b_W$ bits, and the size of the linear operator $i$ is $s_i$.
+The total size of the buffers is $S_{\text{param}}=\sum_{i\in\{q,k,v,p,f_1,f_2\}}s_ib_W=(4d^2+2d\dffn)b_W$ if storing on-chip.
+If the parameters are too large to fit in on-chip memory, we can store the parameters in DRAM and tile the parameters with size $M_i$ on-chip, then the total tiled buffer size is $S_{\text{tile}}=\sum_{i\in\{q,k,v,p,f_1,f_2\}}M_ib_W$.
+To hide the memory access latency, we need to double buffer those parameters, so the final buffer size of the $i$-th linear operator is $2S_{\text{tile}}$.
+% \yx{there seems to be some inconsistency. If all weights are stored on-chip, there should be no need for double buffering. We \textbf{MAY} need double buffering if we load the weights from DRAM while computing.}
+
+\textbf{KV Cache.}
+When conducting matrix multiplication, at least one of the matrices' elements must be accessed repeatedly so that a buffer is required.
+% \sout{reused, preventing them from being streamed directly from preceding layers.} \yx{accessed repeatedly so that a buffer is required. (data reuse happens on both operands; streaming one forces the other being repeatedly accessed. Imagine a canonical 3-loop GEMM)}
+Given that parameters are already buffered, only the SDP requires buffering for at least one of the input matrices.
+In our case, we choose to buffer $K$ and $V$, which will be later passed to the decode stage as the KV cache.
+% \yx{why? (because the other option is to buffer $Q$ and $h$ matrices of $X_{sm}$ , which requires far more space; because in GPT, we natually need KV caching)}
+We also double buffer $K$ and $V$ matrices to improve throughput.
+The final buffer size is $S_{\text{KV}}=4l_{\max}db_{A}$, where $b_{A}$ is the bitwidth of the activation and $l_{\max}$ is the maximum sequence length supported by the model.
+Notice KV cache can also be tiled on-chip, which can leverage a similar analysis above.
+
+% If we consider two-stage generative inference, then we do not need the double buffer since the KV cache is always passed from the last iteration, so the KV cache is of size $S_{KV}=2l_{\max}db_A$.
+
+\textbf{FIFOs.}
+% \sout{The interconnection of different layers} \yx{sometimes ``layer'' refers to a full transformer block, sometimes it refers to an operator inside one block. I think we should use different terms to distinguish, or, at least, avoid just using ``layer''; use ``linear operator'' or ``transformer layer'' instead.} \sout{is facilitated by FIFOs, enabling data streaming between stages.}
+The intermediate results between linear operators flow in FIFOs since the linear operators sequentially access them.
+For the initial residual connection, we assume that the input tensors are fetched from off-chip memory to obviate the need for additional buffering. 
+% \ns{what does "additional buffering" refer to, double buffer?}
+% For the first residual connection, we assume that the input is fetched from off-chip memory. Since the memory access latency can be overlapped with the attention head computation, there is no need for additional buffering.
+However, for the second residual connection related to the FFN, it is necessary to use an intermediate buffer to store the projection's activation $X_{\text{act}}$ before the FFN. 
+This buffer simultaneously serves as a bypass path.
+To avoid deadlock, the buffer must possess sufficient capacity to store $X_{\text{act}}$.
+We simply create a FIFO of size $ldb_{A}$ to store it.
+% \yx{The reason for buffering $X_{act}$ is not clearly explained. There are only two reasons to buffer something on-chip: 1)the access pattern is not simply streaming (like the access to weights); 2) we need a large enough FIFO to avoid deadlock. Here, we are in the second case; it is just the minimal size of the FIFO is \textbf{just slightly smaller} than the size of $X_{act}$, so we simply create a FIFO with enough space to store $X_{act}$.}
+For other FIFO connections, we assume a FIFO depth of $s$ and one FIFO connecting each layer in Figure~\ref{fig:transformer}, so the total FIFO size is equal to $S_{\text{FIFO}}=16sb_{A}+ldb_A$.
+
+In summary, the memory capacity constraint is expressed as:
+\begin{equation}
+\label{eq:sram_constraint}
+\begin{aligned}
+    S_{\text{param}}C &< DRAM_{\text{tot}}\,,\\
+    \sum S_iC &< SRAM_{\text{tot}}\,, i\in\{\text{tile},\text{KV},\text{FIFO}\}\,,
+\end{aligned}
+\end{equation}
+% \begin{equation}
+% \label{eq:sram_constraint}
+% S_{param}C < DRAM_{\text{tot}}\,, \sum_{i\in\{tile,KV,FIFO\}} S_iC < SRAM_{\text{tot}}\,,
+% \end{equation}
+% \yx{shall we use a similar style as Equation (\ref{eq:mac_constraint}) so that the $\sum$ is not too far away?}
+if the parameters are stored off-chip.
+$DRAM_{\text{tot}}$ and $SRAM_{\text{tot}}$ are the total available off-chip and on-chip memory.
+
+\subsubsection{Memory Port Constraints.}
+\label{subsubsec:memory_port}
+Besides memory capacity, we also need to consider constraints on memory ports in a highly paralleled design.
+For matrix multiplication, if different MAC units
+% \zz{do not redefine an acronym. do we mean MAC units here?}
+work in parallel, they will visit the weight/result buffers simultaneously, hence contending for memory ports.
+This issue can be addressed by either partitioning the buffer, effectively offering more memory ports; or packing data to create wider elements, subsequently reducing the number of memory ports required.
+% As discussed in \S\ref{subsubsec:memory_resource}, the weight and double buffers account for 90\% of the total on-chip memory capacity requirement, therefore, we will focus on these two kinds of buffers in this section.
+
+\textbf{SRAM resources.}
+The on-chip SRAM resources of FPGAs are typically organized as blocks. 
+Each block has a fixed capacity and may support configurable bitwidth.
+For example, on AMD UltraScale+ FPGAs, there are two types of SRAM resources: \emph{Block RAM (BRAM)} and \emph{Ultra RAM (URAM)}.
+BRAM blocks can be configured to 1$\times$36 Kb block or 2$\times$18 Kb blocks, with two read and write ports each.
+URAM blocks are 288 Kb with one read and one write port.
+The port width of the BRAM block is flexible; it can be configured to 1, 2, 4, 9, 18, 36, or 72 (in 36 Kb mode) bits, while the port width of the URAM block is fixed at 72 bits.
+Similar to BRAM and URAM, Intel FPGAs have M20K and eSRAM with different configurable port widths.
+% In the following, we mainly discuss the AMD FPGAs, but our model can be easily extended for Intel FPGAs.
+
+\textbf{Memory blocks needed without data packing.}
+To begin with, we analyze the port constraints without data packing.
+In this case, to eliminate the port contention, different MAC units may need different memory ports.
+Consider the linear operator $i$ with the size of $s_i$ with $M_i$ MAC units working in parallel, each loaded weight may feed multiple MAC units due to intrinsic data reuse in GEMM. 
+We use $r_i$ to represent the data reuse factor (number of MAC units sharing the loaded weight).
+Therefore, the weight buffer needs to be partitioned into $M_i/r_i$ parts.
+If we store all the weight buffers on-chip, then the number of $b_{W}$-bit elements in each partition is $s_i/(M_i/r_i)$.
+However, $b_W$ may not fully occupy one memory word as the memory bitwidth can only take limited options. 
+We introduce the effective bit width, $b_{BRAM}$, to be the smallest memory bitwidth larger than $b_W$.
+Let $S_{BRAM}$ be the total capacity (in bits) of one memory block,
+we can deduce the total number of memory blocks for one linear operator:
+\begin{equation}
+    R_i=\left\lceil \frac{s_ib_{BRAM}}{M_i/r_i \times S_{BRAM}} \right\rceil \times M_i/r_i\,.
+\end{equation}
+If the parameters are loaded from off-chip memory and we only store a tile of the weight on-chip, then $s_i$ is simply $M_i$, and $R_i$ also becomes $M_i$ as $b_{BRAM}\ll S_{BRAM}$.
+Since we need to double buffer those parameters, the final buffer size of the $i$-th linear operator is $2M_i$.
+% This equation reveals when $M_i > (d^2b_{BRAM})/(18\times 1024)$, each partition needs less than one block to store all the elements, and the total number of blocks required equals $M_i$.
+% As $M_i$ increases, each partition becomes smaller, leading to more wasted memory capacity.
+% A similar analysis applied to other linear operators provides the same threshold, albeit with a different total number of blocks required when $M_i$ is above the threshold.
+% The total number of BRAM blocks required for all six projections is 12\ComputeScale when $M > 144$.
+Notice the $k$ and $v$ layers need to be double-buffered, so the required BRAM also doubles in these two layers.
+We can obtain the total required BRAM as below:
+\begin{equation}
+\label{eq:port_constraint}
+\sum_{i\in\{q,k,v,p,f_1,f_2\}}CR_i + 2C(R_{a_1} + R_{a_2}) < Mem_{\text{tot}}\,.
+\end{equation}
+
+% Like the projections, the matrix multiplications in the SDP require partitioning of the double buffers.
+% Applying a similar analysis, we can get the number of 18 Kb BRAM blocks needed by one double buffer is $\left\lceil \frac{d^2}{M \times 2048} \right\rceil \times \frac{l \times M}{d}$.
+% This time, the threshold becomes $d^2/2048 = 288$.
+% When \ComputeScale > 288, one partition is smaller than one block.
+
+\textbf{Memory blocks needed with data packing.}
+Data packing can alleviate the strain on memory port contention by consolidating multiple narrow data into a single, wider data element.
+This process allows multiple MAC units to access data from the same memory port.
+We consider packing data into $b_{pack}$ bits for the linear weights, and we have $b_{pack}=kb_W$.
+Again, we denote $b_{BRAM}$ as the smallest memory bitwidth larger than $b_{pack}$.
+We need to partition $M_i/r_i$ MAC units to $M_i/r_i/k$ parts, and each partition has $\lceil s_i/k\times b_{BRAM}/(M_i/r_i/k)\rceil$ bits.
+Therefore, the total number of memory blocks needed is:
+\begin{equation}
+\label{eq:port_packed_constraint}
+R_i=\left\lceil \frac{s_ib_{BRAM}}{M_i/r_i\times S_{BRAM}} \right\rceil \times \frac{M_i/r_i}{k}\,.
+\end{equation}
+
+% We require the summation of $R_i$ to be smaller than $Mem_{\text{tot}}$.
+
+
+\subsubsection{Memory Bandwidth Constraints.}
+\label{subsub:memory_bandwidth}
+If the parameters are stored off-chip, we need to consider the impact of off-chip memory bandwidth.
+% We can assume there are enough on-chip buffers to hide the off-chip memory access latency and convert a DRAM-friendly data layout to a PE-friendly one.
+Similar to \S\ref{subsub:memory_packing}, we use $r_i$ to denote the data reuse factor of a linear operator with $M_i$ MAC units.
+Effectively, $M_i/r_i$ weights must be loaded from off-chip memory per cycle to feed the MAC units, requiring a bandwidth of:
+\begin{equation}
+\label{eq:bandwidth}
+    B_i = b_W\times M_i/r_i \times freq\,,
+\end{equation}
+where $freq$ is the achieved frequency of FPGA.
+If the total required bandwidth, $\sum_i C{B_i} (i \in \{q,k,v,p,f_1,f_2\})$, exceeds the maximum device bandwidth, the inference becomes bandwidth bound.
+Notice this bandwidth requirement needs to be analyzed for each operator individually if the data loading requires accessing multiple DDR or HBM channels.
