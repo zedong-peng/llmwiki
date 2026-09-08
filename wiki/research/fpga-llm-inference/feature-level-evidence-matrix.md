@@ -14,14 +14,40 @@ tags: [fpga, llm-inference, related-work, artifact, runtime, kv-cache]
 
 The manuscript feature table now uses:
 
-`Work | E2E generation | Multi-model | Public artifact | Experimental and delivery scope`
+`Work | Model source / interface | New-model entry | Auto map | Native backend | E2E gen. | Resident exec. | Public source | Scope / qualification`
 
-At the user's request, P+D, Auto mapping, Framework backend and Persistent KV were
-removed as separate columns. Their evidence remains in prose. Experimental and
-delivery-scope summaries from the removed Table 2 are now integrated into Table 1.
+The 2026-09-08 update replaces Multi-model evaluation with Model-file deployment at the
+user's request. The new predicate asks whether a new supported LLM enters an unchanged
+deployment flow through model files and ordinary configuration, without writing per-model
+exporters, graph descriptions, compiler, hardware or host code. Automatic packing,
+compilation and model-specific bitstreams are allowed. Model count alone does not qualify.
 
-This replaces the former `Model scale` column, where nearly every row was Y. Every row was
-reassessed under the new predicates; old marks were not transferred mechanically.
+The 2026-09-09 update renames Model-file deployment to New-model entry at the user's
+request: the predicate tests whether a third party can deploy one more supported
+checkpoint without author-side case generation. It also adds Resident exec. as a sixth
+filter: weights and KV state persist on-device for the request lifetime and
+intermediates do not round-trip to the host per operator (e.g. resident HBM windows
+with on-chip activation reuse and a single graph launch). Per-operator offload with
+host-side staging does not qualify, even with end-to-end generation. SECDA-LLM's
+per-op MatMul offload through a host-side context handler therefore takes NR on this
+column while keeping its GGUF-entry credit; the local GPT-2 profile's HBM-resident
+weights/KV and single launch take Y with the explicit failed-qualification footnote.
+DFX, FlightLLM and EdgeLLM also take Y on Resident exec. at the paper-report level:
+DFX serves whole generations from HBM-resident tiled weights/KV within a single
+service launch, FlightLLM decodes over HBM-resident weights/KV with always-on-chip
+activations, and EdgeLLM keeps weights/KV in HBM behind host-written configuration.
+Residency alone is therefore recorded as prior art; the planned contribution is its
+combination with a framework-native backend and third-party new-model entry.
+
+For this new column, the current manuscript credits SECDA's inspected GGUF-to-GGML MatMul
+offload path within its supported types/dimensions. The local fixed GPT-2 profile remains
+unestablished, and the planned GGUF flow carries a design-requirement check. The remaining
+systems have no established model-file entry under this predicate; their graph compilers,
+parameterized hardware, model evaluations and prepared artifacts retain their separate
+credits. These are evidence classifications, not upper bounds on architectural support.
+All feature definitions are placed below the manuscript table; the earlier audit matrix
+below retains its historical Multi-model/Public artifact predicates.
+
 `Native backend` is acceptable if defined as native integration into an existing general-purpose
 inference framework, not merely a custom host runtime. `Framework backend` makes this distinction
 more explicit and need not privilege llama.cpp over other frameworks.
@@ -36,10 +62,13 @@ standard in the caption; a repository URL alone is insufficient.
 
 | Column | Positive evidence | Does not suffice |
 |---|---|---|
-| E2E generation | Actual checkpoint and prompt input, complete model including LM head, token selection fed back into successive decode steps, and observable generated tokens | One layer/graph event; synthetic tensors; separate phase timings combined analytically |
-| Multi-model | At least two identified LLM checkpoints evaluated on FPGA through the stated implementation/toolflow; specify whether sizes or distinct families | CNN workloads; analytical projections; frontend support assertions |
-| Public artifact | Verified official source or binary package, pinned revision and declared scope | A promised future release or an unrelated repository with the same name |
-| Experimental and delivery scope | Concise model/platform measurements and inspected release boundary | Treating projections as board measurements or code availability as reproduced generation |
+| New-model entry | One more supported checkpoint deploys via files/configuration with no per-model code and no author-side case generation; packing/bitstreams allowed | Several evaluated models; a closed collection of prepared cases; a vocabulary-only GGUF |
+| Auto map | Compiler/runtime maps an accepted model or graph to instructions, dispatched operations, or hardware | Manually composing model-specific hardware; this predicate alone does not establish a new-model entry |
+| Native backend | Existing inference framework's backend interface executes the accelerated path | Borrowing a tokenizer or importing PyTorch alone |
+| E2E generation | Actual checkpoint and prompt input, complete model including LM head and prior-context use, token selection fed back into successive decode steps, and observable generated tokens | One layer/graph event; synthetic tensors; separate phase timings combined analytically |
+| Resident exec. | Weights and KV persist on-device for the request lifetime; intermediates do not round-trip to the host per operator | Per-operator offload with host-side staging, even with end-to-end generation |
+| Public source | Implementation source for the accelerated path | Only binaries, profiling tools, or a promised release |
+| Scope / qualification | Model/platform, operator and state coverage, execution/timing boundaries and inspected release scope | Treating projections as board measurements or code availability as reproduced generation |
 
 E2E generation and Persistent KV are related but not identical: a working generator can recompute
 its prefix instead of caching. P+D describes phase coverage; E2E describes their composition with
@@ -58,11 +87,12 @@ nontrivial cell and distinguish paper reports from inspected code. For `Multi-mo
 GPT-2 sizes qualify under a checkpoint definition; use `Multi-family` if distinct architectures are
 what the comparison intends. Recompilation is a separate axis, not an implicit exclusion.
 
-## Manuscript Marks
+## Earlier Audit Marks
 
-The latest 2026-09-08 selection keeps nine evaluated prior systems plus one explicitly local
+An earlier 2026-09-08 selection kept nine evaluated prior systems plus one explicitly local
 backend row. SECDA-LLM is retained as an integration precedent in prose, not a principal performance
-baseline. Phase-specific and access-limited works remain in the evidence notes below. Y can be supported by an explicit paper report
+baseline in that snapshot. The current table includes SECDA and separate current/plan rows as
+described above. Phase-specific and access-limited works remain in the evidence notes below. Y can be supported by an explicit paper report
 or inspected official implementation; it never means independent reproduction. SECDA-LLM's paper,
 all included TeX sections and bibliography were read for its formal note; its code review remains
 targeted. The earlier five newly downloaded papers remain targeted feature audits, not completed
