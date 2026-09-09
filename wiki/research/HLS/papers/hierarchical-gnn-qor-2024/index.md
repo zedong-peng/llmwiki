@@ -1,3 +1,13 @@
+---
+title: "Hierarchical Source-to-Post-Route QoR Prediction in HLS with GNNs"
+domain: research
+area: HLS
+type: paper
+status: processed
+updated: 2026-09-08
+tags: [paper, hls, qor-prediction, gnn, dse, fpga]
+---
+
 # Hierarchical Source-to-Post-Route QoR Prediction in High-Level Synthesis with GNNs
 
 **Authors**: Mingzhe Gao, Jieru Zhao, Zhe Lin, Minyi Guo

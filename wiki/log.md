@@ -9,6 +9,21 @@ tags: [log]
 
 # Super Personal Wiki Log
 
+## [2026-09-08] research | Converged lora-training-opt, HLS, iclr-2026-oral; indexed missing areas
+
+- Folded 6 loose `lora-training-opt/` notes into a formal `index.md`; deleted originals (in git history). No local paper PDFs yet; `papers/` deferred.
+- HLS: added topic `index.md` + `papers/index.md`; added frontmatter to both paper notes (status processed); renamed `papers/2401.08696` -> `papers/hierarchical-gnn-qor-2024` and `papers/2601.04801` -> `papers/mpm-llm4dse-2026` (no inbound links existed).
+- Added missing frontmatter to `iclr-2026-oral/index.md` (single-file listing, otherwise canonical-legal).
+- Registered HLS, lora-training-opt, iclr-2026-oral in `research/index.md`.
+- `dlm/` deliberately left untouched: active paper-writing project with nested git and its own README/index structure, not a paper archive.
+
+## [2026-09-08] research | Converged fpga-llm-inference to Canonical Layout
+
+- Moved `wiki/research/fpga-llm-inference/ideaspark_run/` to `threads/ideaspark_run/` (VSTC success chain + RegionSeal failure chain preserved as raw run archive).
+- Merged `codo-2026.md` deep read into `papers/codo-2026/index.md` (status seed -> processed, metadata note_status -> processed); deleted the loose file.
+- Folded 12 loose notes (foundations, system-landscape, execution-architecture-taxonomy, vitis-ai-dpu-finn-pynq, end-to-end-evaluation, project-status-2026-07, literature-search-2026-07-22/28, allinone, ideaspark-shared-engine-2026-07-28, towards-idea-audit-2026-07, fpga-backbone-llamacpp-note) into the topic `index.md`; deleted originals (full text in git history). Topic now holds only `index.md + threads/ + papers/`.
+- Retargeted `wiki/index.md` recent-reference link from the deleted toolchain page to the topic index. No `threads/index.md` created per confirmed convention.
+
 ## [2026-07-24] research | Audited the Towards FPGA-backbone research idea
 
 - Ran the Microsoft ResearchStudio `idea-spark` workflow through literature retrieval, bottleneck identification, two candidate generations, coherence checks, collision retrieval, critique, revision, and falsification re-audit; the terminal result emitted no reviewer-defensible idea card.

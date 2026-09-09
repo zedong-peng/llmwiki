@@ -5,23 +5,26 @@ area: fpga-llm-inference
 type: paper
 status: active
 updated: 2026-09-08
-tags: [paper, fpga, llm-inference]
+tags: [paper, codo, isca-2026, fpga, compiler, dataflow, gpt-2, end-to-end]
 ---
 
 # CODO: An Automated Compiler for Comprehensive Dataflow Optimization
 
 CODO is an automated MLIR/dataflow compiler for fixed-shape FPGA graphs. Its GPT-2 result is an
 important compiler reference, but its public artifact must be kept separate from a stateful
-llama.cpp generation baseline.
+llama.cpp generation baseline. (Earlier deep read merged from `codo-2026.md` on 2026-07-23;
+raw IdeaSpark runs live under `threads/ideaspark_run/`.)
 
 ## Paper Meta
 
-- Authors: Weichuang Zhang, Yiquan Wang, Xinzhou Zhang, Chi Zhang, Yu Feng, Xiaofeng Hou, Chao Li, Jieru Zhao, Minyi Guo
+- Authors: Weichuang Zhang, Yiquan Wang, Xinzhou Zhang, Chi Zhang, Yu Feng, Xiaofeng Hou, Chao Li, Jieru Zhao, Minyi Guo.
 - Year: 2026
-- Venue: ISCA 2026, verified against the [official conference program](https://www.iscaconf.org/isca2026/program/) on 2026-09-08. The archived full text is the arXiv version; venue verification is separate from artifact reproduction.
+- Venue: ISCA 2026, verified against the [official conference program](https://www.iscaconf.org/isca2026/program/) on 2026-09-08. The archived full text is the arXiv version; venue verification is separate from artifact reproduction. (Official artifact README also lists it as Best Paper Award Finalist.)
 - BibTeX key: `codo`
 - Related Work category: FPGA Transformer and LLM systems
-- Public record: [arXiv](https://arxiv.org/abs/2604.12618)
+- Code/artifact: [sjtu-zhao-lab/codo-artifact](https://github.com/sjtu-zhao-lab/codo-artifact); archived snapshot: [Zenodo 10.5281/zenodo.19425920](https://doi.org/10.5281/zenodo.19425920).
+- Artifact revisions inspected: main commit `130b12bc63e6e6daa31a1227b7e8391c5039148d` (2026-06-03) and tag `isca2026-ae` at `8b85e41cfff6fc6a297f919f73dd14ed3fd728cb`; their `experiments/fig-9/` trees are identical.
+- Why it matters here: it reports GPT-2 Medium board-level TTFT, decode speed and generation latency, and its artifact exposes a full PyTorch/Torch-MLIR -> MLIR -> Vitis HLS -> host/xclbin workflow.
 
 ## Local Assets
 
@@ -33,7 +36,7 @@ llama.cpp generation baseline.
 - The paper reports GPT-2 Medium on U280 at W4A8/300 MHz, including TTFT, decode speed and total latency. These figures are useful for understanding fixed graph/dataflow performance, but are not inserted into the current CPU/FPGA throughput table.
 - The public `GPT2.py` forward computes current-input Q/K/V but has no `past_key_values` input/output. The Fig. 9 host statically binds HBM buffers and invokes one `main_graph` event; no token loop, cache position, append pointer or cross-launch state object is exposed.
 - Therefore “CODO has no K/V” is inaccurate, while “the public artifact does not demonstrate persistent KV-cache management or KV-specific optimization” is supported. The author's clarification that the experiment measures one fixed-graph latency is recorded in the comparison note.
-- Source-first read completed. Detailed artifact audit: [[research/fpga-llm-inference/codo-2026]].
+- Source-first read completed. Earlier standalone deep-read note folded into this record on 2026-09-09.
 
 ## Public Artifact Recheck (2026-09-08)
 
@@ -42,6 +45,241 @@ llama.cpp generation baseline.
 - All four Fig. 9 host files expose one `enqueueTask` and event-start/end profiling. In the fully inspected decode host, output migration is commented out and `TEST PASSED` is printed without a result comparison. This is not a board-level model-correctness receipt.
 - `experiments/run_all.sh` runs synthesis experiments for Fig. 11 and Tables II-IV, not the GPT generation loop. No `.xclbin` or `host.exe` appears in this committed repository snapshot. Dependencies, Docker contents and board execution were not reproduced here.
 - Thus **public artifact available** is supported; **independently reproduced stateful generation** is not established by this inspection. Do not erase CODO's compiler-artifact credit when narrowing its generation boundary. The user's report of a private author conversation is corroborating context, not a public citation or proof of how every published number was derived.
-- Feature-table definitions and cross-paper artifact discovery: [[research/fpga-llm-inference/feature-level-evidence-matrix]].
+- Feature-table definitions and cross-paper artifact discovery: [[research/fpga-llm-inference/index|area index §Evidence Matrix]].
 
-Return to [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]].
+## Problem
+
+Large HLS dataflow designs fail to become one efficient pipeline for two reasons:
+
+1. **Coarse-grained dataflow violation:** producer and consumer regions cannot be streamed as one connected graph, leaving discontinuous regions and external-memory materialization.
+2. **Fine-grained dataflow violation:** access order, iteration structure or layout differs across connected tasks; tools fall back to ping-pong buffers or deadlock-prone implementations.
+
+Even after legality is restored, performance still depends on communication and balanced parallelism. CODO therefore treats legality, data movement and resource allocation as one compiler problem.
+
+## Compiler Flow
+
+```text
+PyTorch model / high-level program
+  -> Torch-MLIR / Polygeist
+  -> CODO MLIR dialect
+  -> coarse-grained violation elimination
+  -> fine-grained violation elimination
+  -> on-chip/off-chip communication optimization
+  -> latency/resource-guided DSE and scheduling
+  -> Vitis HLS C++
+  -> generated host + link configuration
+  -> xclbin / board execution
+```
+
+The current GitHub artifact's `experiments/verify/` GPT-2 example defines a single Pre-LN Transformer block with hidden size 1024, 16 heads and FFN width 4096. The verification frontend lowers this block from PyTorch. The paper labels the board evaluation as GPT-2 Medium (24 layers), but the public Fig. 9 host invokes `main_graph` once and contains no visible layer-repeat loop or per-layer weight-switch loop. The exact mechanism that lifts the single-block artifact to the model-level Table VI result is therefore not traceable from the inspected public host source.
+
+The Zenodo snapshot contains a separate, unreferenced full-model prototype: root-level `gpt2.py` exports Hugging Face `GPT2Model` for a seven-token prompt, and `gpt_test.cpp`/`gpt_test2.cpp` encode a 12-layer, hidden-768 GPT-2 Base graph with an externally visible final hidden state. It is not GPT-2 Medium, does not include the LM head or autoregressive generation loop, and has no associated GPT HLS/P&R report, xclbin or board log in the archive. It demonstrates a broader lowering experiment but does not close the Table VI orchestration gap.
+
+## Main Techniques
+
+### Dataflow violation elimination
+
+CODO transforms incompatible producer/consumer regions into legal streaming structures instead of conservatively materializing every boundary in memory. This is the main conceptual step beyond merely adding `DATAFLOW` pragmas.
+
+### Communication optimization
+
+The compiler aims to:
+
+- keep intermediate tensors in FIFO/on-chip buffers;
+- improve off-chip burst and data-layout behavior;
+- reduce redundant memory movement;
+- coordinate generated HLS kernel, host binding and FPGA link configuration.
+
+### Automated scheduling and DSE
+
+CODO estimates loop latency and DSP use, forms Pareto candidates and redistributes parallelism to balance pipeline stages. The goal is not maximum parallelism per operator; it is minimizing the slowest stage under global resource constraints.
+
+## GPT-2 End-To-End Table
+
+The paper's Table VI reports on-board GPT-2 Medium generation. CODO uses U280, 8 GB HBM, 300 MHz and W4A8.
+
+| `[input length: output length]` | Latency (ms) | TTFT (ms) | Decode speed (token/s) |
+|---:|---:|---:|---:|
+| `[32:32]` | 158.64 | 20.40 | 231.48 |
+| `[64:64]` | 313.44 | 32.64 | 231.48 |
+| `[128:128]` | 663.36 | 110.40 | 231.48 |
+
+The `[32:32]` and `[128:128]` rows are consistent with:
+
+\[
+T_{generation}=TTFT+\frac{N_{output}}{R_{decode}}.
+\]
+
+For example:
+
+\[
+20.40\text{ ms}+\frac{32}{231.48}\text{ s}=158.64\text{ ms}.
+\]
+
+The published `[64:64]` row is not consistent with this formula:
+
+\[
+32.64\text{ ms}+\frac{64}{231.48}\text{ s}=309.12\text{ ms},
+\]
+
+while Table VI reports `313.44 ms`. The 4.32 ms difference is approximately one decode interval (`1/231.48 s`). This may be a table typo or a token-count convention applied only to that row; preserve the published value but do not derive a comparison from it until the authors clarify the raw timing.
+
+The same table compares:
+
+| System | Platform | Precision | `[32:32]` TTFT | Decode token/s |
+|---|---|---|---:|---:|
+| DFX | U280, 200 MHz | FP16 | 177.20 ms | 185.19 |
+| Allo | U280, 250 MHz | W4A8 | 81.50 ms | 204.05 |
+| StreamTensor | U55C, 250 MHz | W4A8 | 34.59 ms | 199.51 |
+| CODO | U280, 300 MHz | W4A8 | 20.40 ms | 231.48 |
+
+The paper reports headline speedups of 3.54x, 2.03x and 1.23x over DFX, Allo and StreamTensor. These are not the direct geometric means of Table VI's three diagonal total-latency rows, which are approximately 2.169x, 1.486x and 1.138x (using the published `313.44 ms` unchanged).
+
+Fig. 9 instead covers 12 combinations: input lengths 32/64/128 and output lengths 1/16/64/256. Reconstructing those points from Table VI's per-input TTFT/decode rates with `TTFT + N_output / speed` gives approximate geometric means of 3.135x, 1.940x and 1.229x.
+
+| Aggregation | vs DFX | vs Allo | vs StreamTensor |
+|---|---:|---:|---:|
+| Paper headline | 3.54x | 2.03x | 1.23x |
+| Three published diagonal latency rows, geometric mean | 2.169x | 1.486x | 1.138x |
+| Twelve Fig. 9 points inferred from Table VI stage metrics, geometric mean | 3.135x | 1.940x | 1.229x |
+
+The 12-point reconstruction closely explains the StreamTensor headline and approaches the Allo value, but still does not reproduce 3.54x for DFX or exactly 2.03x for Allo. The paper does not publish Fig. 9's raw points or aggregation script, so all three headline values should remain labeled paper-reported.
+
+## What “End-To-End” Means Here
+
+At the paper-claim level, CODO is substantially closer to model-level end-to-end than an isolated HLS kernel result:
+
+- the reported workload separates prefill/TTFT and autoregressive decode;
+- latency combines first-token time and repeated output-token generation;
+- the model is identified as GPT-2 Medium;
+- the comparison is labeled as on-board.
+
+The public artifact, however, does not expose enough orchestration to independently establish the complete 24-layer model boundary, and the result is not automatically the same boundary as a production `llama.cpp` request.
+
+### Public artifact observations
+
+The inspected `experiments/fig-9/` artifact contains separate designs for:
+
+- `gpt-32-prefill`;
+- `gpt-64_predill`;
+- `gpt-128_prefill`;
+- `gpt_decoding`.
+
+Each generated host:
+
+1. allocates aligned arrays and binds them across HBM banks;
+2. enqueues host-to-device migration;
+3. launches one `main_graph` kernel;
+4. calls `q.finish()`;
+5. reads only the OpenCL profiling interval for that kernel event.
+
+The public host path does **not** visibly perform:
+
+- text tokenization;
+- loading a Hugging Face checkpoint in the executable;
+- a real prompt-to-token pipeline;
+- logits sampling or top-k/top-p;
+- detokenization/text streaming;
+- model-quality validation during the board timing run.
+
+The kernel event also starts after the queued migration, so that event itself does not directly time the earlier PCIe H2D migration. Fig. 12 reports `off-chip data transfer` shares of 22.9%, 14.3% and 4.2% for GPT prefill lengths 32, 64 and 128, but in context this is most plausibly HBM traffic within the accelerator event, not the preceding OpenCL host-to-device setup. It cannot be used as evidence that PCIe migration is included in TTFT.
+
+The source allocates value-initialized arrays, creates every OpenCL buffer with `CL_MEM_READ_ONLY`, and comments out output migration. Across all four inspected Fig. 9 kernels, the final graph node writes only to a local on-chip array (`v853`, `v847` or `v825`); there is no visible store back to the corresponding external pointer. Consequently, these public paths have no host-observable model output and cannot perform board-level output correctness checking. It should be confirmed whether the Table VI xclbins were built from exactly these sources and whether omitted output traffic is part of the reported boundary. Therefore the safest interpretation is:
+
+> The paper reports a strong GPT-2 model-compute/generation-stage result with prefill and decode accounting. The inspected public host directly demonstrates only one generated `main_graph` command and does not establish either the complete 24-layer orchestration or the same application boundary as text-in/text-out `llama.cpp` wall-clock.
+
+This is not a reason to dismiss CODO. It is a reason to label the boundary precisely, obtain the raw board harness/logs, and reproduce it separately from an application-level benchmark.
+
+### Reproducibility caveats
+
+- The arXiv appendix says prebuilt GPT-2 xclbins and host files are provided, but the official main revision, `isca2026-ae` tag and Zenodo snapshot all lack visible `.xclbin` and `host.exe` files. The Zenodo archive contains no GPT board logs or GPT synthesis/P&R report tied to its full-model prototype.
+- The artifact says all on-board experiments are not rerun during AE because rebuilding all bitstreams takes over two weeks.
+- The included HLS reports are useful synthesis evidence, but their absolute latency is not a substitute for Table VI's board measurements.
+- The paper states a 300 MHz CODO setting and a 3.33 ns target for all experiments, but the public `gpt-128_prefill/Makefile` explicitly passes `--kernel_frequency 250` and its HLS report uses a 4.00 ns target. The other GPT reports use a 3.33 ns target but have estimated periods of 3.432-4.943 ns. Actual routed clocks and board binaries must be checked per workload.
+- The GPT-2 verification model is one Transformer block; the exact layer-repeat, weight-switch and generation harness used to derive every Table VI field should be confirmed before claiming a fully matched reproduction.
+
+### Evidence ledger
+
+| Evidence | What it establishes | What it does not establish |
+|---|---|---|
+| arXiv Table VI / Figs. 9 and 12 | published GPT-2 Medium TTFT, decode rate, latency, comparison and kernel-internal transfer breakdown | raw timing derivation, application boundary, correctness output |
+| GitHub main and `isca2026-ae` Fig. 9 tree | one W4A8 Transformer-block kernel per length, HBM bindings and one-event OpenCL host timing | 24-layer orchestration, LM head/sampling, externally visible output, retained board binary/log |
+| Zenodo snapshot | an independent full 12-layer GPT-2 Base lowering prototype with final hidden-state output | GPT-2 Medium, W4A8 generation, synthesis closure or Table VI board execution |
+| Docker Hub v1 metadata | a 6.2 GB AE image exists and was built by copying a workspace into the image | whether missing xclbins/logs are present; image layers were not downloaded for this audit |
+
+## Why CODO Is The Priority Baseline
+
+CODO attacks exactly the structural weakness exposed by the current backend profile:
+
+| Current backend issue | CODO design response |
+|---|---|
+| one GGML call can expand to hundreds of XRT launches | compile a large graph/block into one dataflow kernel |
+| repeated H2D -> launch -> wait -> D2H sequence | stream intermediates and optimize communication globally |
+| per-operator optimization has low Amdahl ceiling | balance the complete dataflow pipeline |
+| host/runtime overhead obscures HBM potential | amortize orchestration over coarse-grained work |
+| hand-integrated kernels are hard to scale | compile from high-level IR with legality checks and DSE |
+
+The comparison also reveals a tradeoff. CODO's performance comes from aggressive block/model specialization, while the current project contributes native GGML integration, explicit support semantics and a replaceable per-operator ABI. The high-value bridge is **contract-preserving region fusion**, not copying CODO wholesale.
+
+## Matched Comparison Plan
+
+A defensible CODO comparison needs two tracks.
+
+### Track A: reproduce CODO's own boundary
+
+- U280 physical board;
+- GPT-2 Medium;
+- W4A8;
+- input/output lengths 32/32, 64/64 and 128/128;
+- batch 1;
+- TTFT, decode token/s and `TTFT + output/speed`;
+- separately record model load, H2D setup and kernel-event timing;
+- verify nonzero real weights and output against a PyTorch oracle.
+
+### Track B: compare application/framework integration
+
+Run a `llama.cpp`-native model on CPU and FPGA with:
+
+- identical GGUF hash and quantization;
+- identical prompt token IDs and output count;
+- identical sampler or greedy policy;
+- framework-level pp/tg plus text-in/text-out wall-clock;
+- zero-fallback receipt and per-op execution counts;
+- model-level logits/token correctness;
+- power at a declared system boundary.
+
+Only after the same model is available in both CODO and the GGML backend should the two tracks be collapsed into one speedup table.
+
+## Questions To Resolve With The Authors
+
+1. Does Table VI latency include initial PCIe host-to-HBM migration, or only resident-weight generation with kernel-internal HBM traffic? How was Fig. 12's transfer/compute split measured?
+2. How is the single-block public `main_graph` lifted to all 24 GPT-2 Medium layers, and where are the layer-repeat and per-layer weight-switch operations timed?
+3. Is TTFT derived from block events, a complete-model host loop, or another retained harness?
+4. Where are the exact prebuilt xclbins and raw board logs corresponding to Table VI?
+5. Are real GPT-2 Medium weights used in the timed board run, and where is output/logit correctness retained?
+6. Were the Table VI xclbins built from the four public top functions that never store their final local arrays back to external memory, or are output-producing sources/binaries missing from the artifact?
+7. Does decode speed include LM head and token selection?
+8. Why does the `[64:64]` row report `313.44 ms` when `TTFT + 64 / speed` gives `309.12 ms`, while the 32- and 128-token rows satisfy the formula?
+9. What raw Fig. 9 points and aggregation produce `3.54x / 2.03x / 1.23x`? A 12-point reconstruction from Table VI gives about `3.135x / 1.940x / 1.229x`, while the three diagonal total-latency rows alone give `2.169x / 1.486x / 1.138x`.
+10. Why does the public 128-token Makefile target 250 MHz while the paper labels CODO as 300 MHz for all experiments, and what clocks do the retained xclbins actually achieve?
+11. Are the Allo/DFX/StreamTensor values reproduced or transcribed from prior papers, and are all total-latency formulas identical?
+12. Can the current CODO frontend compile Gemma 3 1B or a GGML-extracted region without changing semantics?
+
+## Takeaways For The llama.cpp FPGA Work
+
+1. The current 200k-launch regime must disappear before token/s can be competitive.
+2. Whole-block fusion is an empirically demonstrated target, not just an optimization intuition.
+3. Preserve the GGML backend as the application boundary, but add a graph-region compiler/runtime below it.
+4. Make residency and command batching explicit contracts alongside numerical semantics.
+5. Keep two “end-to-end” columns: model-phase and application request. This gives a fair CODO comparison without weakening the framework-native claim.
+
+## Sources
+
+- [arXiv paper](https://arxiv.org/abs/2604.12618)
+- [Official artifact](https://github.com/sjtu-zhao-lab/codo-artifact)
+- [Official Zenodo snapshot](https://doi.org/10.5281/zenodo.19425920)
+- [StreamTensor](https://arxiv.org/abs/2509.13694)
+- [DFX](https://arxiv.org/abs/2209.10797)
+- [[research/fpga-llm-inference/index]] for the active comparison protocol and project status (folded from the former `end-to-end-evaluation` / `project-status-2026-07` notes, 2026-09-08).
+
+Return to [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]]. See also [[research/fpga-llm-inference/index]].

@@ -1,3 +1,13 @@
+---
+title: ICLR 2026 Orals Index
+domain: research
+area: iclr-2026-oral
+type: overview
+status: active
+updated: 2026-09-08
+tags: [research, iclr-2026, orals, index]
+---
+
 # ICLR 2026 Orals - Complete Index
 
 ## Paper Listings

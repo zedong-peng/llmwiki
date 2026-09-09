@@ -37,6 +37,6 @@ using a different application boundary.
   [public API documentation](https://hanchenye.com/streamtensor/), but its linked
   `hanchenye/streamtensor` GitHub repository returned anonymous web/API 404. An
   accessible official implementation remains unverified; this does not prove
-  nonexistence. See [[research/fpga-llm-inference/manuscript-evidence-recheck-20260908]].
+  nonexistence. See [[research/fpga-llm-inference/index|area index §Manuscript Recheck]].
 
 Return to [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]].

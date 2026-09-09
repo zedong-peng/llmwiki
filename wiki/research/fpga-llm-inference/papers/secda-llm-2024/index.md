@@ -128,5 +128,5 @@ The bibliography places this work after SECDA and SECDA-TFLite; it cites NPE and
 accelerator for hardware context, and llama.cpp/GGML, TinyLlama, Guanaco and PYNQ-Z1 for its application
 and case-study inputs. These citations do not supply missing FPGA phase or accuracy measurements.
 
-See [[research/fpga-llm-inference/feature-level-evidence-matrix]] and return to
+See [[research/fpga-llm-inference/index|area index §Evidence Matrix]] and return to
 [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]].

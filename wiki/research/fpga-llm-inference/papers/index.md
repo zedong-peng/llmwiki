@@ -45,7 +45,7 @@ The resulting cross-paper distinction is summarized in
 cross-token state and KV-specific physical optimization are separate evidence items, as are
 fixed-graph kernel latency and a complete stateful generation request.
 
-The 2026-07-28 additions are selected from the unfiltered union search recorded in [[research/fpga-llm-inference/literature-search-2026-07-28]]; they are not claimed to be manuscript citations.
+The 2026-07-28 additions are selected from the unfiltered six-query union search (241 source records deduplicated to 142; see [[research/fpga-llm-inference/index]] Literature Provenance for method, admission rule and the 15-record table); they are not claimed to be manuscript citations.
 
 The 2026-09-08 update adds [[secda-llm-2024/index|SECDA-LLM]] after reading its full TeX paper and
 bibliography. Its official repository and two exact gitlink dependencies are pinned and archived;

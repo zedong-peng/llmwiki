@@ -33,6 +33,6 @@ useful reference for separating prefill and decode resource/bandwidth behavior.
 - The memory model explicitly buffers K and V and passes them to decode as the KV cache. It uses double buffering and discusses tiling KV on chip; this establishes a cache-aware accelerator design, not a framework-level runtime API.
 - The paper's central lesson is that compute-intensive prefill and bandwidth-intensive decode need different allocation and scheduling choices. Its per-model spatial pipeline is not an unchanged GGML backend.
 - Source-first paper read completed. On 2026-09-08, the paper-linked [Allo repository](repo/allo/) was archived at `8bafb0dcee27c96a72872184d2b106c59c8a1414`; [examples/README.md](repo/allo/examples/README.md) explicitly links this paper and provides a kernel library/HLS-generation path. This does not establish release of the exact complete-generation controller. Dependencies and FPGA execution were not attempted; repository inspection remains partial.
-- The revised [[research/fpga-llm-inference/feature-level-evidence-matrix]] assigns E2E P for phase-level evidence, Multi-model P for analytical additional generative families, and public artifact Src for the kernel library. BERT is not counted as a second generative checkpoint.
+- [[research/fpga-llm-inference/index|Area index §Evidence Matrix]] records phase-level evidence only (E2E —), no new-model entry (—), and kernel-library source (Public source ✓). BERT is not counted as a second generative checkpoint.
 
 Return to [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]].

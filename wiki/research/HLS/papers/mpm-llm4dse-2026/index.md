@@ -1,3 +1,13 @@
+---
+title: "MPM-LLM4DSE: Reaching the Pareto Frontier in HLS with Multimodal Learning and LLM-Driven Exploration"
+domain: research
+area: HLS
+type: paper
+status: processed
+updated: 2026-09-08
+tags: [paper, hls, dse, multimodal, llm, qor-prediction]
+---
+
 # MPM-LLM4DSE: Reaching the Pareto Frontier in HLS with Multimodal Learning and LLM-Driven Exploration
 
 - **arXiv**: [2601.04801](https://arxiv.org/abs/2601.04801v1)
