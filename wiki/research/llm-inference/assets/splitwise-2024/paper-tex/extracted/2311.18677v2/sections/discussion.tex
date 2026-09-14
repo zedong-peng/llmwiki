@@ -1,0 +1,43 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\rev{
+\myparagraph{Extensibility to new models}
+Despite the plethora of model sizes from 2B parameters ~\cite{phi2,zhang2022opt} to 176B parameters~\cite{scao2022bloom} or more~\cite{chatgptapi}, all modern transformer-based generative LLMs have the distinct prompt processing and token generation phases. 
+Similarly, even modifications and flavors like Mixture-of-Experts (MoEs) have these phases.
+Since Splitwise is built solely by exploiting these phases, it is applicable to all of the current and upcoming LLMs, as long as the auto-regressive nature of the workload requires these two phases.
+Note that as shown in \Cref{subsec:exp-workload-changes}, clusters provisioned with Splitwise for one model can also efficiently serve other models. 
+%Supporting MoEs (\eg, Mixtral~\cite{jiang2024mixtral}) may require extending our KV-cache transfer implementation. Smaller models (\eg, Phi-2~\cite{phi2}) benefit from multiple instances per server, which we include in our evaluation of Llama2-70B. 
+}
+
+\rev{
+\myparagraph{Alternative compute hardware}
+In this work, we use NVIDIA H100 and A100 GPUs since they are commonly used for LLM inference in datacenters today~\cite{nvidia_hopperincloud}.
+Smaller datacenter GPUs like NVIDIA T4 lack enough memory to run modern LLMs efficiently.
+In general, our methodology is applicable to any hardware (including CPUs, FPGAs, ASICs~\cite{davidpatterson2019_Domain}) that aligns with the computational requirements of prompt and token phases.
+Our characterization suggests that prompt phases need high compute capability and memory bandwidth with low memory capacity, whereas token phases need moderate compute capability with high memory capacity and bandwidth.
+Thus, GPUs like AMD MI-250~\cite{mi250} and CPUs like Intel Sapphire-Rapids (with HBM)~\cite{sprhbm} could be effective token machines.
+Since we do not have access to such hardware and/or optimized LLM implementations, we leave this to future work.
+}
+%\rev{
+%Since we do not have access to such hardware, we could estimate the performance impact by scaling our profiled results. However, we would be unable to validate our estimates.
+%}
+
+%\myparagraphnodot{What would optimized hardware look like?}
+%Splitwise enables this hardware design space exploration for each phase independently.
+
+\myparagraph{Interconnect between prompt and token machines}
+In this work, we assume Infiniband connection between the prompt and token machines in all the designs (albeit, lower bandwidth when A100s were involved).
+Although this is common for all homogenous machines, Splitwise-HA is not be readily available with an Infiniband connection between H100s and A100s, even though technically feasible.
+The alternative could be HPC clouds, with Infiniband connections through the CPU~\cite{azurehpcvm}, or Ethernet, using RoCE~\cite{roce}.
+Given our optimized KV-cache transfer that helps reduce critical latency, an interconnect with $10\times$ lower bandwidth would likely still be beneficial.
+To further reduce our bandwidth utilization, we could also compress the KV-cache before transferring it across the network~\cite{liu2023deja}.
+
+\myparagraph{Heterogeneous prompt/token machines}
+Although Splitwise is robust to varied models and input traces, we recognize that fragmenting a data center with different types of GPUs (\eg, Splitwise-HA) may bring its own challenges for the CSP.
+
+\myparagraph{Conversation back and forth}
+Chat APIs for LLMs today require the user to send the complete context of the conversation so far~\cite{chatgptapi}.
+However, in the future, services may have enough GPU capacity to cache the context and avoid recomputation.
+This could sway the memory utilization pattern of the prompt phase from our characterization.
+Furthermore, it may require transferring the KV-cache back to a prompt machine to be ready for the next conversation request.

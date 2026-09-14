@@ -3,7 +3,7 @@ title: Research Index
 domain: research
 type: overview
 status: active
-updated: 2026-07-22
+updated: 2026-09-14
 tags: [research, index]
 ---
 # Research Index
@@ -20,6 +20,7 @@ tags: [research, index]
 | HLS   | [[HLS/index]]   | HLS QoR 预测与设计空间探索（GNN/LLM 方法） |
 | LoRA Training Opt | [[lora-training-opt/index]] | 单卡 LoRA 训练加速（Unsloth 对照与超越方向） |
 | ICLR 2026 Oral | [[iclr-2026-oral/index]] | ICLR 2026 oral 列表 |
+| LLM Inference | [[llm-inference/index]] | vLLM/SGLang、Attention kernels、KV、调度、PD分离、speculation与量化 |
 | Misc             | [[misc/index]]             | 未归类论文缓冲区                                                |
 
 ## Log

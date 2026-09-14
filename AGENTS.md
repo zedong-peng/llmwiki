@@ -14,6 +14,12 @@ Build a persistent, interlinked knowledge base across:
 
 The wiki should compound over time. Do not merely answer a question in chat when the result is durable; file useful synthesis back into `wiki/`.
 
+## Maintenance Location
+
+- The Mac workspace at `/Users/pengzedong/Documents/Workspace/llmwiki` is the only maintained working copy.
+- Push durable updates to the GitHub origin. Do not recreate or maintain a second wiki checkout on the FPGA server.
+- FPGA experiments may run remotely; write their durable wiki records in the Mac workspace.
+
 ## Directory Structure
 
 ```text

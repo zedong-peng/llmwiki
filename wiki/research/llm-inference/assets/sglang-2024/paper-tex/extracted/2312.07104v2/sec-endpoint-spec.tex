@@ -1,0 +1,11 @@
+\section{Efficient Endpoint Calling with API Speculative Execution}
+\label{sec:endpoint_speculative}
+
+The previous sections introduced optimizations for open-weight models, which require modifications to the model inference process. Additionally, \lang works with API-access-only models, such as OpenAI's GPT-4. However, for these models, we can only call a black-box API endpoint.
+
+This section introduces a new optimization for black-box API models that accelerates execution and reduces the API cost of multi-call \lang programs using speculative execution. For example, a program may ask the model to generate a description of a character with a multi-call pattern: \texttt{s += context + "name:" + gen("name", stop="\textbackslash n") + "job:" + gen("job", stop="\textbackslash n")}. Naively, the two \texttt{gen} primitives correspond to two API calls, meaning that the user needs to pay for the input token fee on the \texttt{context} twice.
+In \lang, we can enable speculative execution on the first call and let it continue the generation of a few more tokens by ignoring the stop condition.
+The interpreter keeps the additional generation outputs and matches and reuses them with later primitives.
+In certain cases, with careful prompt engineering, the model can correctly match the template with high accuracy, saving us the latency and input costs of one API call.
+
+

@@ -1,0 +1,77 @@
+\section{Background}
+\label{sec:background}
+
+LLMs stack multiple transformer blocks~\cite{attentionpaper} as their key architectural module. This section provides a brief summary of transformers and the inference procedure of LLMs.
+
+\subsection{The Transformer Architecture}
+\label{sec:background:arch}
+
+Transformer models decompose an input query into tokens. Each of these tokens is represented by an embedding vector of dimension $h$, where $h$ is known as the embedding (or hidden) size of the model.
+
+\noindent{\bf Self-attention module:} The self-attention module first transforms each input token via a linear transformation \attnpreproj to obtain Q (query), $K$ (key) and $V$ (value).
+Next, the \attn operator computes a semantic relationship among all tokens of a sequence. This involves computing a dot-product of each $Q$ vector with $K$ vectors of all preceding tokens of the sequence, followed by a softmax operation to obtain a weight vector, which is then used to compute a weighted average of the $V$ vectors. This attention computation can be performed across multiple \textit{heads}, whose outputs are combined using another linear transformation \attnpostproj. 
+
+\noindent{\bf Feed-forward network (FFN):}
+This module consists of two linear transformations with a non-linear activation in between. The first linear layer, \ffnlnfirst, transforms an input token embedding of dimension $h$ to a higher dimension $h2$. This is followed by the activation function, typically ReLU or GELU. Finally, the second linear layer, \ffnlnsecond, transforms the token embedding back to the original dimension $h$. Note that these transformation are applied to each token of the sequence and are implemented as matrix-matrix (or vector-matrix) operations.
+
+\noindent{\bf Other operators:} These include layer normalization, activation and residual connections. We do not discuss them in this paper as they consume only a small fraction of the overall execution time of a transformer block. \autoref{table:tensor:shapes} shows the shapes of the input, output and weight tensors of the major operators in a transformer block. 
+
+\noindent{\bf Memory requirement:} The attention computation for each new token depends on the key ($K$), and value ($V$) tensors of all prior tokens in the sequence. To avoid recomputing $K$ and $V$ of all tokens in every iteration, most implementations cache them in GPU memory (known as KV-cache). The KV-cache size scales as $2*h*t$, where $t$ is the total number of tokens of all requests in the system, which directly depends on the context lengths of the requests and the batch size. The remaining memory is taken up by the model parameters and the intermediate activations (typically small as it can be freed after each layer). The maximum batch-size is thus determined primarily by the size of the KV-cache. As a result many recent techniques have been proposed to reduce the KV-cache size, such as multi-query attention~\cite{multiqueryattention}, grouped-query attention~\cite{groupedqueryattention}, sliding window attention~\cite{longformer} and Heavy-Hitters based attention~\cite{heavyhitters}.
+
+
+
+
+
+
+\begin{table}[t]
+\center
+\scalebox{0.8}{
+\begin{tabular}{r|2|rrr}
+\multirow{2}{*}{\textbf{Operator}} & \multirow{2}{*}{\textbf{Type}} & \multicolumn{3}{c}{\textbf{Tensor shapes}} \\ \cline{3-5}
+ & & Input & Weight & Output \\ \hline
+\attnpreproj & linear & $[L, h]$ & $[h, h]$ & $[L, h]$ \\
+\attn (prefill) & non-linear & $[l_i, h]$ & - & $[l_i, h]$ \\
+\attn (decode) & non-linear & $ [1, h]$ & - & $[1, h]$ \\
+\attnpostproj & linear & $[L, h]$ & $[h, h]$ & $[L, h]$ \\
+\ffnlnfirst & linear & $[L, h]$ & $[h2, h]$ & $[L, h2]$ \\
+\ffnlnsecond & linear & $[L, h2]$ & $[h, h2]$ & $[L, h]$ \\ \hline
+\end{tabular}}
+
+\caption{Shapes of the input, weight, and output tensors in a transformer decoder block with iteration-level scheduling. $h$ and $h2$ denote the model's primary and secondary hidden dimensions. $l_i$ denotes the sequence length of $i^{th}$ request in the batch whereas $L$ denotes the input tokens of all requests in the batch. If batch size is $B$, then $L$=$B$ during decode since each request processes one token in a decode iteration.}
+\label{table:tensor:shapes}
+\end{table}
+
+\subsection{Inference Procedure}
+\label{sec:background:prefill:decode}
+LLM inference consists of two distinct phases -- a \textit{prefill} phase followed by a \textit{decode} phase.
+
+\noindent{\bf Prefill:} This phase processes the entire input prompt and produces the first output token. Since all tokens in the input prompt are processed in parallel, this phase is able to effectively saturate GPU compute and is very efficient. %
+
+
+\noindent{\bf Decode:} This phase follows the \textit{prefill} phase, and generates tokens autoregressively, where the token generated in the previous step is passed through the model to generate the next token. This proceeds until a special \textit{end-of-sequence} token is generated at which point the request processing is complete. Since a \textit{decode} iteration process only a \textit{single} token for a request, it is unable to saturate GPU compute. This makes the \textit{decode} phase very inefficient unless run at a very high batch size.
+
+
+
+
+Multiple requests can be batched in a single iteration to improve the execution efficiency. Since the linear operations (\attnpreproj, \attnpostproj, \ffnlnfirst, \ffnlnsecond) are applied to each token independently, all token embedding vectors can be concatenated to form a matrix which can be multiplied with the linear operator's matrix via a matrix-matrix multiplication which is much more efficient than performing individual vector-matrix multiplications for each token. Note that we can combine tokens within requests (in case of prefill) as well as across requests for these operations. While \attn can also be batched, doing so is less useful because it is a memory-bound operator~\cite{orca,flashattention}. 
+
+
+\noindent{\bf Inference Scheduling:} An LLM inference scheduler has to take multiple things into account. First, the requests go through the two distinct \textit{prefill} and \textit{decode} phases. Second, the processing duration of a request cannot be determined at arrival time as the \textit{decode} phase lasts until the special \textit{end-of-sequence} token is generated. Conventional inference engines like FasterTransformer~\cite{fastertransformer} perform request-batching based scheduling \ie they pick a batch of requests and execute it until \textit{all} requests in the batch complete. While this approach reduces the operational complexity of the scheduling framework, it leads to inefficient resource utilization. Shorter requests in a batch have to be padded to match the length of the longest request which results in wasteful compute. Alternatively, iteration-level scheduling has been proposed in more recent systems like Orca~\cite{orca}, vLLM~\cite{vLLM:github}, and HuggingFace TGI ~\cite{hftgi}, where requests can dynamically enter and exit a batch after each new batch of tokens are generated. Upon entering an already running batch, a newly arrived request first computes its prefill phase before entering the decode phase. Therefore, with iteration-level scheduling, prefill and decode phases get interleaved.%
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\subsection{Latency Metrics}
+\label{subsec:latency_metrics}
+Most LLM applications, e.g. ChatGPT~\cite{chatgpt}, claude.ai~\cite{claudeai}, Bing AI~\cite{bingai}, etc. follow the streaming model for request response, where tokens are streamed to the user as they are generated. In this context, there are two primary latency metrics of interest: TTFT (time-to-first-token) and TBT (time-between-tokens). For a given request, TTFT measures the latency of generating the first output token from the moment a request arrives in the system. This metric reflects the initial responsiveness of the model. TBT on the other hand measures the interval between the generation of consecutive tokens of a request, and affects the overall perceived fluidity of the response. In this paper, we will discuss how different scheduling strategies can impact TTFT and TBT. While existing systems~\cite{orca,vllmsosp,hftgi} optimize mainly for TTFT or may require making tradeoffs between the two metrics, \sysname can allow us to achieve low values of both TTFT and TBT simultaneously. In this paper, we focus on the median value for the TTFT since this metric is obtained only once per user request and on the 99th percentile (p99) for TBT values since every decode token results in a TBT latency value.
+

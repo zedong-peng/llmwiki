@@ -1,0 +1,88 @@
+\section{Background}
+\label{sec:background}
+
+In this section, we describe the typical LLM model architecture along with their auto-regressive inference process. We also provide an overview of the scheduling policies and important performance metrics.
+
+\subsection{The Transformer Architecture}
+\label{sec:background:llm-architecure}
+
+Popular large language models, like, GPT-3 \cite{gpt3}, \llama \cite{touvron2023llama}, Yi \cite{yi} etc. are decoder-only transformer models trained on next token prediction tasks. These models consist of a stack of layers identical in structure. Each layer contains two modules -- self-attention and feed-forward network (FFN).
+
+
+\noindent{\bf Self-attention module:} The self-attention module is central to the transformer architecture~\cite{attentionpaper}, enabling each part of a sequence to consider all previous parts for generating a contextual representation. During the computation of self-attention, first the Query ($Q$), Key ($K$) and Value ($V$) vectors corresponding to each input token are obtained via a linear transformation. Next, the \attn operator computes a semantic relationship among all tokens of a sequence. This involves computing a dot-product of each $Q$ vector with $K$ vectors of all preceding tokens of the sequence, followed by a softmax operation to obtain a weight vector, which is then used to compute a weighted average of the $V$ vectors. This attention computation can be performed across multiple \textit{heads}, whose outputs are combined using a linear transformation. 
+
+\noindent{\bf Feed-forward network (FFN):} FFN typically consists of two linear transformations with a non-linear activation in between. The first linear layer transforms an input token embedding of dimension $h$ to a higher dimension $h2$. This is followed by an activation function, typically ReLU or GELU~\cite{relu2019,gelu2023}. Finally, the second linear layer, transforms the token embedding back to the original dimension $h$.
+
+
+\subsection{LLM Inference Process}
+\label{sec:background:inference-process}
+
+\noindent{\bf Autoregressive decoding:} LLM inference consists of two distinct phases -- a \prefill phase followed by a \decode phase. The prefill phase processes the user's input prompt and produces the first output token. Subsequently, the decode phase generates output tokens one at a time wherein the token generated in the previous step is passed through the model to generate the next token until a special \textit{end-of-sequence} token is generated. Note that the decode phase requires access to all the keys and values associated with all the previously processed tokens to perform the attention operation. To avoid repeated recomputation, contemporary LLM inference systems store activations in KV-cache~\cite{megatron,orca,fastertransformer}.
+
+A typical LLM prompt contains 100s-1000s of input tokens \autoref{table:eval:datasets}, ~\cite{zheng2023lmsyschat1m}. During the prefill phase all these prompt tokens are processed in parallel in a single iteration. The parallel processing allows efficient utilization of GPU compute. On the contrary, the decode phase involves a full forward pass of the model over a single token generated in the previous iteration. This leads to low compute utilization making decodes memory-bound.
+
+
+
+\noindent{\bf Batched LLM inference in multi-tenant environment:} A production serving system must deal with concurrent requests from multiple users. Naively processing requests in a sequential manner leads to a severe under-utilization of GPU compute. In order to achieve higher GPU utilization, LLM serving systems leverage batching to process multiple requests concurrently. This is particularly effective for the decode phase processing which has lower computational intensity at low batch sizes. Higher batch sizes allows the cost of fetching model parameters to be amortized across multiple requests.
+
+\if
+On the contrary, prefill phase of each request contains sufficient number of token to saturate GPU compute, which renders batching ineffective. \autoref{fig:background:tput} illustrates throughput as a function of batch size, and we can observe that while for decode iterations throughput increases almost linearly with batch size, prefill throughput almost saturates even with a single request.
+
+\noindent{\bf Takeaway-1:} \textit{The two phases of LLM inference -- prefill and decode -- demonstrate contrasting behaviors wherein batching boosts decode phase throughput immensely but has little effect on prefill throughput.}
+\fi
+
+Recently, several complementary techniques have been proposed to optimize throughput by enabling support for larger batch sizes. Kwon et al.  propose PagedAttention~\cite{vllmsosp}, which allows more requests to concurrently execute, eliminating fragmentation in \textit{KV-cache}. The use of Multi Query Attention (MQA) \cite{multiqueryattention}, Group Query Attention (GQA) \cite{groupedqueryattention} in leading edge LLM models like \llama{}2 \cite{touvron2023llama}, Falcon \cite{almazrouei2023falcon} and Yi \cite{yi} has also significantly helped in alleviating memory bottleneck in LLM inference. For instance, \llamaL model has a 8\myx smaller KV-cache footprint compared to \llama-65B.
+
+
+\input{algos/req-sched}
+\input{algos/iter-sched}
+
+\subsection{Multi-GPU LLM Inference}
+\label{sec:background_multi_GPU_inference}
+With ever-increasing growth in model sizes, it becomes necessary to scale LLMs to multi-GPU or even multi-node deployments~\cite{efficiently-scaling-transformer-inference,multinodeinferenceblog}. Furthermore, LLM inference throughput, specifically that of the decode phase is limited by the maximum batch size we can fit on a GPU. Inference efficiency can therefore benefit from model-parallelism which allows larger batch sizes by sharding model weights across multiple GPUs. Prior work has employed both tensor-parallelism (TP)~\cite{megatron} and pipeline-parallelism (PP)~\cite{orca, fastertransformer, fastserve} for this purpose.
+
+
+TP shards each layer across the participating GPUs by splitting the model weights and KV-cache equally across GPU workers. This way, TP can linearly scale per-GPU batch size. However, TP involves a high communication cost due to two all-reduce operations per layer -- one in attention computation and the other in FFN~\cite{megatron}. Moreover, since these communication operations are in the critical path, TP is preferred only within a single node where GPUs are connected via high bandwidth interconnects like NVLink.
+
+
+Compared to TP, PP splits a model layer-wise, where each GPU is responsible for a subset of layers. To keep all GPUs in the `pipeline' busy, \textit{micro-batching} is employed. These micro-batches move along the pipeline from one stage to the next at each iteration. PP has much better compute-communication ratio compared to TP, as it only needs to send activations once for multiple layers of compute. Furthermore, PP requires communication only via point-to-point communication operations, compared to the more expensive allreduces in TP. Thus, PP is more efficient than TP when high-bandwidth interconnects are unavailable \eg in cross-node deployments.
+
+
+
+\subsection{Performance Metrics}
+\label{subsec:perf_metrics}
+There are two primary latency metrics of interest for LLM serving: TTFT (time-to-first-token) and TBT (time-between-tokens). For a given request, TTFT measures the latency of generating the first output token from the moment a request arrives in the system. This metric reflects the initial responsiveness of the model. TBT on the other hand measures the interval between the generation of consecutive output tokens of a request, and affects the overall perceived fluidity of the response. When system is under load, low throughput can lead to large scheduling delays and consequently higher TTFT. 
+
+In addition, we use a throughput metric, \textit{Capacity}, defined as the maximum request load (queries-per-second) a system can sustain while meeting certain latency targets. Higher capacity is desirable because it reduces the cost of serving. 
+
+
+
+
+
+
+
+
+\subsection{Scheduling Policies for LLM Inference}
+The scheduler is responsible for admission control and batching policy. For the ease of exposition, we investigate existing LLM inference schedulers by  broadly classifying them under two categories -- \prefillprio and \decodeprio.
+
+
+
+Conventional inference engines like FasterTransformer~\cite{fastertransformer}, Triton Inference Server~\cite{triton-batch} use \decodeprio schedules with \rls \ie they pick a batch of requests and execute it until \textit{all} requests in the batch complete (\autoref{alg:request_level}). 
+This approach reduces the operational complexity of the scheduling framework but at the expense of inefficient resource utilization. Different requests in a batch typically have a large variation in the number of input and output tokens. Request-level schedulers pad shorter requests with zeros to match their length with the longest request in the batch which results in wasteful compute and longer wait times for pending requests~\cite{orca}.
+
+
+
+To avoid wasted compute of \rls, Orca~\cite{orca} introduced a fine-grained \ils mechanism where requests can dynamically enter and exit a batch after each model iteration.(\autoref{alg:iteration_level}). 
+This approach can significantly increase system throughput and is being used in many LLM inference serving systems today \eg vLLM \cite{vLLM:github}, TensorRT-LLM \cite{tensorrtllm:github}, and LightLLM \cite{lightllm:github}.
+
+Current \ils systems such as vLLM \cite{vLLM:github} and Orca \cite{orca} use \prefillprio schedules that eagerly admit new requests in a running batch at the first available opportunity, e.g., whenever GPU memory becomes available. Prioritizing prefills can improve throughput because it increases the batch size of subsequent decode iterations.
+
+
+
+
+
+
+
+
+
+

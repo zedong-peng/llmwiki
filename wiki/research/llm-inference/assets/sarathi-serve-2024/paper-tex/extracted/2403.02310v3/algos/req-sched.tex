@@ -1,0 +1,21 @@
+\algrenewcommand\algorithmicindent{1em}
+\begin{algorithm}[t!]
+\caption{\Rls. New requests are admitted only if there are no decodes left (line 3). This optimizes TBT but wastes GPU compute in many decode-only iterations (line 10) with potentially small batch sizes.}
+\label{alg:request_level}
+\begin{algorithmic}[1]
+\State Initialize current batch $B \leftarrow \emptyset$
+\While{True}
+    \If{$B = \emptyset$} %
+        \State $R_{new} \leftarrow$ get\_next\_request()
+       \While{can\_allocate\_request($R_{new}$)}
+            \State $B \leftarrow B + R_{new}$
+            \State $R_{new} \leftarrow$ get\_next\_request()
+        \EndWhile
+        \State prefill($B$)
+    \Else
+        \State decode($B$)
+        \State $B \leftarrow$ filter\_finished\_requests($B$)
+    \EndIf
+\EndWhile
+\end{algorithmic}
+\end{algorithm}

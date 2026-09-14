@@ -1,0 +1,49 @@
+\section{Introduction}
+\label{sec:introduction}
+
+Large language models (LLMs), such as GPT-4~\cite{openai2023gpt4}, Bard~\cite{bard}, and LLaMA~\cite{touvron2023llama}, represent a groundbreaking shift in generative AI. They start to reshape existing Internet services, ranging from search engines to personal assistants~\cite{inflection}, and enable fundamentally new applications, like universal chatbots~\cite{chatgpt,vicuna2023} and programming assistants~\cite{chen2021evaluating,roziere2023code}. Yet, these advances come with a significant challenge: processing an end-to-end LLM query can be substantially slower than a standard search query~\cite{chat-cost}. In order to meet the stringent latency requirements of various applications, service providers need to over-provision compute resources, particularly many GPUs, leading to a shortfall in cost efficiency. Therefore, optimizing the cost per LLM query while adhering to high \textit{SLO attainment} (the proportion of requests that meet the SLOs) is becoming increasingly essential for all LLM services.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.8\columnwidth]{figures/teaser.pdf}
+    \vspace{-10pt}
+    \caption{
+    Performance when serving an LLM with 13B parameters under a synthetic workload with input length = 512 and output length = 64 on one NVIDIA 80GB A100. \textit{Upper}: The P90 time-to-first-token (TTFT) latency comparing existing systems vs. a system serving only the prefill phase. \textit{Down}: The P90 time-per-output-token (TPOT) latency comparing existing systems vs. a system serving only the decoding phase.}
+    \label{fig:teaser}
+    \vspace{-15pt}
+\end{figure}
+
+An LLM service responds to a user query in two phases. The \emph{prefill phase} processes a user's prompt, composed of a sequence of tokens, to generate the first token of the response \emph{in one step}. Following it, the \emph{decoding phase} sequentially generates subsequent tokens \emph{in multiple steps}; each decoding step generates a new token based on tokens generated in previous steps, until reaching a termination token.
+This dual-phase process distinguishes LLM services from traditional services
+-- an LLM service's latency is uniquely measured by two key metrics: the \emph{time to first token} (TTFT), which is the duration of the prefill phase, and the \emph{time per output token} (TPOT), which represents the average time taken to generate a token for each request (except for the first token)\footnote{The overall request latency equals TTFT plus TPOT times the number of generated tokens in the decoding phase.}. 
+Different applications place varying demands on each metric. For example, real-time chatbots~\cite{chatgpt} prioritize low TTFT for response promptness, while TPOT only remains important until it is faster than human reading speed (i.e., 250 words/min).
+Conversely, document summarization emphasizes low TPOT for faster generation of the summary.
+
+Hence, given the application's TTFT and TPOT requirements, an effective LLM serving system should balance these needs and maximize \emph{per-GPU goodput}, defined as the maximum request rate that can be served adhering to the SLO attainment goal (say, 90\%) for each GPU provisioned -- higher per-GPU goodput directly translates into lower cost per query.
+
+As the prefill and decoding phases share the LLM weights and working memory,
+existing LLM serving systems typically colocate both phases on GPUs and maximize the overall system throughput  -- tokens generated per second across all users and requests -- by batching the prefill and decoding steps across requests~\cite{yu2022orca,kwon2023efficient}. However, to meet latency requirements, we find these systems must over-provision compute resources. To see this, Figure~\ref{fig:teaser} illustrates how the P90 TTFT and TPOT shift with increasing request rates when serving a 13B LLM using existing systems~\cite{vllm}, with workload pattern and two latency constraints set to emulate using LLM to generate a short summary for an article. Under the SLO attainment of 90\%, the maximum achievable goodput on a single A100 GPU, which is constrained by the more stringent one of TTFT and TPOT requirements, is about 1.6 requests per second (rps). 
+The performance contrasts sharply when each phase is served independently on a separate GPU, shown by the orange and green curves, which achieve per-GPU goodput of 5.6 rps for the prefill phase and 10 rps for decoding. Ideally, by allocating 2 GPUs for prefill and 1 GPU for decoding, we can effectively serve the model with an overall goodput of 10 rps, or equally 3.3 rps per GPU, which is 2.1x higher than existing systems.
+The gap in goodput primarily stems from the colocation of the prefill and decoding  -- two phases with very distinct computational characteristics and latency requirements (\S\ref{sec:llm-inference}).
+
+First, colocation leads to strong \emph{prefill-decoding interference}.
+A prefill step often takes much longer than a decoding step. When batched together, decoding steps in the batch are delayed by the prefill steps, significantly elongating their TPOT; similarly, the inclusion of decoding steps contributes to a non-trivial increase in TTFT, as evidenced in Figure~\ref{fig:interference}.
+Even if we schedule them separately, issues persist as they begin to compete for resources. Decoding tasks awaiting GPU execution are subject to increased queuing delays due to ongoing prefill tasks, and vice versa. Prioritized scheduling of one phase risks failing the latency requirements of the other.
+
+Second, the prefill and decoding computation differ in latency requirements and preference for different forms of parallelism (\S\ref{sec:tradeoff}). Colocating prefill and decoding, however, couples their resource allocation, and prevents implementing different parallelism strategies more suited to meeting the specific latency requirements of each phase. 
+
+To overcome these challenges, we propose to disaggregate the prefill and decoding phases of LLM inference, assigning them to separate GPUs. Our approach has two benefits.
+First, operating each phase independently on different GPUs eliminates prefill-decoding interference. Second, it allows to scale each phase independently with tailored resource allocation and model parallelism strategies to meet their specific latency requirements.
+Although disaggregation causes communication of intermediate states between GPUs, we show that the communication overhead is insubstantial (\S\ref{subsec:practical_problems}) in modern GPU clusters, and when managed appropriately, disaggregation significantly improves per-GPU goodput. 
+
+Based on the above insights, in this work, we build \sys\footnote{\revision{\href{https://github.com/LLMServe/DistServe}{https://github.com/LLMServe/DistServe}}}, a goodput-optimized LLM serving system by disaggregating the prefill and decoding phases. Given TTFT and TPOT requirements, \sys first scales each phase independently by co-optimizing the GPU allocation and parallelism strategies of the prefill and decoding phase assuming serving a single model replica. The optimization ensures maximizing the per-GPU goodput and may assign different numbers of GPUs and parallelism strategies to each phase depending on their respective latency requirements. \sys then scales this allocation to multiple instances via replication until meeting the user-required traffic rate (\S\ref{sec:method}). 
+\sys also features an algorithm to place the prefill and decoding computation according to their allocation schemes and the cluster's bandwidth to minimize the overhead of communicating intermediate states between phases.
+
+We implement \sys as an orchestration layer on top of the LLM inference engine. We
+evaluate \sys on various LLMs, varying the workloads based on three important real-world LLM applications: chatbots, programming assistant, and document summary. Compared to state-of-the-art solutions, \sys can serve up to $7.4\times$ more requests or $12.6\times$ tighter SLO under various latency constraints. Our contributions are:
+
+\begin{itemize}
+    \item Identify the problems of prefill-decoding interference and resource coupling in existing LLM serving systems and propose to disaggregate the two phases.
+    \item Design a novel placement algorithm to choose the goodput-optimal schema for prefill and decoding instances automatically.
+    \item Conduct a comprehensive evaluation of \sys with realistic workloads.
+\end{itemize}

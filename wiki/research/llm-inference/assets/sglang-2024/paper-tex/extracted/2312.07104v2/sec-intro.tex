@@ -1,0 +1,68 @@
+\section{Introduction}
+\label{sec:intro}
+
+Recent increases in the capabilities of LLMs have broadened their utility, enabling them to tackle a wider range of general tasks and act as autonomous agents~\cite{openai2023gpt4,bubeck2023sparks,Park2023GenerativeAgents,wang2023voyager,sumers2023cognitive}.
+In such applications, LLMs engage in multi-round planning, reasoning, and interaction with external environments.
+This is accomplished through tool usage~\cite{schick2023toolformer,patil2023gorilla}, multiple input modalities~\cite{team2023gemini,alayrac2022flamingo}, and a wide range of prompting techniques~\cite{liu2023prompting}, like few-shot learning~\cite{brown2020language},
+self-consistency~\cite{wang2022self}, skeleton-of-thought~\cite{ning2024skeletonofthought}, and tree-of-thought~\cite{yao2023tree}.
+All of these new use cases require multiple, often dependent, LLM generation calls, showing a trend of using multi-call structures to complete complex tasks~\cite{yao2022react,kim2023llm}.
+
+The emergence of these patterns signifies a shift in our interaction with LLMs, moving from simple chatting to a more sophisticated form of programmatic usage of LLMs, which means using a program to schedule and control the generation processes of LLMs. We refer to these programs as "Language Model Programs" (LM Programs)~\cite{beurer2023lmql,khattab2023dspy}.
+The advanced prompting techniques and agentic workflow mentioned above fall within the scope of LM programs.
+There are two common properties of LM programs:
+(1) LM programs typically contain multiple LLM calls interspersed with control flow.  This is needed to complete complex tasks and improve overall quality.
+(2) LM programs receive structured inputs and produce structured outputs.  This is needed to enable the composition of LM programs and to integrate LM programs into existing software systems.
+
+Despite the widespread use of LM programs, current systems for expressing and executing them remain inefficient. We identify two primary challenges associated with the efficient use of LM programs:
+\textit{First, programming LM programs is tedious and difficult due to the non-deterministic nature of LLMs.} 
+Developing an LM program often requires extensive string manipulation, experimental tuning of prompts, brittle output parsing, 
+handling multiple input modalities,
+and implementing parallelism mechanisms. 
+This complexity significantly reduces the readability of even simple programs (\autoref{sec:programming_model}).
+
+\textit{Secondly and importantly, executing LM programs is inefficient due to redundant computation and memory usage}. 
+State-of-the-art inference engines (e.g., vLLM~\cite{kwon2023vllm}, TGI~\cite{tgi}, and TensorRT-LLM~\cite{nvidia_tensorrt_llm}), have been optimized to reduce latency and improve throughput without direct knowledge of the workload.  
+This makes these systems general and robust but also results in significant inefficiencies for any given workload.
+A prominent example is the reuse of the Key-Value (KV) cache (\autoref{sec:radix_attention}). The KV cache consists of reusable intermediate tensors that are essential for generative inference. 
+During typical batch executions of LM programs, numerous opportunities exist to reuse the KV cache across multiple different LLM calls that share a common prefix. 
+However, current systems lack effective mechanisms to facilitate this reuse, resulting in unnecessary computations and wasted memory.
+Another example is constrained decoding for structured outputs (e.g., JSON mode), where the output of LLMs is restricted to follow specific grammatical rules defined by a regular expression (\autoref{sec:compressed-fsm}). 
+Under these constraints, multiple tokens can often be decoded once. However, existing systems only decode one token at a time, leading to suboptimal decoding speeds.
+
+
+\begin{figure}[t]
+\centering
+\vspace{-2.5em}
+\includegraphics[width=0.95\linewidth]{figures/architecture.pdf}
+\vspace{-0.5em}
+\caption{System architecture: An interpreter executes language primitives with optimized runtime.}
+\vspace{-1.5em}
+\label{fig:architecture}
+\end{figure}
+
+To address these challenges, we present \lang, a \underline{S}tructured \underline{G}eneration \underline{Lang}uage for LLMs.
+The core idea is to systematically exploit the multi-call structure in LM programs for efficient execution.
+As shown in \autoref{fig:architecture}, it has two parts: a front-end language and a back-end runtime.
+The front-end simplifies the programming of LM programs, and the runtime accelerates their execution.
+The two parts can work together for better performance but can also function independently.
+
+We introduce \lang as a domain-specific language embedded in Python. It provides primitives for generation (e.g., \texttt{extend}, \texttt{gen}, \texttt{select}) and parallelism control (e.g., \texttt{fork}, \texttt{join}). \lang is compatible with Python's control flow and libraries, so users can develop advanced prompting workflows easily with native Python syntax. We provide an interpreter and a compiler for \lang. The interpreter manages the prompt state as a stream and submits primitive operations to the stream for asynchronous execution, ensuring proper control over synchronization and intra-program parallelism.
+Additionally, \lang program can be traced and compiled for more optimizations.
+
+On the runtime side, we propose several novel optimizations to accelerate the execution of \lang programs. \textit{The first technique}, RadixAttention, enables the automatic reuse of the KV cache across multiple generation calls. In existing inference engines, the KV cache of a request is discarded after processing is completed, preventing the KV cache from being reused across multiple calls and significantly slowing down the execution. Instead, our system maintains an LRU cache of the KV cache for all requests within a radix tree. This approach manages the KV cache as a traditional cache and uses a radix tree for efficient matching, insertion, and eviction. It allows the runtime to handle various reuse patterns with a cache-aware scheduling policy efficiently.
+\textit{The second technique} is a compressed finite state machine, which enables faster constrained decoding for structured outputs. Existing systems follow the constraints only for the next token by masking probabilities of disallowed tokens, making them able to decode only one token at a time. Instead, our system analyzes the constraints and builds a compressed finite-state machine to represent the constraint. This approach compresses a multi-token path into a single-step path whenever possible, allowing the decoding of multiple tokens at once to achieve faster decoding speed.
+Lastly, \lang also supports API-only models like OpenAI's GPT-4, and we introduce \textit{the third technique}, API speculative execution, to optimize multi-call programs for API-only models.
+
+Using \lang, we implemented various LLM applications, including agent control, logical reasoning, few-shot learning benchmarks, JSON decoding, retrieval-augmented generation pipelines, multi-turn chat, and multi-modality processing. We tested the performance on models including Llama-7B/70B~\cite{touvron2023llama2}, Mistral-8x7B~\cite{jiang2024mixtral}, LLaVA-v1.5-7B (image)~\cite{liu2024llavanext}, and LLaVA-NeXT-34B (video)~\cite{zhang2024llavanextvideo} on NVIDIA A10G and A100 GPUs. Experimental results show that \lang achieves up to $6.4\times$ higher throughput across a wide range of workloads, models, and hardware setups, compared to existing programming and inference systems, including Guidance~\cite{guidance}, vLLM~\cite{kwon2023vllm}, and LMQL~\cite{beurer2023lmql}.
+
+
+
+
+
+ 
+
+
+
+
+
+

@@ -1,0 +1,23 @@
+\algrenewcommand\algorithmicindent{1em}
+\begin{algorithm}[t!]
+\caption{\Ils (vLLM). Prefills are executed eagerly (lines 8-9), potentially introducing a generation stall for ongoing decodes (line 12).}
+\label{alg:iteration_level}
+\begin{algorithmic}[1]
+\State Initialize current batch $B \leftarrow \emptyset$
+\While{True}
+    \State $B_{new} \leftarrow \emptyset$
+    \State $R_{new} \leftarrow$ get\_next\_request()
+    \While{can\_allocate\_request($R_{new}$)}
+        \State $B_{new} \leftarrow B_{new} + R_{new}$ 
+        \State $R_{new} \leftarrow$ get\_next\_request()
+    \EndWhile
+    \If{$B_{new} \neq \emptyset$}
+        \State prefill($B_{new}$) %
+        \State $B \leftarrow B + B_{new}$
+    \Else
+        \State decode($B$) %
+    \EndIf
+    \State $B \leftarrow$ filter\_finished\_requests($B$)
+\EndWhile
+\end{algorithmic}
+\end{algorithm}

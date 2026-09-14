@@ -1,0 +1,37 @@
+\section{Related Work}
+\label{sec:related}
+
+\rev{
+%Splitwise is specialized to the phased behavior of generative LLM inference.
+%Several prior works on heterogeneous workloads and hardware in the field of scheduling.
+
+\myparagraph{Heterogeneous scheduling and dataflow systems}
+Prior work has studied heterogeneous scheduling for a variety of interactive services~\cite{zhang2019_MArk,patel2023hybrid,romero2019_INFaaS}.
+These works exploit hardware heterogeneity to strike a balance between different objectives such as cost, energy, and performance.
+However, they run the entire workload on the same machine.
+Research on heterogeneous multiprocessor CPU scheduling attempts to match workload heterogeneity to hardware heterogeneity~\cite{haque2015few,van2012scheduling,haque2017fasttoslow,kumar2003single,yang2017powerchief,chen2009efficient}.
+These works use profiling or online monitoring with metrics like request length or hardware performance counters to identify workload phases and allocate them appropriately on heterogeneous processors.
+However, they do not consider the complexities with batching.
+%
+%Splitwise exploits the known two-phase structure of LLM inference requests and relies on profile-guided heuristics to support efficient batching for requests either in the same or in different phases. 
+%\myparagraph{Distributed systems}
+Distributed dataflow systems orchestrate large-scale computational graphs and aim to provide general-purpose programmability~\cite{dean2008mapreduce,isard2007dryad,shvachko2010hadoop,zaharia2012resilient}.
+LLM inference under Splitwise can be viewed as a static computational graph with two stages, so it could be implemented using distributed frameworks that provide efficient GPU abstractions~\cite{moritz2018ray}.
+Splitwise differs from these works since it uses a specialized two-phase design for generative LLM inference and leverages phase-aware resource management with efficient batching. 
+
+\myparagraph{Model serving systems}
+LLM inference serving is a rapidly developing field, with several recent works optimizing batching~\cite{yu2022orca,vllm,alpaserve,sarathi,aminabadi2022deepspeed}, scheduling~\cite{vllm,pope2023efficiently,sheng2023fairness,wu2023fast,turbomind,hong2023flashdecoding++}, and memory usage~\cite{flashattention,vllm,dettmers2022llmint8,sheng2023flexgen}.
+Prior work has also proposed using CPUs and lower compute capability devices for LLM serving~\cite{bigdlllm,numenta}.
+These approaches use the same machine for both prompt and token phase.
+With Splitwise, they could improve throughput and latency by splitting phases.
+
+%\myparagraph{Deep learning pipeline serving systems}
+Prior work on video and ML serving focuses on scheduling model chains with data dependencies under latency constraints~\cite{hu2021scrooge,crankshaw2020inferline,romero2019_INFaaS,kannan2019_GrandSLAm,albahar2022schedtune}.
+Such schedulers rely on model profiling to make efficient allocation decisions and manage requests across machines.
+%However, unlike existing schedulers that orchestrate requests across models, Splitwise splits the phases of a single LLM inference request onto different machines via KV-cache transfer, and optimizes the complete system design after the split.
+Recommendation system inference exhibits compute/memory heterogeneity both within and across models.
+Prior work exploits such heterogeneity to selectively schedule requests between CPUs and accelerators~\cite{gupta2020deeprecsys,kwon2019tensordimm}, colocate models with complementary memory usage~\cite{choi2023hera}, and partition compute/memory on heterogeneous hardware resources~\cite{hwang2020centaur,jiang2021fleetrec}.
+Similarly, Splitwise exploits the heterogeneity within LLM inference requests.
+However, it uses different optimizations due to the differences in LLM workload characteristics and requirements.
+%(\eg, recommendation systems requests are typically run to completion on a single machine due to smaller timescales and tighter latency constraints~\cite{gupta2020deeprecsys}).
+}

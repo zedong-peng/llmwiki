@@ -3,7 +3,7 @@ title: Super Personal Wiki Index
 domain: root
 type: overview
 status: active
-updated: 2026-09-07
+updated: 2026-09-14
 tags: [index]
 ---
 
@@ -20,6 +20,8 @@ tags: [index]
 | Projects | [[projects/overview]] | GitHub 项目、工程经验、可复用技术记录  |
 | Admin    | [[admin/overview]]    | 证件、合同、签证、财务、手续类材料的非敏感索引 |
 ## Recent Research References
+
+- [[research/llm-inference/index]]：LLM 推理关键论文地图；10篇TeX/PDF、vLLM/SGLang重点阅读、8篇定向阅读、8个官方仓库缓存（2026-09-14）。
 
 - [[research/fpga-llm-inference/index]]：FPGA LLM 推理（U280 llama.cpp/GGML 主线、系统地图、评测协议、CODO 对照、VSTC 提案与失败审计；09-09 已折入证据矩阵/审计/复核/KV 边界；论文库见 papers/，原始 IdeaSpark 运行见 threads/）。
 - [[research/fpga-llm-inference/index|FPGA LLM 证据复核]]：论文实验和交付证据复查（SECDA 集成边界、FlexLLM 精度、CODO 发表信息；2026-09-08）。

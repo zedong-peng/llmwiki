@@ -1,0 +1,44 @@
+\algrenewcommand\algorithmicindent{1em}
+\begin{algorithm}[t!]
+\caption{\Hbatch with \sysname.  First the batch is filled with with ongoing decode tokens (lines 6-8) and optionally one prefill chunk from ongoing (lines 10-12). Finally, new requests are added (lines 13-20) within the token budget so as to maximize throughput with minimal latency impact on the TBT of delaying the ongoing decodes.}
+\label{alg:stall_free}
+\begin{algorithmic}[1]
+\State \textbf{Input:} $T_{max}$, Application TBT SLO.
+\State Initialize \textit{token\_budget}, $\tau$ $\leftarrow$ compute\_token\_buget($T_{max}$)
+\State Initialize \textit{batch\_num\_tokens}, $n_t$ $\leftarrow$ 0
+\State Initialize current batch $B \leftarrow \emptyset$
+
+\While{True}
+    \For{$R$ in $B$}
+        \If{is\_prefill\_complete($R$)} %
+            \State $n_t \leftarrow n_t + 1$
+        \EndIf
+    \EndFor
+    
+    \For{$R$ in $B$}
+        \If{not is\_prefill\_complete($R$)} %
+            \State $c \leftarrow$  get\_next\_chunk\_size($R$, $\tau$, $n_t$)
+            \State $n_t \leftarrow n_t + c$
+        \EndIf
+    \EndFor
+    
+    \State $R_{new} \leftarrow$ get\_next\_request()
+
+    \While {can\_allocate\_request($R_{new}$)  $ \land$ $n_t$ < $\tau$} %
+        \State $ c \leftarrow$  get\_next\_chunk\_size($R_{new}$, $\tau$, $n_t$)
+        
+        \If{$c$ > 0}
+            \State $n_t \leftarrow n_t + c$
+            \State $B \leftarrow R_{new}$ 
+        \Else
+            \State break
+        \EndIf
+    \EndWhile
+
+    \State
+    \State process\_hybrid\_batch($B$)
+    \State $B \leftarrow$ filter\_finished\_requests($B$)
+    \State $n_t \leftarrow 0$
+\EndWhile
+\end{algorithmic}
+\end{algorithm}

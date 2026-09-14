@@ -1,0 +1,93 @@
+\section{Evaluation}
+\label{sec-eval}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+We evaluate \sysname on a variety of popular models and GPU configurations (see~\autoref{table:eval:models}) and two datasets (see~\autoref{table:eval:datasets}). We consider vLLM and Orca as baseline because they represent the state-of-the-art for LLM inference.  Our evaluation seeks to answer the following questions:
+\begin{enumerate}[leftmargin=*] \itemsep0em 
+    \item What is the maximum load a model replica can serve under specific Service Level Objective (SLO) constraints with different inference serving systems (\sref{sec-eval-capacity}) and how does this load vary with varying SLO constraints (\sref{subsec-tput-latency})? %
+    \item How does \sysname perform under various deployments such as TP and PP? (\sref{sec-eval-pp}) %
+    \item What is the overhead of \chunking? 
+  (\sref{sec-eval-ablation1})
+    \item What is the effect of each of \chunking and \hbatch in isolation as opposed to using them in tandem? (\sref{sec-eval-ablation2})
+\end{enumerate}
+
+
+
+
+
+\begin{table}[t!]
+\scalebox{0.78}{
+\begin{tabular}{r|ccc|ccc}
+\multirow{2}{*}{\textbf{Dataset}} & \multicolumn{3}{c|}{\textbf{Prompt Tokens}} & \multicolumn{3}{c}{\textbf{Output Tokens}}  \\ \cline{2-7}
+ &  Median & P90 & Std. & Median & P90 & Std. \\ \toprule
+\sharegpt & 1730 & 5696 & 2088 & 415 & 834 & 101 \\
+\arxivsum & 7059 & 12985 & 3638 & 208 & 371 & 265\\ \bottomrule
+\end{tabular}}
+\caption{Datasets used for evaluation.}
+\label{table:eval:datasets}
+\end{table}
+
+\begin{table}[b!]
+\centering
+\setlength{\tabcolsep}{2pt}
+\scalebox{1}{
+\begin{tabular}{r|c|c}
+\multirow{2}{*}{\textbf{Model}} & \textbf{\relaxed \slo} & \textbf{\strict \slo} \\
+&  \textbf{P99 TBT (s)} & \textbf{P99 TBT (s)} \\ \toprule
+Mistral-7B & 0.5 & 0.1 \\
+Yi-34B & 1 & 0.2 \\
+LLaMA2-70B & 5 & 1 \\
+Falcon-180B & 5 & 1 \\
+\bottomrule
+\end{tabular}}
+\caption{\slos for different model configurations.}
+\label{table:eval:slos}
+\end{table}
+
+\noindent{\bf Models and Environment:} We evaluate \sysname across four different models \mistral \cite{jiang2023mistral}, \yi \cite{yi}, \llamaL \cite{touvron2023llama} and \falcon \cite{almazrouei2023falcon} -- these models are among the best in their model size categories. We use two different server configurations. For all models except \llamaL we use Azure NC96ads v4 VMs, each equipped with 4 NVIDIA 80GB A100 GPUs, connected with pairwise NVLINK. The machines are connected with a 100 Gbps ethernet connection. For \llamaL, we use a server with eight pairwise connected NVIDIA 48GB A40 GPUs. We run \yi in a 2-way tensor parallel configuration (TP-2), and \llamaL and \falcon in a hybrid parallel configuration with four tensor parallel workers and two pipeline stages for (TP4-PP2).
+
+\noindent{\bf Workloads:} In order to emulate the real-world serving scenarios, we generate traces by using the request length characteristics from the \sharegpt \cite{wang2023openchat} and \arxivsum \cite{cohan-etal-2018-discourse} datasets (\autoref{table:eval:datasets}). The \sharegpt trace contains user-shared conversations with ChatGPT-4 \cite{chatgpt}. A conversation may contain multiple rounds of interactions between the user and chatbot. Each such interaction round is performed as a separate request to the system. This multi-round nature leads to high relative variance in the prompt lengths. In contrast, \arxivsum is a collection of scientific publications and their summaries (abstracts) on arXiv.org \cite{arxiv}. This dataset contains longer prompts and lower variance in the  number of output tokens, and is representative of LLM workloads such as Microsoft M365 Copilot \cite{microsoftcopilot} and Google Duet AI \cite{googleduetai} etc. The request arrival times are generated using Poisson distribution. We filter outliers of these datasets by removing requests with total length more than 8192 and 16384 tokens, respectively.
+
+
+
+\noindent{\bf Metrics:} We focus on the median value for the TTFT since this metric is obtained only once per user request and on the 99th percentile (P99) for TBT values since every decode token results in a TBT latency value.
+
+\begin{figure}[t!]
+    \begin{subfigure}[b]{0.5\textwidth}
+        \includegraphics[width=0.95\textwidth]{figures/capacity-plots-tp-openchat.pdf}
+        \caption{Dataset: \sharegpt.}
+        \label{fig:eval:capacity:tp:openchat}
+    \end{subfigure}
+    \\
+    \begin{subfigure}[b]{0.5\textwidth}
+        \includegraphics[width=0.95\textwidth]{figures/capacity-plots-tp-arxiv.pdf}
+        \caption{Dataset: \arxivsum.}
+        \label{fig:eval:capacity:tp:arxiv}
+    \end{subfigure}
+    \caption{Capacity (in queries per second) of \mistral and \yi with different schedulers under strict (SLO-S) and relaxed (SLO-R) latency SLOs.}
+    \label{fig:eval:capacitytp}
+\end{figure}
+
+
+\input{5.1-eval-capacity}
+\input{5.2-eval-pp-viability}
+\input{5.3-eval-ablation}
+
+

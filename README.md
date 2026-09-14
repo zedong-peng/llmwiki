@@ -10,6 +10,10 @@
 4. 每次新增资料时，先进入 `inbox/` 或 `sources/catalog.md`，再由 LLM 归档到合适的 wiki 页面。
 5. Research wiki 后续合并到 `wiki/research/`，不要和 personal/admin 材料混在同一层。
 
+## 维护位置
+
+仅在 Mac 本地工作区维护本仓库，提交后推送 GitHub。FPGA 服务器不再保留或维护 llmwiki 副本；远端实验结果统一回写 Mac 的 wiki。
+
 ## Start Here
 
 - 入口页：[`wiki/index.md`](wiki/index.md)

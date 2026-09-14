@@ -1,0 +1,18 @@
+
+
+
+\if
+In the previous subsection, we focused on measuring the end-to-end throughput gains of \sysname while varying the P:D ratio for the highest batch size that fits on our GPU for the given context length. In this section, we dive deeper into the peak performance gain of \sysname with different context lengths while varying the batch size from two to the maximum possible, each with two chunk sizes of 256 and 512 tokens. In all these experiments, we focus on steady-state execution scenarios where the P:D ratio is balanced. As discussed above, this allows us to measure the peak performance of \sysname. For the ease of understanding, we provide some examples of a balanced P:D state in ~\autoref{table:eval:steady-state-configs}.
+
+~\autoref{fig:all_configs} shows the results for these experiments. In total, the six sub-figures present our results for using prefill chunk sizes of 256 (first row) and 512 (Second row), each for three context lengths of 1k (first column), 1.5k (second column) and 2k (third column) tokens each. For each configuration, we show the effect of varying prefill chunk size on different batch sizes. Further, for each run, we also show the distribution of runtime across different operations i.e., {\em preproj}, {\em attention}, {\em postproj} and {\em ffn}: runtime distribution helps us understand the source of \sysname's high throughput.
+
+~\autoref{fig:all_configs} clearly shows the source of \sysname's high throughput. Note that \sysname batches linear operations among the prefill and decode tokens to ensure high compute and memory utilization for longer periods. Therefore, the linear operations see a significant jump of up to $1.6\times$ (see ~\autoref{fig:all_configs_1k_256}, ~\autoref{fig:all_configs_1.5k_256} and ~\autoref{fig:all_configs_2k_256}) in performance compared to the baseline. However, note that the level of improvement also depends on the P:D ratio (in other words, it depends on what fraction of time is spent in decodes). For example, a chunk size of 256 has almost $2\times$ more decodes than the chunk size of 512 for the same context length (see ~\autoref{table:eval:steady-state-configs}. This means that in configurations corresponding to  chunk size of 256, a significant fraction of time is dominated by decodes, compared to one having chunk size of 512. Similarly, all other linear operations also observe significant speed up with \sysname.
+
+One exception to this case is the {\em attn\_post\_proj} layer whose performance drops slightly at a small batch size of two while using the prefill chunk size of 256 tokens (see ~\autoref{fig:all_configs_1k_256}, ~\autoref{fig:all_configs_1.5k_256} and ~\autoref{fig:all_configs_2k_256}). We find that there are two reasons for this: (1) {\em attn\_post\_proj} has the lowest arithmetic intensity among all the linear layers of a transformer block - as shown in ~\autoref{fig:ai}. (2) in \sysname, we allow only one prefill request at a time. These two factors limit the degree of parallelism for {\em attn\_post\_proj} due to fewer input tokens, in turn, degrading its performance slightly. 
+
+Finally, note that \sysname pays a higher cost for the actual attention computation as discussed in ~\autoref{sec-eval-attention}. However, since attention consumes a small fraction of the overall runtime, the gains in linear operations can easily recover the lost performance of attention, delivering peak throughput gains of up to $1.33\times$. \jm{We should add the normalized attn time bar as well in Fig 10}
+\fi
+
+
+
+

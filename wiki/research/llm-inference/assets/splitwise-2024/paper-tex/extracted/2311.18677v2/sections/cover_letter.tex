@@ -1,0 +1,107 @@
+\myparagraph{Cover Letter}
+
+We appreciate the reviewers' feedback. Our revision aims to address major concerns, while this cover letter provides pointers and additional clarifications.
+Revised text is highlighted in \rev{red} throughout the paper.
+Below is a summary of our main changes:
+\begin{itemize}
+    \item Discussion on accuracy, scalability, and fault tolerance implications (\Cref{sec:splitwise_considerations}).
+    \item KV-cache transfer implementation considerations (\Cref{sec:designkv} and~\Cref{sec:expt_setup}).
+    \item Simulator details and validation (\Cref{sec:simulator} and \Cref{fig:simulator}).
+    \item Expanded discussion on extensions to different LLMs, accelerators, and interconnects (\Cref{sec:discussion}).
+    \item Comparison to prior work (\Cref{sec:related}).
+    \item Wording clarifications throughout the paper.
+\end{itemize}
+
+We provide pointers and clarifications to specific reviewer questions below.
+
+\subsection{Review-A}
+\myparagraph{Simulator details are not clear}
+We have added the details in the revision. Please see~\Cref{sec:simulator} and~\Cref{fig:simulator}.
+
+\myparagraphnodot{Are the characterization traces representative and contiguous?}
+Yes, our characterization traces are representative since they are based on a 20 minute contiguous load during working hours from a production workload.
+
+\myparagraph{Applicability to MoEs and smaller models}
+All modern language models, including MoEs (\eg, Mixtral~\cite{jiang2024mixtral}) and SLMs~(\eg, PHI-2~\cite{phi2}), have distinct prompt and token generation phases.
+Splitwise is applicable to any auto-regressive language models that exhibit these two phases.
+Please see~\Cref{sec:discussion}.
+
+%\myparagraph{Sensitivity study for H100 prices}
+%\todo{Include? The reviewer wasn't super sure about this either}
+%\inigo{Just remove.}
+
+\subsection{Review-B}
+\myparagraph{Model dependency and validation of the simulator}
+Our simulator does not need to know the model type and details.
+It is based on a performance model driven by profiling the LLM on a real system, with the right parallelism.
+For instance, both the models we evaluated used tensor parallelism across several GPUs in a node.
+Our performance model was also cross validated post implementation.
+%We validated the performance model which forms the basis of the simulator.
+The purpose of the simulator is to extend the results from one LLM instance into cluster-level, without using the expensive GPU resources which are in high demand and have very restricted quotas.
+Please see~\Cref{sec:simulator} and~\Cref{fig:simulator} for additional simulator details.
+We will include a small end-to-end validation in the final version of the paper.
+%\todo{Maybe say we will add more detailed validation in camera ready?}
+
+
+\subsection{Review-C}
+\myparagraph{Comparison to prior work on scheduling}
+Splitwise is about diving deeper into the fastest growing workload in the cloud today (\ie, generative LLM inference), understanding its execution phases to use better hardware and scheduling, and optimizing its end-to-end deployment.
+The heterogeneous scheduling we use is not the first of its kind but it is specifically tailored to our use case.
+Please see~\Cref{sec:related}, where we have extended the comparison with the suggested papers and also with several other related works.
+%\pratyush{Maybe say that we include comparisons with their suggested papers?}
+
+\myparagraph{Using real text prompts for characterization}
+Despite being at ProviderX, we do not have visibility into production inference prompts due to customer privacy (\eg, GDPR), and can only see the back-end anonymous metadata like input and output sizes. 
+Additionally, Splitwise is completely loss-less and does not induce any randomization, thereby not changing the LLM accuracy and output quality at all (we have validated this point).
+The only thing we impact is the latency and bandwidth, which depend only on the input and output sizes. 
+We have added clarifications to~\Cref{sec:motivation} and ~\Cref{sec:splitwise_considerations}.
+
+\subsection{Review-D}
+
+\myparagraph{Scalability and reliability considerations in practice}
+Please see the updated~\Cref{sec:splitwise_considerations}.
+
+\myparagraph{Challenges and details for KV-cache transfer}
+Please see the revised~\Cref{sec:designkv} and~\Cref{sec:expt_setup}.
+
+\myparagraph{Diverse workloads beyond coding and conversation traces}
+We plan to open-source the traces we used in the paper. Expanding the set of workloads we use would need further legal oversight.
+Please note, however, that the coding and conversation traces have very different prompt and token distributions~(\Cref{fig:prompt_token_sizes}), and
+we show that a Splitwise cluster designed for a specific trace can efficiently support a different workload in~\Cref{subsec:exp-workload-changes}.
+% In the final version of the paper, we may add more LLM applications.
+
+\myparagraph{Diverse clusters and interconnects}
+Please see~\Cref{sec:discussion}.
+We plan to implement KV-cache transfer over Ethernet and will include these results in the final version of the paper.
+
+\subsection{Review-E}
+\myparagraph{Diverse hardware beyond A100 and H100}
+Please see~\Cref{sec:discussion}.
+%Although we do not have access to different GPUs, we could estimate the performance impact by scaling our profiled results according to hardware capabilities.
+%However, we would be unable to validate our estimates.
+%\inigo{In addition: ``Our methodology applies to other hardware and depending on the results, one could decide.''}
+
+\myparagraph{Comparison to prior work on recommendation models}
+Please see~\Cref{sec:related} for an extended comparison against recommendation models.
+Splitwise dives deeper into generative LLM inference, understanding its execution phases to use better hardware and scheduling, and optimizing its end-to-end deployment.
+We use similar techniques to the ones in existing heterogeneous scheduling.
+%and tailor them for splitting LLM inference across servers.
+Although recommendation model inference also exhibits heterogeneity, its smaller size, timescales, and tighter latency requirements lead to different optimizations than Splitwise. 
+%Even when it is split across different hardware, there is little opportunity for repurposing hardware pools via mixed batching.
+
+\myparagraph{“Erratic results” in~\Cref{sec:intro}}
+Running prompt/token on the same machine produces inconsistent end-to-end latencies.
+These occur due to the arbitrary batching of prompt phases and token phases.
+For example, some iterations might have higher latency due to mixed batching, whereas others may have lower latency due to batching only token phases.
+We have rephrased the text in \Cref{sec:intro} to clarify.
+
+\myparagraph{Latency results in \Cref{fig:switcharoo}}
+All latency results from simulation, including~\Cref{fig:switcharoo}, are normalized to the latency of running the same requests on DGX-A100 machines under no contention (please also see~\Cref{tab:eval-slo}).
+
+%\subsection{\todo{Other pending TODOs}}
+
+%\begin{itemize}
+%    \item How to evaluate KV-cache transfer over RoCE? Azure VMs don't have RoCE support it seems. \inigo{The general point about KV-cache transfer over Ethernet is the bigger one. We can promise that we will evaluate it.}
+%    \item Any phrasing changes / updates from arxiv version that we want to include? \inigo{I don't think we changed anything significant.}
+%    \item Tightening text to 12 pages
+%\end{itemize}

@@ -1,0 +1,26 @@
+    \begin{abstract}
+
+
+
+Each LLM serving request goes through two phases. The first is \textit{prefill} which processes the entire input prompt and produces the first output token and the second is \textit{decode} which generates the rest of output tokens, one-at-a-time. Prefill iterations have high latency but saturate GPU compute due to parallel processing of the input prompt. In contrast, decode iterations have low latency but also low compute utilization because a decode iteration processes only a single token per request. This makes batching highly effective for decodes and consequently for overall throughput. However, batching multiple requests leads to an interleaving of prefill and decode iterations which makes it challenging to achieve both high throughput and low latency.
+
+
+
+We introduce an efficient LLM inference scheduler, \sysname, to address this throughput-latency tradeoff. \sysname introduces \chunking which splits a prefill request into near equal sized chunks and creates \textit{stall-free} schedules that adds new requests in a batch without pausing ongoing decodes. Stall-free scheduling unlocks the opportunity to improve throughput with large batch sizes while minimizing the effect of batching on latency. Furthermore, uniform batches in \sysname ameliorate the imbalance between iterations, resulting in minimal pipeline bubbles. 
+
+Our techniques yield significant improvements in inference performance across models and hardware under tail latency constraints. For Mistral-7B on single A100 GPUs, we achieve 2.6\myx higher serving capacity and up to 3.7\myx higher serving capacity for the Yi-34B model on two A100 GPUs as compared to vLLM. When used with pipeline parallelism on Falcon-180B, \sysname provides up to 5.6\myx gain in the end-to-end serving capacity. The source code for \sysname is available at~\href{https://github.com/microsoft/sarathi-serve}{https://github.com/microsoft/sarathi-serve}.
+
+
+
+
+
+
+\if
+We present \sysname to address these challenges. \sysname employs \chunking,  which splits a prefill request into near equal sized chunks, and \hbatch,  which coalesces the on-going decodes with prefill chunk(s) from new requests such that each batch has a uniform, predetermined number of tokens.
+During inference, the prefill chunk saturates GPU compute, while the decode requests `piggyback' and cost up to an order of magnitude less compared to a decode-only batch. Furthermore, the uniform compute design of these batches ameliorates the imbalance between iterations, resulting in significantly reduced tail latency and minimal pipeline bubbles.
+
+
+Our techniques yield significant improvements in inference performance across models and hardware under tail latency constraints. For the Yi-34B model on two NVIDIA A100 GPU, \sysname improves the system serving capacity by up to 2.8\myx under different tail latency compared to vLLM \slos. For Mistral-7B on single A100 GPUs, we achieve 2.3\myx higher serving capacity. When used with pipeline parallelism on Falcon-180B, \sysname provides up to an order of magnitude gain in the end-to-end serving capacity. \sysname's source code will be made publicly available to facilitate open-source development of LLM inference systems.
+\fi
+
+\end{abstract}

@@ -480,3 +480,18 @@ tags: [log]
 
 - Preserved local LazyMem/arXiv and long-agent memory notes in commit `13986ec`, and server CODO execution/timing and FlightLLM deployment notes in commit `40e8210`, before merging both histories and log entries.
 - Retained the canonical FPGA layout, retargeted links to folded pages, and reconciled the historical Model-file deployment name with the current New-model entry label.
+
+## [2026-09-14] ingest | LLM inference foundational paper archive
+
+- Added [[research/llm-inference/index]] with 10 fixed-version arXiv TeX/PDF archives, substantive Chinese notes and structured asset hashes/status. Read vLLM and SGLang main text/appendices; explicitly retained partial scope for eight focused method/evaluation readings.
+- Cached eight official repositories, recorded commits and selected inspection scope; shared FlashAttention code cache across two papers. Distinguished historical paper results, current source observations, measured hardware experiments and simulated cluster results. No downloaded code or benchmark was executed.
+- Preserved all 21 ranked API hits, nine verified recall additions and verbatim source errors in [[research/llm-inference/threads/2026-09-14-paper-search]] and root allinone.md. Updated root/research navigation. Existing Git merge-index state was not resolved or staged as part of this task.
+
+## [2026-09-14] cleanup | Removed inference search intermediates
+
+- Moved the redundant inference search directory to the Mac Trash and removed its links. Preserved paper archives, notes, and full search reports.
+
+## [2026-09-14] maintenance | Make the Mac the sole wiki workspace
+
+- Established the Mac workspace as the only maintained checkout; GitHub remains the push destination. FPGA experiment results must be recorded from the Mac rather than maintained in a second wiki.
+- Verified the FPGA checkout matches Mac HEAD with no uncommitted wiki changes or additional branch history. Its downloaded paper repositories have no working-tree changes or local-branch-only commits; these reproducible caches do not require migration. Preserve missing paper source archives, figures and public supplementary materials locally before removing the FPGA checkout. Ignored materials remain outside Git.
