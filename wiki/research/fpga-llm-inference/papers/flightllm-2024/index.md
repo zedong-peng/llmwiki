@@ -41,4 +41,20 @@ paper is useful here as a system-level reference, not as a directly matched llam
 - The 6.41 GB hardware ZIP was not fully downloaded. HTTP range reads retained its [complete manifest](supplementary/zenodo-10462167/hardware-zip-manifest.json), [internal README](supplementary/zenodo-10462167/hardware-selected/fpga_implementation/README.md), host binary and two case configurations. The README invokes a precompiled case and compares binary outputs with goldens; this is not a documented prompt-to-text interface.
 - No board run, complete package reproduction, or RTL-source reproduction was performed. See [[research/fpga-llm-inference/feature-level-evidence-matrix]] for table marks, missing members and the distinction between paper generation claims and the public demo.
 
+## Model-File Deployment Boundary
+
+The manuscript replaces Multi-model evaluation with Model-file deployment: a new supported
+LLM checkpoint should enter through files/configuration without writing per-model exporters,
+graph descriptions, compiler, hardware or host code. Automatic builds remain allowed.
+FlightLLM's [mapping flow](source/extracted/content/software.tex) explicitly describes automatic
+PyTorch structure parsing and IR/instruction generation, so Auto map retains its check.
+The [artifact README](supplementary/zenodo-10462167/README.md), however, supplies precompiled
+cases and refers generation of different cases to the authors' Infinigence-AI environment.
+The reviewed package therefore does not establish a user-accessible new-checkpoint entry.
+Its two named hardware demo directories denote decode lengths, not proof of a two-model
+architectural limit. Preserve the paper's OPT/LLaMA2 evaluation while marking the new
+model-file deployment predicate as unestablished. The local backend plan targets any GGUF
+within the declared framework, operator/format and device-capacity envelope; this is a future
+requirement, not current support for arbitrary GGUFs.
+
 Return to [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]].

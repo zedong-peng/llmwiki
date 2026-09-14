@@ -409,3 +409,43 @@ tags: [log]
 - Following the user's successive requests, removed Auto mapping, Framework backend and Persistent KV columns. Table 1 now contains Work, E2E generation, Multi-model, Public artifact and Experimental and delivery scope.
 - Integrated the removed Table 2's per-work experimental/delivery summaries into the final column and shortened redundant footnotes. Retained mapping, integration and KV evidence in prose; SECDA remains an integration precedent outside the table.
 - Updated manuscript README, wiki matrix and evidence-recheck note. Built the 13-page PDF and inspected Table 1 on page 4. Final LaTeX log has no warnings or bad boxes; scoped whitespace checks pass. BibTeX retains five pre-existing missing-year warnings for undated web references; no publication dates were invented.
+
+## [2026-09-08] clarify | Bounded CODO's E2E-generation classification
+
+- Rechecked the current manuscript definition and dash legend, CODO Table VI, the public verification block and the Fig. 9 decode host/kernel. Added an interpretation section to [[research/fpga-llm-inference/papers/codo-2026/index]] preserving the reported TTFT/decode/latency while identifying the unverified token-feedback generation boundary.
+- Clarified that compiler E2E, generation functionality and artifact verification are separate claims. Neither a single launch nor missing KV caching alone disproves generation. The manuscript was not edited and no board execution was performed.
+
+## [2026-09-08] clarify | Explained CODO input/output lengths and timing arithmetic
+
+- Confirmed that Table VI's `[32:32]` denotes prompt/continuation lengths, and distinguished prompt-position hidden states from generated tokens using the public prefill/decode kernel shapes. Recorded the ordinary prefill-plus-31-decode convention for 32 generated tokens.
+- Recomputed `20.40 + 32 * 1000 / 231.48 = 158.64088 ms` and the 64/128-output rows. Added the arithmetic and its inference limit to [[research/fpga-llm-inference/papers/codo-2026/index]]: agreement is compatible with phase-based extrapolation, but does not establish the authors' timing procedure or substitute for a generation trace.
+
+## [2026-09-08] recheck | Located CODO's published timing statements
+
+- Compared the local 17-page arXiv PDF with the TeX implementation, experiment setup, GPT-2 evaluation and artifact appendix. Added section/page references to [[research/fpga-llm-inference/papers/codo-2026/index]]: Table VI reports board results, but the text does not specify token-loop orchestration, layer-count extrapolation, total-latency derivation or request timer boundaries.
+- Distinguished exclusion of board experiments from AE from the authors' own board-evaluation claim. Clarified the private-conversation provenance and retained arithmetic reconstruction as inference. CODO remains direct related work; no author contact, manuscript edit or board execution was performed.
+
+## [2026-09-08] trace | Reconstructed CODO's released GPT execution graph
+
+- Traced the generated Fig. 9 decode kernel through its projections, QK and attention-value products, FFN, local output and host timing. Recorded direct evidence that it is one `S=1` Transformer block: attention scores are `[1][16][1][1]`, both Q/K token axes are fixed at 1, and no historical K/V or externally propagated model output is consumed/produced. A host token loop alone would not make this path a generator.
+- Verified GPT-2 Medium's 24-layer checkpoint configuration and reconstructed the model accounting `24 * (0.85 + 32 * 0.18) = 158.64 ms`. Labeled block timings as reverse-derived and contrasted the published decode rate with the distinct 43.090 us HLS estimate. Updated [[research/fpga-llm-inference/papers/codo-2026/index]] with code locations, arithmetic and remaining provenance limits; no FPGA execution or manuscript edit was performed.
+
+## [2026-09-08] compare | Placed CODO measurements in the backend blog
+
+- Added a separate CODO literature-reference table under Section 9.1 of `Towards-a-General-FPGA-Backbone-for-LLM-Inference/blog/llamacpp-fpga.md`, preserving all three original Table VI rows and model/precision/platform metadata. The local standalone/native/greedy measurement columns retain their original scope.
+- Explained why a standalone model benchmark is not a block benchmark, and why absence of sampling alone does not disqualify phase comparison. Recorded the derived 1568.6 prompt token/s and 403.4 combined token/s without labeling them as measured llama-bench results or using them as matched speedups. Updated [[research/fpga-llm-inference/papers/codo-2026/index]]; arithmetic and whitespace checks passed.
+
+## [2026-09-08] clarify | Unified backend blog results on sample 0
+
+- Verified that the former Standalone and Native result columns come from the same llama-bench invocation per backend: the former used repeated-run statistics, while the latter selected pg32,32 sample 0. Split the blog into throughput, the matching phase breakdown, and actual greedy generation; explained empty-KV tg32 versus prompt-conditioned decode and random benchmark inputs versus sampled output feedback.
+- Applied the user's single-measurement reporting preference throughout the blog: report the preselected sample 0, remove cross-run means and standard deviations, and recompute pp32/tg32 speedups as 2.3x/3.4x. Preserve the original command's repetition count as provenance. Updated [[research/fpga-llm-inference/papers/codo-2026/index]] with the corrected table scope and evidence links.
+
+## [2026-09-08] clarify | Distinguished CODO phase names from computation coverage
+
+- Rechecked the paper's prefill/decode labels, generated decode attention and block weights, the verification model, and llama.cpp's GPT-2 graph. Added a phase-coverage explanation to the blog and [[research/fpga-llm-inference/papers/codo-2026/index]]: CODO reports both phases, while its inspected implementation omits complete model composition and historical decode attention, in addition to token selection and feedback.
+- Clarified that phase-organized literature comparison is valid with scope labels, and missing sampling alone does not prevent comparison with llama-bench. A matched full-phase speedup still needs consistent forward coverage, context and timing; Table VI's relationship to the inspected block remains unspecified.
+
+## [2026-09-08] revise | Replaced model count with model-file deployment
+
+- Replaced the manuscript's Multi-model evaluation feature with Model-file deployment and kept its full definition below the table. Reassessed marks, preserved auto-mapping credit, and made the planned GGUF flow explicit about unchanged deployment code within declared support bounds. Synchronized the blog and [[research/fpga-llm-inference/feature-level-evidence-matrix]].
+- Rechecked FlightLLM's paper, official Zenodo record and cached artifact README: automatic graph parsing is reported, while new public hardware cases require the authors' environment. Recorded this boundary in [[research/fpga-llm-inference/papers/flightllm-2024/index]] without asserting a two-model hardware limit. Credited SECDA's inspected model-file entry within MatMul offload support, distinct from the planned automatic hardware build.
