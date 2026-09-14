@@ -4,7 +4,7 @@ domain: research
 area: agent-memory
 type: overview
 status: active
-updated: 2026-07-27
+updated: 2026-09-14
 tags: [research, agent-memory, papers, index]
 ---
 
@@ -16,6 +16,8 @@ Agent memory 领域的论文库与研究线程。
 
 ## Thread Directory
 
+- [[research/agent-memory/threads/2026-09-14-lazymem-arxiv-preparation|LazyMem arXiv 提交准备]] — 既有实验负结果论文、11 页 PDF、独立编译与数值复算提交包。
+- [[research/agent-memory/threads/2026-09-14-work-continuity-memory|长期 agent 的工作状态与失效机制]] — LazyMem 工作区审计、Hindsight 源码范围刷新、候选方案查新与证伪条件。
 - [Threads Guide](threads/index.md)
 - [Mem0 New Algorithm Benchmark Decision](threads/2026-04-23-mem0-new-algorithm-benchmark-decision.md)
 - [Benchmark Comparison Thread](threads/2026-04-25-benchmark-comparison-thread.md) — 各论文 baseline / benchmark / judge model 对比矩阵
@@ -156,4 +158,3 @@ Agent memory 领域的论文库与研究线程。
 | [ColBERT](papers/colbert-2020/index.md) | 2020 | SIGIR | Token-level late interaction; strong reranking primitive | `stub` |
 | [SPLADE v2](papers/splade-v2-2021/index.md) | 2021 | Arxiv | Learned sparse lexical expansion beyond BM25 | `stub` |
 | [BEIR](papers/beir-2021/index.md) | 2021 | NeurIPS D&B | Heterogeneous zero-shot retrieval evaluation | `stub` |
-

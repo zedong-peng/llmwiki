@@ -29,6 +29,9 @@ tags: [index]
 
 ## Operating Files
 
+- [[research/agent-memory/threads/2026-09-14-lazymem-arxiv-preparation|LazyMem 论文提交包]]：既有实验的负结果、11 页 PDF 与独立复算（2026-09-14）。
+- [[research/agent-memory/threads/2026-09-14-work-continuity-memory|长期 agent memory 调查]]：工作状态、范围依赖与 Hindsight 源码重叠核查（2026-09-14）。
+
 | File | Purpose |
 |---|---|
 | [[log]] | 追加式维护日志 |

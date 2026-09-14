@@ -424,3 +424,14 @@ tags: [log]
 - Following the user's successive requests, removed Auto mapping, Framework backend and Persistent KV columns. Table 1 now contains Work, E2E generation, Multi-model, Public artifact and Experimental and delivery scope.
 - Integrated the removed Table 2's per-work experimental/delivery summaries into the final column and shortened redundant footnotes. Retained mapping, integration and KV evidence in prose; SECDA remains an integration precedent outside the table.
 - Updated manuscript README, wiki matrix and evidence-recheck note. Built the 13-page PDF and inspected Table 1 on page 4. Final LaTeX log has no warnings or bad boxes; scoped whitespace checks pass. BibTeX retains five pre-existing missing-year warnings for undated web references; no publication dates were invented.
+
+## [2026-09-14] synthesis | Long-agent work continuity and memory invalidation
+
+- Added a research synthesis connecting the GrepQA/LazyMem code and saved-result audit to long-running workspace memory. Verified Hindsight source deletion, tag-scoped staleness and mental-model refresh at a recorded local commit; separated paper and later implementation evidence.
+- Recorded strong prior-art overlap, the narrower untested tool-footprint hypothesis, simple baselines and kill conditions. Linked the full 29-record audit; retained failed-search and unavailable-fulltext limitations. No new model or training experiment was run. Updated root and agent-memory indexes.
+
+## [2026-09-14] paper | Prepared LazyMem arXiv source package
+
+- Reworked the existing LazyMem manuscript as a scoped raw-text baseline and negative query-compilation result; author confirmed as Zedong Peng without affiliation. Kept historical development-set/protocol limitations, corrected citations and separated the historical direct baseline from the later SDK.
+- Froze 3,080 numerical rows from 1,540 paired questions with input hashes; generated category/conversation/cost/support analyses and a vector figure. No new model or benchmark calls.
+- Produced an 11-page PDF and an allowlisted arXiv source package in the existing paper directory. Extracted-source pdfLaTeX compilation and standalone numeric reproduction passed with no TeX warnings or overflow. Added wiki delivery links; no upload, Git commit or push.
