@@ -4,7 +4,7 @@ domain: research
 area: fpga-llm-inference
 type: overview
 status: active
-updated: 2026-09-09
+updated: 2026-09-15
 tags: [fpga, llm-inference, llama-cpp, ggml, xrt, end-to-end]
 ---
 
@@ -246,3 +246,22 @@ wiki/research/fpga-llm-inference/
 `papers/<slug>/index.md + metadata.yaml + *.pdf` 为 legacy 命名（等价 protocol 的 `assets/<ref_slug>/`），按 skill 边界不为 enforcement 批量改名，新条目再用 canonical 名。纸库入口见 [[research/fpga-llm-inference/papers/index]]。
 
 返回 [[research/index]]。
+
+## Model input and coverage audit (2026-09-15)
+
+Coverage describes implementation binding and observed model scope separately. Missing filename suffixes do not imply fixed-model hardware. A reusable compiler/library/backend is not a demonstrated arbitrary-model deployment flow. Source-based classifications use pinned implementation files; unavailable implementations use paper claims, explicitly labeled.
+
+| Work | Model input | Implementation / evidence scope | Models |
+|---|---|---|---|
+| [[papers/lut-llm-2026/index|lut-llm-2026]] | Original checkpoint format NR; random-data testbench | Model-specific implementation | Qwen3-1.7B block; general checkpoint loader not established. |
+| [[papers/streamtensor-2025/index|streamtensor-2025]] | PyTorch model; suffix NR | Cross-architecture (paper) | GPT-2, Qwen, Llama and Gemma; block/phase evidence. |
+| [[papers/spatial-llm-2024/index|spatial-llm-2024]] | Hugging Face checkpoint; suffix NR | Reusable kernels; model-specific composition | BERT and GPT-2 measured; larger LLaMA/Vicuna studies are not equivalent board evidence. |
+| [[papers/dfx-2022/index|dfx-2022]] | Megatron/OpenAI GPT-2 checkpoint; suffix NR | Single family, multiple sizes (paper) | GPT-2 345M, 774M and 1.5B. |
+| [[papers/tellme-v2-2026/index|tellme-v2-2026]] | Original format NR; prepared .bin runtime weights | Model-specific implementation | BitNet-0.73B ternary model. |
+| [[papers/flexllm-hls-2026/index|flexllm-hls-2026]] | Original format NR; prepared .bin weights; GGUF tokenizer only | Reusable library; model-specific implementation | Llama-3.2-1B variants, plus HMT extension. |
+| [[papers/codo-2026/index|codo-2026]] | PyTorch nn.Module in .py | Reusable compiler; one LLM example | GPT-2 block; additional CNN/MLP/operator benchmarks. |
+| [[papers/edgellm-2025/index|edgellm-2025]] | Sparse/quantized model; file format NR | Cross-architecture (paper) | GLM-6B and Qwen-7B. |
+| [[papers/flightllm-2024/index|flightllm-2024]] | PyTorch model; suffix NR; prepared board .bin files | Cross-architecture (paper) | OPT-6.7B and LLaMA2-7B. |
+| [[papers/secda-llm-2024/index|secda-llm-2024]] | GGUF (later source) | Reusable operator backend; one model evaluated | TinyLlama paper evaluation; multiple model configurations in later source. |
+
+Code availability audit: several pre-existing `repo/` paths were empty despite metadata saying archived. Restored local source caches for five repositories and retained the inspected files under each paper’s `source/code-audit/` so evidence is versioned despite the existing `**/repo/` ignore rule. FlexLLM cache is partial; selected files and their hashes are recorded explicitly. Existing paper PDFs/TeX were reused; EdgeLLM was read through PDF extraction. No bitstreams, weights, toolchains or synthesis outputs were downloaded. Input-format NR means not established, not unsupported.

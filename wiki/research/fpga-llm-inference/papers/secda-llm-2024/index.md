@@ -4,7 +4,7 @@ domain: research
 area: fpga-llm-inference
 type: paper
 status: active
-updated: 2026-09-08
+updated: 2026-09-15
 tags: [paper, fpga, llm-inference, llama-cpp, ggml, framework-backend, systemc]
 ---
 
@@ -130,3 +130,21 @@ and case-study inputs. These citations do not supply missing FPGA phase or accur
 
 See [[research/fpga-llm-inference/index|area index §Evidence Matrix]] and return to
 [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]].
+
+## Model input and coverage audit (2026-09-15)
+
+**Classification: Reusable operator backend; one model evaluated.** TinyLlama paper evaluation; multiple model configurations in later source.
+
+supports_op gates MUL_MAT by quantization selected at build time, contiguity, F32 input and M/N/K dimension checks, not a checkpoint identity or model-family name. Configurations mention GPT-2, Mamba, Mistral and Llama variants, but configurations are not execution receipts. Therefore the backend is not intrinsically TinyLlama-only; only TinyLlama is established by the paper evaluation. Later source must not be presented as the 2024 experimental freeze.
+
+Inspected code (pinned copies, not executed):
+
+- [README.md](source/code-audit/README.md) — [upstream commit](https://github.com/judeharis/SECDA-LLM/blob/183376a652b47a30b5b57cd34965b45e9297f39a/README.md).
+- [benchmark/configs/exp_configs.sh](source/code-audit/benchmark/configs/exp_configs.sh) — [upstream commit](https://github.com/judeharis/SECDA-LLM/blob/183376a652b47a30b5b57cd34965b45e9297f39a/benchmark/configs/exp_configs.sh).
+- [benchmark/configs/models/models_dict.json](source/code-audit/benchmark/configs/models/models_dict.json) — [upstream commit](https://github.com/judeharis/SECDA-LLM/blob/183376a652b47a30b5b57cd34965b45e9297f39a/benchmark/configs/models/models_dict.json).
+- [benchmark/scripts/run_llama_cli.sh](source/code-audit/benchmark/scripts/run_llama_cli.sh) — [upstream commit](https://github.com/judeharis/SECDA-LLM/blob/183376a652b47a30b5b57cd34965b45e9297f39a/benchmark/scripts/run_llama_cli.sh).
+- [srcs/ggml_backend/ggml-secda/ggml-secda.cpp](source/code-audit/srcs/ggml_backend/ggml-secda/ggml-secda.cpp) — [upstream commit](https://github.com/judeharis/SECDA-LLM/blob/183376a652b47a30b5b57cd34965b45e9297f39a/srcs/ggml_backend/ggml-secda/ggml-secda.cpp).
+- [srcs/ggml_backend/ggml-secda/ops_support.cpp](source/code-audit/srcs/ggml_backend/ggml-secda/ops_support.cpp) — [upstream commit](https://github.com/judeharis/SECDA-LLM/blob/183376a652b47a30b5b57cd34965b45e9297f39a/srcs/ggml_backend/ggml-secda/ops_support.cpp).
+- [srcs/ggml_backend/ggml-secda/acc_dels/bfpp_acc/v1/accelerator/driver/acc_driver.h](source/code-audit/srcs/ggml_backend/ggml-secda/acc_dels/bfpp_acc/v1/accelerator/driver/acc_driver.h) — [upstream commit](https://github.com/judeharis/SECDA-LLM/blob/183376a652b47a30b5b57cd34965b45e9297f39a/srcs/ggml_backend/ggml-secda/acc_dels/bfpp_acc/v1/accelerator/driver/acc_driver.h).
+
+[Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.

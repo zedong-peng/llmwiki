@@ -4,7 +4,7 @@ domain: research
 area: fpga-llm-inference
 type: paper
 status: active
-updated: 2026-09-08
+updated: 2026-09-15
 tags: [paper, fpga, llm-inference]
 ---
 
@@ -36,3 +36,18 @@ useful reference for separating prefill and decode resource/bandwidth behavior.
 - [[research/fpga-llm-inference/index|Area index §Evidence Matrix]] records phase-level evidence only (E2E —), no new-model entry (—), and kernel-library source (Public source ✓). BERT is not counted as a second generative checkpoint.
 
 Return to [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]].
+
+## Model input and coverage audit (2026-09-15)
+
+**Classification: Reusable kernels; model-specific composition.** BERT and GPT-2 measured; larger LLaMA/Vicuna studies are not equivalent board evidence.
+
+The paper-linked examples expose parameterized GEMM/attention/nonlinear kernels. transformer_hls.py instantiates dimensions and schedules, rather than loading an arbitrary checkpoint. Paper sections/4-sec-case-study.tex identifies BERT/GPT-2 board cases. This is reuse across models through composition, not a single fixed model and not an unchanged end-to-end model importer. The later Allo tree is supporting library evidence, not the exact experiment freeze.
+
+Inspected code (pinned copies, not executed):
+
+- [examples/README.md](source/code-audit/examples/README.md) — [upstream commit](https://github.com/cornell-zhang/allo/blob/8bafb0dcee27c96a72872184d2b106c59c8a1414/examples/README.md).
+- [examples/transformer_hls.py](source/code-audit/examples/transformer_hls.py) — [upstream commit](https://github.com/cornell-zhang/allo/blob/8bafb0dcee27c96a72872184d2b106c59c8a1414/examples/transformer_hls.py).
+- [allo/library/nn.py](source/code-audit/allo/library/nn.py) — [upstream commit](https://github.com/cornell-zhang/allo/blob/8bafb0dcee27c96a72872184d2b106c59c8a1414/allo/library/nn.py).
+- [tests/test_nn.py](source/code-audit/tests/test_nn.py) — [upstream commit](https://github.com/cornell-zhang/allo/blob/8bafb0dcee27c96a72872184d2b106c59c8a1414/tests/test_nn.py).
+
+[Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.

@@ -21,6 +21,8 @@ tags: [index]
 | Admin    | [[admin/overview]]    | 证件、合同、签证、财务、手续类材料的非敏感索引 |
 ## Recent Research References
 
+- [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|FPGA 模型输入与覆盖逐项核查]]：十篇论文及公开实现、模型绑定边界、源码证据与论文索引（2026-09-15）。
+
 - [[research/llm-inference/index]]：LLM 推理关键论文地图；10篇TeX/PDF、vLLM/SGLang重点阅读、8篇定向阅读、8个官方仓库缓存（2026-09-14）。
 
 - [[research/fpga-llm-inference/index]]：FPGA LLM 推理（U280 llama.cpp/GGML 主线、系统地图、评测协议、CODO 对照、VSTC 提案与失败审计；09-09 已折入证据矩阵/审计/复核/KV 边界；论文库见 papers/，原始 IdeaSpark 运行见 threads/）。

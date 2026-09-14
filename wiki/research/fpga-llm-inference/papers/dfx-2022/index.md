@@ -4,7 +4,7 @@ domain: research
 area: fpga-llm-inference
 type: paper
 status: processed
-updated: 2026-09-07
+updated: 2026-09-15
 tags: [paper, fpga, llm-inference]
 ---
 
@@ -34,3 +34,13 @@ tags: [paper, fpga, llm-inference]
 - Source-first read completed; no code repository was requested.
 
 Return to [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]].
+
+## Model input and coverage audit (2026-09-15)
+
+**Classification: Single family, multiple sizes (paper).** GPT-2 345M, 774M and 1.5B.
+
+6_evaluation.tex line 102 names Megatron-LM 345M and OpenAI 774M/1.5B; the 1.5B attention-head count is adjusted from 25 to 24 for parallelization. The instruction-driven architecture and tiled weights support GPT-2 variants, but do not demonstrate other decoder families or a public graph importer. Therefore single checkpoint is false; single demonstrated architecture family is accurate.
+
+Classification uses the paper text and available public artifact; unavailable source is not treated as evidence of model restriction.
+
+[Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.

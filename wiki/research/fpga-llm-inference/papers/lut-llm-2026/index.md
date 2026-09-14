@@ -4,7 +4,7 @@ domain: research
 area: fpga-llm-inference
 type: paper
 status: seed
-updated: 2026-07-24
+updated: 2026-09-15
 tags: [paper, fpga, llm-inference]
 ---
 
@@ -33,3 +33,18 @@ tags: [paper, fpga, llm-inference]
 - Source archive and code repository: not requested in this import pass.
 
 Return to [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]].
+
+## Model input and coverage audit (2026-09-15)
+
+**Classification: Model-specific implementation.** Qwen3-1.7B block; general checkpoint loader not established.
+
+config/config.h fixes hidden=2048, FFN=6144, head dimension=128 and KV groups=8. The block composes Qwen operations with these compile-time dimensions. The decode testbench seeds random centroids/weights, so it is not a real-checkpoint portability demonstration. Changing constants and rebuilding may support variants, but no unchanged model-driven import flow was established.
+
+Inspected code (pinned copies, not executed):
+
+- [README.md](source/code-audit/README.md) — [upstream commit](https://github.com/LUT-FPGA/LUT-LLM/blob/9ee2259d312f9b1119a398d8ff7703154260a417/README.md).
+- [config/config.h](source/code-audit/config/config.h) — [upstream commit](https://github.com/LUT-FPGA/LUT-LLM/blob/9ee2259d312f9b1119a398d8ff7703154260a417/config/config.h).
+- [qwen_block/qwen_block.h](source/code-audit/qwen_block/qwen_block.h) — [upstream commit](https://github.com/LUT-FPGA/LUT-LLM/blob/9ee2259d312f9b1119a398d8ff7703154260a417/qwen_block/qwen_block.h).
+- [qwen_block/qwen_block_decode_tb.cpp](source/code-audit/qwen_block/qwen_block_decode_tb.cpp) — [upstream commit](https://github.com/LUT-FPGA/LUT-LLM/blob/9ee2259d312f9b1119a398d8ff7703154260a417/qwen_block/qwen_block_decode_tb.cpp).
+
+[Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.

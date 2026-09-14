@@ -4,7 +4,7 @@ domain: research
 area: fpga-llm-inference
 type: paper
 status: active
-updated: 2026-09-07
+updated: 2026-09-15
 tags: [paper, fpga, llm-inference]
 ---
 
@@ -40,3 +40,13 @@ using a different application boundary.
   nonexistence. See [[research/fpga-llm-inference/index|area index §Manuscript Recheck]].
 
 Return to [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]].
+
+## Model input and coverage audit (2026-09-15)
+
+**Classification: Cross-architecture (paper).** GPT-2, Qwen, Llama and Gemma; block/phase evidence.
+
+main.tex lines 951 and 1035–1065 report on-board experiments using Hugging Face models adapted for Torch-MLIR. All four families are compiled as transformer blocks and invoked with layer weights. This refutes a single-model-only classification, while adapted frontends and missing verified compiler source leave zero-porting deployment unestablished.
+
+Classification uses the paper text and available public artifact; unavailable source is not treated as evidence of model restriction.
+
+[Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.

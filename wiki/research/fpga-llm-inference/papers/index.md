@@ -148,3 +148,7 @@ comparison plus local backend row and selection rationale are in [[research/fpga
 | [[cgra-space-time-2025/index|Monomorphism-Based CGRA Mapping via Space and Time Decoupling]] | 2025 | Overlay and CGRA mapping | `downloaded` | arXiv 2512.02859 |
 
 Return to [[research/fpga-llm-inference/index|FPGA LLM Inference]].
+
+## Model coverage recheck — 2026-09-15
+
+Ten manuscript comparison entries now have source/paper-based model-input and coverage audits in their individual indexes. See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|comparison and evidence boundaries]]. Selected implementation sources and hash receipts accompany each open-source entry.

@@ -495,3 +495,8 @@ tags: [log]
 
 - Established the Mac workspace as the only maintained checkout; GitHub remains the push destination. FPGA experiment results must be recorded from the Mac rather than maintained in a second wiki.
 - Verified the FPGA checkout matches Mac HEAD with no uncommitted wiki changes or additional branch history. Its downloaded paper repositories have no working-tree changes or local-branch-only commits; these reproducible caches do not require migration. Copied missing paper source archives, figures and public supplementary materials to Mac; SHA-256 verified all 499 ignored non-repository files against the FPGA copy. Deleted `/home/zdpeng/llmwiki` and verified its absence. Ignored materials remain outside Git; initial cache copying was stopped after confirming repositories were reproducible.
+
+## [2026-09-15] research | Audit FPGA model inputs and implementation coverage
+
+- Read ten papers and available model loaders/configurations/compiler entries; distinguish fixed implementation, reusable substrate, same-family variants and paper-reported cross-architecture evidence.
+- Restore local source caches, retain selected pinned code and SHA-256 receipts, update ten paper indexes and both FPGA indexes. Existing PDFs/TeX retained. No hardware execution.

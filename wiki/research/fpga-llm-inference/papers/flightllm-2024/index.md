@@ -4,7 +4,7 @@ domain: research
 area: fpga-llm-inference
 type: paper
 status: active
-updated: 2026-09-08
+updated: 2026-09-15
 tags: [paper, fpga, llm-inference]
 ---
 
@@ -59,3 +59,13 @@ within the declared framework, operator/format and device-capacity envelope; thi
 requirement, not current support for arbitrary GGUFs.
 
 Return to [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]].
+
+## Model input and coverage audit (2026-09-15)
+
+**Classification: Cross-architecture (paper).** OPT-6.7B and LLaMA2-7B.
+
+content/software.tex describes automatic structure parsing and ISA generation with manually defined templates; content/evaluation.tex names both families and their U280 results. The public hardware artifact consists of prepared cases, while the source frontend/RTL is not available in that package. Thus paper-level cross-architecture coverage is supported; arbitrary checkpoint acceptance is not established by public code.
+
+Classification uses the paper text and available public artifact; unavailable source is not treated as evidence of model restriction.
+
+[Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.

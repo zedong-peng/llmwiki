@@ -4,7 +4,7 @@ domain: research
 area: fpga-llm-inference
 type: paper
 status: active
-updated: 2026-09-07
+updated: 2026-09-15
 tags: [paper, fpga, llm-inference]
 ---
 
@@ -34,3 +34,13 @@ payload rather than a TeX archive in this pass.
 - PDF-first read completed; no TeX source was retained because the source endpoint did not return TeX. The numbers remain contextual rather than matched to the current U280/GPT-2 profile.
 
 Return to [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]].
+
+## Model input and coverage audit (2026-09-15)
+
+**Classification: Cross-architecture (paper).** GLM-6B and Qwen-7B.
+
+PDF section V-B/Fig. 8 describes compiling sparse/quantized models into instructions, prepared weights and control code; the evaluation includes GLM and Qwen. The conclusion explicitly identifies varying RotaryEmbedding as a limitation, requiring a model-custom operator or CPU plus element-wise operations. It is not single-model-only, but new-family support can require implementation work. No verified implementation is present in the reviewed record.
+
+Classification uses the paper text and available public artifact; unavailable source is not treated as evidence of model restriction.
+
+[Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.

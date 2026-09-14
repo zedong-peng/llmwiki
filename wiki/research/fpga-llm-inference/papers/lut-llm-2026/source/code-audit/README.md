@@ -1,0 +1,111 @@
+# LUT-LLM: Efficient Language Model Inference with Memory-based Computations on FPGAs
+
+[![DOI](https://zenodo.org/badge/1168934775.svg)](https://doi.org/10.5281/zenodo.18809342)
+
+<p align="center">
+  <img src="figs/lutlinear.png" width="1000"/>
+</p>
+
+<p align="center">
+  <img src="figs/lutlm.png" width="33%" />
+  <img src="figs/gpu_lat_v5.png" width="58%" />
+</p>
+
+**LUT-LLM** is the first FPGA accelerator that deploy 1B+ language model with memory-based computation, leveraging vector quantization. LUT-LLM features:
+
+- **Activation-weight Co-quantization**: shrinked lookup tables with comparable accuracy compared with standard scalar quantization schemes.
+- **Bandwidth-aware Parallel Centroid Search**: tradeoffs between resource consumption for parallel search and latency of pipeline propagation during decoding.
+- **Efficient 2D table lookup**: extract rows and then copy to reduce fanout with low on-chip capacity required per operation at runtime.
+- **Temporal-Spatial Hybrid Execution**: LUT-LLM sequentially execute between LUTLinear and other engines, and keep dataflow inside each engine.
+
+---
+
+## Artifact Evaluation
+
+Make sure your system has Vitis/Vivado 2024.2 and Gurobi installed. You may need to run `settings.sh` for Vitis and Vivado to set up the path. Please make sure you have the synthesis and implementation license for part number `xcv80-lsva4737-2MHP-e-S` (AMD V80 FPGA).
+
+0. Install [TAPA](https://drive.google.com/file/d/1-GJDFHiaIDOldNGgtdgDSRxlDvRoBzSt/view?usp=drive_link): Download and untar this folder into your home and add the `PATH` variable in your `~/.bashrc`
+```bash
+tar -xf tapa.tar
+export PATH="$PATH:$HOME/.rapidstream-tapa/usr/bin"
+```
+If you got `tapa.tar.gz`:
+```bash
+tar -xzvf tapa.tar.gz
+export PATH="$PATH:$HOME/.rapidstream-tapa/usr/bin"
+```
+You can replace `$HOME` with the absolute path of `.rapidstream-tapa`.
+
+1. Generate host executable for prefill and decode.
+```bash
+cd qwen_block
+make csim
+make csim_decode
+```
+
+> [!NOTE]
+> If you encounter the error `tapa: no such file or directory`, you can add the `export PATH` command in the makefile.
+
+To change the input length, simplying change the `const int L` to the value (either 32 or 128) in the `*_tb.cpp` files.
+
+2. Run C-simulation
+```bash
+./qwen_block
+./qwen_block_decode
+```
+
+3. Run HLS
+```bash
+make hls
+```
+
+4. Run RTL Simulation
+```bash
+./qwen_block --bitstream=qwen_block.xo -xosim_save_waveform -xosim_work_dir=waveform/
+./qwen_block_decode --bitstream=qwen_block.xo -xosim_save_waveform -xosim_work_dir=waveform/
+```
+This can take several hours, so use `tmux` to run it at background.
+
+> [!NOTE]
+> If you are using the VASTLab cluster as the guest account, we can provide the wdb directly to save the time of running RTL simulation.
+
+5. Open the waveform in `waveform/output/run/vivado/tapa-fast-cosim.sim/` with Vivado and get the cycle count for each. You should do it by `Flow > Open Static Simulation`, then add `ap_start` and `ap_done` signals in `dut` module to the wave window. Calculate the latency between these two signals and divide it by 4.
+
+6. Run the e2e latency calculator to validate. Use the cycle count from the previous step as the argument for the script.
+```bash
+make e2e_latency
+./e2e_latency <prefill_cycle> <decode_cycle> <input_len> <output_len>
+```
+
+## Inference Latency (ms)
+
+| Platform | [32, 16] | [32, 64] | [32, 256] | [128, 16] | [128, 64] | [128, 256] |
+|---|---|---|---|---|---|---|
+| A100 80GB (BF16) | 241.4 | 935.0 | 3895.8 | 323.7 | 1080.2 | 4086.2 |
+| A100 80GB (INT8) | 96.0 | 404.6 | 1683.0 | 128.7 | 467.3 | 1765.1 |
+| A100 80GB (INT4) | 88.3 | 377.1 | 1460.5 | 118.1 | 435.4 | 1531.6 |
+| MI210 (BF16) | 268.0 | 1134.0 | 4336.2 | 356.7 | 1307.7 | 4546.0 |
+| MI210 (INT8) | 268.1 | 1136.4 | 4394.0 | 371.9 | 1323.5 | 4618.6 |
+| LUT-LLM | 105.9 | 351.1 | 1331.8 | 284.7 | 529.9 | 1510.7 |
+
+> Column headers are `[batch size, sequence length]`.
+
+> GPU latency are measured using `vllm bench latency`
+
+## Project Structure
+
+- `ccu`: the bandwidth-aware centroid search unit (BPCSU)
+- `ffn`: the feedforward layer
+- `gqa`: the grouped-query attention
+- `imm`: the 2D table lookup engine
+- `lut-dla`: the LUTLinear engine
+- `rope`, `rms_norm`, `silu`: non-linear operations (RoPE, RMSNorm, Sigmoid ReLU)
+- `qwen_block`: the Qwen 3 1.7B model
+  - `e2e_latency.cpp`: latency calculator
+  - `example.pwr`: power report
+  - `qwen_v80.pdi`: bitstream for V80
+  - `timing.rpt`: post-routing timing report
+  - `qwen_block_tb`, `qwen_block_decode_tb`: host for prefill and decode
+- `qwen_lut_model`: performance modeling scripts
+- `custom_design`: scripts to generate design connected with HBM
+- `rapidstream_script`: scripts to use RapidStream for floorplanning

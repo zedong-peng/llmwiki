@@ -4,7 +4,7 @@ domain: research
 area: fpga-llm-inference
 type: paper
 status: active
-updated: 2026-09-08
+updated: 2026-09-15
 tags: [paper, codo, isca-2026, fpga, compiler, dataflow, gpt-2, end-to-end]
 ---
 
@@ -429,3 +429,19 @@ Only after the same model is available in both CODO and the GGML backend should 
 - [[research/fpga-llm-inference/index]] for the active comparison protocol and project status (folded from the former `end-to-end-evaluation` / `project-status-2026-07` notes, 2026-09-08).
 
 Return to [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]]. See also [[research/fpga-llm-inference/index]].
+
+## Model input and coverage audit (2026-09-15)
+
+**Classification: Reusable compiler; one LLM example.** GPT-2 block; additional CNN/MLP/operator benchmarks.
+
+The frontend scans Python files, instantiates configured nn.Module classes and calls Torch-MLIR; it is not keyed exclusively to GPT-2. data.py includes other program classes, but its LLM example is GPT2 with hidden=1024 and 16 heads. GPT2.py returns block hidden states, with no full checkpoint generation loop. Generic compiler input is source-level evidence of reuse; it does not establish multi-family LLM board execution.
+
+Inspected code (pinned copies, not executed):
+
+- [README.md](source/code-audit/README.md) — [upstream commit](https://github.com/sjtu-zhao-lab/codo-artifact/blob/130b12bc63e6e6daa31a1227b7e8391c5039148d/README.md).
+- [experiments/verify/gen_mlir_designs.py](source/code-audit/experiments/verify/gen_mlir_designs.py) — [upstream commit](https://github.com/sjtu-zhao-lab/codo-artifact/blob/130b12bc63e6e6daa31a1227b7e8391c5039148d/experiments/verify/gen_mlir_designs.py).
+- [experiments/verify/utils.py](source/code-audit/experiments/verify/utils.py) — [upstream commit](https://github.com/sjtu-zhao-lab/codo-artifact/blob/130b12bc63e6e6daa31a1227b7e8391c5039148d/experiments/verify/utils.py).
+- [experiments/verify/data.py](source/code-audit/experiments/verify/data.py) — [upstream commit](https://github.com/sjtu-zhao-lab/codo-artifact/blob/130b12bc63e6e6daa31a1227b7e8391c5039148d/experiments/verify/data.py).
+- [experiments/verify/pymodels/transformers/GPT2.py](source/code-audit/experiments/verify/pymodels/transformers/GPT2.py) — [upstream commit](https://github.com/sjtu-zhao-lab/codo-artifact/blob/130b12bc63e6e6daa31a1227b7e8391c5039148d/experiments/verify/pymodels/transformers/GPT2.py).
+
+[Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.
