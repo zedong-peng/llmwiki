@@ -1,0 +1,312 @@
+\section{Architecture}
+\label{sec:arch}
+
+The policy of Section~\ref{sec:method} is defined over causal
+information alone, but a software implementation on top of a
+block-level cache cannot reconstruct the precise event timing that the
+scoring contract requires, as the vLLM study in
+Section~\ref{sec:sw-vllm} will confirm. A hardware realization
+addresses three structural limitations that software cannot.
+First, the controller must observe every request arrival, gap onset,
+and gap closure with cycle-level fidelity, which a near-memory
+placement provides without interrupt or polling overhead.
+Second, eviction and migration decisions must complete within the
+tool-gap window so that the promoted KV is already in the fast tier
+when the next request arrives, which demands a deterministic pipeline
+rather than a software thread.
+Third, eviction and tiering are two reads of one ranking, and a single
+register file eliminates the staleness that any dual-engine design
+would introduce.
+
+This section maps the algorithmic policy to a synthesizable
+control-plane IP. Section~\ref{sec:place} defines the controller
+scope and system interface. Section~\ref{sec:org} derives the unified
+control plane from the interleaving structure of agent workloads.
+Section~\ref{sec:quant} locks the integer contract through a format
+sweep. Section~\ref{sec:micro} maps the result to a pipelined event
+core. Section~\ref{sec:dse} explores the session-capacity design
+space and selects the design point. Fig.~\ref{fig:arch} shows the
+resulting architecture.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{fig03_architecture.pdf}
+\caption{\unison hardware architecture. The scheduling core integrates
+\spear ranking and \tide migration into a unified pipeline beside the
+two-tier KV hierarchy.}
+\label{fig:arch}
+\end{figure*}
+
+\subsection{Controller Scope and System Placement}
+\label{sec:place}
+
+\kcmu is a session-level control-plane IP that ranks residency in a
+shared KV pool. It does not compute attention, store KV payload, or
+manage the HBM PHY. Runtime software writes events, namely request
+arrivals, gap onsets, gap closures, and completions, into a CSR event
+FIFO, and the controller returns a victim index and logical DMA
+descriptors. Physical address mapping, KV arrays, the HBM PHY, and
+the on-chip network remain external. The IP therefore
+owns~\eqref{eq:scoreq} and~\eqref{eq:budget}, not the bytes that
+those decisions move.
+
+Near-memory placement beside the hierarchy is motivated by the event
+interface. A software scheduler that polls block-cache timestamps
+approximates gap onset with millisecond granularity at best, and
+Section~\ref{sec:sw-vllm} shows that this approximation inverts the
+gap signal when tool waits approach the decode window. A controller
+wired to the memory hierarchy observes the same events at cycle
+granularity without software intervention, which is the structural
+advantage that Section~\ref{sec:hw-place} quantifies under placement
+variation.
+
+\subsection{Unified Control Plane}
+\label{sec:org}
+
+Agent workloads interleave request and gap events at fine granularity
+rather than in long homogeneous phases. A dual design that pairs a
+\spear engine with a \tide engine under periodic synchronization is
+the textbook decomposition, but it is structurally unsound under this
+interleaving pattern. Eviction and promotion are two reads of one
+ranking, not two independent computations, so a second engine is
+either stale or redundant.
+
+Let $R_{\mathrm{u}}$ denote the unified register file and
+$R_{\mathrm{d}}$ the pair of private views in a dual design. The dual
+stores
+\begin{equation}
+  \lvert R_{\mathrm{d}}\rvert=2\lvert R_{\mathrm{u}}\rvert
+  \label{eq:rf}
+\end{equation}
+and applies a stale snapshot at every decision between synchronization
+points. If the last sync was at event $e_{k-m}$, the dual victim is
+\begin{equation}
+  v_{\mathrm{d}}
+  =\arg\max_{s\in\mathcal{L}}
+    \mathrm{score}_{q}\!\bigl(s;\,R_{\mathrm{d}}(e_{k-m})\bigr),
+  \label{eq:stale}
+\end{equation}
+whereas the unified victim uses $R_{\mathrm{u}}(e_{k})$.
+Tab.~\ref{tab:org} confirms the structural prediction. Even with
+every-event synchronization the dual design diverges on SRAM
+placement, and with reduced synchronization the stale view causes
+hit-rate drops of up to 5.4\,pp and inconsistent AMAT signs across
+traces, confirming that a unified register file is not merely
+preferable but structurally necessary.
+
+\input{tables/tab5_org}
+
+The unified pipeline therefore keeps one live register file and
+sequences \esp before \okt in the same datapath, paying
+$\lvert R_{\mathrm{u}}\rvert$ rather than~\eqref{eq:rf}.
+
+\subsection{Fixed-Point Quantization of the Scoring Contract}
+\label{sec:quant}
+
+Realizing the floating-point policy in synthesizable logic requires an
+integer image of~\eqref{eq:esp} whose ranking fidelity is
+indistinguishable from the reference. The local complement
+$\sigma(t)$ rather than the cumulative product-limit survival is the
+key enabler, because a single ROM lookup avoids the sequential
+dependence chain that a cumulative estimator would impose on the
+pipeline. Let $b$ be a fractional width and $\Lambda_b=2^{b}-1$.
+The unsigned quantizer
+\begin{equation}
+  Q_{b}(x)
+  =\mathrm{clip}\!\left(
+      \bigl\lfloor x\,\Lambda_b+\tfrac12\bigr\rfloor,\;
+      0,\;\Lambda_b
+    \right)
+  \label{eq:uq}
+\end{equation}
+maps $x\in[0,1]$ onto $\mathrm{UQ}0.b$. Hazard and survival then
+become
+\begin{align}
+  h_{q}
+  &=Q_{b_{h}}\!\bigl(h(\min(t,50))\bigr),
+  \label{eq:hq}
+  \\
+  \sigma_{q}
+  &=\max\!\bigl(
+      \bigl\lfloor\varepsilon\Lambda_{b_{h}}+\tfrac12\bigr\rfloor,\;
+      \Lambda_{b_{h}}-h_{q}
+    \bigr).
+  \label{eq:survq}
+\end{align}
+A time divisor $\tau\in\{1,10^{3},10^{6}\}$ stores the gap as
+\begin{equation}
+  g_{q}
+  =\mathrm{clip}\!\left(
+      \bigl\lfloor g_s/\tau\bigr\rfloor,\;
+      0,\;2^{b_{g}}-1
+    \right),
+  \label{eq:gapq}
+\end{equation}
+so $\tau=1$ is nanoseconds, $\tau=10^{3}$ is microseconds, and
+$\tau=10^{6}$ is milliseconds. The two score terms are integers,
+\begin{align}
+  T_{1}
+  &=\left\lfloor
+      \frac{g_{q}\,\Lambda_{b_{h}}}{\sigma_{q}}
+    \right\rfloor,
+  \label{eq:t1}
+  \\
+  T_{2}
+  &=\left\lfloor
+      \frac{(\Lambda_{b_{h}}-\sigma_{q})\,P_{\mathbb{Z}}}
+           {\Lambda_{b_{h}}}
+    \right\rfloor,
+  \label{eq:t2}
+\end{align}
+and the hardware score is the saturating sum
+\begin{equation}
+  \mathrm{score}_{q}(s)
+  =\mathrm{sat}_{b_{s}}\!\bigl(T_{1}+T_{2}\bigr),
+  \qquad
+  b_{s}=64,
+  \label{eq:scoreq}
+\end{equation}
+with $P_{\mathbb{Z}}=P/\tau$ so that the multiplicative penalty
+remains an affine image of $(1-\sigma)P$ after the time scaling. The
+EMA in~\eqref{eq:ema} is the same fraction in integer arithmetic,
+\begin{equation}
+  g_{q}
+  \leftarrow
+  \left\lfloor
+    \frac{3\,g_{q}^{\mathrm{new}}+7\,g_{q}}{10}
+  \right\rfloor.
+  \label{eq:ema-int}
+\end{equation}
+A completed session writes $2^{b_{s}}-1$.
+
+The contract is selected on a pre-registered grid of 180 format
+points that vary $b_{h}\in\{8,10,12\}$,
+$b_{g}\in\{24,32,64\}$, $\tau\in\{1,10^{3},10^{6}\}$, divider type,
+and penalty form. Ranking fidelity is measured on 7265 real eviction
+snapshots from the six traces and three capacity envelopes of
+Section~\ref{sec:sweval}. The hard gates are top-1 victim agreement
+${\ge}0.99$ and maximum hit-rate drift ${\le}0.20$\,pp. The sweep
+selects
+\begin{equation}
+  (b_{h},b_{g},b_{s},\tau,P_{\mathbb{Z}})
+  =(12,32,64,10^{3},5\times10^{8}),
+  \label{eq:lock}
+\end{equation}
+at which the aggregate Kendall $\tau$ exceeds 0.998 and the worst-cell
+hit-rate drift is 0.192\,pp. Twelve-bit hazard is the minimum width that passes the ranking gate,
+microsecond storage balances register width against fidelity, and an
+exact divider is preferred over a reciprocal LUT because the LUT ties
+fidelity while adding a table of depth $\Lambda_{b_{h}}$. Section~\ref{sec:dse} shows that
+the bits ranking demanded are essentially free relative to the session
+register file.
+
+\subsection{Event Core Microarchitecture}
+\label{sec:micro}
+
+The unified pipeline must evaluate~\eqref{eq:scoreq} for every live
+session within the tool-gap window so that the eviction or migration
+decision is ready before the next request arrives. A parallel
+comparator tree would close in $O(1)$ cycles but scale as $O(N)$ in
+area. A pipelined linear scan trades latency for area, closing in
+$N{+}5$ cycles at a cost that grows with the register file rather
+than with dedicated comparator logic. The five-stage depth maps
+directly to the arithmetic of the quantized score, with the
+critical-path divider of~\eqref{eq:t1} dictating the pipeline depth.
+
+The stages are
+\begin{equation}
+  \begin{aligned}
+    \mathrm{S0}&:\;
+      (t,g_{q},\mathrm{done})\leftarrow R[s],\\
+    \mathrm{S1}&:\;
+      h_{q}\leftarrow\mathrm{ROM}[t],\;
+      \sigma_{q}\leftarrow~\eqref{eq:survq},\\
+    \mathrm{S2}&:\;
+      T_{1}\leftarrow~\eqref{eq:t1},\\
+    \mathrm{S3}&:\;
+      T_{2}\leftarrow~\eqref{eq:t2},\\
+    \mathrm{S4}&:\;
+      \mathrm{score}_{q}\leftarrow~\eqref{eq:scoreq},\;
+      \text{update running }\arg\max.
+  \end{aligned}
+  \label{eq:pipe}
+\end{equation}
+A full scan of $N$ live sessions takes
+\begin{equation}
+  L_{\mathrm{scan}}=N+5
+  \label{eq:scan}
+\end{equation}
+cycles after pipeline fill, yielding a decision latency of
+\begin{equation}
+  \tau(N)=\frac{N+5}{f_{\mathrm{clk}}}.
+  \label{eq:tau}
+\end{equation}
+The \tide budget uses the same microsecond gap,
+\begin{equation}
+  \mathcal{B}_{q}
+  =\bigl\lfloor\Delta/\tau\bigr\rfloor\cdot B_{\mu},
+  \label{eq:budgetq}
+\end{equation}
+where $B_{\mu}$ is tokens per microsecond.
+Cosimulation of the locked format against the floating-point reference
+is bit-exact on all 1\,937 events and 845 decisions of the GAIA/Gemma4
+Edge-Tight trace.
+
+Given the pipeline and the quantization contract, the remaining
+architectural degree of freedom is the session capacity~$N$.
+
+\subsection{Session-Capacity Design-Space Exploration}
+\label{sec:dse}
+
+Session capacity~$N$ governs both decision latency
+through~\eqref{eq:tau} and register-file area. To evaluate the policy
+side of this tradeoff, we define Agent Serving Effectiveness (ASE) as
+the six-dataset geometric mean
+\begin{equation}
+  \mathrm{ASE}(N)=
+  \Biggl(\prod_{d=1}^{6}
+    \frac{\mathrm{HR}_d}{\mathrm{HR}_d^{\max}}
+    \cdot
+    \frac{\mathrm{AMAT}_d^{\min}}{\mathrm{AMAT}_d}
+    \cdot
+    \frac{\mathrm{TTFT}_d^{\min}}{\mathrm{TTFT}_d}
+  \Biggr)^{1/18}
+  \label{eq:ase}
+\end{equation}
+inside the capacity sweep, where the inner product runs over three
+normalized metrics and the outer over six traces.
+
+Fig.~\ref{fig:dse} reports the exploration on the Yosys/Nangate45
+flow used to rank variants by relative cell count. ASE saturates near
+$N{=}64$ where trace concurrency plateaus, while decision latency
+from~\eqref{eq:tau} remains well below the median tool gap at that
+point. The capacity knee is therefore $N{=}64$. Absolute ASE values,
+latency measurements, and the Design Compiler PPA at this point are
+reported in Section~\ref{sec:hweval}.
+
+\begin{figure}[t]
+\centering
+\begin{subfigure}{0.49\linewidth}
+\includegraphics[width=\linewidth]{fig08a_pareto_2d.pdf}
+\caption{Cell count and ASE versus $N_{\mathrm{sess}}$}
+\label{fig:dse-2d}
+\end{subfigure}\hfill
+\begin{subfigure}{0.49\linewidth}
+\includegraphics[width=\linewidth]{fig08b_n64_zoom.pdf}
+\caption{Structural variants at $N{=}64$}
+\label{fig:dse-n64}
+\end{subfigure}
+\caption{Design-space exploration of session capacity and structural
+variants on the Yosys/Nangate45 synthesis flow.}
+\label{fig:dse}
+\end{figure}
+
+Fig.~\ref{fig:dse-n64} details the $N{=}64$ column. The five live
+configurations occupy a narrow cell-count band, and the selected
+design point retains the exact divider of~\eqref{eq:t1} for bit-exact
+scoring against the software reference, because the reciprocal-LUT
+alternative ties ranking fidelity without improving the end-to-end
+gate.
+
+Sections~\ref{sec:sweval} and~\ref{sec:hweval} evaluate the policy
+and report synthesis results.

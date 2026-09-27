@@ -445,3 +445,11 @@ Inspected code (pinned copies, not executed):
 - [experiments/verify/pymodels/transformers/GPT2.py](source/code-audit/experiments/verify/pymodels/transformers/GPT2.py) — [upstream commit](https://github.com/sjtu-zhao-lab/codo-artifact/blob/130b12bc63e6e6daa31a1227b7e8391c5039148d/experiments/verify/pymodels/transformers/GPT2.py).
 
 [Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.
+
+## Original-text verification (2026-09-27)
+
+Checked against the original paper text or public code for the llama.cpp FPGA backend paper; supersedes earlier summaries where they differ.
+
+- Public artifact commit 130b12b, experiments/fig-9/gpt_decoding: the decode kernel's input is one 1x1x1024 token and one decoder block's weights; there is no input for earlier keys/values and no vocabulary matrix; host.cpp times a single enqueueTask with an OpenCL event (lines 441-455). Prefill experiments are separate kernels per prompt length.
+- Table VI totals equal TTFT + G/speed except 64:64 (313.44 printed vs 309.12 computed, one token interval). DFX/Allo/StreamTensor columns match StreamTensor's own table.
+- Author-side lab copies of the artifact exist on the group FPGA server; they are context only and not citable.

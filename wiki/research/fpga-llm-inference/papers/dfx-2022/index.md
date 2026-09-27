@@ -44,3 +44,11 @@ Return to [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]].
 Classification uses the paper text and available public artifact; unavailable source is not treated as evidence of model restriction.
 
 [Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.
+
+## Original-text verification (2026-09-27)
+
+Checked against the original paper text or public code for the llama.cpp FPGA backend paper; supersedes earlier summaries where they differ.
+
+- Keys, values and tiled weights are stored in HBM by the DMA (source/extracted/5_microarchitecture.tex:34); the host only sends start/config and receives done after the whole GPT-2 run (5_microarchitecture.tex:19,23).
+- LM head runs on the FPGA via the MM instruction (4_architecture.tex:119); the ISA is at assembly level and no compiler is described (4_architecture.tex:52).
+- Decode rate 185.19 token/s for GPT-2 345M on one U280 is the value StreamTensor tabulates from the DFX paper (streamtensor-2025 main.tex:892-906); 200 MHz, 39.93% LUT, 39.15% DSP (6_evaluation.tex:64).

@@ -57,7 +57,9 @@ comparison plus local backend row and selection rationale are in [[research/fpga
 
 | Paper | Year | Related Work category | Cache status | Canonical source |
 |---|---:|---|---|---|
-| [[secda-llm-2024/index|SECDA-LLM: Designing Efficient LLM Accelerators for Edge Devices]] | 2024 | Framework-integrated FPGA LLM inference | `processed; code audit partial` | arXiv 2408.00462 |
+| [[secda-llm-2024/index|SECDA-LLM: Designing Efficient LLM Accelerators for Edge Devices]] | 2024 | Framework-integrated FPGA LLM inference | `processed; code audit partial` | ARC-LG @ ISCA 2024; arXiv 2408.00462 |
+| [[f-bfq-2025/index|F-BFQ: Flexible Block Floating-Point Quantization Accelerator for LLMs]] | 2025 | Framework-integrated FPGA LLM inference | `abstract and HTML read 2026-09-27` | LG-ARC @ ISCA 2025; arXiv 2510.13401 |
+| [[imax-llm-2025/index|Efficient Kernel Mapping and Comprehensive System Evaluation of LLM Acceleration on a CGLA (IMAX)]] | 2025 | Framework-integrated FPGA LLM inference | `TeX read 2026-09-27` | IEEE Access 2025; arXiv 2512.00335 |
 | [[ftrans-2020/index|FTRANS: Energy-Efficient Acceleration of Transformers using FPGA]] | 2020 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2007.08563 |
 | [[sanger-2021/index|Sanger: A Co-Design Framework for Enabling Sparse Attention using Reconfigurable Architecture]] | 2021 | FPGA Transformer and LLM systems | `downloaded` | DOI `10.1145/3466752.3480125` |
 | [[dfx-2022/index|DFX: A Low-latency Multi-FPGA Appliance for Accelerating Transformer-based Text Generation]] | 2022 | FPGA Transformer and LLM systems | `processed` | arXiv 2209.10797 |
@@ -89,7 +91,7 @@ comparison plus local backend row and selection rationale are in [[research/fpga
 | [[tflop-2026/index|TFLOP: Towards Energy-Efficient LLM Inference, an FPGA-Affinity Accelerator with Unified LUT-Based Optimization]] | 2026 | Embedded and low-bit LLM deployment | `metadata-only` | DOI `10.1109/ASP-DAC66049.2026.11420766` |
 | [[llm-on-fpga-2025/index|LLM on FPGA: Squeezing Language Models by Quantization and Multi-Query Attention and Its Efficient Hardware Architecture]] | 2025 | Embedded and low-bit LLM deployment | `metadata-only` | DOI `10.1109/ISOCC66390.2025.11329964` |
 | [[robot-llm-fpga-2025/index|Computationally Efficient FPGA-Based Large Language Model Inference for Real-Time Decision-Making in Robotic Systems]] | 2025 | Embedded and low-bit LLM deployment | `metadata-only` | DOI `10.1109/IROS60139.2025.11247019` |
-| [[accllm-2025/index|AccLLM: Accelerating Long-Context LLM Inference Via Algorithm-Hardware Co-Design]] | 2025 | Long-context and phase-specialized acceleration | `downloaded` | arXiv 2505.03745 |
+| [[accllm-2025/index|AccLLM: Accelerating Long-Context LLM Inference Via Algorithm-Hardware Co-Design]] | 2025 | Long-context and phase-specialized acceleration | `downloaded; verified 2026-09-27` | IEEE TVLSI 2026, DOI `10.1109/TVLSI.2026.3658524` |
 | [[metal-2025/index|METAL: A Memory-Efficient Transformer Architecture for Long-Context Inference on FPGA]] | 2025 | Long-context and phase-specialized acceleration | `metadata-only` | DOI `10.1109/ASAP65064.2025.00023` |
 | [[cxl-speckv-2025/index|CXL-SpecKV: A Disaggregated FPGA Speculative KV-Cache for Datacenter LLM Serving]] | 2025 | Long-context and phase-specialized acceleration | `downloaded` | arXiv 2512.11920 |
 | [[eliteformer-2026/index|ELiTeFormer: An Efficient Transformer for FPGAs]] | 2026 | Long-context and phase-specialized acceleration | `downloaded` | arXiv 2607.03652 |

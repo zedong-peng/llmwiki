@@ -1,0 +1,238 @@
+\section{Methodology}
+\label{sec:method}
+
+This section decomposes the online control problem of
+Section~\ref{sec:intro} into three sub-problems and solves each under
+causal information alone. Section~\ref{sec:problem} formalizes the
+two-tier pool and the cost asymmetry that makes victim choice the
+dominant lever. Section~\ref{sec:esp} introduces \spear, which
+approximates the B\'el\'ady eviction oracle from two observable
+signals, namely a gap recurrence estimate and a turn-indexed
+completion hazard. Section~\ref{sec:okt} introduces \tide, which converts
+measured idle windows into tier-placement migrations ranked by the
+same signal. Section~\ref{sec:loop} unifies both mechanisms in a
+single event-driven control loop as shown in Algorithm~\ref{alg:unison}.
+Fig.~\ref{fig:method} gives the corresponding pipeline.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{fig02_methodology.pdf}
+\caption{\unison methodology. A shared event log bridges workload
+characterization, survival-based scoring, idle-window migration, and
+multi-metric evaluation.}
+\label{fig:method}
+\end{figure*}
+
+\subsection{Workload Model and Problem Formulation}
+\label{sec:problem}
+
+An agent execution is a session $s$ of $T_s$ turns. Turn $k$ arrives at
+wall time $a_{s,k}$ after a tool gap
+\begin{equation}
+  g_{s,k}=a_{s,k}-c_{s,k-1},
+  \label{eq:gap}
+\end{equation}
+where $c_{s,k-1}$ is the completion time of the previous turn.
+The resident KV length $\ell_{s,k}$ is prefix-heavy because later turns
+inherit most of their context from earlier ones, so a hit avoids
+re-prefilling the full prefix while a miss pays the entire sequence
+length. The reuse ratio
+\begin{equation}
+  \rho_{s,k}
+  =\frac{\ell_{s,k-1}}{\ell_{s,k}},
+  \qquad
+  \Delta\ell_{s,k}
+  =\ell_{s,k}-\ell_{s,k-1}
+  \label{eq:reuse}
+\end{equation}
+quantifies this asymmetry. A miss costs
+$\ell_{s,k}\,t_{\mathrm{p}}$ whereas a hit costs only
+$\Delta\ell_{s,k}\,t_{\mathrm{p}}$, making victim choice the
+dominant lever on serving latency.
+
+The live set $\mathcal{L}(t)$ occupies a two-tier budget of SRAM
+capacity $C_{\mathrm{S}}$ and HBM capacity $C_{\mathrm{H}}$ together
+with a hard session-slot limit $N_{\mathrm{sess}}$,
+\begin{equation}
+  \sum_{s\in\mathcal{L}_{\mathrm{S}}}\ell_s\le C_{\mathrm{S}},
+  \qquad
+  \sum_{s\in\mathcal{L}_{\mathrm{H}}}\ell_s\le C_{\mathrm{H}},
+  \qquad
+  \lvert\mathcal{L}_{\mathrm{S}}\cup\mathcal{L}_{\mathrm{H}}\rvert
+    \le N_{\mathrm{sess}}.
+  \label{eq:cap}
+\end{equation}
+A policy maps $\mathcal{L}(t)$ to a victim on overflow and to
+promotion and demotion candidates during a gap. The offline B\'el\'ady
+oracle $v^{\star}$ evicts the session whose next request is farthest
+in the future. An online policy $\pi$ may use only the causal
+filtration $\mathcal{F}_{t}$, comprising the last gap, the turn index,
+and the completion flag, and may use neither future arrivals nor agent-role
+identity. The design target is to approximate $v^{\star}$ while
+remaining a function of $\mathcal{F}_{t}$ alone. A learned policy
+such as a small neural network could in principle fit the same
+mapping, but the eviction decision sits on the critical path of every
+cache miss and must complete within single-digit microseconds at the
+hardware event rate, a latency regime that is incompatible with even a
+minimal inference pass and that motivates the closed-form scoring
+function developed below.
+
+\subsection{\spear: Survival-Penalty Eviction for Agent Return-Gap}
+\label{sec:esp}
+
+The B\'el\'ady distance of a paused session depends on two quantities
+that operate on different timescales, namely how long the current
+tool gap will last and whether the session will return at all. \esp
+approximates the first through a gap exponential moving average and
+the second through a turn-indexed hazard, combining them into a
+single eviction score that ranks all residents by estimated
+next-reference distance.
+
+\paragraph{Gap recurrence estimate}
+The gap EMA tracks the characteristic return interval of session~$s$
+with coefficient $\alpha{=}3/10$ as
+\begin{equation}
+  g_s
+  \leftarrow
+  \alpha\,g_{s,k}+(1-\alpha)\,g_s
+  =\frac{3\,g_{s,k}+7\,g_s}{10}.
+  \label{eq:ema}
+\end{equation}
+A session with a long smoothed gap is expected to remain idle longer,
+so it should be evicted before a session that returns frequently.
+
+\paragraph{Turn-indexed completion hazard}
+A session closer to its final turn is more likely to complete and
+release its KV permanently. The discrete hazard at turn $t$ is
+\begin{equation}
+  h(t)=\frac{d(t)}{n(t)},
+  \qquad
+  t\in\{0,\ldots,50\},
+  \label{eq:hazard}
+\end{equation}
+where $n(t)$ sessions remain live at turn $t$ and $d(t)$ complete
+there, counted over the observed population. The survival mass is the
+local complement
+\begin{equation}
+  \sigma(t)
+  =\max\bigl(\varepsilon,\,1-h(\min(t,50))\bigr),
+  \qquad
+  \varepsilon=0.01,
+  \label{eq:surv}
+\end{equation}
+which requires a single table lookup, avoiding the sequential
+dependence of the cumulative product-limit estimator.
+
+\paragraph{Composite eviction score}
+The two signals combine into
+\begin{equation}
+  \mathrm{score}(s)
+  =
+  \begin{cases}
+    S_{\max},
+      & s\text{ completed},\\[2pt]
+    \dfrac{g_s}{\sigma(t)}+\bigl(1-\sigma(t)\bigr)P,
+      & \text{otherwise},
+  \end{cases}
+  \label{eq:esp}
+\end{equation}
+where $P$ is a programmable completion penalty. A high score denotes
+high eviction priority. The first term is the expected remaining wait
+scaled by survival likelihood, so a session with low $\sigma$
+near completion sees an inflated ratio that raises its eviction
+priority. The
+second term adds a penalty that grows as $\sigma$ falls, accelerating
+eviction of sessions whose KV will soon have no future request. The
+signal contribution and parameter sensitivity of~\eqref{eq:esp} are
+evaluated in Sections~\ref{sec:sw-signal} and~\ref{sec:sw-main}.
+
+Scoring determines who leaves the pool but not where a surviving
+session should reside within the two-tier hierarchy. The
+complementary placement problem is addressed next.
+
+\subsection{\tide: Tiering in Idle-Window DMA Events}
+\label{sec:okt}
+
+A tool gap is wasted time from the perspective of the memory
+hierarchy, because the paused session holds a tier slot but issues
+no requests. \okt converts this idle window into a DMA budget and
+migrates sessions between SRAM and HBM so that the lowest-scoring
+residents occupy the fast tier when the next request arrives.
+
+On a \texttt{gap\_start} event with estimated remaining duration
+$\Delta$, the migration budget in tokens is
+\begin{equation}
+  \mathcal{B}=\Delta\cdot B,
+  \label{eq:budget}
+\end{equation}
+where $B$ is the logical DMA bandwidth in tokens per nanosecond.
+Let $\mathcal{H}$ be the HBM residents and $\mathcal{S}$ the SRAM
+residents. Promotion and demotion then solve the complementary
+selections
+\begin{align}
+  p
+  &=\arg\min_{s\in\mathcal{H}}\mathrm{score}(s),
+  \label{eq:promote}
+  \\
+  d
+  &=\arg\max_{s\in\mathcal{S}}\mathrm{score}(s),
+  \label{eq:demote}
+\end{align}
+subject to $\ell_p+\ell_d\le\mathcal{B}$ and to~\eqref{eq:cap} after
+the swap. The key property of \okt is that it ranks migration
+candidates with the same \esp score used for eviction, so eviction
+quality directly determines placement quality, and the two mechanisms
+share a single ranking signal rather than maintaining independent
+state. This coupling is validated quantitatively in the component
+ablation of Section~\ref{sec:sw-comp}.
+
+\subsection{Joint Online Control Loop}
+\label{sec:loop}
+
+\esp and \okt share a single session register file updated on every
+event. Algorithm~\ref{alg:unison} specifies the complete loop. Each
+incoming event updates the register file, triggers an eviction scan
+if capacity is violated, and initiates migrations if a gap is open
+and the DMA engine is free. The two mechanisms read the same scores
+from the same state, which is why a unified control plane
+outperforms dual independent engines with periodic synchronization,
+as the architectural ablation of Section~\ref{sec:arch}
+demonstrates.
+
+\begin{algorithm}[t]
+\caption{\unison event loop}
+\label{alg:unison}
+\begin{algorithmic}[1]
+\REQUIRE event $e$, live set $\mathcal{L}$, capacities
+         $(C_{\mathrm{S}},C_{\mathrm{H}},N_{\mathrm{sess}})$,
+         shared register file $R$, DMA state
+\ENSURE  victim $v$ and logical DMA descriptors
+\STATE write $e$ into $R$
+         \COMMENT{turn, gap, completion}
+\IF{$e$ is \texttt{gap\_end}}
+  \STATE $g_s\leftarrow\alpha\,g_{s,k}+(1-\alpha)\,g_s$
+         \COMMENT{\eqref{eq:ema}}
+\ENDIF
+\IF{$\mathcal{L}$ violates~\eqref{eq:cap}}
+  \FOR{$s\in\mathcal{L}$}
+    \STATE $\mathrm{score}(s)\leftarrow$~\eqref{eq:esp}
+  \ENDFOR
+  \STATE $v\leftarrow\arg\max_{s}\mathrm{score}(s)$
+  \STATE evict $v$ from its tier
+\ENDIF
+\IF{$e$ is \texttt{gap\_start} and DMA is free}
+  \STATE $\mathcal{B}\leftarrow\Delta\cdot B$
+  \WHILE{$\mathcal{B}$ covers a legal pair}
+    \STATE $p\leftarrow\arg\min_{s\in\mathcal{H}}\mathrm{score}(s)$
+    \STATE $d\leftarrow\arg\max_{s\in\mathcal{S}}\mathrm{score}(s)$
+    \STATE migrate $(p,d)$;
+           $\mathcal{B}\leftarrow\mathcal{B}-\ell_p-\ell_d$
+  \ENDWHILE
+\ENDIF
+\end{algorithmic}
+\end{algorithm}
+
+Section~\ref{sec:arch} maps this algorithmic contract to a
+synthesizable fixed-point pipeline, and
+Sections~\ref{sec:sweval}--\ref{sec:hweval} evaluate the resulting
+policy against the B\'el\'ady oracle and competing baselines.

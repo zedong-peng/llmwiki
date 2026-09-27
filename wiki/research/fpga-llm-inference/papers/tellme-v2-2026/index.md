@@ -46,3 +46,11 @@ Inspected code (pinned copies, not executed):
 - [on_board_test/src/chatbot.py](source/code-audit/on_board_test/src/chatbot.py) — [upstream commit](https://github.com/UCI-CORSA/TeLLMe_FPGA_2026/blob/139ad882aba8485048e08993022872128bc00f51/on_board_test/src/chatbot.py).
 
 [Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.
+
+## Original-text verification (2026-09-27)
+
+Checked against the original paper text or public code for the llama.cpp FPGA backend paper; supersedes earlier summaries where they differ.
+
+- KV260; BitNet 0.73B (680M decoder + 49M head/embedding); up to 25 token/s decode and 143 token/s prefill (source/extracted/main.tex:355,1599,1619).
+- LM head offloaded to the ARM PS with NEON, 9 ms, included in end-to-end numbers (main.tex:1601).
+- Public host program (Python/PYNQ) runs embedding, LM head and sampling on the ARM and syncs KV buffers around each kernel call (code-audit on_board_test/src/chatbot.py:649-675, 703-790, 1049-1075).

@@ -148,3 +148,10 @@ Inspected code (pinned copies, not executed):
 - [srcs/ggml_backend/ggml-secda/acc_dels/bfpp_acc/v1/accelerator/driver/acc_driver.h](source/code-audit/srcs/ggml_backend/ggml-secda/acc_dels/bfpp_acc/v1/accelerator/driver/acc_driver.h) — [upstream commit](https://github.com/judeharis/SECDA-LLM/blob/183376a652b47a30b5b57cd34965b45e9297f39a/srcs/ggml_backend/ggml-secda/acc_dels/bfpp_acc/v1/accelerator/driver/acc_driver.h).
 
 [Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.
+
+## Original-text verification (2026-09-27)
+
+Checked against the original paper text or public code for the llama.cpp FPGA backend paper; supersedes earlier summaries where they differ.
+
+- Venue: ARC-LG workshop (New Approaches for Addressing the Computing Requirements of LLMs and GNNs) at ISCA 2024; repository has 0 stars (2026-09-27).
+- PYNQ-Z1, TinyLlama 1.1B (460 MB), 1.7 s per token with the accelerator offloading the quantized MatMul layers (source/extracted/04_evaluation.tex:87-96).

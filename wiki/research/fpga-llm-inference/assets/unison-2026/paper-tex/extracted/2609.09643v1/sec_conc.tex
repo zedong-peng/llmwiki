@@ -1,0 +1,29 @@
+\section{Conclusion}
+\label{sec:conc}
+
+As large language models are composed into agents that retain a
+growing key-value (KV) cache across tool waits, many concurrent
+sessions share a finite static random-access memory (SRAM) and
+high-bandwidth memory (HBM) pool, so that eviction and hierarchical
+placement become a session-level efficiency problem orthogonal to
+compute-mode optimization. Existing proxies based on recency,
+timeout, or identity miss the mechanism information of the loop and
+therefore treat a live wait as a cold, discardable unit.
+\unison addresses both decisions from runtime-observable signals.
+\spear ranks who leaves from a gap exponential moving average and a
+turn-indexed hazard, while \tide spends the observed wait as a
+direct memory access (DMA) budget for who sits in the fast tier, and
+the two modules share one live ranking in an event-driven
+near-memory scheduler beside the hierarchy.
+Evaluated on six traces crossing
+SWE-bench~\cite{jimenez_swebench_2024} and
+GAIA~\cite{mialon_gaia_2023} with three model
+families, totaling 1\,415 sessions, 33\,596 turns, and six capacity
+envelopes from edge to cloud, the joint policy is the best
+non-oracle entry on hit rate and average memory access time (AMAT)
+on every trace, raising the hit rate by $0.3\%$ to $23.1\%$ and
+reducing AMAT by $22\%$ to $51\%$. On the long-horizon traces it
+also lowers serving time to first token (TTFT) by $58\%$ to $89\%$
+when extra prefill sits on the critical path. The same ranking is realized as an event-driven near-memory
+scheduler that occupies 0.169\,mm$^{2}$ and draws 13.6\,mW at
+150\,MHz for 64 sessions in 28-nm CMOS.

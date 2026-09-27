@@ -1,0 +1,296 @@
+\section{Software Evaluation}
+\label{sec:sweval}
+
+Before committing silicon area to the scheduling core of
+Section~\ref{sec:arch}, the eviction and migration policies must be
+validated on realistic agent traces. This section evaluates the
+\unison policy along five dimensions that, taken together, stress
+different failure modes of session-level caching.
+Section~\ref{sec:sw-main} compares aggregate performance against
+baseline and published policies on six traces.
+Section~\ref{sec:sw-comp} ablates scoring and tiering to confirm their
+complementarity. Section~\ref{sec:sw-signal} quantifies each signal
+term via leave-one-out analysis on the full evaluation grid.
+Section~\ref{sec:sw-robust} verifies that the gain persists under
+storage-hierarchy perturbation, and Section~\ref{sec:sw-lut} examines
+hazard lookup table (LUT) fairness and online convergence. Finally,
+Section~\ref{sec:sw-vllm} replaces the trace-driven simulator with a
+live vLLM server to validate that the policy transfers to a production
+block-cache pool.
+
+\subsection{Experimental Setup and Metrics}
+\label{sec:sw-setup}
+
+The evaluation replays six agent traces constructed by crossing the
+SWE-bench~\cite{jimenez_swebench_2024} and
+GAIA~\cite{mialon_gaia_2023} task suites with three model families,
+namely Qwen3-Coder-30B~\cite{qwen3_2025},
+Devstral-24B~\cite{devstral_2025}, and
+Gemma4-E4B~\cite{gemma4_2026}, yielding 1\,415 sessions and 33\,596
+turns in total. No public multi-agent serving trace with session-level
+annotations exists as of this writing, so this single-agent replay
+corpus is the most detailed open benchmark available. The main comparison includes recency (LRU), timeout,
+the AGSERVE expected-completion estimator, CacheScout, \unison, and the
+offline B\'el\'ady oracle. CacheScout is evaluated on a matched
+two-tier harness at the Edge-Tight envelope against its own LRU
+reference. Scoring-only and tiering-only variants are deferred to
+Fig.~\ref{fig:ablation}. Six SRAM-and-HBM capacity envelopes span edge
+through CXL configurations. Hit rate and prefill reduction are
+arithmetic means over these envelopes, while AMAT/LRU and TTFT/LRU are
+geometric-mean ratios relative to recency. TTFT is reported at the p50
+percentile under $4\times$ load.
+
+A request is an SRAM hit, an HBM hit, or a miss. With $R$ requests the
+hit rate and the average memory access time are
+\begin{equation}
+  \mathrm{HR}=\frac{H_{\mathrm{S}}+H_{\mathrm{H}}}{R},
+  \qquad
+  \mathrm{AMAT}=\frac{1}{R}\sum_{i=1}^{R}
+    \begin{cases}
+      \ell_i\,t_{\mathrm{s}} & \text{SRAM hit},\\
+      \ell_i\,t_{\mathrm{h}} & \text{HBM hit},\\
+      \ell_i\,t_{\mathrm{p}} & \text{miss},
+    \end{cases}
+  \label{eq:hr-amat}
+\end{equation}
+where $t_{\mathrm{s}}$, $t_{\mathrm{h}}$, and $t_{\mathrm{p}}$ are the
+per-token SRAM, HBM, and prefill costs. Prefill reduction is the
+fraction of those tokens that a hit avoids,
+\begin{equation}
+  \mathrm{PreRED}=1-\frac{\sum_i \ell_i^{\mathrm{comp}}}{\sum_i \ell_i},
+  \label{eq:prered}
+\end{equation}
+and the B\'el\'ady ratio is
+\begin{equation}
+  \mathrm{BR}
+  =\frac{\mathrm{HR}}{\mathrm{HR}^{\star}}
+  \label{eq:br}
+\end{equation}
+against the offline oracle. Prefetch accuracy is defined only when \tide
+is present. Serving TTFT follows the same prefill accounting under a
+trace-driven load model.
+
+\subsection{Main Results}
+\label{sec:sw-main}
+
+Tab.~\ref{tab:main} compares \unison with baseline recency and timeout
+rules, the AGSERVE expected-completion estimator, CacheScout, and the
+offline B\'el\'ady oracle across all six traces. \unison is the best
+non-oracle entry on hit rate and AMAT on every dataset, achieving a
+B\'el\'ady ratio of $\mathrm{BR}{=}0.93$. It surpasses LRU on AMAT in
+all 36 matched comparisons with a mean reduction of 34.8\% and
+outperforms CacheScout on hit rate across all six datasets. The
+remaining 7\% gap to B\'el\'ady reflects the inherent cost of
+causality, since an online policy cannot observe the next arrival and
+the residual is the portion that~\eqref{eq:esp} does not close.
+
+\paragraph{TTFT and the hit-rate versus latency trade-off}
+Although \unison dominates on hit rate and AMAT, the AGSERVE
+expected-completion estimator achieves a marginally lower aggregate
+TTFT/LRU ratio. The serving model charges leftover prefill tokens to
+the request at the head of the GPU queue. The estimator evicts the
+session it predicts will return latest and can therefore discard a
+long-prefix session that the \unison completion penalty retains. The
+retained prefixes improve hit rate and AMAT but leave a longer residual
+prefill on the critical path of a competing arrival, allowing the
+estimator to gain on first-token latency while losing on every other
+metric. The
+0.01-point TTFT difference therefore reflects a fundamental
+hit-rate versus latency trade-off rather than a ranking deficiency.
+
+More broadly, when long prefills saturate GPU compute as on
+SWE/Qwen3 and SWE/Devstral, the bottleneck shifts to queuing delay and
+policy ordering ceases to influence TTFT. The cache-bound regime where
+eviction policy most directly improves latency is isolated in the vLLM
+validation of Section~\ref{sec:sw-vllm}. Scoring and tiering ablations
+are presented in Fig.~\ref{fig:ablation}.
+
+\input{tables/tab4_main}
+
+\subsection{Scoring and Tiering Ablation}
+\label{sec:sw-comp}
+
+Scoring and tiering could in principle be substitutes, so
+Fig.~\ref{fig:ablation} crosses both evictors with and without \tide to
+test this hypothesis. The joint \unison configuration outperforms either
+component in isolation because scoring determines which sessions to
+retain while tiering determines where they reside. A strong evictor
+without migration strands hot sessions in HBM, and a migrator without
+\esp promotes the wrong sessions, yielding a prefetch accuracy of only
+1.1\%.
+
+\begin{figure*}[t]
+\centering
+\begin{subfigure}{0.24\textwidth}
+\includegraphics[width=\linewidth]{fig04a_hr.pdf}
+\caption{Hit rate}
+\label{fig:ablation-hr}
+\end{subfigure}\hfill
+\begin{subfigure}{0.24\textwidth}
+\includegraphics[width=\linewidth]{fig04b_amat.pdf}
+\caption{AMAT / LRU}
+\label{fig:ablation-amat}
+\end{subfigure}\hfill
+\begin{subfigure}{0.24\textwidth}
+\includegraphics[width=\linewidth]{fig04c_prered.pdf}
+\caption{Prefill reduction}
+\label{fig:ablation-prered}
+\end{subfigure}\hfill
+\begin{subfigure}{0.24\textwidth}
+\includegraphics[width=\linewidth]{fig04d_pfacc.pdf}
+\caption{Prefetch accuracy}
+\label{fig:ablation-pfacc}
+\end{subfigure}
+\caption{Component ablation of scoring and tiering.}
+\label{fig:ablation}
+\end{figure*}
+
+\subsection{Signal Contribution Analysis}
+\label{sec:sw-signal}
+
+The hardware scorer of Section~\ref{sec:quant} retains only two of the
+three \spear signals, so a leave-one-out analysis on the full 36-point
+grid is needed to validate that reduction.
+Fig.~\ref{fig:signal} confirms that hazard and gap recurrence are both
+indispensable, while elapsed idle contributes the least with a mean
+impact of 1.55\,pp on hit rate. Because elapsed idle is also the only
+term that requires a per-slot timer in hardware, its omission from the
+register-transfer level (RTL) implementation is justified on both
+accuracy and area grounds.
+
+\begin{figure}[t]
+\centering
+\begin{subfigure}{0.48\linewidth}
+\includegraphics[width=\linewidth]{fig05a_dhr.pdf}
+\caption{$\Delta$HR vs full-3sig}
+\label{fig:signal-hr}
+\end{subfigure}\hfill
+\begin{subfigure}{0.48\linewidth}
+\includegraphics[width=\linewidth]{fig05b_damat.pdf}
+\caption{$\Delta$AMAT vs full-3sig}
+\label{fig:signal-amat}
+\end{subfigure}
+\caption{Mechanism-signal ablation of \spear via leave-one-out on the 36-point evaluation grid.}
+\label{fig:signal}
+\end{figure}
+
+\subsection{Robustness Across Capacity Operating Points}
+\label{sec:sw-robust}
+
+The preceding results use a single default storage envelope.
+Tab.~\ref{tab:robust} verifies that the advantage is not an artifact of
+that operating point by sweeping three hierarchy axes, namely HBM capacity
+with SRAM fixed, SRAM capacity with HBM fixed, and the SRAM-to-HBM
+partition with the total held at 60K tokens. The six-trace mean remains
+positive on hit rate, AMAT, and prefill reduction at every tabulated
+point. The gain grows monotonically with the SRAM share because a
+larger fast tier amplifies the benefit of accurate residency ranking.
+It diminishes only when HBM is large enough that recency alone
+approaches the hit-rate ceiling, a regime in which two GAIA traces tie
+on hit rate while the six-trace mean remains positive. Ancillary
+parameters, including read latency, DMA bandwidth, and prefill rate, do
+not reorder the policies and shift the mean AMAT gain by less than 0.6
+percentage points around the 19.6\% baseline, so they are omitted from
+the table.
+
+\input{tables/tab6_robust}
+
+\subsection{Hazard LUT Fairness and Online Convergence}
+\label{sec:sw-lut}
+
+All experiments so far rely on a hazard LUT fitted on the full trace,
+which could bias the evaluation by overfitting its own sessions or by
+embedding deployment-time knowledge unavailable during online serving.
+
+Tab.~\ref{tab:lutcv} answers the first concern with a five-fold
+cross-validation on SWE/Qwen3. Because a scatter of the same 20
+fold-by-capacity cells would cluster on $y{=}x$, the table reports the
+residual. The held-out LUT deviates from the all-session LUT by at
+most 0.85\,pp and by 0.17\,pp on average, confirming that the hazard
+distribution is a stable property of the turn-survival law rather than
+of a particular session split.
+
+Fig.~\ref{fig:fair-online} addresses the second concern by measuring
+how quickly an initially empty LUT converges to the offline
+performance. Each trace incrementally rebuilds the table as sessions
+complete, accumulating the counts in~\eqref{eq:hazard} with $N$
+ranging from 128 to 496. To compare traces with different absolute
+hit-rate scales on a common frame, we define the attainment metric
+\begin{equation}
+  A(n)=\frac{H_{\mathrm{on}}(n)-H_{\mathrm{LRU}}}
+            {H_{\mathrm{off}}-H_{\mathrm{LRU}}}
+  \label{eq:attainment}
+\end{equation}
+as the fraction of the offline-minus-LRU hit-rate surplus realized
+after $n$ observed sessions, where $A{=}0$ corresponds to the LRU
+floor and $A{=}1$ to the offline table. All six convergence curves
+reach $A{=}1$. Residual fluctuations on GAIA/Gemma4 reflect count
+noise from its 128-session corpus, and the two Devstral traces start
+near the ceiling because LRU already approaches the offline hit rate
+on those workloads. The globally fitted LUT is therefore an evaluation
+convenience rather than a hidden prior, as a production deployment
+accumulates the same table incrementally at runtime.
+
+\input{tables/tab_lut_cv}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fig06_lut_online.pdf}
+\caption{Online convergence of the hazard mechanism.}
+\label{fig:fair-online}
+\end{figure}
+
+\subsection{Production-Stack Validation with vLLM}
+\label{sec:sw-vllm}
+
+The preceding experiments use a trace-driven simulator that abstracts
+away serving-stack scheduling and memory-management details. To
+validate that the \spear ranking transfers to a real inference server,
+we integrate the score into the vLLM~\cite{kwon_pagedattention_2023}
+v1 prefix cache, replacing the default LRU victim order with the
+\spear score derived exclusively from runtime-observable metadata.
+Paired replays of the GAIA/Qwen3 trajectory issue token-identical loads
+at 32-way concurrency and zero temperature. Tool-call frequency is
+varied between tight and loose schedules to span the cache-contention
+range that representative agent workloads exhibit. All pairings
+complete without request errors, and Tab.~\ref{tab:vllm} reports the
+measured gain against LRU under three deployment cases that each
+isolate one operational factor.
+
+\input{tables/tab7_vllm}
+
+\paragraph{Gain on representative configurations}
+The cache-bound case pairs a small testbed model whose fast decode
+makes the workload prefill-dominated with a tight tool-call schedule;
+\spear cuts mean TTFT by 35\% and tail end-to-end latency by 72\%. The
+capacity-stressed case uses a loose schedule on a halved pool and
+still delivers a 2.5\,pp hit-rate gain with a 6\% mean TTFT
+reduction. The native-model case replaces the testbed with the
+trajectory-native 30B under the tight schedule and confirms a positive
+hit-rate gain of 1.6\,pp, ruling out a model-mismatch artifact.
+
+\paragraph{Degradation under specific regimes}
+Three traces not tabulated exhibit degraded or neutral outcomes.
+On GAIA/Devstral under a halved pool and a tight schedule, tool gaps
+fall below the decode latency, so the software idle timestamp inverts
+the gap signal and hit rate drops by $6.6$\,pp. GAIA/Gemma4 has only
+128 sessions, producing a noisy hazard LUT whose variance masks the
+\spear advantage. SWE/Qwen3 is GPU-bound with negligible cache
+pressure, matching the queue-bound SWE traces in
+Tab.~\ref{tab:main}.
+
+\paragraph{Efficacy boundary and hardware implication}
+The degradation pattern reveals two efficacy boundaries of the
+software patch. First, when the tool gap is shorter than the decode
+window, a block-cache timestamp cannot resolve the idle onset and the
+gap signal reverses, which is a fundamental limitation of any
+software-level approximation that lacks a precise request-completion
+event. Second, when prefill already saturates the GPU, a cache hit
+saves tokens but does not shorten the queuing delay, so hit-rate gains
+do not translate to latency gains. The first boundary is precisely what the event-driven hardware
+interface of \unison eliminates, because a dedicated event FIFO stamps
+gap onset and closure at cycle granularity and thereby removes the
+software timing approximation that fails on short gaps. Note that the
+\tide migration mechanism is not evaluated in this vLLM integration
+because the production block cache exposes no tier-placement API, so
+only the \spear ranking is exercised here.

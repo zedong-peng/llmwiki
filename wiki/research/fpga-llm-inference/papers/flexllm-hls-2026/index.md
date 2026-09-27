@@ -48,3 +48,11 @@ Inspected code (pinned copies, not executed):
 - [SpinQuant_Llama_32_1B/SpinQuant_Prefilling_Decoding_mem_opt_demo.cpp](source/code-audit/SpinQuant_Llama_32_1B/SpinQuant_Prefilling_Decoding_mem_opt_demo.cpp) — [upstream commit](https://github.com/Crazy-James26/FlexLLM/blob/8fb9bab4f0ffabad1970b81ce34e857e70822ff0/SpinQuant_Llama_32_1B/SpinQuant_Prefilling_Decoding_mem_opt_demo.cpp).
 
 [Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.
+
+## Original-text verification (2026-09-27)
+
+Checked against the original paper text or public code for the llama.cpp FPGA backend paper; supersedes earlier summaries where they differ.
+
+- arXiv-only (2601.15710) but public code with 32 GitHub stars on 2026-09-27 (Crazy-James26/FlexLLM).
+- U280 decode architecture 292 MHz, 6.94 s per 1k decode tokens (about 144 token/s) for Llama-3.2-1B W4A4 with INT4 lm_head (source/extracted/fccm26.tex:896,1050).
+- Public demo: separate prefill and decode xclbins; per-layer prepared .bin weights; GGUF used only for the llama.cpp tokenizer; the host copies the prefill KV cache into the decode bitstream's buffers (code-audit SpinQuant_Prefilling_Decoding_mem_opt_demo.cpp:15, 32, 740-745, 900-921); decode loop and sampling run on device (lines 932-947).

@@ -203,7 +203,7 @@ Residency 单列是 prior art（DFX/FlightLLM/EdgeLLM 均有）；contribution �
 
 判：原生 llama.cpp FPGA backend 不是首创（SECDA 是文档化集成先例），也不等价于成熟替代（当前 whole-model/HBM-state 路径）；商用 serving（Positron Atlas、Achronix VectorPath）只在应用/API 层可替代，不提供可审查 GGML backend。可辩护机会 = 可用、可改、可复现的框架集成执行路径；等价物不存在 ≠ 唯一。
 
-准入（OR，能力打分前先过）：实质论文评测数据，或可承担复现的公开实现，或经核实的顶会发表；发表与公开是独立轴。本轮九系凭评测数据入表（CODO venue 经 ISCA 官网补核；FlexLLM 维持 preprint）；无任何对手的独立板级复现。
+历史准入（已被下方 2026-09-15 paper-only 规则覆盖；仅保留旧审计背景）：实质论文评测数据，或可承担复现的公开实现，或经核实的顶会发表；发表与公开是独立轴。本轮九系凭评测数据入表（CODO venue 经 ISCA 官网补核；FlexLLM 维持 preprint）；无任何对手的独立板级复现。
 
 替代关系：llama.cpp 内加 FPGA 算子卸载 → SECDA（直接部分替代，边界不同）；标准 API 跑 FPGA 服务 → Positron/Achronix（应用层替代；Positron fork `a1cfb64` 未见 FPGA backend；Achronix 为 request 制评估，无匿名可下载 GGML backend）；改/学完整公开生成实现 → FlexLLM/TeLLMe（路径定制）；GPT-2 dataflow/编译器性能 → DFX/Spatial/StreamTensor/CODO（须先对齐边界）；现有 GGUF + 可审查硬件 → 本轮有限搜索内无等价 drop-in（自家包也不达标）；本地高效跑 LLM → llama.cpp CPU/CUDA 等（非 FPGA 基线但是真替代）。
 
@@ -265,3 +265,72 @@ Coverage describes implementation binding and observed model scope separately. M
 | [[papers/secda-llm-2024/index|secda-llm-2024]] | GGUF (later source) | Reusable operator backend; one model evaluated | TinyLlama paper evaluation; multiple model configurations in later source. |
 
 Code availability audit: several pre-existing `repo/` paths were empty despite metadata saying archived. Restored local source caches for five repositories and retained the inspected files under each paper’s `source/code-audit/` so evidence is versioned despite the existing `**/repo/` ignore rule. FlexLLM cache is partial; selected files and their hashes are recorded explicitly. Existing paper PDFs/TeX were reused; EdgeLLM was read through PDF extraction. No bitstreams, weights, toolchains or synthesis outputs were downloaded. Input-format NR means not established, not unsupported.
+
+## Paper-only competition audit (2026-09-15)
+
+**当前准入：必须有可核验论文；公开 arXiv preprint 算论文，但不等于同行评审录用。GitHub star 仅用于发现候选，仓库/README/endorsement 本身不算论文。此规则覆盖上方历史 OR 准入。** 先匹配论文标题、作者和项目关联，再区分完整系统、单层/kernel、设计工具。没有公开 arXiv 不证明没有正式出版论文，但在未获得替代论文证据前不纳入本轮。
+
+| 核实对象 | 公开论文证据 | 本轮结论 |
+|---|---|---|
+| [[research/fpga-llm-inference/assets/imax-cgla-2025/index|IMAX / IMAX3-LLM]] | arXiv:2512.00335v1；PDF 首页 IEEE Access DOI；论文直接链接官方仓库 | 新增正式深读条目；llama.cpp CPU MatMul 内 FPGA offload，直接集成相关。不是已证独立 GGML device backend；44.4× 能效为 ASIC 投影 |
+| [[research/fpga-llm-inference/assets/persistent-state-gdn-2026/index|Persistent-state GDN]] | arXiv:2603.05931v1；PDF/TeX 标题作者一致 | 新增正式深读条目；单层状态更新，HLS 估算性能，不是完整 backend，不关联 Tyler913 仓库 |
+| WPU | README 自称论文题目 “Bit-Exact by Construction: A Verification-First RTL Accelerator that Inherits the GGUF k-Quant Checkpoint Ecosystem”，链接寻求 arXiv endorsement | 项目名/标题检索未找到匹配公开 arXiv；暂不计入。Endorsement 不是公开论文 |
+| Tsavorite / tsisw | Tsavorite 名称检索无匹配公开 arXiv | 实现证据不代替论文，暂不计入 |
+| Loom、fable5、APEX、XMC（Streaming Compressed-Weight）、PolarFire llama、GEMMA3 FPGA、Spanker、KEV GPT | 见归档查询；无项目身份匹配的 arXiv（部分返回无关结果） | 暂不计入，不能把关键词相似论文挂到这些仓库 |
+
+保留现有有论文条目作比较：SECDA 是已读集成先例；IMAX 表明不能只找到 2024 SECDA 就结束。CODO/StreamTensor 等按既有 notes 的 fixed-graph/phase 边界评估；DFX/FlightLLM/EdgeLLM 等是完整系统或状态驻留相关先例。**“做了 llama.cpp FPGA backend”本身不足以支撑首创；论文机会要落到正确性、整图/状态驻留、第二模型部署和匹配条件实测改善。** 当前项目范围不能拿计划中的自动跨模型映射当已实现优势。
+
+### 已下载但未进入正式比较的外围论文
+
+以下均已取得公开 arXiv v1 源码及 PDF，核对首页标题、页数并保存 SHA-256；**未完成全文阅读，metadata 保持 not_started/downloaded，无占位正式 paper note，也不据此作性能判断**。它们是扩展检索缓存，不是“又找到五个完整 backend”。
+
+| 候选 | arXiv | 缓存与状态 |
+|---|---|---|
+| Design Conductor 2.0 | 2605.05170v1 | [metadata](assets/design-conductor-2-2026/metadata.yaml)，12 页；设计自动化方向 |
+| LLM-Driven Design Space Exploration of FPGA-based Accelerators | 2605.05920v1 | [metadata](assets/secda-dse-2026/metadata.yaml)，6 页；SECDA DSE 后续 |
+| Towards Autonomous Accelerator Design: FPGA Accelerator Generation with SECDA | 2606.11117v1 | [metadata](assets/secda-autonomous-2026/metadata.yaml)，6 页；SECDA 设计生成后续 |
+| UNISON: A Co-Designed Near-Memory Scheduler of Session KV Residency for LLM Agents | 2609.09643v1 | [metadata](assets/unison-2026/metadata.yaml)，13 页；session KV scheduler |
+| FlexPosit: Tunable Fractional Precision for LLM Inference Accelerators | 2609.04724v1 | [metadata](assets/flexposit-2026/metadata.yaml)，15 页；数值格式/架构方向 |
+
+检索证据：[查询与结果](threads/paper-eligibility-2026-09-15/arxiv-results.txt)、[脚本](threads/paper-eligibility-2026-09-15/search_arxiv.py)、[WPU README 快照](threads/paper-eligibility-2026-09-15/WPU-README.md)、[哈希清单](threads/paper-eligibility-2026-09-15/manifest.yaml)。查询 HTML 同目录保留，查询名为文件名；检索有名称召回局限，负结果只表示截至本轮未找到匹配，不能证明论文不存在。
+
+归档状态：两篇全文阅读+正式 note，七篇 PDF/TeX 缓存及身份检查；未运行下载代码、综合或 FPGA 板级复现。发现已有未完成的 `papers/imax-llm-2025/` PDF 缓存，保持原样，不将其另计论文；本轮正式入口为 canonical `assets/imax-cgla-2025/`。
+
+## Decode-speed anchor and original-text verification (2026-09-27)
+
+**Inclusion rule for comparisons:** only formally published work (conference, journal or peer-reviewed workshop) or arXiv work with a usable public repository that has GitHub stars. Wiki summaries are leads, not evidence: every table cell must be checked against the paper text or public code.
+
+**Single-request decode rates as reported** (checked in the original; details and line numbers in each paper note):
+
+| System | Board (peak GB/s) | MHz | Model | Weights | token/s | Implied weight GB/s (% peak) | Basis |
+|---|---|---:|---|---|---:|---:|---|
+| DFX | U280 (460) | 200 | GPT-2 345M | FP16 | 185.19 | 131 (28%) | board, via StreamTensor table |
+| Allo (spatial) | U280 (460) | 250 | GPT-2 Medium | W4A8 | 204.05 | 36 (8%) | board, via StreamTensor table |
+| StreamTensor | U55C (460) | 250 | GPT-2 Medium | W4A8 | 199.51 at 32:32 | 35 (8%) | board |
+| CODO | U280 (460) | 300 | GPT-2 Medium | W4A8 | 231.48 | 41 (9%) | model-level rate from a one-block kernel |
+| FlexLLM | U280 (460) | 292 | Llama-3.2-1B | W4A4 | ~144 (6.94 s/1k) | 89 (19%) | board |
+| FlightLLM | U280 (460) | 225 | LLaMA2-7B | W3.5A8 + N:M | 55 | paper: 65.9% util. | secondary (AccLLM Table VII) |
+| AccLLM | U280 (460) | 225 | Llama-2-7B | W2A8 + 2:4 | 164 | — | cycle-accurate simulation |
+| EdgeLLM | VCU128 (460) | 280 | GLM-6B | W4, FP16 act. | ~90 | 279 (61%); paper ~75% for matmul | board |
+| Li et al. (DATE'25) | KV260 (19.2) | 300 | LLaMA2-7B | W4 AWQ | ~5 | 17 (88%); paper 85% | board |
+| TeLLMe v2 | KV260 (19.2) | — | BitNet 0.73B | W1.58A8 | up to 25 | — | board, LM head on ARM |
+| F-BFQ | KV260 (19.2) | 200 | GPT-2 163M | Q2_K/Q3_K | up to 12.2 | — | board, llama.cpp MatMul offload |
+| SECDA-LLM | PYNQ-Z1 | — | TinyLlama 1.1B | Q3_K | 0.59 (1.7 s/token) | — | board, llama.cpp MatMul offload |
+
+Implied traffic = matrix parameters read per token (incl. vocabulary head) x weight bits / 8 x token/s; a lower bound that ignores KV, scales and activations. Without absolute rates in the text: FlightLLM (normalized only), Spatial Allo (relative to DFX), LUT-LLM (relative to GPUs), IMAX (figures only).
+
+**Corrections to earlier wiki content found in this pass:**
+- CODO Table VI's DFX, Allo and StreamTensor values originate in StreamTensor's own GPT-2 table (identical values); CODO's 64:64 total is one token interval above TTFT + G/speed.
+- CODO public artifact (fig-9): the decode kernel is one block and one token with no KV input and no vocabulary matrix, timed as one launch.
+- FlightLLM's method takes a compressed PyTorch model through an automated IR/ISA flow; "prepared cases" applies only to the public artifact. The paper has no absolute U280 token/s; the 55 token/s figure is AccLLM's tabulation, and TeLLMe's "153 token/s" has no traceable source.
+- AccLLM is published (IEEE TVLSI 2026, DOI 10.1109/TVLSI.2026.3658524); its 164 token/s is simulated. SECDA-LLM appeared at the ARC-LG workshop at ISCA 2024.
+- EdgeLLM's own text reports GLM-6B ~90 token/s at 280 MHz (MatMul), whereas AccLLM tabulates ChatGLM2-6B at 125 MHz and 75 token/s.
+- Spatial Allo fetches each layer's parameters from the host (not device-resident); FlexLLM relays KV through the host between separate prefill and decode bitstreams; TeLLMe runs embedding, LM head and sampling on the ARM host.
+- New entries: [[papers/f-bfq-2025/index|F-BFQ]] (llama.cpp MatMul offload, KV260) and an [[papers/imax-llm-2025/index|IMAX]] note (VPK180 prototype, Qwen3, host-managed KV).
+
+### Table eligibility decisions (2026-09-27)
+- Excluded from comparison tables: F-BFQ (LG-ARC workshop, no public code) and SECDA-LLM (ARC-LG workshop; github.com/judeharis/SECDA-LLM created 2026-06-03, labelled [WiP], 0 stars, only SystemC-simulation and cross-compile presets, no bitstream or board flow, so the paper results are not reproducible). SECDA-LLM stays as a one-sentence prose precedent for llama.cpp FPGA offload.
+- Kept: DFX (MICRO), FlightLLM (FPGA), EdgeLLM (TCAS-I), Allo spatial (TRETS), TeLLMe (FPGA), StreamTensor (MICRO), CODO (ISCA), IMAX (IEEE Access), FlexLLM (arXiv but public repo with 32 stars).
+- Public code (checked 2026-09-27): FlexLLM, Allo, TeLLMe, CODO artifact, IMAX3-LLM released; FlightLLM releases only a bitstream and profiler (RTL is Infinigence-AI IP); no released code found for DFX, EdgeLLM, StreamTensor (documentation site only).
+- Feature split used in the paper: whole graph on FPGA vs per-kernel offload, and KV persisting on device vs host-managed KV. IMAX: neither (host runs tokenization, embedding, KV, softmax, RMSNorm, RoPE). CODO public decode kernel: neither (one block, no KV input).
+

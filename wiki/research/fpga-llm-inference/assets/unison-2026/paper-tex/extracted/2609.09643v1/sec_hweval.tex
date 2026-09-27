@@ -1,0 +1,215 @@
+\section{Hardware Evaluation}
+\label{sec:hweval}
+
+Section~\ref{sec:arch} locked the integer contract, the unified
+pipeline, and the session capacity at $N{=}64$. This section evaluates
+the resulting IP under a 28-nm CMOS standard-cell flow, establishes the
+architectural case for a dedicated scheduling core, and provides a
+board-level demonstration. The evaluation proceeds from synthesis
+results through efficiency, timeliness, and fidelity analyses to a
+structural necessity argument that explains why the same policy cannot
+be realized in software or as a pair of independent IPs.
+
+\subsection{Locus Against Datapath KV Hardware}
+\label{sec:hw-locus}
+
+Table~\ref{tab:hw-kv} positions the \unison scheduling core against
+token-level, device-level, and interconnect-level engines. Every
+existing entry operates on a single request and optimizes a per-token
+or per-block metric, whereas the scheduler ranks a pool of live
+sessions on gap and completion signals that no token-level engine
+observes. The two classes of hardware are complementary rather than
+competing.
+
+\input{tables/tab_hw_kv}
+
+\subsection{Synthesis Methodology}
+\label{sec:hw-method}
+
+The synthesized netlist comprises an APB wrapper, a CSR file, an event
+FIFO, and the unified \spear scan plus \tide engine, with the session
+table mapped to flip-flops at roughly $N_{\mathrm{sess}}\times 126$
+bits plus a four-bit \tide working copy. SRAM compiler macros, the HBM
+PHY, and KV payload arrays are outside the cell area, and a prefix
+directory together with a multi-instance router are likewise excluded.
+
+Logic synthesis uses Synopsys Design Compiler on a commercial 28-nm
+CMOS library at a 150\,MHz clock constraint, an application-side
+budget rather than a race against the HBM PHY. Power is a vectorless
+estimate at the timing corner. The RTL locks a pipelined scan and the
+exact divider of~\eqref{eq:t1}, matching the bit-exact cosimulation of
+Section~\ref{sec:micro}. Unless stated otherwise, bit-exact validation
+and the FPGA demonstration use the GAIA/Gemma4 Edge-Tight trace, which
+is the most hazard-sensitive of the six families and therefore the
+hardest case for the fixed-point contract. Timeliness analysis draws on
+all three GAIA families because only the GAIA traces carry recorded
+tool-gap annotations.
+
+\subsection{Area, Power, and Timing}
+\label{sec:hw-ppa}
+
+Table~\ref{tab:dc} reports the 64-session design point at the ASE knee
+of Section~\ref{sec:dse}, occupying 0.169\,mm$^{2}$ at 13.6\,mW and
+meeting 150\,MHz with 0.01\,ns positive setup slack for an estimated
+$F_{\max}$ of 153.4\,MHz.
+
+\input{tables/tab_dc}
+
+Combinational logic accounts for 54\% of cell area and sequential
+logic for 46\%. The \tide budget divider is the largest block at 34\%,
+followed by the \spear divider at 17\% and the APB wrapper, CSR, and
+event FIFO at a combined 6\%. The critical path runs through the first
+\tide divider stage from the programmed DMA bandwidth register into the
+remainder pipeline.
+
+On the Yosys/Nangate45 flow of Fig.~\ref{fig:dse}, ASE reaches 0.900,
+0.952, and 0.985 at 16, 32, and 64 sessions and saturates beyond 64
+because trace concurrency never exceeds that count. Mean decision
+latency per~\eqref{eq:tau} grows from 0.30\,$\mu$s at 16 sessions to
+2.00\,$\mu$s at 64 and 3.95\,$\mu$s at 256. The five structural
+variants at $N{=}64$ span 2.6\% in cells, and varying $b_{h}$ or
+$b_{s}$ from the locked values shifts area by less than 3\%,
+confirming that the precision demanded by ranking is essentially free
+relative to the register file.
+
+\subsection{Decision Efficiency and Control-Plane Overhead}
+\label{sec:hw-eff}
+
+The scheduler outputs a victim index and DMA descriptors rather than
+computing attention, so its relevant efficiency metric is control-plane
+cost relative to the data plane it manages.
+
+\paragraph{Area amortization}
+The 0.169\,mm$^{2}$ controller manages a two-tier pool of 10\,K to
+60\,K tokens. At 128 heads, 128 dimensions, and 16-bit KV per layer, a
+60\,K-token HBM bank occupies several hundred megabytes, and the
+scheduling core is negligible relative to the HBM PHY and KV payload
+arrays that together dominate die area on any contemporary inference
+accelerator. Yet this vanishing fraction of total silicon delivers a
+34.8\% mean AMAT reduction and a B\'el\'ady ratio of 0.93, a
+cost-benefit asymmetry analogous to the branch predictor that occupies
+less than 2\% of core area while eliminating the majority of pipeline
+stalls.
+
+\paragraph{Energy per decision}
+At 13.6\,mW and a 2.00\,$\mu$s mean decision latency, each eviction
+or migration decision consumes approximately 27.2\,pJ, which is orders
+of magnitude below the per-access energy of the HBM transactions that
+the decision orchestrates.
+
+\paragraph{Workload proportionality}
+Controller area scales with $N_{\mathrm{sess}}$ through the register
+file, not with model dimensionality or sequence length. Increasing model
+size from 7\,B to 70\,B parameters multiplies the KV store and
+attention datapath but leaves the scheduling core unchanged, while
+doubling session capacity beyond 64 roughly doubles the register file
+without improving ASE, which is already saturated at 0.985. A
+general-purpose microcontroller could in principle execute the same
+algorithm, but its instruction-fetch and interrupt overhead would push
+decision latency into the tens of microseconds, and the area of even a
+minimal core with tightly coupled memory exceeds the 0.169\,mm$^{2}$
+of the dedicated datapath while delivering lower determinism.
+
+\subsection{Decision Timeliness}
+\label{sec:hw-time}
+
+At $N{=}64$ and 150\,MHz the mean scan latency is 2.00\,$\mu$s and
+the worst case is 3.14\,$\mu$s. The GAIA traces exhibit median tool
+gaps of 3.7\,s for Qwen3, 4.4\,s for Devstral, and 7.2\,s for
+Gemma4, with the minimum observed gap across all three families at
+1\,ms. The worst-case decision latency is therefore 0.31\% of the
+minimum gap and below 0.0001\% of the median, leaving four to six
+orders of magnitude of timing headroom.
+
+This margin implies that even a ten-fold frequency reduction to
+15\,MHz would keep the decision latency at 31\,$\mu$s, well within the
+millisecond-scale minimum gap, so the controller can be placed in a
+slow clock domain or power-gated between events. By contrast, a
+software scheduler polling block-cache timestamps at millisecond
+granularity occupies the same order of magnitude as the minimum gap
+itself, which is why the software approximation inverts the gap signal
+on short waits as documented in Section~\ref{sec:sw-vllm}.
+
+\subsection{Implementation Fidelity}
+\label{sec:hw-fid}
+
+Cosimulation of the locked RTL format against the floating-point
+reference is bit-exact on all 1\,937 events and 845 decisions of the
+validation trace. Across 7\,265 real eviction snapshots from six traces and
+three capacity envelopes, the aggregate top-1 victim agreement is
+0.9945, the Kendall $\tau$ exceeds 0.998, and per-dataset agreement
+ranges from 0.991 on SWE/Devstral at 2\,400 snapshots to 1.000 on
+GAIA/Devstral at 16 snapshots, with no dataset falling below the 0.99
+hard gate. The worst-cell end-to-end hit-rate drift is 0.192\,pp
+within the 0.20\,pp hard gate, and the mean drift across all 18
+dataset-by-capacity cells is 0.019\,pp while the AMAT drift is
+$-0.018$\%.
+
+Because each eviction decision is an independent $\arg\max$ over
+instantaneous scores, the 0.55\% top-1 disagreement is a per-snapshot
+coin flip that does not accumulate into trajectory-level drift, as
+confirmed by the 0.019\,pp mean hit-rate deviation over full traces.
+The fixed-point pipeline is therefore functionally transparent with
+respect to the policy it implements, reproducing the ranking within a
+residual that is smaller than the inter-policy gap between \unison and
+CacheScout on every dataset.
+
+\subsection{Structural Necessity of the Unified Near-Memory Design}
+\label{sec:hw-nec}
+
+Three lines of evidence converge to show that the same policy cannot be
+realized more cheaply in software or as a pair of independent IPs.
+
+\paragraph{Software cannot reconstruct the event interface}
+Section~\ref{sec:sw-vllm} demonstrates that a software scheduler
+operating on block-cache timestamps inverts the gap signal when the
+tool wait approaches the decode window, because the timestamp
+granularity at millisecond resolution is coarser than the gap itself,
+whereas the hardware event FIFO resolves the same transition at cycle
+granularity. More broadly, any software scheduler sharing the Python
+runtime is subject to GIL serialization and OS-level jitter that
+inflate scheduling latency by orders of magnitude beyond the
+microsecond decisions the hardware achieves.
+
+\paragraph{A dual-IP design diverges under agent interleaving}
+Section~\ref{sec:org} shows that splitting eviction and migration into
+two engines with private register files causes hit-rate drops of up to
+5.4\,pp even under every-event synchronization, because agent workloads
+interleave request and gap events at fine granularity rather than in
+long homogeneous phases.
+
+\paragraph{Convergence of the three constraints}
+Cycle-level event observation requires near-memory placement, consistent
+state requires a unified register file, and deterministic gap-window
+completion requires a pipelined datapath. Relaxing any one constraint
+re-introduces a documented failure mode, so the architectural
+contribution is this constraint intersection realized as a
+sub-0.2\,mm$^{2}$ control-plane IP.
+
+\subsection{Board-Level Demonstration}
+\label{sec:hw-fpga}
+
+Fig.~\ref{fig:fpga} shows a Xilinx Zynq-7020 prototype that replays
+the validation trace over 1\,937 events and 845 decisions, stamping
+decision latency at the 150\,MHz Design Compiler clock. The
+post-implementation netlist occupies 43\,415 LUTs at 81.6\% slice
+utilization, 20\,938 flip-flops at 19.7\%, and 20 DSP48E1 blocks at
+9.1\%, with no block RAM consumed.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fpga_demo_annotated.jpg}
+\caption{FPGA prototype implementation of the \unison scheduling core
+on Xilinx Zynq-7020.}
+\label{fig:fpga}
+\end{figure}
+
+\subsection{Physical Placement Considerations}
+\label{sec:hw-place}
+
+The timeliness margin of Section~\ref{sec:hw-time} implies that the
+controller does not require co-location with the HBM PHY clock domain.
+The essential requirement is access to the event stream that software
+timestamps cannot reconstruct, which a sideband event bus from the
+memory controller provides without a shared clock or a high-bandwidth
+data interface.

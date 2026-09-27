@@ -1,0 +1,121 @@
+\section{Related Work}
+\label{sec:related}
+
+A finite two-tier pool poses two ordering problems: eviction ranks who
+leaves, and placement ranks who sits in the fast tier. Both oracles
+reduce to B\'el\'ady next-reference distance, which is not observable
+online, so every policy substitutes a proxy conditioned on progressively
+richer information.
+
+\subsection{Information-Conditioned Eviction Methods}
+\label{sec:related-evict}
+
+Access-history methods treat a recent touch as evidence of future need.
+PagedAttention~\cite{kwon_pagedattention_2023} pages a growing KV pool
+in the style of virtual memory, and
+SGLang~\cite{zheng_sglang_2024} reuses shared prefixes through a radix
+tree. Both evict by block recency, so a session alive on a tool wait
+appears oldest and leaves first.
+
+Lifecycle methods promote the pause to a first-class request state.
+InferCept~\cite{abhyankar_infercept_2024} chooses discard, preserve, or
+swap from a per-request waste account, and
+Continuum~\cite{li_continuum_2026} pins paused KV with a time-to-live
+derived from reload cost. Both keep a paused session resident yet issue
+an absolute keep-or-drop for one request, so the locally cheap choice
+can be the globally expensive victim.
+
+Arrival-table methods predict the next request.
+AGSERVE~\cite{agserve_2025} reads the next arrival from a tool-type
+latency table, assigning the same wait to every session that shares a
+tool, which homogenizes heterogeneous jobs and mis-ranks the longest
+residents.
+
+Structure-conditioned methods exploit workflow or role diversity.
+CacheScout~\cite{cachescout_2026} learns a Markov table over agent
+roles, KVFlow~\cite{pan_kvflow_2025} reads steps-to-execution off a
+declared graph, and PBKV~\cite{zheng_pbkv_2026} predicts future agent
+calls. The contrast in all three is borrowed from structural diversity;
+a homogeneous batch flattens the scores and the policy falls back to
+recency.
+
+A parallel line shortens the token set of one trajectory rather than
+ranking who leaves a shared pool.
+IntentKV~\cite{li_intentkv_2026} scores history tokens from cross-turn
+intent, MemDecay~\cite{matam_memdecay_2026} assigns region-specific
+decay, and CommitKV~\cite{huang_commitkv_2026} retires pages only after
+a tool-call commit. All three trade accuracy for a smaller working set
+without comparing live sessions against one another.
+Semantic queues~\cite{fang_saecache_2026}, variable-grain
+paging~\cite{jeon_granikv_2026}, and workflow-aware job
+admission~\cite{ni_topas_2026} similarly reshape what a request
+contains or which job runs, yet none ranks live sessions on a shared
+pool.
+
+Learned replacement policies trained by reinforcement learning or
+imitation, such as LRB~\cite{song_lrb_2020} in web caching, achieve
+strong offline accuracy but require per-decision inference times of
+hundreds of microseconds to milliseconds, which exceeds the
+single-digit microsecond budget of a near-memory scheduler by two
+orders of magnitude and therefore cannot serve as an online eviction
+oracle in the hardware pipeline targeted here.
+
+Taken together, access history inverts the ranking, a per-request
+lifecycle yields no ranking, a population table homogenizes it, and
+borrowed structure yields a ranking that vanishes when the batch is
+uniform, and none of these proxies conditions on the signal that every
+session carries in every regime, namely its own observed gaps and its own
+progress toward completion.
+
+\subsection{Hierarchy-Aware Placement Strategies}
+\label{sec:related-place}
+
+A kept session still has an access cost; the oracle places the soonest
+next reference in the fast tier. Prior placement work has widened its
+information from a static offload plan to job-scheduler hints to a
+global reuse store.
+FlexGen~\cite{sheng_flexgen_2023} solves a linear program over GPU,
+CPU, and disk, conditioning on membership in the current computation, so
+a session alive on a tool wait is demoted first.
+CachedAttention~\cite{gao_cachedattention_2024} places blocks from
+scheduler hints across a three-level store, but the hint names the next
+scheduled job, not the remaining wait of each session.
+Mooncake~\cite{qin_mooncake_2025} pools DRAM, SSD, and RDMA under
+prefix-popularity ordering, which ranks by reuse frequency rather than
+by proximity.
+
+Consequently, a static plan inverts the placement in time, a scheduler
+hint homogenizes it across pauses, and a popularity score orders it by
+frequency instead of proximity, so all three keep the right bytes in
+the wrong place because none conditions on the gap this session just
+opened.
+
+\subsection{Near-Memory and Datapath KV Hardware}
+\label{sec:related-hw}
+
+Token, device, and interconnect engines decide which bytes of one
+request to compute or move, a decision complementary to ranking who
+stays in a shared pool. Table~\ref{tab:hw-kv} in
+Section~\ref{sec:hweval} places both objects on one grid.
+
+Importance datapaths prune or skip tokens inside one decode step.
+Token-Picker~\cite{park_tokenpicker_2024} withholds transfers based on
+pre-softmax probability, UniCAIM~\cite{xu_unicaim_2025} prunes via
+content-addressable search, a KV-MMU~\cite{moradifirouzabadi_kvmmu_2025}
+replaces least-relevant tokens at runtime,
+HiKV~\cite{fang_hikv_2026} evicts tokens then loads significant
+elements through a reconfigurable sorter, and
+Kelle~\cite{xia_kelle_2025} evicts by attention score in embedded DRAM.
+Look-back and voting designs such as MATA~\cite{zhu_mata_2026} and
+VEDA~\cite{wang_veda_2025} belong to the same datapath family.
+Capacity-expansion hardware enlarges the store.
+CXL-SpecKV~\cite{liu_cxlspeckv_2026} offloads KV to FPGA memory
+with speculative prefetch, and V-Rex~\cite{kim_vrex_2026} retrieves
+clustered video-token subsets. None of these engines observes a tool
+wait or a pool of other live sessions.
+
+A near-memory scheduler sits beside the hierarchy and ranks session
+residency on request and gap events, so that eviction and tiering
+become two reads of that ranking. The datapath can still prune tokens
+of the request now in flight; the two mechanisms do not substitute for
+each other.

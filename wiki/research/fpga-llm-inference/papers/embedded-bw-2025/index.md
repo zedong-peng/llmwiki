@@ -33,3 +33,10 @@ tags: [paper, fpga, llm-inference]
 - Source archive and code repository: not requested in this import pass.
 
 Return to [[research/fpga-llm-inference/papers/index|FPGA LLM paper library]].
+
+## Original-text verification (2026-09-27)
+
+Checked against the original paper text or public code for the llama.cpp FPGA backend paper; supersedes earlier summaries where they differ.
+
+- Code: github.com/adamgallas/llama-fpga (206 stars on 2026-09-27; also cited as ICCAD'25 follow-up).
+- KV260 with 64-bit DDR4-2400 (19.2 GB/s); LLaMA2-7B AWQ 4-bit; about 5 token/s decode, 85% of the theoretical bandwidth limit; 300 MHz (PDF text lines 42-44, 96-99, 109).

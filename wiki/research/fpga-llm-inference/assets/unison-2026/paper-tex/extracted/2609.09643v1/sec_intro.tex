@@ -1,0 +1,128 @@
+\section{Introduction}
+\label{sec:intro}
+
+\IEEEPARstart{L}{arge} language models (LLMs) are now widely deployed
+as general-purpose generators, and the rise of tool use has composed
+them into multi-step agent
+loops~\cite{yao_react_2023,wang_survey_2024} that plan, invoke
+external tools, and resume the same task after each action. Although
+multi-turn chat already retains a conversation prefix in the
+key-value (KV) cache, an agent loop further superimposes structured
+tool waits, larger tool-result inserts, and more model invocations
+per task, so that the object of serving is no longer a single request
+but a session that is expected to return.
+
+Serving systems have accordingly devoted most of their effort to how
+tokens are computed, including how prefill and decode share or split
+devices~\cite{patel_splitwise_2024,zhong_distserve_2024}. Under agent
+loops, however, the end-to-end cost is often set by how the KV cache
+is retained, evicted, and placed. Whereas a multi-turn conversation
+remains paced by one user, agent workloads place many agents and many
+sessions on the same pool at once and hold a growing prefix across
+tool waits. The resulting live set shares static random-access memory (SRAM) and
+high-bandwidth memory (HBM) with other attention clients, including
+prefill, decode, and an optional vision-language model, on both edge
+systems-on-chip (SoCs) and cloud servers. Once aggregate residency
+outgrows that pool, eviction and hierarchical placement become an
+efficiency problem in their own right and stand orthogonal to
+compute-mode optimization. Fig.~\ref{fig:motivation}(a) records this
+operating point.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fig01_motivation.pdf}
+\caption{Motivation. \textbf{(a)}~Agent-resident occupancy versus a
+request-scoped counterfactual on the same twelve-turn session.
+\textbf{(b)}~Monotonic prefix growth across 1\,415 sessions into edge
+and cloud SRAM/HBM envelopes. \textbf{(c)}~Recency, timeout, and ETA
+remain above a B\'el\'ady oracle in AMAT, extra prefill, and TTFT.}
+\label{fig:motivation}
+\end{figure}
+
+Fig.~\ref{fig:motivation}(a) contrasts two KV contracts on the same
+twelve-turn session. The agent-resident curve holds the prefix through
+every tool wait, whereas the request-scoped pulses drop the cache
+after each decode. Unlike a multi-turn chat staircase whose idle
+interval is a human pause that may never return, an agent tool wait is
+a scheduled return, and recency or timeout policies therefore treat the
+second kind of idle as if it were the first.
+
+That resident contract becomes expensive once the prefix outgrows the
+finite pool. Fig.~\ref{fig:motivation}(b) overlays prefix tokens on
+coding and web-agent traces across 1\,415 sessions and three model
+families. The curves rise monotonically into the SRAM and HBM
+envelopes that edge and cloud stacks provision, and a budget that
+cannot hold the live set is what makes session-level scheduling
+unavoidable.
+
+Published proxies miss the mechanism information that the loop
+already produces and therefore treat a live wait as a cold,
+discardable unit. Recency and timeout invert the rank by reading a
+tool wait as coldness. A per-request lifecycle issues an absolute
+keep-or-drop without ever ranking the live set against other
+residents~\cite{abhyankar_infercept_2024,li_continuum_2026}. A
+tool-type arrival table ranks residents yet assigns the same wait to
+every job that shares a tool. Identity- or workflow-conditioned
+scores separate residents only while roles or graphs remain diverse
+and flatten toward recency once the batch is
+uniform~\cite{cachescout_2026,pan_kvflow_2025,zheng_pbkv_2026}.
+Hierarchical stores enlarge the pool yet still place from a static
+plan, a job-scheduler hint, or prefix popularity, so that a kept
+prefix is served on the slow path. Paged and radix
+runtimes~\cite{kwon_pagedattention_2023,zheng_sglang_2024} manage the
+pool at block granularity. Token, device, and interconnect engines
+decide which bytes of one request to compute or move, a decision
+that is complementary to ranking who stays in the shared pool, as
+Table~\ref{tab:hw-kv} places on one grid. As Fig.~\ref{fig:motivation}(c)
+reports, recency, timeout, and estimated time of arrival (ETA) all
+sit above a B\'el\'ady next-reference oracle in average memory
+access time (AMAT), extra prefill, and time to first token (TTFT)
+across six traces and six capacity envelopes. Because that oracle is not observable online, a
+useful substitute must exploit a signal that is already present on
+every session, observable at runtime, and cheap to maintain, namely
+the session's own gap history and its own progress toward completion.
+
+Orthogonal to token datapaths and cluster routers that pursue the
+same end-to-end efficiency from complementary vantage points, this
+work proposes a near-memory scheduler beside the hierarchy
+for long-horizon agent tasks in which many attention clients compete
+for a two-tier pool on the edge and in the cloud. The scheduler
+must decide who leaves the pool and who sits in the fast tier, and
+both decisions are conditioned on the loop's mechanism information
+rather than on an attempt to read task content.
+
+To address those issues, we present
+\textbf{U}nified \textbf{N}ative \textbf{I}nter-turn
+\textbf{S}ession \textbf{O}rchestration \textbf{N}exus (\unison),
+an event-driven near-memory scheduler in which
+\textbf{S}urvival-\textbf{P}enalty \textbf{E}viction for
+\textbf{A}gent \textbf{R}eturn-gap (\spear) and
+\textbf{T}iering in \textbf{I}dle-window \textbf{D}MA
+\textbf{E}vents (\tide) share one live ranking in a session
+register file beside the memory hierarchy.
+\spear scores remaining distance from a gap exponential moving
+average (EMA) and a turn-indexed hazard and selects who leaves, while
+\tide reads the complementary order, spends the observed wait as a
+direct memory access (DMA) budget, and selects who sits in the appropriate memory hierarchy.
+The main contributions are as follows.
+\begin{enumerate}
+\item \textbf{Algorithm.} \spear and \tide jointly rank sessions from
+loop signals that the serving runtime already observes. Evaluated on
+six traces that cross the
+SWE-bench~\cite{jimenez_swebench_2024} and
+GAIA~\cite{mialon_gaia_2023} agent benchmarks with three model
+families~\cite{qwen3_2025,devstral_2025,gemma4_2026}, totaling 1\,415
+sessions, 33\,596 turns, and six capacity envelopes from edge to
+cloud, the joint policy is the best non-oracle entry on hit rate and
+AMAT on every trace, raising the hit rate by $0.3\%$ to $23.1\%$ and reducing AMAT by
+$22\%$ to $51\%$. On the long-horizon
+traces it also lowers serving TTFT by 58\% to 89\% when extra
+prefill sits on the critical path.
+\item \textbf{Architecture.} We show that cycle-level event fidelity,
+unified eviction and migration state, and deterministic gap-window
+completion jointly require a near-memory control plane that cannot be
+decomposed into independent IPs or realized in software. The 28-nm
+CMOS scheduling core occupies 0.169\,mm$^{2}$ at 13.6\,mW and 150\,MHz for 64
+sessions, a negligible overhead that reproduces the floating-point
+ranking at Kendall $\tau{>}0.998$.
+\end{enumerate}

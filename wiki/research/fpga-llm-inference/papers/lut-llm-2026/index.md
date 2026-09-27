@@ -48,3 +48,9 @@ Inspected code (pinned copies, not executed):
 - [qwen_block/qwen_block_decode_tb.cpp](source/code-audit/qwen_block/qwen_block_decode_tb.cpp) — [upstream commit](https://github.com/LUT-FPGA/LUT-LLM/blob/9ee2259d312f9b1119a398d8ff7703154260a417/qwen_block/qwen_block_decode_tb.cpp).
 
 [Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.
+
+## Original-text verification (2026-09-27)
+
+Checked against the original paper text or public code for the llama.cpp FPGA backend paper; supersedes earlier summaries where they differ.
+
+- FCCM 2026; repository LUT-FPGA/LUT-LLM has 54 stars (2026-09-27). Prototype on V80 at 250 MHz with Qwen3 1.7B; results reported as relative speedups over GPUs, no absolute token/s (source/extracted/bare_conf.tex:700-717).

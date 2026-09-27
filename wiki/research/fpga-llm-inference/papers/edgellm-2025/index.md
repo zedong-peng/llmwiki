@@ -44,3 +44,11 @@ PDF section V-B/Fig. 8 describes compiling sparse/quantized models into instruct
 Classification uses the paper text and available public artifact; unavailable source is not treated as evidence of model restriction.
 
 [Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.
+
+## Original-text verification (2026-09-27)
+
+Checked against the original paper text or public code for the llama.cpp FPGA backend paper; supersedes earlier summaries where they differ.
+
+- End-to-end compiler maps the whole model; CPU runs the dynamic compilation (PDF text lines 128-137).
+- Weights and online KV cache in HBM via a dedicated DMA path; activations to on-card DDR (lines 169-195). MatMul at 280 MHz, other operators 140 MHz.
+- Dense GLM-6B decode about 90 token/s below 512 decode tokens; Qwen-7B 42.5-69.4 token/s; matrix-layer HBM utilization 70-80%, average about 75% (lines 578-600). AccLLM Table VII instead lists EdgeLLM as ChatGLM2-6B, 125 MHz, 75 token/s.

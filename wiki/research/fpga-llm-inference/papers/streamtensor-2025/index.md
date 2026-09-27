@@ -50,3 +50,10 @@ main.tex lines 951 and 1035–1065 report on-board experiments using Hugging Fac
 Classification uses the paper text and available public artifact; unavailable source is not treated as evidence of model restriction.
 
 [Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.
+
+## Original-text verification (2026-09-27)
+
+Checked against the original paper text or public code for the llama.cpp FPGA backend paper; supersedes earlier summaries where they differ.
+
+- StreamTensor's GPT-2 comparison table is the original source of the DFX, Allo and StreamTensor rates later reprinted in CODO Table VI (source/extracted/main.tex:892-906): all values identical; setup U55C 250 MHz W4A8, Allo U280 250 MHz W4A8, DFX U280 200 MHz FP16 (main.tex:958-975).
+- Tokens and KV caches are dynamic tensors that need maximum-shape hints (main.tex:941).

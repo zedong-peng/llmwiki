@@ -51,3 +51,10 @@ Inspected code (pinned copies, not executed):
 - [tests/test_nn.py](source/code-audit/tests/test_nn.py) — [upstream commit](https://github.com/cornell-zhang/allo/blob/8bafb0dcee27c96a72872184d2b106c59c8a1414/tests/test_nn.py).
 
 [Audit receipt](source/model-coverage-audit.json). See [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|cross-paper comparison]] for definitions and input formats. This dated section supersedes older coverage/placement summaries where they conflict.
+
+## Original-text verification (2026-09-27)
+
+Checked against the original paper text or public code for the llama.cpp FPGA backend paper; supersedes earlier summaries where they differ.
+
+- The accelerator reads inputs from off-chip memory, stores results back after each layer, and fetches the next layer's parameters from the host (sections/5.2-accelerator.tex:17-21): not device-resident.
+- GPT-2 board results use W8A8 (sections/6-experiments.tex); the 'Allo' GPT-2 rate of 204.05 token/s at W4A8, 250 MHz on U280 comes from StreamTensor's comparison table.

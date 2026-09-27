@@ -1,0 +1,51 @@
+\section{Introduction}
+Large Language Models~(LLMs) have evolved from specialized text processing tools into a widely applied technology in various fields\nobreak\cite{LLM_survey1,LLM_survey2,LLM_survey3,LLM_survey4,LLM_survey5}.
+They have been applied in fields such as natural language processing\nobreak\cite{NLP_survey1,NLP_survey2,NLP_survey3}, code generation\nobreak\cite{code_generation1,code_generation2,code_generation3}, and conversational AI\nobreak\cite{conversational_agents1,conversational_agents2}.
+The development of multimodal LLMs, which integrate modalities such as text, images, and audio, is further expanding their scope of application on a large scale\nobreak\cite{multi-modal1,multi-modal4,multi-modal5}. 
+The interaction between algorithmic development and computational architectures enables these innovations.
+Therefore, improving this infrastructure is not merely a practical challenge but critical for the broader societal integration of AI.
+Currently, this technological progress primarily depends on the evolution of General-Purpose Graphics Processing Units~(GPGPUs).
+However, despite these advances, achieving high performance with LLMs requires substantial computational resources for both training and inference.
+In particular, the high performance of GPGPUs requires substantial power, which creates significant environmental and economic concerns\nobreak\cite{gpu_power1,gpu_power2}. 
+The International Energy Agency~(IEA) estimates that data center electricity consumption could double by 2030, reaching approximately~\SI{945}{\TWh}\nobreak\cite{iea_energy_ai}. 
+This consumption level, fueled primarily by the expanding demand for AI, slightly exceeds Japan's total annual electricity consumption.
+This sustainability challenge presents a significant barrier to the widespread adoption of LLM technology, making it necessary to address this with improvements in computational architecture.
+
+To address this challenge, specialized hardware such as Application-Specific Integrated Circuits~(ASICs) and Field-Programmable Gate Arrays~(FPGAs) have been widely investigated.
+While edge GPUs, such as the NVIDIA Jetson series, demonstrate progress in reducing power consumption, their general-purpose graphics pipelines inherently constrain substantial gains in power efficiency.
+In contrast, ASICs can potentially achieve orders of magnitude higher power efficiency. 
+ASICs specialize their circuits for the core computational patterns of LLM inference, such as dot-product operations. 
+This allows them to remove all unnecessary functionality and achieve maximum performance for a specific task.
+However, this high efficiency is intrinsically coupled with a lack of flexibility, rendering these designs unable to adapt to evolving algorithms.
+
+
+Therefore, we consider Coarse-Grained Reconfigurable Arrays~(CGRAs) as an architectural paradigm that addresses the fundamental trade-off between efficiency and flexibility.
+CGRAs achieve power efficiency approaching that of an ASIC by mapping dataflow graphs directly onto an array of processing elements~(PEs), while preserving programmability through their reconfigurable fabric.
+This work focuses on IMAX\nobreak\cite{imax3}, a general-purpose accelerator based on Coarse-Grained Linear Arrays~(CGLAs), a type of CGRA architecture.
+IMAX features a linear arrangement of PEs and Local Memory Modules~(LMMs), a design specifically intended to efficiently handle the irregular memory access patterns of LLM inference. 
+
+
+Our previous work has demonstrated the versatility and effectiveness of the IMAX architecture across a diverse range of workloads, including Sparse General Matrix Multiplication~(SpGEMM), Fast Fourier Transform~(FFT), and Convolutional Neural Networks~(CNNs)\nobreak\cite{imax3,cnn_imax_1,cnn_imax_2}. 
+We have also extended this versatility to LLMs, showing the feasibility of implementing key kernels from the Llama2-based model on IMAX\nobreak\cite{first_llm_imax,llama2_imax}. 
+Based on this foundation, this work provides the first comprehensive evaluation of IMAX as an LLM accelerator.
+Specifically, we expand our analysis to the state-of-the-art Qwen3 model\nobreak\cite{yang2025qwen3technicalreport,qwen}. 
+We adopt the widely used C/C++ inference engine llama.cpp\nobreak\cite{llama.cpp} to assess performance in practical scenarios.
+This approach allows our evaluation to encompass the entire system from end-to-end (E2E), rather than being limited to single-kernel performance.
+This evaluation accounts for host-CPU interaction, data transfer overheads, and complex control flows.
+
+The main contributions of this paper are as follows:
+\begin{itemize}
+    \item We present the first comprehensive, E2E evaluation of a general-purpose CGRA for modern LLM inference. Our work demonstrates that a non-AI-specialized architecture can achieve superior energy efficiency, improving the Power-Delay Product (PDP) by up to \num{44.4}$\times$ and the Energy-Delay Product (EDP) by up to \num{11.5}$\times$ compared to a high-performance GPU. This finding validates a sustainable hardware approach that avoids the risk of rapid obsolescence associated with task-specific ASICs.
+    \item We identify a critical performance bottleneck shift from computation to host-accelerator data transfer. Our system-level analysis using the llama.cpp framework reveals that the decode phase is data-transfer-bound, a finding obscured in kernel-centric evaluations that provides crucial guidance for latency optimization.
+    \item We validate CGRAs as a viable architectural solution that balances efficiency and programmability for sustainable LLM inference. Our work establishes that general-purpose reconfigurable hardware can effectively adapt to rapid algorithmic evolution, making it a practical choice for power-constrained deployment.
+\end{itemize}
+
+
+
+The remainder of this paper is organized as follows. 
+Section~\ref{rwork} surveys related work in LLM acceleration and introduces the IMAX architecture.
+Section~\ref{proposed} details our implementation methodology, including the execution framework and kernel mapping strategies.
+Section~\ref{ex_and_re} presents the experimental results, comparing our accelerator against GPUs on E2E latency and energy-efficiency metrics.
+Section~\ref{discussion} analyzes performance bottlenecks by examining on-chip memory impact, execution phase breakdowns, and host system limitations, and discusses directions for future work.
+Finally, Section~\ref{conclusions} concludes the paper.
+
