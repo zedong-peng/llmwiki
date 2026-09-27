@@ -4,7 +4,7 @@ domain: research
 area: agent-memory
 type: overview
 status: active
-updated: 2026-09-14
+updated: 2026-09-22
 tags: [research, agent-memory, papers, index]
 ---
 
@@ -26,8 +26,11 @@ Agent memory 领域的论文库与研究线程。
 ## Paper Directory
 
 - [Papers Directory Guide](papers/index.md)
+- [Mem0 2026 software / technical release](assets/mem0-2026/index.md) — SDK 2.1.0, evaluation code and saved results; platform boundary, changed judge, headline/artifact discrepancies, and shared 2025 protocol decision updated on 2026-09-20.
 
 ### Corpora & Syntheses
+
+- [Jev 相关工作通俗对照](jev-related-work.md)：[LOTUS](../misc/papers/lotus-2025/index.md)、[UtilityQwen](assets/utilityqwen-2025/index.md)、[SCARLet](assets/scarlet-2025/index.md)、[OptiSet](assets/optiset-2026/index.md)。语义算子、证据效用与集合选择。
 
 - [LazyMem Related-Work Corpus](papers/lazymem-related-work/index.md) — 45 篇冻结 arXiv 语料 + 新颖性审计 + ResearchStudio 复核;结论:BM25-window 是当前最强默认,compiler 为被拒 ablation
 
@@ -44,7 +47,7 @@ Agent memory 领域的论文库与研究线程。
 | [GRAVITY](papers/gravity-2026/index.md)                                                   | 2026 | Arxiv   | Generation-time relational/temporal/topical anchoring | `stub` | LazyMem corpus |
 | [Hindsight](papers/hindsight-2025/index.md)                                               | 2025 | Arxiv   | Retain-recall-reflect memory pipeline      | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | [HingeMem](papers/hingemem-2026/index.md)                                                 | 2026 | Arxiv   | Event boundaries + query-adaptive routing/depth | `stub` | LazyMem corpus |
-| [Mem0](papers/mem0-2025/index.md)                                                         | 2025 | Arxiv   | Production dialogue memory operations      | `processed` | answer prompt在 /Users/pengzedong/Documents/GitHub/llmwiki/wiki/research/agent-memory/papers/mem0-2025/repo/memory-benchmarks/benchmarks/locomo/prompts.py                                                                                                                                                                                                                                                               |
+| [Mem0 2025 paper + experiment code](papers/mem0-2025/index.md)                                                         | 2025 | Arxiv   | Production dialogue memory operations      | `processed` | Official historical evaluation/src/rag.py, 256-token k=2 RAG, and paper/code citations; newer memory-benchmarks prompts belong to the separate [Mem0 2026 reference](assets/mem0-2026/index.md)                                                                                                                                                                                                                                                               |
 | [MemGPT](papers/memgpt-letta-2023/index.md)                                               | 2023 | Arxiv   | Virtual-context memory hierarchy           | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | [Memory for Autonomous LLM Agents](papers/memory-for-autonomous-llm-agents-2026/index.md) | 2026 | Arxiv   | Mechanisms and evaluation survey           | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | [Memobase](papers/memobase-2025/index.md)                                                 | 2025 | Repo    | Personalized agent memory platform         | `processed` | https://github.com/memodb-io/memobase/tree/main/docs/experiments/locomo-benchmark 结果对比表格引用的mem0的结果                                                                                                                                                                                                                                                                                                                      |
@@ -76,6 +79,8 @@ Agent memory 领域的论文库与研究线程。
 | [MEMAUDIT](papers/memaudit-2026/index.md) | 2026 | Arxiv | Package-oracle protocol isolating memory writing quality | `stub` |
 
 ### Product Memory Notes
+
+- [Jev / System One](assets/jev-system-one-2026/index.md) — 2026-09-15 发布的结构化决策模型；概率检索/重排模块，非完整持久记忆系统；blog/docs 已读（2026-09-22）。
 
 | Paper | Year | Venue | Importance | Wiki Status |
 |---|---:|---|---|---|

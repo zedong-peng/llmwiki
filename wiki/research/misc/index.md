@@ -4,7 +4,7 @@ domain: research
 area: misc
 type: overview
 status: active
-updated: 2026-04-24
+updated: 2026-09-17
 tags: [research, misc, papers, index]
 ---
 
@@ -107,3 +107,18 @@ tags: [research, misc, papers, index]
 | Paper                                             | Year | Venue | Importance                          | Wiki Status |
 | ------------------------------------------------- | ---: | ----- | ----------------------------------- | ----------- |
 | [In-Place TTT](papers/in-place-ttt-2026/index.md) | 2026 | ICLR  | Fast-weight long-context adaptation | `processed` |
+
+
+### Self-Improving Agents and Harness Optimization
+
+探索策略、agent harness 与经验学习形成一个小型关联组，暂保留在 misc；已有历史资产不迁移。
+
+| Paper | Year | 改进对象 | Wiki Status |
+|---|---:|---|---|
+| [[assets/dream-rsi-2026/index|Dream-RSI]] | 2026 | 历史树回放优化 exploration-policy code；Google / DeepMind 等，arXiv v1 2026-09-14 | `processed` |
+| [[papers/meta-harness/index|Meta-Harness]] | 2026 | 完整执行历史驱动 harness 代码搜索 | existing note |
+| [[papers/erl-2026/index|Experiential Reflective Learning]] | 2026 | 经验提炼与检索 heuristics | `processed` |
+
+检索记录：[[threads/2026-09-17-dream-rsi-search]]。
+
+- 2026-09-22：LOTUS 补充官方代码静态核查及 [[research/agent-memory/jev-related-work|与 UtilityQwen / SCARLet / OptiSet 的对照]]。

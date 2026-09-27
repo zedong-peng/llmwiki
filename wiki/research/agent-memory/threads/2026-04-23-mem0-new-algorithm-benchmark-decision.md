@@ -4,10 +4,16 @@ domain: research
 area: misc
 type: synthesis
 status: active
-updated: 2026-04-26
+updated: 2026-09-18
 tags: [research, agent-memory, mem0, benchmark, locomo, longmemeval]
 ---
 # Mem0 New Algorithm Benchmark Decision
+
+## Update — 2026-09-18
+
+The [2026 source archive](../assets/mem0-2026/index.md) now contains SDK 2.1.0 and the current public evaluation repository. ADD-only extraction and semantic/BM25/entity scoring are implemented publicly; graph memory and the platform temporal parameters remain platform features. The current article/README reports **92.5 / 94.4** on LoCoMo / LongMemEval, while the committed top-200 judgments still total **91.56 / 93.4**. The earlier values below preserve the April snapshot.
+
+The current evaluator uses GPT-5 defaults and a permissive rubric for partial lists and approximate dates. The benchmark's old SDK-branch dependency and search API also need reconciliation before a new run. Sources were inspected and saved labels recounted; no inference was run. The recommendations below are historical planning context, not a completed matched comparison or a selected evaluator.
 
 ## Context
 

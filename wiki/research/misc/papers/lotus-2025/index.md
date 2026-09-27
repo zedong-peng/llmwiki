@@ -4,7 +4,7 @@ domain: research
 area: misc
 type: paper
 status: processed
-updated: 2026-04-18
+updated: 2026-09-22
 tags: [paper, misc, lotus, semantic-operators, data-systems, llm]
 ---
 # Semantic Operators: A Declarative Model for Rich, AI-based Data Processing (LOTUS)
@@ -20,7 +20,7 @@ tags: [paper, misc, lotus, semantic-operators, data-systems, llm]
 - PDF: `lotus-2407.11418.pdf`
 - Code Repo: https://github.com/lotus-data/lotus
 - Reading Source: TeX (`main.tex` + `Sections/*` + `tables/*` + `main.bbl`)
-- Repo Read: no local repo checkout present in this directory
+- Repo Read: official checkout cached and selected semantic-operator modules inspected on 2026-09-22; not executed
 - PDF Fallback: not used
 - Legacy Note: [[llm-grep-retrieval/papers/patel-2025-lotus]]
 
@@ -115,3 +115,15 @@ tags: [paper, misc, lotus, semantic-operators, data-systems, llm]
 - How robust are the proxy-based guarantees when the task distribution shifts or when proxy and oracle signals are weakly correlated?
 - Which additional operators, beyond filter/join/top-k/group-by, deserve first-class gold algorithms and optimizers?
 - Can the same model-data independence framework be extended cleanly to SQL-native systems or agentic retrieval stacks without losing the guarantees?
+
+## 2026-09-22：通俗解释与 Jev 相关工作
+
+LOTUS 像给 pandas / SQL 加上“理解自然语言”的操作：按一句话过滤数据、关联两个表、选 top-k、汇总文档。它是语义数据处理系统，不只是某个过滤模型，也不是专门的长期记忆架构。
+
+论文中的优化保证是相对于 gold algorithm 的统计精度目标；gold algorithm 本身仍使用模型，不代表对客观事实绝对正确。`sem_agg` 使用分层归约，不能直接当成精确的去重计数。
+
+本次重读现有 TeX 的 Abstract、Operators、Implementation、Conclusion，补充缓存官方仓库并静态检查 `lotus/sem_ops/sem_filter.py` 的阈值/级联路径以及 `sem_agg.py` 的层级聚合接口。当前代码可能晚于论文，不作为原论文版本复现。没有安装或执行。
+
+缓存 commit：`136ae4f4a344a2f75d89f811e516dfcb0de30e46`；[本地仓库](github-repo/lotus/)。
+
+与 UtilityQwen 的“训练选择器”、SCARLet 的“效用监督训练检索器”、OptiSet 的“互补集合选择”是不同抽象层次；详见 [[research/agent-memory/jev-related-work|四项相关工作通俗对照]]。Jev 可以作为某些决策操作的底层模型，但换模型本身不是语义算子的首次提出。

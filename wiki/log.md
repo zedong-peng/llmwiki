@@ -3,7 +3,7 @@ title: Super Personal Wiki Log
 domain: root
 type: timeline
 status: active
-updated: 2026-09-08
+updated: 2026-09-18
 tags: [log]
 ---
 
@@ -500,3 +500,44 @@ tags: [log]
 
 - Read ten papers and available model loaders/configurations/compiler entries; distinguish fixed implementation, reusable substrate, same-family variants and paper-reported cross-architecture evidence.
 - Restore local source caches, retain selected pinned code and SHA-256 receipts, update ten paper indexes and both FPGA indexes. Existing PDFs/TeX retained. No hardware execution.
+
+## [2026-09-15] research | Verify public arXiv before FPGA competitor admission
+
+- Applied user-requested paper-only eligibility; archived arXiv query snapshots and WPU endorsement claim evidence. No matching public paper found for named excluded repository leads; bounded negative finding only.
+- Archived seven v1 source/PDF pairs with safe extraction and SHA-256; completed IMAX and GDN full TeX reading and formal notes. Five peripheral papers remain explicitly unread, outside verified comparisons.
+- Inspected pinned IMAX official implementation: CPU MatMul offload, not established independent device registration; separated ASIC projection from FPGA measurement. GDN single-layer HLS estimates are not board E2E. Updated topic and main navigation. Preserved pre-existing duplicate legacy PDF cache; no migration, execution, commit or push.
+
+
+## [2026-09-17] ingest | Dream-RSI and misc self-improvement grouping
+
+- Identified Dream-RSI, arXiv:2609.14858v1 (2026-09-14), from Google/Google DeepMind/UMD/UVA. Read active TeX main text, figures/tables, task appendix, prompts, bibliography and included Lasso solver; archived source/PDF with hashes and safe extraction.
+- Cached official repository at 4149ea9181ab1db80f85717ffda2c9f0f130e85b; inspected README/CFF/file inventory. Full implementation remains unreleased. Recorded formal-objective versus appendix-prompt mismatch and discovery-call cost limitations.
+- Added misc subsection linking Dream-RSI, existing Meta-Harness and ERL without moving historical archives; updated root navigation and retained search results/errors. No downloaded code execution or experimental reproduction.
+
+## [2026-09-18] research | Archived Mem0 2026 public source and checked evaluator provenance
+
+- Added [[research/agent-memory/assets/mem0-2026/index|Mem0 2026]] with independent SDK 2.1.0 and memory-benchmarks clones, exact commits, release/blog/migration snapshots, hashes, and code-reading scope. Preserved legacy caches and corrected their stale no-repository metadata.
+- Verified public ADD-only extraction and semantic/BM25/entity scoring, while distinguishing platform graph/temporal features and managed-platform claims from the open-source SDK.
+- Checked the GPT-5 LoCoMo runner and permissive judge; counted saved platform judgments: LoCoMo 91.56% and LongMemEval 93.4% at top-200, versus current headline 92.5% and 94.4%. Also recorded top-50 mismatches and the benchmark dependency/API compatibility gap.
+- Updated reference navigation and the earlier benchmark-decision thread. No inference, dependency installation, or downloaded-code execution; evaluator choice remains open.
+
+- 2026-09-20: Rechecked Mem0 2026 LoCoMo prompts at commit 4b61c5d; reused existing SDK/evaluator caches, updated the separate Mem0 2026 note and metadata, corrected the topic index’s attribution of 2026 prompts to 2025, and recorded Evolving Memory’s shared 2025 protocol choice. Added a pinned source citation to the paper; no inference or reproduction.
+
+- 2026-09-20: Separated Mem0 citation identities: 2025 paper + official historical experiment/RAG code versus 2026 technical article + SDK + independent evaluator. Added separate citations.bib files, corrected legacy benchmark-cache ownership in both notes/metadata, and updated navigation. Preserved existing archive paths; no migration or inference.
+
+
+## 2026-09-22 — Jev / System One 官方博客与检索文档
+
+- 新增 [[research/agent-memory/assets/jev-system-one-2026/index]]：阅读 2026-09-15 发布博客、当前 1.13 文档与 1.12 检索 cookbook，归档原文及校验信息。
+- 区分类型安全与语义正确、概率集中与经验校准、workflow 参考模型一致性与独立真值；记录长 state、多跳、CJK、日期/数值与注入边界。
+- 更新总索引及 agent-memory 索引；评测站抓取失败，未审查 adapter 仓库、调用模型或复现实验。
+
+## 2026-09-22 — Jev 相关工作归档与通俗解释
+
+新增 UtilityQwen（2507.19102v2）、SCARLet（2504.00573v2）、OptiSet（2601.05027v1）正式笔记、TeX/PDF 与官方仓库缓存、元数据；更新已有 LOTUS 笔记及代码缓存；新增四项对照页并接入全局、agent-memory、misc、Jev 导航。记录 OptiSet 占位仓库、SCARLet 缺失归因模块及训练实现差异，区分论文报告与静态代码证据；未运行模型或复现实验。
+
+## [2026-09-28] research | FlightLLM on-board run, IMAX code audit, FlightLLM scope
+
+- Corrected FlightLLM: its Fig. 1 prints U280 ~55 token/s. Ran the Zenodo U280 package on fpga-epcc card 5e (XRT 2.14 via an LD_PRELOAD shim): one decode step per case, 17.50 ms at KV 128 (57.1 token/s) and 18.99 ms at KV 512 (52.7 token/s); golden outputs match. The model is inferred to be LLaMA2-7B from instruction constants.
+- The public FlightLLM code runs only prepared single-step cases; no frontend, packer or U280 compile flow, so it cannot deploy another model. The profile end-to-end time is composed from per-step times.
+- IMAX3-LLM repo: README build steps do not match the tree; no bitstream or IMAX compiler; the paper gives no token/s. Card 86 was already in a hot-reset-required state.

@@ -3,7 +3,7 @@ title: Super Personal Wiki Index
 domain: root
 type: overview
 status: active
-updated: 2026-09-14
+updated: 2026-09-22
 tags: [index]
 ---
 
@@ -20,6 +20,18 @@ tags: [index]
 | Projects | [[projects/overview]] | GitHub 项目、工程经验、可复用技术记录  |
 | Admin    | [[admin/overview]]    | 证件、合同、签证、财务、手续类材料的非敏感索引 |
 ## Recent Research References
+
+- [[research/agent-memory/jev-related-work|Jev 相关工作通俗对照]]：LOTUS、UtilityQwen、SCARLet、OptiSet；原文、代码可用性与 RAG 接入位置（2026-09-22）。
+
+- [[research/agent-memory/assets/jev-system-one-2026/index|Jev / System One]]：9 月 15 日发布博客、类型化概率决策、检索 cookbook、评测与局限（2026-09-22）。
+
+- [[research/agent-memory/papers/mem0-2025/index|Mem0 2025 paper + official experiment code]]: paper citation and public RAG baseline; separate from the 2026 release (2026-09-20).
+
+- [[research/agent-memory/assets/mem0-2026/index|Mem0 2026 software / technical release]]: SDK 2.1.0 and evaluation archive; platform-only features, changed judge, and shared 2025 evaluation protocol decision (2026-09-20).
+
+- [[research/misc/assets/dream-rsi-2026/index|Dream-RSI]]：Google / DeepMind 历史树回放与探索策略自改进；misc 新增 self-improving agents 小分类（2026-09-17）。
+
+- [[research/fpga-llm-inference/index#Paper-only competition audit (2026-09-15)|FPGA 仅论文竞争核查]]：IMAX、GDN 新增深读；WPU/纯仓库排除，五篇外围论文缓存待读。
 
 - [[research/fpga-llm-inference/index#Model input and coverage audit (2026-09-15)|FPGA 模型输入与覆盖逐项核查]]：十篇论文及公开实现、模型绑定边界、源码证据与论文索引（2026-09-15）。
 
