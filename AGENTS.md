@@ -5,7 +5,8 @@
 ## 维护位置
 
 - 任意 clone 都可以改，GitHub origin 为准：先 pull，改完 push。
-- 被 Git 忽略的缓存（`github-repo/`、`paper-tex/archives/`）只存在于下载它的那台机器，来源和哈希记在 `metadata.yaml`。
+- git 跟踪笔记、metadata、论文 PDF 和完整的 TeX 解压目录（含插图），clone 后即可复查原文。
+- TeX 压缩包和官方源码不进 git，新 clone 里用 `python3 <skill>/scripts/fetch_assets.py . --apply` 按 metadata 恢复（压缩包校验 sha256，源码检出记录的 commit）。
 - 不在 FPGA 服务器上维护副本；远端实验结果回写到某个 clone 再推送。
 
 ## 目录

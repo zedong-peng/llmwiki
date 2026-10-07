@@ -9,6 +9,12 @@ tags: [log]
 
 # Super Personal Wiki Log
 
+## [2026-10-07] meta | Git policy: PDF and full TeX tracked, archives and code restorable
+
+- Tracked the full `paper-tex/extracted/` tree again, figures included (601 files, 74 MB).
+- TeX archives and `github-repo/` stay ignored; added llmwiki-skill `scripts/fetch_assets.py` to restore them from `metadata.yaml` (tested: arXiv archive re-download matched the recorded sha256; codo-artifact checked out at the recorded commit).
+- 58 of 75 recorded repositories have no pinned commit; fetching them takes the default branch.
+
 ## [2026-10-07] research | Unified all references under the canonical assets/ layout
 
 - Migrated 237 legacy `papers/<slug>/` references (and 18 loose research-taste notes) to `assets/<slug>/{paper-pdf,paper-tex,github-repo}` with `scripts/migrate_legacy.py`; metadata rewritten to schema v1, old fields kept under `legacy:`; 130 files of inbound links rewritten. Loose `source/source.bin` copies removed only where byte-identical to `source/archives/`.
