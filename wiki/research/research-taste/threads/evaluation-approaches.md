@@ -75,7 +75,7 @@ The direction taken in this wiki is a hybrid:
 4. Add **contamination probes** so the benchmark reports memory effects directly.
 5. Run **construct-validation analysis** so dimensions are tested, not assumed.
 
-This is the logic behind [[researchTaste-bench-design]].
+This is the logic behind [[research/research-taste/threads/researchTaste-bench-design]].
 
 ## Promising Directions
 1. **Temporal holdout with expert annotation**
@@ -85,6 +85,6 @@ This is the logic behind [[researchTaste-bench-design]].
 5. **Synthetic idea diagnostics**
 
 ## Related Concepts
-- [[concepts/research-taste]] — what we're trying to measure
-- [[concepts/research-ability-dimensions]] — what dimensions need evaluation
-- [[researchTaste-bench-design]] — current synthesis of these approaches
+- [[research/research-taste/threads/research-taste]] — what we're trying to measure
+- [[research/research-taste/threads/research-ability-dimensions]] — what dimensions need evaluation
+- [[research/research-taste/threads/researchTaste-bench-design]] — current synthesis of these approaches

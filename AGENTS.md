@@ -1,61 +1,34 @@
 # Super Personal Wiki Schema
 
-This repository is a long-lived personal wiki maintained by LLM agents.
+长期维护的个人 wiki，由 LLM agent 维护。论文归档、查询、校验的规则以 llmwiki skill 为准（<https://github.com/zedong-peng/llmwiki-skill>，`references/protocol.md` 是目录布局的唯一规范）。这里只写本库特有的约定。
 
-## Purpose
+## 维护位置
 
-Build a persistent, interlinked knowledge base across:
+- 任意 clone 都可以改，GitHub origin 为准：先 pull，改完 push。
+- 被 Git 忽略的缓存（`github-repo/`、`paper-tex/archives/`）只存在于下载它的那台机器，来源和哈希记在 `metadata.yaml`。
+- 不在 FPGA 服务器上维护副本；远端实验结果回写到某个 clone 再推送。
 
-- personal records and life administration
-- research maps, papers, ideas, experiments, and project history
-- career materials, CVs, internships, certificates, applications
-- code/project notes from sibling GitHub repositories
-- durable summaries extracted from raw documents
-
-The wiki should compound over time. Do not merely answer a question in chat when the result is durable; file useful synthesis back into `wiki/`.
-
-## Maintenance Location
-
-- The Mac workspace at `/Users/pengzedong/Documents/Workspace/llmwiki` is the only maintained working copy.
-- Push durable updates to the GitHub origin. Do not recreate or maintain a second wiki checkout on the FPGA server.
-- FPGA experiments may run remotely; write their durable wiki records in the Mac workspace.
-
-## Directory Structure
+## 目录
 
 ```text
-llmwiki/
-├── AGENTS.md
-├── README.md
-├── inbox/
-│   └── README.md
-├── raw/
-│   └── README.md
-├── sources/
-│   └── catalog.md
-└── wiki/
-    ├── index.md
-    ├── log.md
-    ├── personal/
-    │   └── overview.md
-    ├── research/
-    │   └── overview.md
-    ├── projects/
-    │   └── overview.md
-    └── admin/
-        └── overview.md
+AGENTS.md  README.md  raw/
+wiki/
+  index.md  log.md            # 总索引；唯一的追加式日志，新条目在最前
+  personal/ admin/ projects/  # 各域 overview 与页面
+  research/
+    index.md                  # area 目录
+    <topic>/
+      index.md  threads/  assets/<ref_slug>/
 ```
 
-## Privacy Rules
+`wiki/research/dlm` 是 git submodule（独立项目），不按论文归档处理。
 
-- Never copy highly sensitive documents into this repo unless the user explicitly asks.
-- Sensitive examples include ID cards, passport scans, bank cards, household registration, transcripts, contracts, medical records, recovery codes, and visa documents.
-- For sensitive sources, create metadata pages only: what the document is, where it lives locally, what it is used for, dates, and caveats.
-- Avoid exposing secret values, account numbers, government ID numbers, passport numbers, phone numbers, addresses, and API keys.
-- Prefer references to local folder categories over exact sensitive filenames when a public-facing page would be risky.
+## 隐私
 
-## Page Frontmatter
+- 证件、护照、银行卡、户口、成绩单、合同、体检、签证、recovery code 不进仓库，只写元数据页：是什么、存在哪、用途、有效期。
+- 不写账号、证件号、电话、住址、API key。
 
-Use YAML frontmatter for durable wiki pages:
+## Frontmatter
 
 ```yaml
 ---
@@ -69,46 +42,16 @@ tags: []
 ---
 ```
 
-Research pages commonly use:
+`status` 只描述页面。论文的处理进度（queued → processed）只写在 `metadata.yaml`。
 
-- `type: paper` for paper notes
-- `type: comparison` for landscape tables
-- `type: engineering` for implementation analysis
-- `type: note` for imported working notes or session transcripts
+## 链接
 
-## Linking Conventions
+- Obsidian 风格 `[[research/<topic>/assets/<slug>/index]]`；文件名小写加连字符；slug 全库唯一。
+- 新页面必须能从 `wiki/index.md` 或所属 topic 的 `index.md` 到达。
+- 保留历史 slug，不为统一而改名。
 
-- Use Obsidian-style links: `[[page-name]]` or `[[folder/page-name]]`.
-- Prefer stable lowercase filenames with hyphens.
-- Preserve existing historical slugs unless there is a concrete reason to rename them and update backlinks.
-- Every new durable page should be reachable from `wiki/index.md`.
-- Cross-domain links are encouraged when they represent real context, for example a research project linked to a CV item.
+## 工作流
 
-## Workflows
-
-### Ingest a Source
-
-1. Identify the source and classify sensitivity.
-2. If sensitive, summarize metadata only unless explicitly instructed otherwise.
-3. Create or update the relevant domain page under `wiki/`.
-4. Update `wiki/index.md`.
-5. Append one entry to `wiki/log.md`.
-
-### Merge Existing Research Wiki
-
-1. Preserve the existing research area names where possible.
-2. Move or copy durable research pages under `wiki/research/`.
-3. Update links to remain Obsidian-compatible.
-4. Add cross-domain links only when useful, such as CV, publications, thesis, internships, and project pages.
-5. Append the migration to `wiki/log.md`.
-
-### Answer a Query
-
-1. Read `wiki/index.md` first.
-2. Search relevant pages with `rg`.
-3. Answer from the wiki and cite local page paths.
-4. If the answer is durable, offer or perform a wiki update.
-
-### Lint
-
-Check for orphan pages, broken links, stale pages, inconsistent frontmatter, duplicated concepts, sensitive information leakage, and missing index entries.
+- 录入论文、校验、迁移：按 skill。
+- 每次改动后运行 `python3 <skill>/scripts/lint_wiki.py .`，错误清零再提交。
+- 回答问题：先读 `wiki/index.md`，再用 `rg` 找页面，引用本地路径；有长期价值的结论写回 wiki。

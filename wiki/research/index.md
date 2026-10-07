@@ -3,7 +3,7 @@ title: Research Index
 domain: research
 type: overview
 status: active
-updated: 2026-09-14
+updated: 2026-10-07
 tags: [research, index]
 ---
 # Research Index
@@ -25,4 +25,4 @@ tags: [research, index]
 
 ## Log
 
-见 [[log]]
+日志统一在 [[log]]（`wiki/log.md`）。

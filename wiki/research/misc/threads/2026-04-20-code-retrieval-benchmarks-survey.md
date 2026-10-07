@@ -246,5 +246,5 @@ References: [[2026-04-19-cursor-blog-reading-notes]]
 - [[2026-04-20-compiled-retrieval-nips-paper-plan]] — 总体 paper 计划
 - [[2026-04-19-cursor-blog-reading-notes]] — Cursor blog 阅读笔记
 - [[2026-04-19-compiled-lexical-retrieval-and-rag-benchmarks]] — 前期 framing 讨论
-- [[../papers/bright-2025]] — BRIGHT benchmark
-- [[../papers/mintlify-chromafs-2026]] — Mintlify virtual filesystem
+- [[research/misc/assets/bright-2025/index]] — BRIGHT benchmark
+- [[research/misc/assets/mintlify-chromafs-2026/index]] — Mintlify virtual filesystem

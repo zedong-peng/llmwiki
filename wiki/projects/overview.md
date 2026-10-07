@@ -20,6 +20,10 @@ tags: [projects]
 | Writing / Sites | personal homepage, Hugo blog, thesis proposal |
 | Infrastructure | tailscale remote HPC, proxy tools, installers, [[projects/token-pricing\|低价 Token 渠道]] |
 
+## Reference
+
+- [[projects/karpathy-llm-wiki|Karpathy LLM Wiki 原文]]：本库的设计来源。
+
 ## Suggested Page Types
 
 - Project overview: goal, status, repo path, important commands.

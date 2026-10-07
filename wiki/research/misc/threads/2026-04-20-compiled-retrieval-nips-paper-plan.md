@@ -23,10 +23,10 @@ tags: [research-thread, grepqa, compiled-retrieval, nips, paper-plan, code-retri
 ### GrepQA 单独发的问题
 
 1. **Novelty 压力**：BRIGHT 已经证明 "LLM-generated queries improve retrieval"，AutoBool 做了 boolean query generation。核心 idea 不算全新
-   References: [[../papers/bright-2025]], [[../papers/autobool-2026]]
+   References: [[research/misc/assets/bright-2025/index]], [[research/misc/assets/autobool-2026/index]]
 
 2. **Benchmark 单一**：主要在 LoCoMo-10 上（只有 10 个 conversation），LongMemEval 上表现一般（65.2% vs ByteRover 92.8%）
-   References: [[../papers/locomo-2024]], [[../papers/longmemeval-2025]], [[../papers/byterover-2026]]
+   References: [[research/agent-memory/assets/locomo-2024/index]], [[research/agent-memory/assets/longmemeval-2025/index]], [[research/agent-memory/assets/byterover-2026/index]]
 
 3. **方法相对简单**：100 行 Python，reviewer 可能觉得 technical contribution 不够
 
@@ -152,7 +152,7 @@ Structured lexical query compilation（LLM 生成结构化的 keyword/boolean/ty
 **Benchmark:**
 - BRIGHT (1,384 queries, 12 datasets)
 - 已有详细论文笔记
-References: [[../papers/bright-2025]]
+References: [[research/misc/assets/bright-2025/index]]
 
 **Methods to compare:**
 | Method | Query Formulation | Retrieval Engine |
@@ -169,7 +169,7 @@ References: [[../papers/bright-2025]]
 
 **Benchmark:**
 - CORAL (8,000 conversations, multi-turn)
-References: [[../papers/coral-2024]]
+References: [[research/misc/assets/coral-2024/index]]
 
 **如果时间允许，作为 supplementary experiment。**
 
@@ -192,7 +192,7 @@ References: [[../papers/coral-2024]]
 - Generation quality（answer accuracy given retrieved context）
 - 这样可以精确定位 compiled retrieval 的优势来源
 
-References: [[../papers/ragchecker-2024]]
+References: [[research/misc/assets/ragchecker-2024/index]]
 
 ## Paper Outline
 
@@ -273,18 +273,18 @@ References: [[../papers/ragchecker-2024]]
 ## References
 
 ### 已有论文笔记
-- [[../papers/bright-2025]] — reasoning-intensive retrieval benchmark
-- [[../papers/autobool-2026]] — boolean query generation
-- [[../papers/coral-2024]] — conversational RAG benchmark
-- [[../papers/byterover-2026]] — SOTA on LoCoMo and LongMemEval
-- [[../papers/lotus-2025]] — declarative semantic operators
-- [[../papers/mintlify-chromafs-2026]] — virtual filesystem for assistants
-- [[../papers/ragchecker-2024]] — retrieval diagnostic framework
-- [[../papers/locomo-2024]] — LoCoMo benchmark
-- [[../papers/longmemeval-2025]] — LongMemEval benchmark
-- [[../papers/mem0-2025]] — Mem0 memory system
-- [[../papers/zep-2025]] — Zep memory system
-- [[../papers/beir-2021]] — BEIR benchmark
+- [[research/misc/assets/bright-2025/index]] — reasoning-intensive retrieval benchmark
+- [[research/misc/assets/autobool-2026/index]] — boolean query generation
+- [[research/misc/assets/coral-2024/index]] — conversational RAG benchmark
+- [[research/agent-memory/assets/byterover-2026/index]] — SOTA on LoCoMo and LongMemEval
+- [[research/misc/assets/lotus-2025/index]] — declarative semantic operators
+- [[research/misc/assets/mintlify-chromafs-2026/index]] — virtual filesystem for assistants
+- [[research/misc/assets/ragchecker-2024/index]] — retrieval diagnostic framework
+- [[research/agent-memory/assets/locomo-2024/index]] — LoCoMo benchmark
+- [[research/agent-memory/assets/longmemeval-2025/index]] — LongMemEval benchmark
+- [[research/agent-memory/assets/mem0-2025/index]] — Mem0 memory system
+- [[research/agent-memory/assets/zep-2025/index]] — Zep memory system
+- [[research/misc/assets/beir-2021/index]] — BEIR benchmark
 
 ### 待 ingest 论文
 - ~~CoIR: A Comprehensive Benchmark for Code Information Retrieval (arXiv 2407.02883)~~ → `papers/coir-2024` (queued)

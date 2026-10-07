@@ -19,7 +19,7 @@ The current evaluator uses GPT-5 defaults and a permissive rubric for partial li
 
 Mem0 published a post-paper algorithm update on 2026-04-16: "Introducing The Token-Efficient Memory Algorithm" at <https://mem0.ai/blog/mem0-the-token-efficient-memory-algorithm>.
 
-This matters for local agent-memory research because Mem0 is already a close baseline in the paper library: [[../papers/mem0-2025]]. The 2025 paper version uses two-pass extraction plus `ADD` / `UPDATE` / `DELETE` / `NOOP` memory reconciliation. The 2026 blog describes a materially different system: single-pass ADD-only extraction, agent-generated facts as first-class memories, entity linking, multi-signal retrieval, and keyword normalization.
+This matters for local agent-memory research because Mem0 is already a close baseline in the paper library: [[research/agent-memory/assets/mem0-2025/index]]. The 2025 paper version uses two-pass extraction plus `ADD` / `UPDATE` / `DELETE` / `NOOP` memory reconciliation. The 2026 blog describes a materially different system: single-pass ADD-only extraction, agent-generated facts as first-class memories, entity linking, multi-signal retrieval, and keyword normalization.
 
 ## Key Judgment
 
@@ -77,5 +77,5 @@ Interpretation: use Mem0 as both (1) the old paper baseline and (2) a moving pro
 - Mem0 2026 blog: <https://mem0.ai/blog/mem0-the-token-efficient-memory-algorithm>
 - WizWand LoCoMo SOTA snapshot: <https://www.wizwand.com/sota/long-term-memory-evaluation-on-locomo>
 - WizWand LongMemEval SOTA snapshot: <https://www.wizwand.com/sota/long-context-memory-evaluation-on-longmemeval>
-- Local paper note: [[../papers/mem0-2025]]
+- Local paper note: [[research/agent-memory/assets/mem0-2025/index]]
 - Related local warning: `wiki/research/log.md` notes that accuracy-based SOTA systems and local micro-F1 results are not directly comparable.

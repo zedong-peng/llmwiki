@@ -12,7 +12,7 @@ tags: [mem0, agent-memory, retrieval, evaluation, locomo]
 
 **The new algorithm has public source code, but the headline results describe the managed platform.** The public SDK implements ADD-only extraction and hybrid retrieval; platform-only features remain. The public benchmark repository also contains prompts and saved judgments, although its committed result files do not match its latest headline table.
 
-This reference covers the [April 16 release article](https://mem0.ai/blog/mem0-the-token-efficient-memory-algorithm), updated July 10, and the source snapshots checked on September 18, 2026. Keep it distinct from the [2025 Mem0 paper](../../papers/mem0-2025/index.md). Pipeline “v3” is the algorithm terminology; the selected Python package is **mem0ai 2.1.0**.
+This reference covers the [April 16 release article](https://mem0.ai/blog/mem0-the-token-efficient-memory-algorithm), updated July 10, and the source snapshots checked on September 18, 2026. Keep it distinct from the [2025 Mem0 paper](../mem0-2025/index.md). Pipeline “v3” is the algorithm terminology; the selected Python package is **mem0ai 2.1.0**.
 
 ## Citation identity
 
@@ -23,7 +23,7 @@ This is the independent **Mem0 2026 software / technical release** entry, not a 
 | New algorithm description or vendor-reported platform results | Official article, *The Token-Efficient Memory Algorithm*, published 2026-04-16, updated 2026-07-10 |
 | OSS implementation used in an experiment | `mem0ai/mem0`, SDK v2.1.0 and its pinned commit |
 | New answer-generation or judge rules | `mem0ai/memory-benchmarks`, pinned commit and `benchmarks/locomo/prompts.py` |
-| 2025 method, paper scores, or original RAG baseline | Separate [Mem0 2025 paper and experiment-code entry](../../papers/mem0-2025/index.md) |
+| 2025 method, paper scores, or original RAG baseline | Separate [Mem0 2025 paper and experiment-code entry](../mem0-2025/index.md) |
 
 Reusable, separately keyed entries are in [citations.bib](citations.bib). For a Mem0 2026 method row, cite the article plus the actual implementation version; the evaluation-repository citation alone supports evaluator behavior, not all algorithm claims.
 

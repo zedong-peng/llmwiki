@@ -12,7 +12,7 @@ tags: [beir, retrieval, benchmark, literature-search]
 
 ## Context
 
-快速整理一组和 [[../papers/beir-2021/index|BEIR]] 强相关、值得优先阅读的论文，面向“想看 benchmark 本体、后续提升路线、以及 embedding 方向代表作”的需求。
+快速整理一组和 [[../assets/beir-2021/index|BEIR]] 强相关、值得优先阅读的论文，面向“想看 benchmark 本体、后续提升路线、以及 embedding 方向代表作”的需求。
 
 ## Key Judgments
 
@@ -20,7 +20,7 @@ tags: [beir, retrieval, benchmark, literature-search]
 - 如果关心 “BEIR 上怎么继续提分”，最直接的后续线索是两类：
   - 用 LLM 生成训练数据或 query-document pairs，比如 InPars / InPars-v2。
   - 改进 embedding / first-stage retrieval / reranking，比如 E5、SPLADE、RankT5。
-- 如果按 [[../papers/bright-2025/index|BRIGHT]] 的 TeX `related work` 来重新收窄范围，那么比起继续堆更多 embedding 模型，更值得补的是几类 “benchmark 扩展” 论文：
+- 如果按 [[../assets/bright-2025/index|BRIGHT]] 的 TeX `related work` 来重新收窄范围，那么比起继续堆更多 embedding 模型，更值得补的是几类 “benchmark 扩展” 论文：
   - complex-objective retrieval：BIRCO
   - reasoning-as-retrieval：RAR-b
   - instruction-following retrieval：TART / FollowIR / INSTRUCTIR
@@ -141,7 +141,7 @@ tags: [beir, retrieval, benchmark, literature-search]
 
 ## Reading Order
 
-1. [[../papers/beir-2021/index|BEIR]]
+1. [[../assets/beir-2021/index|BEIR]]
 2. BIRCO
 3. RAR-b
 4. Task-aware Retrieval with Instructions

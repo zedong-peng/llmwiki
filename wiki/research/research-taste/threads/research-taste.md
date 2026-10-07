@@ -27,7 +27,7 @@ As AI systems become capable of executing research tasks (writing code, running 
 This is why taste benchmarks are emerging as a distinct category from execution benchmarks.
 
 ## Working Decomposition
-The most useful decomposition in this area now comes from [[karpathy-perspective]]:
+The most useful decomposition in this area now comes from [[research/research-taste/threads/karpathy-perspective]]:
 - **Importance**
 - **Attackability**
 - **Timing**
@@ -64,10 +64,10 @@ Possible approaches to this problem:
 5. **Psychometric validation**: validate the latent structure instead of assuming it
 
 ## Related Concepts
-- [[concepts/research-ability-dimensions]] — taste is one dimension among many
-- [[concepts/evaluation-approaches]] — how to measure taste
-- [[researchTaste-bench-design]] — current benchmark proposal
+- [[research/research-taste/threads/research-ability-dimensions]] — taste is one dimension among many
+- [[research/research-taste/threads/evaluation-approaches]] — how to measure taste
+- [[research/research-taste/threads/researchTaste-bench-design]] — current benchmark proposal
 
 ## Key Papers
-- [[papers/hicke-2025-tastybench]] — first direct taste benchmark attempt
-- [[papers/zhang-2024-innogym]] — novelty as one component of the story
+- [[research/research-taste/assets/hicke-2025-tastybench/index]] — first direct taste benchmark attempt
+- [[research/research-taste/assets/zhang-2024-innogym/index]] — novelty as one component of the story

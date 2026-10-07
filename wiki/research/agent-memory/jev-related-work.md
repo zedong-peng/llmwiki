@@ -21,7 +21,7 @@ tags:
 
 | 工作 | 通俗理解 | 在流程里的位置 | 需要训练吗 |
 | --- | --- | --- | --- |
-| [[research/misc/papers/lotus-2025/index|LOTUS]] | 给数据表加上“能理解文字”的筛选、关联、汇总操作 | 数据处理层；可组织整个筛选/聚合流程 | 使用模型，用户不必先训练专用模型 |
+| [[research/misc/assets/lotus-2025/index|LOTUS]] | 给数据表加上“能理解文字”的筛选、关联、汇总操作 | 数据处理层；可组织整个筛选/聚合流程 | 使用模型，用户不必先训练专用模型 |
 | [[research/agent-memory/assets/utilityqwen-2025/index|UtilityQwen]] | 搜到资料后，挑能帮助回答的片段，排除只有主题相关的内容 | 召回之后、回答之前 | 论文训练了专用小模型；使用其权重无需重训 |
 | [[research/agent-memory/assets/scarlet-2025/index|SCARLet]] | 训练时遮住资料观察答案支持变化，教搜索器找有用证据 | 离线标注/训练检索器 | 需要训练；不是每次问题都重新做归因 |
 | [[research/agent-memory/assets/optiset-2026/index|OptiSet]] | 挑一组互补证据，避免前三条全在重复同一次出游 | 召回之后、回答之前 | 有免训练版，也有训练版 |

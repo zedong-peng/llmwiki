@@ -41,7 +41,7 @@ tags: [research, misc, threads, sessions]
 
 ## Citation Rule For Threads
 
-- 线程页里的关键判断尽量带上**本地文献锚点**，优先链接到 `[[../papers/<slug>]]` 或同级相关页面。
+- 线程页里的关键判断尽量带上**本地文献锚点**，优先链接到 `assets/<slug>/index.md` 或同级相关页面。
 - 尤其是以下类型的句子，不应只写结论，最好同时写出对应参考：
   - “这个方向已经有人做过”
   - “某类方法在某 benchmark 上有效 / 无效”
@@ -62,4 +62,4 @@ tags: [research, misc, threads, sessions]
 - [[2026-04-20-code-retrieval-benchmarks-survey]]
 - [[2026-04-25-llm-leaderboard-resources]]
 
-> Agent memory 线程已迁移至 [[../../agent-memory/threads/index]]
+> Agent memory 线程已迁移至 `agent-memory/threads/`

@@ -27,7 +27,7 @@ The immediate question was not just "which post is best," but:
 2. The posts are unusually coherent because research, infra, evals, and product UI are written as one stack.
    `CursorBench`, self-summarization, regex indexing, cloud agents, and the Cursor 3 interface are presented as mutually necessary layers for long-horizon agent work rather than disconnected announcements.
    Local anchors:
-   [[../papers/cursorbench-2026]], [[../../claude-code-memory/overview]], [[../../llm-grep-retrieval/overview]]
+   [[research/misc/assets/cursorbench-2026/index]], claude-code-memory, llm-grep-retrieval
 
 3. They consistently ground claims in internal operating reality rather than vague futurism.
    Repeated examples:
@@ -124,7 +124,7 @@ Most important claims:
 - model quality is tracked through a hybrid online-offline eval loop
 
 Local relevance:
-- directly connected to [[../papers/cursorbench-2026]]
+- directly connected to [[research/misc/assets/cursorbench-2026/index]]
 - useful for thinking about how to evaluate agent-memory or long-horizon coding systems beyond toy tasks
 
 ### [Training Composer for longer horizons](https://cursor.com/blog/self-summarization) (March 17, 2026)
@@ -137,7 +137,7 @@ Most important claims:
 - self-summarization is trained into the model and improves CursorBench performance with more token-efficient compactions
 
 Local relevance:
-- useful comparison point against explicit persistent-memory systems in [[../../claude-code-memory/overview]]
+- useful comparison point against explicit persistent-memory systems in claude-code-memory
 - shows a different route from memory systems: internal trajectory compression rather than external durable recall
 
 ### [Fast regex search: indexing text for agent tools](https://cursor.com/blog/fast-regex-search) (March 23, 2026)
@@ -150,7 +150,7 @@ Most important claims:
 - Cursor therefore builds explicit local indexing for regex-style search, not just semantic retrieval
 
 Local relevance:
-- strongly aligned with [[../../llm-grep-retrieval/overview]]
+- strongly aligned with llm-grep-retrieval
 - reinforces the idea that symbolic or lexical retrieval remains central for coding agents
 
 ### [Meet the new Cursor](https://cursor.com/blog/cursor-3) (April 2, 2026)
@@ -190,9 +190,9 @@ This post matters because it demonstrates a serious external task where the agen
 
 1. Cursor's public agenda is highly aligned with current local interests.
    The clearest overlap areas are:
-   - coding-agent evals: [[../papers/cursorbench-2026]]
-   - long-horizon behavior and memory alternatives: [[../../claude-code-memory/overview]]
-   - lexical retrieval for agents: [[../../llm-grep-retrieval/overview]]
+   - coding-agent evals: [[research/misc/assets/cursorbench-2026/index]]
+   - long-horizon behavior and memory alternatives: claude-code-memory
+   - lexical retrieval for agents: llm-grep-retrieval
 
 2. Cursor is useful here less as a single paper source and more as a stack-level case study.
    Their blog exposes how one frontier product team currently decomposes the coding-agent problem into:

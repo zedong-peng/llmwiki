@@ -44,7 +44,7 @@ README 提到的 `scripts/load_bitstream.sh` / `src/kernels/` 未在本次树中
 
 ## 对本项目的意义
 
-和 [[research/fpga-llm-inference/papers/secda-llm-2024/index|SECDA]] 一起，否定“首次在 llama.cpp 内进行 FPGA 加速”的宽泛首创表述。可比较的是同正确性条件下逐算子卸载与整图执行、host-managed KV 与 device-resident KV 的搬运/调用/请求耗时；不能凭接口形式或未对齐 token/s 声称优势。
+和 [[research/fpga-llm-inference/assets/secda-llm-2024/index|SECDA]] 一起，否定“首次在 llama.cpp 内进行 FPGA 加速”的宽泛首创表述。可比较的是同正确性条件下逐算子卸载与整图执行、host-managed KV 与 device-resident KV 的搬运/调用/请求耗时；不能凭接口形式或未对齐 token/s 声称优势。
 
 ## 阅读与复现
 

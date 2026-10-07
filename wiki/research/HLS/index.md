@@ -14,10 +14,10 @@ tags: [research, hls, qor-prediction, dse, fpga]
 
 ## Papers
 
-见 [Papers Directory](papers/index.md)：2 篇已处理（TeX 精读 + PDF + source 归档）。
+2 篇已处理（TeX 精读 + PDF + source 归档）。
 
-- [Hierarchical GNN QoR (2024)](papers/hierarchical-gnn-qor-2024/index.md) — 源码 → LLVM IR → pragma 扩展 CDFG → 分层 GNN（GNN_p/GNN_np/GNN_g），post-route 延迟/资源 MAPE <10%，DSE 从数十天缩到十几分钟。
-- [MPM-LLM4DSE (DATE 2026)](papers/mpm-llm4dse-2026/index.md) — ECoGNN + CodeBERT 多模态融合预测 QoR，LLM（PEODSE prompt）做优化器；关键发现 LM-only > ECoGNN-only，源码语义价值被低估。
+- [Hierarchical GNN QoR (2024)](assets/hierarchical-gnn-qor-2024/index.md) — 源码 → LLVM IR → pragma 扩展 CDFG → 分层 GNN（GNN_p/GNN_np/GNN_g），post-route 延迟/资源 MAPE <10%，DSE 从数十天缩到十几分钟。
+- [MPM-LLM4DSE (DATE 2026)](assets/mpm-llm4dse-2026/index.md) — ECoGNN + CodeBERT 多模态融合预测 QoR，LLM（PEODSE prompt）做优化器；关键发现 LM-only > ECoGNN-only，源码语义价值被低估。
 
 两篇对照：前者纯图方法、数据集 16 应用；后者多模态 + LLM 优化器、数据集 21 kernels。精度口径不同（MAPE vs RMSE），不直接对比。
 

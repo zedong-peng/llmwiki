@@ -17,13 +17,13 @@ tags: [fpga, llm-inference, llama-cpp, ggml, xrt, end-to-end]
 本 area 同时保留不同日期、不同 profile 的证据；Gemma 1B 集成记录与下方 2026-09-07 GPT-2
 profile 快照不能混合计算性能。
 
-2026-09-08 按 Canonical Layout 收敛：本 `index.md` 是唯一正式合成页；`papers/` 是论文资产库（83 记录、50 已验证 PDF、BibTeX、哈希）；`threads/ideaspark_run/` 是两次 IdeaSpark 原始运行存档。原先平铺的 13 个 loose 笔记（foundations、landscape、taxonomy、工具链对照、评测协议、CODO 深读、项目状态、两次文献检索、检索底表、VSTC 结果、失败审计、06-17 历史快照）已折入本页后删除，全文见 git 历史。其中 CODO 深读已合并为 [[research/fpga-llm-inference/papers/codo-2026/index|CODO 正式 paper note]]。2026-09-09 又折入 4 份九月证据页（niche-audit、evidence-matrix、KV-boundary、manuscript-recheck；其 hash 总账与 niche 抓包已删，见 git 历史）。按约定不建 `threads/index.md`。
+2026-09-08 按 Canonical Layout 收敛：本 `index.md` 是唯一正式合成页；`papers/` 是论文资产库（83 记录、50 已验证 PDF、BibTeX、哈希）；`threads/ideaspark_run/` 是两次 IdeaSpark 原始运行存档。原先平铺的 13 个 loose 笔记（foundations、landscape、taxonomy、工具链对照、评测协议、CODO 深读、项目状态、两次文献检索、检索底表、VSTC 结果、失败审计、06-17 历史快照）已折入本页后删除，全文见 git 历史。其中 CODO 深读已合并为 [[research/fpga-llm-inference/assets/codo-2026/index|CODO 正式 paper note]]。2026-09-09 又折入 4 份九月证据页（niche-audit、evidence-matrix、KV-boundary、manuscript-recheck；其 hash 总账与 niche 抓包已删，见 git 历史）。按约定不建 `threads/index.md`。
 
 ## Historical Position (July 2026)
 
 1. **系统集成已经成立，性能尚未成立。** 当前 backend 已严格执行 11 个 GGML operator family（`GET_ROWS`、`SCALE`、`MUL_MAT`、`RMS_NORM`、`MUL`、`ROPE`、`SET_ROWS`、`SOFT_MAX`、`ADD`、`GLU`、`CONT`），开发板 trace 中有 2,422 次 accepted FPGA dispatch、zero fallback。
 2. **首要瓶颈不是单个矩阵核。** `pp512`（1,626 calls → 224,936 launches，138.34/call）与 `tg128`（104,877 calls → 202,530 launches，1.93/call）的 host-observed XRT wait 分别占 operator wall time 的 96.25% 和 79.58%。`pp512` 的 470 个 `MUL_MAT` 展开成 198,176 launches、52 个 `GLU` 展开成 25,656 launches；`tg128` 每个 `MUL_MAT` 平均 4 launches、每个 `GLU` 平均 3 launches。单图 XRT timeline（885.527 ms 窗口）呈 `H2D sync -> run::start -> blocking run::wait -> D2H sync` 重复：blocking wait 71.85%，H2D+D2H 12.90%，launch API 0.73%。xclbin 无 device trace monitor，host wait 尚不能拆成 kernel-active、queueing 与 runtime overhead。
-3. **CODO 是必须重点理解的对照。** 它把 GPT-2 block 编译成 coarse-grained dataflow kernel，报告 U280 上 GPT-2 Medium 的 TTFT、decode token/s 和生成 latency。详见 [[research/fpga-llm-inference/papers/codo-2026/index|CODO]]（含 Table VI 复算、`[64:64]` 行 313.44ms vs 公式 309.12ms 差一个 decode interval 的记录，以及单 block artifact 无法直接溯源 24 层整模型结果的缺口）。
+3. **CODO 是必须重点理解的对照。** 它把 GPT-2 block 编译成 coarse-grained dataflow kernel，报告 U280 上 GPT-2 Medium 的 TTFT、decode token/s 和生成 latency。详见 [[research/fpga-llm-inference/assets/codo-2026/index|CODO]]（含 Table VI 复算、`[64:64]` 行 313.44ms vs 公式 309.12ms 差一个 decode interval 的记录，以及单 block artifact 无法直接溯源 24 层整模型结果的缺口）。
 4. **直接比较数字前必须统一边界。** CODO 的 U280/W4A8/GPT-2 Medium 与当前 Gemma 3 1B F16 `llama-bench` 路径在模型、精度、板卡、batch、长度与计时边界上都不同，不能把 `231.48 tok/s` 与当前 `1.32 tok/s` 直接解释成加速比。`MUL_MAT` 只占 `pp512`/`tg128` operator wall time 的 18.64%/29.77%，清零也只给 1.229x/1.424x Amdahl 上界；decode 用 `n_vec=1`，加宽多向量路径解决不了该 workload。
 5. **一个受限 research idea 已通过审计，但尚无性能结论。** Visibility-Sensitive Trace Compression (VSTC)：按原始 GGML 调用的可观察性分区保留 H 边界、流式解释 B 模板，以严格 zero fallback、artifact identity 和显式错误为前提。它是可证伪的提案，不是已测得的 U280 加速结果。RegionSeal 保留为历史失败审计，而非当前候选。
 
@@ -146,7 +146,7 @@ PYNQ/PINN：PYNQ 是部署生态（FINN 可生 PYNQ driver，DPU-PYNQ 给 `.bit/
 
 07-22 宽检索（2018-2026；初轮 Crossref 80→76 多假阳性，二轮 exact-title+DOI+arXiv 全文+私稿引用补齐）：connector 多故障（DBLP 宽查询 0 中、exact-title 找回 DFX/FlightLLM/EdgeLLM/StreamTensor/TeLLMe 等；arXiv 429/503 后直下已知 ID；OpenAlex 401、OpenReview 凭证/429、Sematicscholar 403 均未用于事实主张；07-23 五查询 rerun Crossref 125 + DBLP 8 同样失败模式）。核心 16（FTRANS/Sanger/DFX/FlightLLM/Spatial/GLITCHES/EdgeLLM/嵌入式LLaMA2/BAQET/SpeedLLM/StreamTensor/CODO/TeLLMe/FAST-Prefill/LUT-LLM/Hummingbird+）+ 扩展 27（起止 IJCNN 可扩展 GPT-2 经 HLSTransform/LlamaF/InTRRA/METAL/LoopLynx/MEADOW/TerEffic/LightMamba/AccLLM/QLlama/MoE-OPU/ISOCC LLM/CXL-SpecKV/整数全融合/FlexLLM/LORA/TeraFly/TFLOP/dLLM-OPU/SkipOPU/XtraMAC/ELiTeFormer 等，至 IROS 机器人部署）。趋势：20-22 算子到整机（FTRANS/Sanger→DFX）、23-24 映射流与空间-overlay 之争（FlightLLM/Spatial）、25 编译运行时与部署多样（EdgeLLM/StreamTensor/edge decode/BAQET/SpeedLLM）、26 粗粒度自动化与阶段专用（CODO/TeLLMe/FAST-Prefill）；优化单元在变大，孤立算子速只算支撑证据。07-24 pass 缓存 48 标题验证 PDF，20 无验证公开版记 metadata-only；本地读过 arXiv `2209.10797/2312.15159/2401.03868/2407.21325/2502.10659/2507.14139/2509.13694/2510.15926/2602.20515/2604.12618`；CODO artifact 看官方 `130b12bc` + `isca2026-ae` + Zenodo，未下 6.2GB Docker 层。
 
-07-28 窄刷新（launch/wait 放大下 U280 GGML 契约路径有何可用文献；六查询无过滤 241→142：arXiv60/OpenAlex60（504 重试5次后恢复）/Crossref60/Semantic1（5限流）/DBLP0（超时TLS）/OpenReview0；39 跨源合并；高召回故 `fusion/HBM/coarse` 词面噪声多，2020-23 只作锚不再重搜）：准入六类（shared/temporal 控制面、spatial-overlay-streaming-graph、HBM-aware 低 batch decode、异构框架边界、coarse/persistent/融合、overlay-CGRA 编译映射），DOI/arXiv/归一标题/slug 对 68 去重后新增 15 条 `papers/` 记录，仅 MPK + CGRA space-time 过全文 PDF 门（签名/可解析/标题/≥2页），余 13 记 metadata-only（RISCBench 公开文件仅1页摘要拒收，403 页不缓存）。新增：MPK（持久 mega-kernel + 核内任务 runtime，GPU 但最清 launch 边界对照，PDF）、CD-LLM（高 batch 多卡 decode，HBM master + 计算从）、FlightOPU（HBM 通道亲和 overlay + 多 die）、Nyx（共享 FPGA 时空虚拟 + 虚拟 FIFO）、PCIe 粗 systolic（直连 PCIe-FPGA 大 PE）、RISCBench（编排/residency 测量词表，1页拒收）、H2-LLM（低 batch 数据中心 DSE）、MCore-OPU（temporal overlay + 降核间同步）、Streaming VPE（流式非线性 + 前瞻归约）、DTCore（编译器极简控制引擎，题录种子）、FESTAL（图融合编译对照，题录种子）、FMC-LLM（高 batch 存算流解码，CD-LLM 谱系）、统一 overlay 编译器（E2E overlay 编译对照）、Lembda（CPU-FPGA 协同锚，待全文验证）、CGRA space-time（时空调度与空间放置分离，PDF）。四综合：空间/overlay/流不可混；共享引擎先控后算（MPK/Nyx/RISCBench/DTCore/粗 systolic 皆指调度launch residency 为一阶对象，与 U280 host wait 主导对齐）；decode 按 batch 分治（FMC/CD 高 batch 70B+ vs FlightOPU/H2 低 batch，皆不证 strict GGML 准入/artifact/zero-fallback）；缺失交集是带框架语义的粗粒度机制（fusion/dataflow 论文自有编译边界，当前 backend 自有原生边界但 node/tile 粒度，贡献须连两者而非把普通 fused region 当新）。未过滤 142 行全表（`allinone.md`）与本轮 connector 错误、关键词计数、引用统计、阅读路径已随删除归档 git 历史，策展子集与 PDF 来源以 `papers/index` 为准。
+07-28 窄刷新（launch/wait 放大下 U280 GGML 契约路径有何可用文献；六查询无过滤 241→142：arXiv60/OpenAlex60（504 重试5次后恢复）/Crossref60/Semantic1（5限流）/DBLP0（超时TLS）/OpenReview0；39 跨源合并；高召回故 `fusion/HBM/coarse` 词面噪声多，2020-23 只作锚不再重搜）：准入六类（shared/temporal 控制面、spatial-overlay-streaming-graph、HBM-aware 低 batch decode、异构框架边界、coarse/persistent/融合、overlay-CGRA 编译映射），DOI/arXiv/归一标题/slug 对 68 去重后新增 15 条 `papers/` 记录，仅 MPK + CGRA space-time 过全文 PDF 门（签名/可解析/标题/≥2页），余 13 记 metadata-only（RISCBench 公开文件仅1页摘要拒收，403 页不缓存）。新增：MPK（持久 mega-kernel + 核内任务 runtime，GPU 但最清 launch 边界对照，PDF）、CD-LLM（高 batch 多卡 decode，HBM master + 计算从）、FlightOPU（HBM 通道亲和 overlay + 多 die）、Nyx（共享 FPGA 时空虚拟 + 虚拟 FIFO）、PCIe 粗 systolic（直连 PCIe-FPGA 大 PE）、RISCBench（编排/residency 测量词表，1页拒收）、H2-LLM（低 batch 数据中心 DSE）、MCore-OPU（temporal overlay + 降核间同步）、Streaming VPE（流式非线性 + 前瞻归约）、DTCore（编译器极简控制引擎，题录种子）、FESTAL（图融合编译对照，题录种子）、FMC-LLM（高 batch 存算流解码，CD-LLM 谱系）、统一 overlay 编译器（E2E overlay 编译对照）、Lembda（CPU-FPGA 协同锚，待全文验证）、CGRA space-time（时空调度与空间放置分离，PDF）。四综合：空间/overlay/流不可混；共享引擎先控后算（MPK/Nyx/RISCBench/DTCore/粗 systolic 皆指调度launch residency 为一阶对象，与 U280 host wait 主导对齐）；decode 按 batch 分治（FMC/CD 高 batch 70B+ vs FlightOPU/H2 低 batch，皆不证 strict GGML 准入/artifact/zero-fallback）；缺失交集是带框架语义的粗粒度机制（fusion/dataflow 论文自有编译边界，当前 backend 自有原生边界但 node/tile 粒度，贡献须连两者而非把普通 fused region 当新）。未过滤 142 行全表（`allinone.md`）与本轮 connector 错误、关键词计数、引用统计、阅读路径已随删除归档 git 历史，策展子集与 PDF 来源以 `threads/paper-library/index` 为准。
 
 历史快照（06-17，已 stale，被本页 + 评测协议取代）：当时 `/home/zdpeng/llama.v` 是 CPU+FPGA 混合（`rtl/compute` matvec/rmsnorm/rope/geglu/softmax/dequant、`rtl/memory` hbm/loader/kv、`rtl/top` kernel/inference_ctrl/config/cmd、`host` main/xrt/gguf/contracts、`tools` Gemma布局trace打包、`scripts` 构建综合；README 定 CPU 留 tokenizer/GGUF/EOG/detokenize/sampler/控制、FPGA 做 HBM token 热路径；短 context Gemma 3 1B F16 U280 bring-up；token AXI-Lite ABI 回 greedy token ID）；llama.cpp 侧已有 `ggml-backend.h` + `ggml-backend-impl.h` + `ggml/src/ggml-*` + `ggml_add_backend` + device 能力（async/host buffer/event/supports_op 等），FPGA 可做普通 `ggml-fpga` backend 或高层 token 引擎；上游扫描（XDNA `#21725`、tilelang `#23219`、ANE `#10453`、ET `#24179` 及 backend 基建）判上游接受新 backend 但要可维护测试CI；当时定两条路（`llama.v` bring-up + 窄 XRT backend 切入）与分阶段收敛（单机 bring-up → 稳定 ABI + oracle → 最小 `ggml-fpga` 原型 → 单 op 小 PR），现行结论以 taxonomy + 项目基线为准。
 
@@ -243,7 +243,7 @@ wiki/research/fpga-llm-inference/
   papers/             # 论文资产：83 记录、50 已验证 PDF、manifest/bib/checksums
 ```
 
-`papers/<slug>/index.md + metadata.yaml + *.pdf` 为 legacy 命名（等价 protocol 的 `assets/<ref_slug>/`），按 skill 边界不为 enforcement 批量改名，新条目再用 canonical 名。纸库入口见 [[research/fpga-llm-inference/papers/index]]。
+论文库统一为 `assets/<ref_slug>/`（2026-10-07 从旧 `papers/` 迁入）。纸库入口见 [[research/fpga-llm-inference/threads/paper-library/index]]。
 
 返回 [[research/index]]。
 
@@ -253,16 +253,16 @@ Coverage describes implementation binding and observed model scope separately. M
 
 | Work | Model input | Implementation / evidence scope | Models |
 |---|---|---|---|
-| [[papers/lut-llm-2026/index|lut-llm-2026]] | Original checkpoint format NR; random-data testbench | Model-specific implementation | Qwen3-1.7B block; general checkpoint loader not established. |
-| [[papers/streamtensor-2025/index|streamtensor-2025]] | PyTorch model; suffix NR | Cross-architecture (paper) | GPT-2, Qwen, Llama and Gemma; block/phase evidence. |
-| [[papers/spatial-llm-2024/index|spatial-llm-2024]] | Hugging Face checkpoint; suffix NR | Reusable kernels; model-specific composition | BERT and GPT-2 measured; larger LLaMA/Vicuna studies are not equivalent board evidence. |
-| [[papers/dfx-2022/index|dfx-2022]] | Megatron/OpenAI GPT-2 checkpoint; suffix NR | Single family, multiple sizes (paper) | GPT-2 345M, 774M and 1.5B. |
-| [[papers/tellme-v2-2026/index|tellme-v2-2026]] | Original format NR; prepared .bin runtime weights | Model-specific implementation | BitNet-0.73B ternary model. |
-| [[papers/flexllm-hls-2026/index|flexllm-hls-2026]] | Original format NR; prepared .bin weights; GGUF tokenizer only | Reusable library; model-specific implementation | Llama-3.2-1B variants, plus HMT extension. |
-| [[papers/codo-2026/index|codo-2026]] | PyTorch nn.Module in .py | Reusable compiler; one LLM example | GPT-2 block; additional CNN/MLP/operator benchmarks. |
-| [[papers/edgellm-2025/index|edgellm-2025]] | Sparse/quantized model; file format NR | Cross-architecture (paper) | GLM-6B and Qwen-7B. |
-| [[papers/flightllm-2024/index|flightllm-2024]] | PyTorch model; suffix NR; prepared board .bin files | Cross-architecture (paper) | OPT-6.7B and LLaMA2-7B. |
-| [[papers/secda-llm-2024/index|secda-llm-2024]] | GGUF (later source) | Reusable operator backend; one model evaluated | TinyLlama paper evaluation; multiple model configurations in later source. |
+| [[assets/lut-llm-2026/index|lut-llm-2026]] | Original checkpoint format NR; random-data testbench | Model-specific implementation | Qwen3-1.7B block; general checkpoint loader not established. |
+| [[assets/streamtensor-2025/index|streamtensor-2025]] | PyTorch model; suffix NR | Cross-architecture (paper) | GPT-2, Qwen, Llama and Gemma; block/phase evidence. |
+| [[assets/spatial-llm-2024/index|spatial-llm-2024]] | Hugging Face checkpoint; suffix NR | Reusable kernels; model-specific composition | BERT and GPT-2 measured; larger LLaMA/Vicuna studies are not equivalent board evidence. |
+| [[assets/dfx-2022/index|dfx-2022]] | Megatron/OpenAI GPT-2 checkpoint; suffix NR | Single family, multiple sizes (paper) | GPT-2 345M, 774M and 1.5B. |
+| [[assets/tellme-v2-2026/index|tellme-v2-2026]] | Original format NR; prepared .bin runtime weights | Model-specific implementation | BitNet-0.73B ternary model. |
+| [[assets/flexllm-hls-2026/index|flexllm-hls-2026]] | Original format NR; prepared .bin weights; GGUF tokenizer only | Reusable library; model-specific implementation | Llama-3.2-1B variants, plus HMT extension. |
+| [[assets/codo-2026/index|codo-2026]] | PyTorch nn.Module in .py | Reusable compiler; one LLM example | GPT-2 block; additional CNN/MLP/operator benchmarks. |
+| [[assets/edgellm-2025/index|edgellm-2025]] | Sparse/quantized model; file format NR | Cross-architecture (paper) | GLM-6B and Qwen-7B. |
+| [[assets/flightllm-2024/index|flightllm-2024]] | PyTorch model; suffix NR; prepared board .bin files | Cross-architecture (paper) | OPT-6.7B and LLaMA2-7B. |
+| [[assets/secda-llm-2024/index|secda-llm-2024]] | GGUF (later source) | Reusable operator backend; one model evaluated | TinyLlama paper evaluation; multiple model configurations in later source. |
 
 Code availability audit: several pre-existing `repo/` paths were empty despite metadata saying archived. Restored local source caches for five repositories and retained the inspected files under each paper’s `source/code-audit/` so evidence is versioned despite the existing `**/repo/` ignore rule. FlexLLM cache is partial; selected files and their hashes are recorded explicitly. Existing paper PDFs/TeX were reused; EdgeLLM was read through PDF extraction. No bitstreams, weights, toolchains or synthesis outputs were downloaded. Input-format NR means not established, not unsupported.
 
@@ -294,7 +294,7 @@ Code availability audit: several pre-existing `repo/` paths were empty despite m
 
 检索证据：[查询与结果](threads/paper-eligibility-2026-09-15/arxiv-results.txt)、[脚本](threads/paper-eligibility-2026-09-15/search_arxiv.py)、[WPU README 快照](threads/paper-eligibility-2026-09-15/WPU-README.md)、[哈希清单](threads/paper-eligibility-2026-09-15/manifest.yaml)。查询 HTML 同目录保留，查询名为文件名；检索有名称召回局限，负结果只表示截至本轮未找到匹配，不能证明论文不存在。
 
-归档状态：两篇全文阅读+正式 note，七篇 PDF/TeX 缓存及身份检查；未运行下载代码、综合或 FPGA 板级复现。发现已有未完成的 `papers/imax-llm-2025/` PDF 缓存，保持原样，不将其另计论文；本轮正式入口为 canonical `assets/imax-cgla-2025/`。
+归档状态：两篇全文阅读+正式 note，七篇 PDF/TeX 缓存及身份检查；未运行下载代码、综合或 FPGA 板级复现。发现已有未完成的 `assets/imax-llm-2025/` PDF 缓存，保持原样，不将其另计论文；本轮正式入口为 canonical `assets/imax-cgla-2025/`。
 
 ## Decode-speed anchor and original-text verification (2026-09-27)
 
@@ -326,7 +326,7 @@ Implied traffic = matrix parameters read per token (incl. vocabulary head) x wei
 - AccLLM is published (IEEE TVLSI 2026, DOI 10.1109/TVLSI.2026.3658524); its 164 token/s is simulated. SECDA-LLM appeared at the ARC-LG workshop at ISCA 2024.
 - EdgeLLM's own text reports GLM-6B ~90 token/s at 280 MHz (MatMul), whereas AccLLM tabulates ChatGLM2-6B at 125 MHz and 75 token/s.
 - Spatial Allo fetches each layer's parameters from the host (not device-resident); FlexLLM relays KV through the host between separate prefill and decode bitstreams; TeLLMe runs embedding, LM head and sampling on the ARM host.
-- New entries: [[papers/f-bfq-2025/index|F-BFQ]] (llama.cpp MatMul offload, KV260) and an [[papers/imax-llm-2025/index|IMAX]] note (VPK180 prototype, Qwen3, host-managed KV).
+- New entries: [[assets/f-bfq-2025/index|F-BFQ]] (llama.cpp MatMul offload, KV260) and an [[assets/imax-llm-2025/index|IMAX]] note (VPK180 prototype, Qwen3, host-managed KV).
 
 ### Table eligibility decisions (2026-09-27)
 - Excluded from comparison tables: F-BFQ (LG-ARC workshop, no public code) and SECDA-LLM (ARC-LG workshop; github.com/judeharis/SECDA-LLM created 2026-06-03, labelled [WiP], 0 stars, only SystemC-simulation and cross-compile presets, no bitstream or board flow, so the paper results are not reproducible). SECDA-LLM stays as a one-sentence prose precedent for llama.cpp FPGA offload.

@@ -71,7 +71,7 @@ The strongest opportunity is not "another benchmark," but a benchmark with a str
 - direct comparison against execution benchmarks such as Scientist-Bench
 
 ## Related Pages
-- [[concepts/research-taste]]
-- [[concepts/research-ability-dimensions]]
-- [[concepts/evaluation-approaches]]
-- [[../concepts/researchTaste-bench-design]]
+- [[research/research-taste/threads/research-taste]]
+- [[research/research-taste/threads/research-ability-dimensions]]
+- [[research/research-taste/threads/evaluation-approaches]]
+- [[research/research-taste/threads/researchTaste-bench-design]]

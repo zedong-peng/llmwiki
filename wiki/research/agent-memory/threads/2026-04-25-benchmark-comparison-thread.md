@@ -260,11 +260,11 @@ Interpretation: direct post-hoc F1/BLEU is mechanically possible, but it is a ha
 
 ## 相关论文
 
-- [[../papers/memory-llm-era-2026]] — Memory in the LLM Era
-- [[../papers/memos-2026]] — MemOS
-- [[../papers/evermemos-2026]] — EverMemOS
-- [[../papers/byterover-2026]] — ByteRover
-- [[../papers/honcho-2025]] — Honcho
-- [[../papers/hindsight-2025]] — Hindsight
-- [[../papers/locomo-2024]] — LoCoMo benchmark
-- [[../papers/longmemeval-2025]] — LongMemEval benchmark
+- [[research/agent-memory/assets/memory-llm-era-2026/index]] — Memory in the LLM Era
+- [[research/agent-memory/assets/memos-2026/index]] — MemOS
+- [[research/agent-memory/assets/evermemos-2026/index]] — EverMemOS
+- [[research/agent-memory/assets/byterover-2026/index]] — ByteRover
+- [[research/agent-memory/assets/honcho-2025/index]] — Honcho
+- [[research/agent-memory/assets/hindsight-2025/index]] — Hindsight
+- [[research/agent-memory/assets/locomo-2024/index]] — LoCoMo benchmark
+- [[research/agent-memory/assets/longmemeval-2025/index]] — LongMemEval benchmark

@@ -14,9 +14,9 @@ tags: [benchmark-design, construct-validity, contamination, living-benchmark, re
 
 ## Why This Benchmark Exists
 The field already has serious **execution** benchmarks:
-- [[../papers/starace-2025-paperbench]]
-- [[../papers/scientist-bench]]
-- [[../papers/mlrc-bench-2025]]
+- [[research/research-taste/assets/starace-2025-paperbench/index]]
+- [[research/research-taste/assets/scientist-bench/index]]
+- [[research/research-taste/assets/mlrc-bench-2025/index]]
 
 What is still weakly measured is the upstream question:
 
@@ -35,7 +35,7 @@ This area now uses a simple framing:
 The point is not that taste is the only capability. The point is that it should be measured separately from execution.
 
 ## Construct Definition
-Following [[karpathy-perspective]], the benchmark operationalizes research taste as five related signals:
+Following [[research/research-taste/threads/karpathy-perspective]], the benchmark operationalizes research taste as five related signals:
 
 1. **Importance**
 2. **Attackability**
@@ -69,7 +69,7 @@ Contrast:
 - lower novelty, higher long-term impact
 
 Purpose:
-- detect novelty bias, motivated by [[../papers/hindsight-novelty-bias]]
+- detect novelty bias, motivated by [[research/research-taste/assets/hindsight-novelty-bias/index]]
 
 ### D2. Timing Sense Test
 Give the same idea under three historical field states and ask when it was most ripe.
@@ -82,7 +82,7 @@ Show papers with weak early citation signals and ask whether they will wake up l
 
 Purpose:
 - measure the hardest part of taste: spotting underrated future impact
-- grounded in [[../papers/ke-2015-sleeping-beauty]]
+- grounded in [[research/research-taste/assets/ke-2015-sleeping-beauty/index]]
 
 ### D4. Synthetic Idea Test
 Use fully synthetic ideas with no real paper identity and score only for diagnosis.
@@ -143,14 +143,14 @@ Strip:
 - year
 
 Motivation:
-- [[../papers/saraf-2025-label-bias]]
-- [[../papers/li-2026-preference-leakage]]
+- [[research/research-taste/assets/saraf-2025-label-bias/index]]
+- [[research/research-taste/assets/li-2026-preference-leakage/index]]
 
 ### Defense 2. CCV-Style Contamination Check
 Probe whether the model appears to know the paper identity across fresh sessions.
 
 Motivation:
-- [[../papers/ccv-contamination]]
+- [[research/research-taste/assets/ccv-contamination/index]]
 
 ### Defense 3. Objective Ground Truth
 The final answer key should come from citation dynamics and downstream uptake, not from an LLM judge.
@@ -159,7 +159,7 @@ The final answer key should come from citation dynamics and downstream uptake, n
 Continuously add newer papers so the evaluation set stays fresher than most training data.
 
 Motivation:
-- [[../papers/swe-bench-live]]
+- [[research/research-taste/assets/swe-bench-live/index]]
 
 ## Construct Validation Plan
 This is what turns the benchmark from a good idea into a credible measurement instrument.
@@ -173,8 +173,8 @@ Questions to answer:
 - Do novelty-trap items load on elegance, or on a distinct bias factor?
 
 Motivation:
-- [[../papers/salaudeen-2025-construct-validity]]
-- [[../papers/chen-2025-irt-llm]]
+- [[research/research-taste/assets/salaudeen-2025-construct-validity/index]]
+- [[research/research-taste/assets/chen-2025-irt-llm/index]]
 
 ### Predictive Validity
 A strong benchmark score should predict at least one more realistic research judgment task:
@@ -229,9 +229,9 @@ Compared with the current landscape, this design aims to combine:
 - diagnostic separation of novelty bias, timing, and sleeping-beauty detection
 
 ## Related Pages
-- [[research-taste]] — core concept
-- [[karpathy-perspective]] — theoretical origin
-- [[evaluation-approaches]] — measurement tradeoffs
-- [[../comparisons/benchmark-landscape]] — where this fits
-- [[../papers/gong-2025-economics-taste]] — human/model baseline
-- [[../papers/why-llms-arent-scientists]] — strongest motivation
+- [[research/research-taste/threads/research-taste]] — core concept
+- [[research/research-taste/threads/karpathy-perspective]] — theoretical origin
+- [[research/research-taste/threads/evaluation-approaches]] — measurement tradeoffs
+- [[research/research-taste/threads/benchmark-landscape]] — where this fits
+- [[research/research-taste/assets/gong-2025-economics-taste/index]] — human/model baseline
+- [[research/research-taste/assets/why-llms-arent-scientists/index]] — strongest motivation

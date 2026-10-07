@@ -83,7 +83,7 @@ Workflow eval 固定工作流，用 GPT-6 Astra 与 Fable 5.1 的平均预测概
 
 ## 对现有研究的启发（本 wiki 判断，未经实验）
 
-可以把 Jev 作为 [[research/agent-memory/papers/lazymem-related-work/index|LazyMem / BM25-window]] 后面的可选 reranker，或作为窗口内“证据在哪里 + 是否存在”的决策模块。与 [[research/agent-memory/papers/mem0-2025/index|Mem0]]、[[research/agent-memory/papers/hindsight-2025/index|Hindsight]] 比较时，应固定候选生成、上下文预算、回答模型和 judge，只替换检索评分部件，避免混合比较产品架构与底层模型。
+可以把 Jev 作为 [[research/agent-memory/assets/lazymem-related-work/index|LazyMem / BM25-window]] 后面的可选 reranker，或作为窗口内“证据在哪里 + 是否存在”的决策模块。与 [[research/agent-memory/assets/mem0-2025/index|Mem0]]、[[research/agent-memory/assets/hindsight-2025/index|Hindsight]] 比较时，应固定候选生成、上下文预算、回答模型和 judge，只替换检索评分部件，避免混合比较产品架构与底层模型。
 
 建议评测：证据 Recall@k、缺证拒答、下游答案正确率、选择性风险/覆盖率、校准误差、端到端 p50/p95 延迟与总成本；纳入 BM25 原排序、成熟 reranker 和相同候选上的 LLM 判断对照。单独覆盖中文、长历史干扰、时序冲突与多跳问题。这里是后续实验建议，没有运行 API 或复现实验。
 

@@ -3,7 +3,7 @@ title: Super Personal Wiki Index
 domain: root
 type: overview
 status: active
-updated: 2026-09-22
+updated: 2026-10-07
 tags: [index]
 ---
 
@@ -19,13 +19,14 @@ tags: [index]
 | Research | [[research/index]]    | 研究主入口；先看这里，再进入具体 area   |
 | Projects | [[projects/overview]] | GitHub 项目、工程经验、可复用技术记录  |
 | Admin    | [[admin/overview]]    | 证件、合同、签证、财务、手续类材料的非敏感索引 |
+
 ## Recent Research References
 
 - [[research/agent-memory/jev-related-work|Jev 相关工作通俗对照]]：LOTUS、UtilityQwen、SCARLet、OptiSet；原文、代码可用性与 RAG 接入位置（2026-09-22）。
 
 - [[research/agent-memory/assets/jev-system-one-2026/index|Jev / System One]]：9 月 15 日发布博客、类型化概率决策、检索 cookbook、评测与局限（2026-09-22）。
 
-- [[research/agent-memory/papers/mem0-2025/index|Mem0 2025 paper + official experiment code]]: paper citation and public RAG baseline; separate from the 2026 release (2026-09-20).
+- [[research/agent-memory/assets/mem0-2025/index|Mem0 2025 paper + official experiment code]]: paper citation and public RAG baseline; separate from the 2026 release (2026-09-20).
 
 - [[research/agent-memory/assets/mem0-2026/index|Mem0 2026 software / technical release]]: SDK 2.1.0 and evaluation archive; platform-only features, changed judge, and shared 2025 evaluation protocol decision (2026-09-20).
 
@@ -43,29 +44,14 @@ tags: [index]
 - [[research/fpga-llm-inference/index|FPGA LLM 证据矩阵]]：对照谓词与行判（New-model entry、Resident exec.、E2E、公开 artifact）。
 - [[research/fpga-llm-inference/index|KV-cache 边界]]：K/V 计算、持久状态、KV 优化三层区分与执行对象决定指标。
 
-## Operating Files
-
 - [[research/agent-memory/threads/2026-09-14-lazymem-arxiv-preparation|LazyMem 论文提交包]]：既有实验的负结果、11 页 PDF 与独立复算（2026-09-14）。
 - [[research/agent-memory/threads/2026-09-14-work-continuity-memory|长期 agent memory 调查]]：工作状态、范围依赖与 Hindsight 源码重叠核查（2026-09-14）。
+
+## Operating Files
 
 | File | Purpose |
 |---|---|
 | [[log]] | 追加式维护日志 |
-| `sources/catalog.md` | 原始资料登记和敏感性分类 |
-| `inbox/` | 临时放待处理笔记或待 ingest 清单 |
+| [[projects/karpathy-llm-wiki]] | 本库设计来源 |
+| `AGENTS.md` | 维护规则 |
 | `raw/` | 可安全纳入仓库的原始资料入口 |
-
-## First Migration Targets
-
-| Source | Target | Notes |
-|---|---|---|
-| Existing research map wiki | `wiki/research/` | core pages migrated on 2026-04-14; can continue incremental cleanup |
-| `Documents/Personal Info` | `wiki/admin/` + `wiki/personal/` | 只建非敏感索引，不复制证件扫描件 |
-| `Documents/SJTU_Master_CompSci` | `wiki/personal/education/` | 学业、成绩、学术报告、硕士手续 |
-| `Documents/GitHub/*` | `wiki/projects/` + `wiki/research/` | 项目说明、实验记录、论文线索 |
-
-## Open Questions
-
-- 哪些页面未来会公开，哪些只在本地使用？
-- Research wiki 是复制迁移，还是保留原仓库并在这里建立入口页？
-- 个人材料是否需要按“申请/报销/签证/落户/实习”建立 checklist？

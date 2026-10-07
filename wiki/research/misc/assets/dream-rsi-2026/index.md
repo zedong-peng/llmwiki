@@ -86,8 +86,8 @@ TeX 附录另含 [Lasso solver](paper-tex/extracted/2609.14858v1/appendix/discov
 
 | 相关条目 | 改进对象 | 与 Dream-RSI 的关系 |
 |---|---|---|
-| [[../../papers/meta-harness/index|Meta-Harness]] | 整体 harness 代码 | 都利用完整历史和固定底层模型；Dream-RSI 专门优化探索调度，并增加离线 replay 反馈 |
-| [[../../papers/erl-2026/index|ERL]] | 可检索经验 heuristics | 历史作为 test-time 指导，对照历史作为策略评测环境 |
+| [[../meta-harness/index|Meta-Harness]] | 整体 harness 代码 | 都利用完整历史和固定底层模型；Dream-RSI 专门优化探索调度，并增加离线 replay 反馈 |
+| [[../erl-2026/index|ERL]] | 可检索经验 heuristics | 历史作为 test-time 指导，对照历史作为策略评测环境 |
 | [[../../../agent-memory/index|Agent Memory]] | 记忆存储、检索与经验复用 | replay simulator 是经验复用的一种用途，不等于通用记忆架构 |
 | [[../../../fpga-llm-inference/index|FPGA LLM Inference]] | 硬件实现与评估 | 阅读启发：昂贵编译/综合轨迹可复用作 DSE 调度反馈，但本论文没有 FPGA 实验 |
 

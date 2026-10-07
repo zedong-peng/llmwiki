@@ -77,7 +77,7 @@ All returned citation counts are zero; no meaningful most-cited ranking. First-a
 
 ## Recommendations for reading
 
-Read Dream-RSI (#1), then the existing [[../papers/meta-harness/index|Meta-Harness]] and [[../papers/erl-2026/index|ERL]] notes for harness search versus heuristic-memory comparisons. The latter two are existing wiki context, not additional API hits.
+Read Dream-RSI (#1), then the existing [[../assets/meta-harness/index|Meta-Harness]] and [[../assets/erl-2026/index|ERL]] notes for harness search versus heuristic-memory comparisons. The latter two are existing wiki context, not additional API hits.
 
 ## Verbatim search output
 
