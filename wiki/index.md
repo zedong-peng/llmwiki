@@ -40,7 +40,7 @@ tags: [index]
 
 - [[research/llm-inference/index]]：LLM 推理关键论文地图；10篇TeX/PDF、vLLM/SGLang重点阅读、8篇定向阅读、8个官方仓库缓存（2026-09-14）。
 
-- [[research/fpga-llm-inference/index]]：FPGA LLM 推理（U280 llama.cpp/GGML 主线、系统地图、评测协议、CODO 对照、VSTC 提案与失败审计；09-09 已折入证据矩阵/审计/复核/KV 边界；论文库见 papers/，原始 IdeaSpark 运行见 threads/）。
+- [[research/fpga-llm-inference/index]]：FPGA LLM 推理（U280 llama.cpp/GGML 主线、系统地图、评测协议、CODO 对照、VSTC 提案与失败审计；09-09 已折入证据矩阵/审计/复核/KV 边界；论文库见 assets/，原始 IdeaSpark 运行见 threads/）。
 - [[research/fpga-llm-inference/index|FPGA LLM 证据复核]]：论文实验和交付证据复查（SECDA 集成边界、FlexLLM 精度、CODO 发表信息；2026-09-08）。
 - [[research/fpga-llm-inference/index|FPGA backend 生态审计]]：对照准入、公开复现与替代边界（SECDA/Positron/Achronix/原生 backend）。
 - [[research/fpga-llm-inference/index|FPGA LLM 证据矩阵]]：对照谓词与行判（New-model entry、Resident exec.、E2E、公开 artifact）。

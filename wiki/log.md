@@ -3,11 +3,28 @@ title: Super Personal Wiki Log
 domain: root
 type: timeline
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 tags: [log]
 ---
 
 # Super Personal Wiki Log
+
+## [2026-10-09] integrity | Restored recoverable archives and repository evidence
+
+- Recovered all 103 previously missing TeX archive files from historical Git blobs without substituting newer arXiv versions. All 108 metadata-recorded archives now exist and match their recorded byte counts and SHA-256 hashes.
+- Read the complete 15-page arXiv v1 PDF for `memory-for-autonomous-llm-agents-2026`; metadata and the Agent Memory catalog now report `processed`. The note records the exact page ranges, PDF fallback, and the fact that no code or experiments were run.
+- Archived fresh HTML snapshots for CursorBench and Mintlify ChromaFs under `supplementary/`, with URL, retrieval date, byte count, and SHA-256 recorded in metadata; their notes now point to local evidence.
+- Restored exact pinned repositories for Mem0 2025, CODO, and LOTUS, and recorded current HEADs for the remaining recoverable public caches. Unpinned caches are marked `cached` with an explicit current-snapshot caveat; the historical inspection commit is not inferred. REMem remains `failed` because the remote references a missing Git-LFS object, and ToG-2 remains `pending` without a cache.
+- Validation: `lint_wiki.py` reports 285 references, 0 errors, 0 warnings; all YAML metadata parses, repository paths and recorded HEADs check out, archive hashes match, and `git diff --check` passes. No downloaded code was executed, and no commit or push was performed.
+
+## [2026-10-09] meta | Repaired migration navigation and reading provenance
+
+- Applied the cleanup findings and three sub-agent checks from session `01a11ae3-ce9f-73f1-9894-ceaf8508c6c5`, whose earlier repair attempts were blocked by its read-only sandbox.
+- Removed the broken Agent Memory thread-guide link, repaired Zep's stale machine-specific path, and corrected current layout descriptions to `assets/`. Folded the misc thread guide and FPGA paper-library catalog into their topic indexes, then removed the two redundant guide pages. All 84 FPGA return links now target the topic's Paper Library section; all 86 historical catalog rows remain, with the collection's 84/51/33 counts explicitly labeled historical. The manifest, BibTeX and checksum ledger remain byte-identical.
+- Restored historical TeX/PDF reading provenance and 22 existing reading paths for seven FPGA papers; repaired their stale archive/source/code links. Four software/blog records now use `reference:` and their actual source type, with missing local caches documented. The autonomous-agent-memory survey is `partial`/`downloaded`: historical abstract/ar5iv HTML reading does not establish local PDF or complete-paper reading.
+- Restored Mem0's April 2026 caches at their exact recorded commits (`mem0` `693e7093`, `memory-benchmarks` `f75666d3`) and kept the separate September 2026 SDK/evaluator caches at their distinct recorded HEADs. Also restored exact pinned caches for CODO artifact (`130b12bc`) and LOTUS (`136ae4f4`). Claude-Mem and cuLA now have current detached caches with explicit metadata that their historical documentation reads predate those cache revisions; no current source is presented as historical audit evidence.
+- Removed 43 invalid Obsidian recent paths, retained four valid entries and opened the Agent Memory index. All six Obsidian JSON files parse and their file references exist. Changed the DLM entry to a valid relative Markdown link because structural lint skips the submodule's pages.
+- Validation: 285 references, 0 errors, 103 warnings (all missing recoverable TeX archive caches); changed-page local links, reading paths, legacy metadata preservation and whitespace checks passed. No new paper reading, benchmark reproduction, code execution, commit or push was performed. Existing `wiki/research/llm-inference/.gitignore` deletion was preserved.
 
 ## [2026-10-08] meta | Recovered FPGA TeX figures; lint errors back to zero
 

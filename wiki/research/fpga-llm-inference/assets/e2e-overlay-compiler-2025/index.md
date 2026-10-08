@@ -36,4 +36,4 @@ Compiler/overlay reference for end-to-end lowering; it supplies a comparison poi
 - Reading note: seed; no unverified method or performance claims added.
 - Source archive and code repository: not requested in this import pass.
 
-Return to [[research/fpga-llm-inference/threads/paper-library/index|FPGA LLM paper library]].
+Return to [[research/fpga-llm-inference/index#Paper Library|FPGA LLM paper library]].

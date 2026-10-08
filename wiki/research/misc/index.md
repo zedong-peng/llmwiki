@@ -16,16 +16,24 @@ tags: [research, misc, papers, index]
 
 ## Thread Directory
 
-- [Research Threads Guide](threads/index.md)
-
 - [BEIR Related Paper Search](threads/2026-04-19-beir-related-paper-search.md)
 - [BEIR Current SOTA Snapshot](threads/2026-04-19-beir-current-sota-snapshot.md)
 - [Compiled Lexical Retrieval and RAG Benchmarks](threads/2026-04-19-compiled-lexical-retrieval-and-rag-benchmarks.md)
 - [Compiled Retrieval NeurIPS Paper Plan](threads/2026-04-20-compiled-retrieval-nips-paper-plan.md)
 - [Code Retrieval Benchmarks Survey](threads/2026-04-20-code-retrieval-benchmarks-survey.md)
 - [Cursor Blog Reading Notes](threads/2026-04-19-cursor-blog-reading-notes.md)
+- [LLM Leaderboard Resources](threads/2026-04-25-llm-leaderboard-resources.md)
+- [Dream-RSI Search](threads/2026-09-17-dream-rsi-search.md)
 
 > Agent memory 相关线程已迁移至 `agent-memory/threads/`
+
+### Thread Guidelines
+
+`threads/` 记录对话形成的研究判断、benchmark 选择、实验路线、概念澄清、paper positioning / novelty 风险，以及暂时不值得升级为独立 area 的想法。单篇参考资料的正式笔记存入 `assets/<slug>/index.md`；只有一句待办或没有后续研究价值的聊天不单建线程。
+
+文件名采用 `YYYY-MM-DD-topic-slug.md`，slug 使用稳定小写短语并聚焦一个线程；同一主题继续推进时优先更新原页。推荐内容包括 `Context`、`Key Judgments`、`Definitions / Clarifications`、`References / Evidence`、`Benchmarks / Papers Mentioned` 和 `Next Steps`。
+
+关键判断需尽量带本地文献锚点，优先链接 `assets/<slug>/index.md` 或相关线程。尤其是已有工作、benchmark 有效性或局限、venue framing 等判断，应说明对应参考。论文尚未归档时，先标记“待 ingest”，再按 llmwiki skill 的 `references/protocol.md` 补齐正式笔记；线程虽非正式 survey，也应避免大段无出处的 literature claims。
 
 ## Paper Directory
 

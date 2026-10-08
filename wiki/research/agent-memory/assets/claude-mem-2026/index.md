@@ -16,9 +16,10 @@ tags: [research, misc, repo, claude-code, plugin, memory, sqlite, chroma, coding
 - Year: 2026
 - Venue: GitHub repository
 - Topic: misc
-- Paper Slug: claude-mem-2026
+- Reference Slug: claude-mem-2026
 - Canonical URL: https://github.com/thedotmack/claude-mem
 - Reading Source: official GitHub repo
+- Reading boundary: historical repository documentation reading; the local cache is now available at `github-repo/claude-mem/` at detached commit `eccb15e755467a4e0697f168dd0123a6d24b2aca`. The cache was restored on 2026-10-09 and is not claimed to be the historical reading revision.
 - TeX/source: unavailable
 - PDF fallback: not used
 
@@ -94,7 +95,7 @@ tags: [research, misc, repo, claude-code, plugin, memory, sqlite, chroma, coding
 - The progressive-disclosure retrieval pattern is also notable: retrieval quality is treated as a token-budgeting and workflow problem, not only as an embedding problem.
 
 ## Limitations
-- This note is based on the public repository documentation and surfaced GitHub pages, not a line-by-line local code audit.
+- This note is based on the public repository documentation and surfaced GitHub pages, not a line-by-line local code audit. The local cache is retained for follow-up inspection; its current commit is recorded in metadata.
 - The repository README mixes architecture, installation, and product claims, so some implementation details would need deeper source inspection to verify exhaustively.
 - Claude-Mem is operationally heavier than simple markdown-memory approaches because it requires a worker, local databases, and plugin integration.
 

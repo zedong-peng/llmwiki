@@ -31,9 +31,9 @@ payload rather than a TeX archive in this pass.
 
 - The system evaluates GLM-6B and Qwen-7B on VCU128 and combines CPU control with an FPGA instruction engine; the reported boundary includes generation throughput, latency and power.
 - The architecture text describes a dedicated DMA path that transfers online-generated KV cache into HBM, plus a common tensor layout for burst access. This is explicit KV placement/traffic optimization, though not a reusable llama.cpp backend ABI.
-- PDF-first read completed; no TeX source was retained because the source endpoint did not return TeX. The numbers remain contextual rather than matched to the current U280/GPT-2 profile.
+- TeX unavailable, used PDF fallback. The recorded PDF-first read was completed; no TeX source was retained because the source endpoint did not return TeX. The numbers remain contextual rather than matched to the current U280/GPT-2 profile.
 
-Return to [[research/fpga-llm-inference/threads/paper-library/index|FPGA LLM paper library]].
+Return to [[research/fpga-llm-inference/index#Paper Library|FPGA LLM paper library]].
 
 ## Model input and coverage audit (2026-09-15)
 

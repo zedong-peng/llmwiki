@@ -4,7 +4,7 @@ domain: research
 area: agent-memory
 type: paper
 status: active
-updated: 2026-09-20
+updated: 2026-10-09
 tags: [paper, misc, mem0, long-term-memory, conversational-memory, graph-memory]
 ---
 
@@ -18,11 +18,11 @@ tags: [paper, misc, mem0, long-term-memory, conversational-memory, graph-memory]
 - Topic: agent-memory
 - Paper Slug: mem0-2025
 - arXiv: https://arxiv.org/abs/2504.19413
-- PDF: 2504.19413-mem0.pdf
+- PDF: [2504.19413-mem0.pdf](paper-pdf/2504.19413-mem0.pdf)
 - Code / project page: https://mem0.ai/research
 - Reading Source: TeX only, no PDF fallback
-- Official paper experiment code: [historical evaluation directory](repo/mem0/evaluation/) in `mem0ai/mem0`, pinned to `693e709389526b45cfadfd06d89a0e13af7c7345`. Its README explicitly identifies the 2025 paper. This later repository snapshot is not evidence of the exact revision used for the published runs.
-- Legacy [memory-benchmarks cache](repo/memory-benchmarks/) belongs to the later evaluation lineage, documented under [Mem0 2026](../mem0-2026/index.md). Its existing location is retained for provenance; it is not the 2025 paper evaluator.
+- Official paper experiment code: [historical evaluation directory](https://github.com/mem0ai/mem0/tree/693e709389526b45cfadfd06d89a0e13af7c7345/evaluation) in `mem0ai/mem0`, pinned to `693e709389526b45cfadfd06d89a0e13af7c7345`. Its previously inspected README identifies the 2025 paper. The exact pinned cache is restored at `github-repo/mem0/` in detached HEAD; this supports source inspection but does not claim reproduction of the published runs.
+- The April 2026 `memory-benchmarks` snapshot at `f75666d33ef560f0f196746e0e16c515d17e6856` belongs to the later evaluation lineage, documented under [Mem0 2026](../mem0-2026/index.md). Its exact pinned cache is restored at `github-repo/memory-benchmarks/`; it is not the 2025 paper evaluator.
 
 The [2026 algorithm and source archive](../mem0-2026/index.md) covers the later ADD-only/hybrid-retrieval release, SDK 2.1.0, changed evaluator, and the mismatch between current headline scores and committed result files. The results below remain the **2025 paper's reported results**.
 
@@ -30,7 +30,7 @@ The [2026 algorithm and source archive](../mem0-2026/index.md) covers the later 
 
 Use **Mem0 2025** for this paper and its reported results. Cite [arXiv:2504.19413](https://arxiv.org/abs/2504.19413); when describing the implementation, additionally cite the [pinned official experiment directory](https://github.com/mem0ai/mem0/tree/693e709389526b45cfadfd06d89a0e13af7c7345/evaluation). Reusable entries are in [citations.bib](citations.bib).
 
-The official [README](repo/mem0/evaluation/README.md) identifies the paper and documents RAG. [src/rag.py](repo/mem0/evaluation/src/rag.py) implements timestamp-and-speaker text serialization, non-overlapping token chunks, embedding-based cosine retrieval, top-k concatenation, and short-answer generation. [run_experiments.py](repo/mem0/evaluation/run_experiments.py) exposes `--chunk_size` and `--num_chunks`; [the historical judge](repo/mem0/evaluation/metrics/llm_judge.py) is separate from the 2026 judge.
+The previously inspected official [README](https://github.com/mem0ai/mem0/blob/693e709389526b45cfadfd06d89a0e13af7c7345/evaluation/README.md) identifies the paper and documents RAG. [src/rag.py](https://github.com/mem0ai/mem0/blob/693e709389526b45cfadfd06d89a0e13af7c7345/evaluation/src/rag.py) implements timestamp-and-speaker text serialization, non-overlapping token chunks, embedding-based cosine retrieval, top-k concatenation, and short-answer generation. [run_experiments.py](https://github.com/mem0ai/mem0/blob/693e709389526b45cfadfd06d89a0e13af7c7345/evaluation/run_experiments.py) exposes `--chunk_size` and `--num_chunks`; [the historical judge](https://github.com/mem0ai/mem0/blob/693e709389526b45cfadfd06d89a0e13af7c7345/evaluation/metrics/llm_judge.py) is separate from the 2026 judge. These links identify the recorded revision; this cleanup did not restore or re-inspect the missing local source.
 
 The paper's [experimental setup](paper-tex/extracted/legacy/sections/experiment_setup.tex) sweeps chunk sizes 128–8192 and k=1,2. Its [results](paper-tex/extracted/legacy/sections/result.tex) report the best RAG configuration as 256 tokens, k=2, Judge 60.97 ± 0.20%. The documented embedding API name is `text-embedding-3-small` (the paper spells it `text-embedding-small-3`).
 

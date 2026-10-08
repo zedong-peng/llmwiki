@@ -25,7 +25,7 @@ paper is useful here as a system-level reference, not as a directly matched llam
 ## Local Assets
 
 - Paper PDF: [2401.03868.pdf](paper-pdf/2401.03868.pdf) (12 pages; SHA-256 `e0d38c8754516973d62749c846ebe63ea3984b569a1613b98340ef13249fd4da`)
-- arXiv source archive: [2401.03868-source.tar.gz](source/archives/2401.03868-source.tar.gz); extracted TeX: [memory-hier.tex](paper-tex/extracted/legacy/content/memory-hier.tex), [evaluation.tex](paper-tex/extracted/legacy/content/evaluation.tex)
+- arXiv source archive: [2401.03868-source.tar.gz](paper-tex/archives/2401.03868-source.tar.gz); extracted TeX: [memory-hier.tex](paper-tex/extracted/legacy/content/memory-hier.tex), [evaluation.tex](paper-tex/extracted/legacy/content/evaluation.tex)
 
 ## Read Notes
 
@@ -58,7 +58,7 @@ model-file deployment predicate as unestablished. The local backend plan targets
 within the declared framework, operator/format and device-capacity envelope; this is a future
 requirement, not current support for arbitrary GGUFs.
 
-Return to [[research/fpga-llm-inference/threads/paper-library/index|FPGA LLM paper library]].
+Return to [[research/fpga-llm-inference/index#Paper Library|FPGA LLM paper library]].
 
 ## Model input and coverage audit (2026-09-15)
 

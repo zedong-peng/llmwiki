@@ -10,7 +10,9 @@ tags: [engineering, linear-attn, cuda, cutlass, cute-dsl, kernels, blackwell, ho
 
 # cuLA: CUDA Linear Attention
 
-> Status: repo-first source note processed from GitHub API (README, REPO_LAYOUT.md, USAGE.md, docs/) on 2026-04-24. Repo clone pending (network issue).
+> Status: repo-first source note processed from GitHub API (README, REPO_LAYOUT.md, USAGE.md, docs/) on 2026-04-24. A local cache is now restored at `github-repo/cuLA/` (detached commit `79be249e61453808e18e5cef7702b363239e7d8d`, retrieved 2026-10-09); this current cache is not claimed as the historical reading revision.
+
+Reading boundary: the recorded source is https://github.com/inclusionAI/cuLA via GitHub API. The historical documentation review predates the locally restored current cache; repository paths below describe that review unless explicitly linked to `github-repo/cuLA/`.
 
 ## TL;DR
 - cuLA 是 FLA 的 CUDA 原生加速层：用 CuTe DSL 和 CUTLASS C++ 为 Blackwell (SM10X) 和 Hopper (SM90) 手写 linear attention 内核。
@@ -86,6 +88,6 @@ h_new = 2^gk · h + update
 - 与 FLA 的 drop-in 兼容设计使其可以直接插入现有训练框架，降低迁移成本。
 
 ## Source Notes
-- Repo: `repo/cuLA/`（待 clone）
+- Repo cache: `github-repo/cuLA/` (detached commit recorded in metadata)
 - 主要来源：`README.md`、`REPO_LAYOUT.md`、`USAGE.md`、`docs/lightning_attn_pipeline.md`、`docs/chunk_delta_h_pipeline.md`
 - 关联论文：[GLA](../gla-2024/index.md)、[FLA](../fla-2024/index.md)、[Gated DeltaNet](../gated-deltanet-2025/index.md)

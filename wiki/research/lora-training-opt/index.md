@@ -12,7 +12,7 @@ tags: [lora, training, unsloth, triton, qwen3, rtx-4090]
 
 目标：在单卡 4090 / A100 上做出比 Unsloth 更快的 LoRA 训练框架（聚焦 Qwen3 / LLaMA3 架构）。
 
-2026-09-08 按 Canonical Layout 收敛：本 `index.md` 是唯一正式合成页，由原先平铺的 6 个 loose 笔记（README、landscape、bottlenecks、opportunities、papers、unsloth-internals）折入后删除，全文见 git 历史。尚无本地归档的论文 PDF，`papers/` 待首个 TeX/PDF 归档时再建。
+2026-09-08 按 Canonical Layout 收敛：本 `index.md` 是唯一正式合成页，由原先平铺的 6 个 loose 笔记（README、landscape、bottlenecks、opportunities、papers、unsloth-internals）折入后删除，全文见 git 历史。尚无本地归档的论文 PDF，`assets/` 待首个参考资料归档时再建。
 
 相关 repo：[unsloth](https://github.com/unslothai/unsloth)（`git clone --depth=1 https://github.com/unslothai/unsloth.git`）、[Liger-Kernel](https://github.com/linkedin/Liger-Kernel)（LinkedIn Triton kernel 库）、[Chronicals](https://arxiv.org/abs/2601.02609)（声称 3.51x over Unsloth）。
 

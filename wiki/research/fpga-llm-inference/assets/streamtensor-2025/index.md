@@ -26,7 +26,7 @@ using a different application boundary.
 ## Local Assets
 
 - Paper PDF: [2509.13694.pdf](paper-pdf/2509.13694.pdf) (16 pages; SHA-256 `03fd093b394054e7ddadf6cf06d5f70102f40f7c6a5ca91a9b8efa521ff26b6e`)
-- arXiv source archive: [2509.13694-source.tar.gz](source/archives/2509.13694-source.tar.gz); extracted TeX: [main.tex](paper-tex/extracted/legacy/main.tex)
+- arXiv source archive: [2509.13694-source.tar.gz](paper-tex/archives/2509.13694-source.tar.gz); extracted TeX: [main.tex](paper-tex/extracted/legacy/main.tex)
 
 ## Read Notes
 
@@ -39,7 +39,7 @@ using a different application boundary.
   accessible official implementation remains unverified; this does not prove
   nonexistence. See [[research/fpga-llm-inference/index|area index §Manuscript Recheck]].
 
-Return to [[research/fpga-llm-inference/threads/paper-library/index|FPGA LLM paper library]].
+Return to [[research/fpga-llm-inference/index#Paper Library|FPGA LLM paper library]].
 
 ## Model input and coverage audit (2026-09-15)
 
@@ -55,5 +55,5 @@ Classification uses the paper text and available public artifact; unavailable so
 
 Checked against the original paper text or public code for the llama.cpp FPGA backend paper; supersedes earlier summaries where they differ.
 
-- StreamTensor's GPT-2 comparison table is the original source of the DFX, Allo and StreamTensor rates later reprinted in CODO Table VI (source/extracted/main.tex:892-906): all values identical; setup U55C 250 MHz W4A8, Allo U280 250 MHz W4A8, DFX U280 200 MHz FP16 (main.tex:958-975).
+- StreamTensor's GPT-2 comparison table is the original source of the DFX, Allo and StreamTensor rates later reprinted in CODO Table VI (`paper-tex/extracted/legacy/main.tex:892-906`): all values identical; setup U55C 250 MHz W4A8, Allo U280 250 MHz W4A8, DFX U280 200 MHz FP16 (main.tex:958-975).
 - Tokens and KV caches are dynamic tensors that need maximum-shape hints (main.tex:941).

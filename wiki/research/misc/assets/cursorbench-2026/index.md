@@ -2,23 +2,24 @@
 title: How We Compare Model Quality in Cursor
 domain: research
 area: misc
-type: paper
+type: source
 status: active
 updated: 2026-04-19
-tags: [paper, misc, benchmark, coding-agents, cursor, evaluation]
+tags: [blog, misc, benchmark, coding-agents, cursor, evaluation]
 ---
 
 # How We Compare Model Quality in Cursor
 
-## Paper Meta
+## Source Meta
 - Title: How We Compare Model Quality in Cursor
 - Author: Naman Jain
 - Date: March 11, 2026
 - Venue: Cursor Research blog
 - Topic: misc
-- Paper Slug: cursorbench-2026
+- Reference Slug: cursorbench-2026
 - Canonical URL: https://cursor.com/blog/cursorbench
-- Reading Source: official Cursor blog post
+- Reading Source: `supplementary/cursorbench.html` (retrieved 2026-10-09)
+- Reading boundary: full article HTML was archived and read; embedded visual media and unpublished benchmark artifacts were not independently inspected.
 - TeX/source: unavailable
 - PDF fallback: not used
 

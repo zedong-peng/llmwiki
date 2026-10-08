@@ -15,6 +15,8 @@ important compiler reference, but its public artifact must be kept separate from
 llama.cpp generation baseline. (Earlier deep read merged from `codo-2026.md` on 2026-07-23;
 raw IdeaSpark runs live under `threads/ideaspark_run/`.)
 
+Repository availability recheck (2026-10-09): the exact pinned `github-repo/codo-artifact/` cache is restored at commit `130b12bc63e6e6daa31a1227b7e8391c5039148d`. The tracked `code-audit/` files remain the audit receipt; neither cache was executed.
+
 ## Paper Meta
 
 - Authors: Weichuang Zhang, Yiquan Wang, Xinzhou Zhang, Chi Zhang, Yu Feng, Xiaofeng Hou, Chao Li, Jieru Zhao, Minyi Guo.
@@ -29,7 +31,7 @@ raw IdeaSpark runs live under `threads/ideaspark_run/`.)
 ## Local Assets
 
 - Paper PDF: [2604.12618.pdf](paper-pdf/2604.12618.pdf) (17 pages; SHA-256 `b31c6872fc51bf5f779fc501952b78fbfa6d6233a71464c1e07e5b0ac8ec5b2e`)
-- arXiv source archive: [2604.12618-source.tar.gz](source/archives/2604.12618-source.tar.gz); extracted TeX: [main.tex](paper-tex/extracted/legacy/main.tex)
+- arXiv source archive: [2604.12618-source.tar.gz](paper-tex/archives/2604.12618-source.tar.gz); extracted TeX: [main.tex](paper-tex/extracted/legacy/main.tex)
 
 ## Read Notes
 
@@ -72,7 +74,7 @@ feedback loop is **not established within the reviewed scope**. It must not be p
 as "CODO has no E2E." Three evidence boundaries apply:
 
 - The [paper](paper-tex/extracted/legacy/main.tex) describes an end-to-end compiler from an input algorithm to accelerator and host code. Table VI also reports GPT-2 Medium TTFT, decode speed and total latency; for `[32:32]`, these are 20.40 ms, 231.48 token/s and 158.64 ms. Preserve these as paper-reported results.
-- The inspected [verification model](repo/codo-artifact/experiments/verify/pymodels/transformers/GPT2.py) is one Transformer block returning hidden states, without an LM head. The [decode host](repo/codo-artifact/experiments/fig-9/gpt_decoding/host.cpp) times one kernel event, comments out output readback, and exposes no token-selection/feedback loop. This supports an artifact-level qualification: complete autoregressive generation remains unverified.
+- The inspected [verification model](https://github.com/sjtu-zhao-lab/codo-artifact/blob/130b12bc63e6e6daa31a1227b7e8391c5039148d/experiments/verify/pymodels/transformers/GPT2.py) is one Transformer block returning hidden states, without an LM head. The [decode host](https://github.com/sjtu-zhao-lab/codo-artifact/blob/130b12bc63e6e6daa31a1227b7e8391c5039148d/experiments/fig-9/gpt_decoding/host.cpp) times one kernel event, comments out output readback, and exposes no token-selection/feedback loop. This supports an artifact-level qualification: complete autoregressive generation remains unverified.
 - A single launch could contain a generation loop inside the kernel; launch count alone cannot decide E2E. Likewise, generation can recompute its prefix without a KV cache, and CPU token selection or a standalone runtime can qualify. Missing public orchestration is not proof that no private implementation exists; apply the same paper-report versus artifact-verification standard across comparison rows.
 
 Suggested scope text: "Reports GPT-2 TTFT, decode speed and latency; complete token-feedback
@@ -80,7 +82,7 @@ generation is unverified in the inspected artifact."
 
 ### What the Released GPT Kernel Actually Executes
 
-Tracing the generated [decode kernel](repo/codo-artifact/experiments/fig-9/gpt_decoding/gpt-1_32x32.cpp)
+Tracing the generated [decode kernel](https://github.com/sjtu-zhao-lab/codo-artifact/blob/130b12bc63e6e6daa31a1227b7e8391c5039148d/experiments/fig-9/gpt_decoding/gpt-1_32x32.cpp)
 establishes more than a missing host loop. Line numbers below refer to that pinned file.
 
 | Code location | Computation | Architectural consequence |
@@ -90,7 +92,7 @@ establishes more than a missing host loop. Line numbers below refer to that pinn
 | `main_graph_node19`, line 1149 | Attention probabilities `[1][16][1][1]` multiply V from the same current-position `[1][1][1024]` tensor. | Historical values are not incorporated either. A cached decode step following a 32-token prompt would require a history axis exceeding 1. |
 | `load_array`, line 2614; final graph call at 3106 | The external `vv853` pointer is read into local `v853` during loading; the last node writes only local `v853`. | No model result is stored back to the host-visible output pointer for another layer or token. |
 
-The [host](repo/codo-artifact/experiments/fig-9/gpt_decoding/host.cpp) then profiles one event
+The [host](https://github.com/sjtu-zhao-lab/codo-artifact/blob/130b12bc63e6e6daa31a1227b7e8391c5039148d/experiments/fig-9/gpt_decoding/host.cpp) then profiles one event
 without output readback or token selection. Thus this released GPT path is a fixed-shape block
 benchmark, not a functioning generator. Simply wrapping it in a host token loop would still
 omit historical attention, model-layer orchestration, output propagation and the LM head.
@@ -122,8 +124,8 @@ Table VI explicitly labels this pair `[Input Len: Output Len]`: 32 prompt tokens
 continuation tokens. In ordinary autoregressive generation, prefill supplies the logits for
 the first output, then 31 successive decode forwards supply outputs 2 through 32. A forward
 over 32 known input positions can compute 32 hidden states in parallel, but these are not 32
-new continuation tokens. The public [prefill kernel](repo/codo-artifact/experiments/fig-9/gpt-32-prefill/gpt-32_16x16.cpp)
-has hidden tensors `[1][32][1024]`; the [decode kernel](repo/codo-artifact/experiments/fig-9/gpt_decoding/gpt-1_32x32.cpp)
+new continuation tokens. The public [prefill kernel](https://github.com/sjtu-zhao-lab/codo-artifact/blob/130b12bc63e6e6daa31a1227b7e8391c5039148d/experiments/fig-9/gpt-32-prefill/gpt-32_16x16.cpp)
+has hidden tensors `[1][32][1024]`; the [decode kernel](https://github.com/sjtu-zhao-lab/codo-artifact/blob/130b12bc63e6e6daa31a1227b7e8391c5039148d/experiments/fig-9/gpt_decoding/gpt-1_32x32.cpp)
 has `[1][1][1024]` and ends after the block's graph nodes without a token-selection loop.
 
 The single-block structure makes model-layer and output-token scaling the natural reconstruction
@@ -144,7 +146,7 @@ The 0.85/0.18 ms values are reverse-derived, not recovered board measurements. T
 throughput alone would not prove missing history in another implementation. Here the attention
 dimensions and loop bounds establish the missing history directly.
 
-The existing [decode HLS report](repo/codo-artifact/experiments/fig-9/gpt_decoding/report/main_graph_csynth.rpt)
+The existing [decode HLS report](https://github.com/sjtu-zhao-lab/codo-artifact/blob/130b12bc63e6e6daa31a1227b7e8391c5039148d/experiments/fig-9/gpt_decoding/report/main_graph_csynth.rpt)
 instead estimates 43.090 us for one block, which would yield about 966.97 token/s after multiplying
 by 24. It cannot be presented as the raw source of the published 231.48 token/s. No board trace
 or aggregation script connecting the inspected host to the published table was identified.
@@ -169,10 +171,11 @@ not match. llama-bench tests still execute the model and prescribed KV behavior;
 sampling alone would not prevent a valid phase comparison.
 
 The former Standalone/Native labels did not identify different runtimes. The
-[measurement script](/home/zdpeng/llama.cpp-fpga/scripts/measure-fpga-q4.py:386) runs llama-bench
+measurement script (`/home/zdpeng/llama.cpp-fpga/scripts/measure-fpga-q4.py`, line 386, historical server path) runs llama-bench
 once per backend, collecting both standard output and phase JSON. The blog now calculates
 throughput from `samples_ns[0]` and takes the matching pg32,32 `sample=0` phase record from the
-[retained evidence](/home/zdpeng/llama.cpp-fpga/build-fpga-q4/evidence-20260907-32x32-r3/README.md).
+retained evidence (`/home/zdpeng/llama.cpp-fpga/build-fpga-q4/evidence-20260907-32x32-r3/README.md`, historical server path).
+Neither server file is present in this checkout; these recorded paths are provenance, and this repair does not revalidate the measurements.
 FPGA pp32/tg32/pg32,32 rates are 171.7/98.8/122.1 token/s, with CPU rates 75.2/28.8/41.1.
 The tg32 test starts with empty KV; pg32,32 decode starts after a 32-token prompt and reports
 94.3 token/s for FPGA. The original command retains `-r 5` as provenance, while the blog
@@ -186,7 +189,7 @@ The blog preserves the paper's TTFT/decode/latency labels, W4A8 precision and U2
 
 ## Public Artifact Recheck (2026-09-08)
 
-- Official repository: [sjtu-zhao-lab/codo-artifact](https://github.com/sjtu-zhao-lab/codo-artifact). Local cache: [README.md](repo/codo-artifact/README.md), commit `130b12bc63e6e6daa31a1227b7e8391c5039148d`. Reused the committed objects from `/home/zdpeng/codo` after direct GitHub cloning timed out; GitHub's API independently confirmed the same current main SHA. The cache does not include that working tree's uncommitted changes or initialized dependency submodules.
+- Official repository: [sjtu-zhao-lab/codo-artifact](https://github.com/sjtu-zhao-lab/codo-artifact). Recorded source: [README.md](https://github.com/sjtu-zhao-lab/codo-artifact/blob/130b12bc63e6e6daa31a1227b7e8391c5039148d/README.md), commit `130b12bc63e6e6daa31a1227b7e8391c5039148d`. Reused the committed objects from `/home/zdpeng/codo` after direct GitHub cloning timed out; GitHub's API independently confirmed the same current main SHA. The cache does not include that working tree's uncommitted changes or initialized dependency submodules.
 - Re-read the complete main TeX, bibliography, artifact README, verification entry/data/config/helpers, GPT2 model, decode host, and synthesis runner. `gen_mlir_designs.py` instantiates the single block with random initialized parameters; `data.py` supplies seeded FP32 random input `[1,32,1024]`, hidden size 1024 and 16 heads. `utils.py` exports raw input/output `.bin` tensors as a functional oracle, not a text-generation workload. This verification example must be distinguished from the paper's W4A8 on-board figures.
 - All four Fig. 9 host files expose one `enqueueTask` and event-start/end profiling. In the fully inspected decode host, output migration is commented out and `TEST PASSED` is printed without a result comparison. This is not a board-level model-correctness receipt.
 - `experiments/run_all.sh` runs synthesis experiments for Fig. 11 and Tables II-IV, not the GPT generation loop. No `.xclbin` or `host.exe` appears in this committed repository snapshot. Dependencies, Docker contents and board execution were not reproduced here.
@@ -428,7 +431,7 @@ Only after the same model is available in both CODO and the GGML backend should 
 - [DFX](https://arxiv.org/abs/2209.10797)
 - [[research/fpga-llm-inference/index]] for the active comparison protocol and project status (folded from the former `end-to-end-evaluation` / `project-status-2026-07` notes, 2026-09-08).
 
-Return to [[research/fpga-llm-inference/threads/paper-library/index|FPGA LLM paper library]]. See also [[research/fpga-llm-inference/index]].
+Return to [[research/fpga-llm-inference/index#Paper Library|FPGA LLM paper library]]. See also [[research/fpga-llm-inference/index]].
 
 ## Model input and coverage audit (2026-09-15)
 

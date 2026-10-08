@@ -2,23 +2,24 @@
 title: How We Built a Virtual Filesystem for Our Assistant
 domain: research
 area: misc
-type: paper
+type: source
 status: active
 updated: 2026-04-19
-tags: [paper, misc, blog, systems, retrieval, filesystem, chroma]
+tags: [misc, blog, systems, retrieval, filesystem, chroma]
 ---
 
 # How We Built a Virtual Filesystem for Our Assistant
 
-## Paper Meta
+## Source Meta
 - Title: How We Built a Virtual Filesystem for Our Assistant
 - Author: Dens Sumesh
 - Date: March 24, 2026
 - Venue: Mintlify Engineering blog
 - Topic: misc
-- Paper Slug: mintlify-chromafs-2026
+- Reference Slug: mintlify-chromafs-2026
 - Canonical URL: https://www.mintlify.com/blog/how-we-built-a-virtual-filesystem-for-our-assistant
-- Reading Source: official Mintlify blog post
+- Reading Source: `supplementary/mintlify-chromafs.html` (retrieved 2026-10-09)
+- Reading boundary: full article HTML was archived and read; production infrastructure and unpublished task-level accuracy data were not independently reproduced.
 - TeX/source: unavailable
 - PDF fallback: not used
 

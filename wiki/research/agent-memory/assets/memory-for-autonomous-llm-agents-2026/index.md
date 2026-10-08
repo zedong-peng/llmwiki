@@ -4,11 +4,13 @@ domain: research
 area: misc
 type: paper
 status: active
-updated: 2026-04-24
+updated: 2026-10-09
 tags: [paper, misc, survey, agent-memory, llm-agents]
 ---
 
 # Memory for Autonomous LLM Agents: Mechanisms, Evaluation, and Emerging Frontiers
+
+> Reading evidence (verified 2026-10-09): read the complete cached arXiv PDF v1 (`paper-pdf/2603.07670.pdf`, 15 pages) with `pdftotext -layout`. Pages 1-11 cover the abstract, Sections 1-10, tables, mechanisms, benchmarks, applications, engineering realities, positioning, open challenges, and conclusion; pages 12-15 cover acknowledgments, conflict/data statements, and the full references. TeX was unavailable, so this is an explicit PDF fallback; no code was executed and no experiments were reproduced.
 
 ## Paper Meta
 - Title: Memory for Autonomous LLM Agents: Mechanisms, Evaluation, and Emerging Frontiers
@@ -19,7 +21,7 @@ tags: [paper, misc, survey, agent-memory, llm-agents]
 - DOI: https://doi.org/10.48550/arXiv.2603.07670
 - PDF: `paper-pdf/2603.07670.pdf`
 - Paper slug: `memory-for-autonomous-llm-agents-2026`
-- Reading source: arXiv abstract + ar5iv HTML
+- Reading source: PDF v1 (`paper-pdf/2603.07670.pdf`); [arXiv abstract](https://arxiv.org/abs/2603.07670) and [ar5iv HTML v1](https://ar5iv.labs.arxiv.org/html/2603.07670v1) remain historical pointers
 - Submission date: 2026-03-08
 
 ## TL;DR
@@ -91,7 +93,9 @@ The paper recommends a four-layer metric stack: task effectiveness, memory quali
 - Connects to [[research/agent-memory/assets/mem0-2025/index]], [[research/agent-memory/assets/memobase-2025/index]], [[research/agent-memory/assets/zep-2025/index]], and [[research/agent-memory/assets/temporal-semantic-memory-2026/index]] as production-style external memory systems where write/read/governance details dominate.
 
 ## My Reading
-- The paper is most useful as a map and engineering checklist, less as a source of new empirical evidence.
+- The paper is most useful as a map and engineering checklist, less as a source of new empirical evidence. Its quantitative comparisons are reported results from cited systems and benchmarks, not experiments run in this archive.
 - The strongest reusable framing is the separation between memory substrate and memory control policy. Many systems claim a new "memory architecture" when their actual novelty is only a new representation, retrieval policy, or write filter.
 - For coding agents and personal wiki agents, the key actionable advice is observability. Without memory operation logs and regression tests, memory failures remain silent and hard to debug.
 - The paper reinforces a design principle for this repo: durable LLM-agent knowledge should be stored as inspectable non-parametric notes with links, dates, status, and explicit caveats, not only compressed chat history.
+- The paper's concrete deployment recommendation is to start with a context-plus-retrieval store (Pattern B), instrument reads/writes, and move to tiered learned control only when workload evidence justifies its cost. This follows the survey's distinction between task effectiveness, memory quality, efficiency, and governance.
+- The main unresolved risks are lossy consolidation, semantically distant but causally relevant retrieval, self-reinforcing reflection, unsafe forgetting, multimodal/embodied cross-modal lookup, role-scoped multi-agent memory, and the absence of a standardized cross-benchmark evaluation harness.

@@ -4,7 +4,7 @@ domain: research
 area: agent-memory
 type: engineering
 status: active
-updated: 2026-09-20
+updated: 2026-10-09
 tags: [mem0, agent-memory, retrieval, evaluation, locomo]
 ---
 
@@ -27,7 +27,7 @@ This is the independent **Mem0 2026 software / technical release** entry, not a 
 
 Reusable, separately keyed entries are in [citations.bib](citations.bib). For a Mem0 2026 method row, cite the article plus the actual implementation version; the evaluation-repository citation alone supports evaluator behavior, not all algorithm claims.
 
-The April 2026 `memory-benchmarks` snapshot physically retained under the [legacy 2025 directory](../../papers/mem0-2025/repo/memory-benchmarks/) belongs to this newer evaluator lineage. Its path is preserved, with metadata explicitly marking that attribution. It must not be used as the 2025 paper's prompt source.
+The April 2026 `memory-benchmarks` snapshot at commit `f75666d33ef560f0f196746e0e16c515d17e6856` belongs to this newer evaluator lineage. Its exact cache is restored at `../mem0-2025/github-repo/memory-benchmarks/`. The September snapshot below is a different revision and does not replace it. Neither snapshot is the 2025 paper's prompt source.
 
 ## Public sources
 

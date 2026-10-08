@@ -14,6 +14,8 @@ SECDA-LLM is a direct precedent for integrating FPGA acceleration into llama.cpp
 Its 2024 case study accelerates quantized MatMul within application-level TinyLlama inference;
 it is neither a standalone full-model FPGA pipeline nor merely a disconnected MatMul benchmark.
 
+Repository availability recheck (2026-10-09): the complete `github-repo/` cache is absent in this checkout. Code links below use preserved `code-audit/` files where present or the official repository at the recorded commit; historical inspection does not imply a complete local cache today.
+
 ## Paper Identity
 
 - Authors: Jude Haris, Rappy Saha, Wenhao Hu, Jose Cano; University of Glasgow.
@@ -21,7 +23,7 @@ it is neither a standalone full-model FPGA pipeline nor merely a disconnected Ma
 - Manuscript key: `secda_llm`. Venue beyond the reviewed arXiv record was not verified.
 - Source-first read: [main TeX](paper-tex/extracted/legacy/00_main.tex), all five included sections,
   [commands](paper-tex/extracted/legacy/commands.tex), and complete [compiled bibliography](paper-tex/extracted/legacy/00_main.bbl).
-- [Source archive](source/archives/2408.00462-source.tar.gz), [PDF](paper-pdf/2408.00462.pdf),
+- [Source archive](paper-tex/archives/2408.00462-source.tar.gz), [PDF](paper-pdf/2408.00462.pdf),
   [source receipt](download-audit.json), [metadata](metadata.yaml).
 
 ## Method
@@ -56,46 +58,46 @@ short paper. Its conclusion describes an open-source platform as future work.
 
 ## Public Code: A Later Snapshot
 
-The author-maintained [SECDA-LLM repository](https://github.com/judeharis/SECDA-LLM) is archived
-at `183376a652b47a30b5b57cd34965b45e9297f39a` in [repo/SECDA-LLM](repo/SECDA-LLM/).
-Its README still says WiP; [docs/lpp_updates.md](repo/SECDA-LLM/docs/lpp_updates.md) explicitly
+The historical audit archived the author-maintained [SECDA-LLM repository](https://github.com/judeharis/SECDA-LLM)
+at `183376a652b47a30b5b57cd34965b45e9297f39a`; see the [pinned source](https://github.com/judeharis/SECDA-LLM/tree/183376a652b47a30b5b57cd34965b45e9297f39a).
+Its README still says WiP; [docs/lpp_updates.md](https://github.com/judeharis/SECDA-LLM/blob/183376a652b47a30b5b57cd34965b45e9297f39a/docs/lpp_updates.md) explicitly
 explains adaptation to a newer llama.cpp API. It must not be presented as the 2024 experimental freeze.
 
-The root [Git tree](repo/SECDA-LLM-git-tree.json) pins two dependencies, both archived separately:
+The root `SECDA-LLM-git-tree.json` (historical receipt absent in this checkout; pinned commits retained in [metadata](metadata.yaml)) pinned two dependencies, both archived separately in that audit:
 
-| Dependency | Commit | Local directory |
+| Dependency | Commit | Pinned official source |
 |---|---|---|
-| judeharis/llama.cpp | `b8b0a4c46ab43f1f777a4a0250908997c539bf11` | [repo/llama.cpp](repo/llama.cpp/) |
-| judeharis/secda_tools | `0b842d76df03546830037023f1281bd98aba4e5f` | [repo/secda_tools](repo/secda_tools/) |
+| judeharis/llama.cpp | `b8b0a4c46ab43f1f777a4a0250908997c539bf11` | [llama.cpp](https://github.com/judeharis/llama.cpp/tree/b8b0a4c46ab43f1f777a4a0250908997c539bf11) |
+| judeharis/secda_tools | `0b842d76df03546830037023f1281bd98aba4e5f` | [secda_tools](https://github.com/judeharis/secda_tools/tree/0b842d76df03546830037023f1281bd98aba4e5f) |
 
-These are sibling audit copies, not initialized submodules. Two llama.cpp symlinks reaching into
+Those were sibling audit copies, not initialized submodules. Two llama.cpp symlinks reaching into
 the parent project's `srcs/` were deliberately omitted from extraction; their original targets
-remain in the untouched archive and [download receipt](repo/llama.cpp-download.json).
+remain in the untouched archive and `llama.cpp-download.json` (historical receipt absent in this checkout).
 No setup/build scripts were executed. Model weights, compatible hardware images, SystemC/toolchain
 installation and board runtime configuration are not included in this audit.
 
 ### Inspected Execution Path
 
-- [setup.sh](repo/SECDA-LLM/setup.sh) links the custom backend into the vendored GGML tree;
-  [CMakeLists.txt](repo/SECDA-LLM/CMakeLists.txt) enables `GGML_SECDA` and builds that llama.cpp tree.
-  [CMakePresets.json](repo/SECDA-LLM/CMakePresets.json) distinguishes x64 SystemC simulation,
+- [setup.sh](https://github.com/judeharis/SECDA-LLM/blob/183376a652b47a30b5b57cd34965b45e9297f39a/setup.sh) links the custom backend into the vendored GGML tree;
+  [CMakeLists.txt](https://github.com/judeharis/SECDA-LLM/blob/183376a652b47a30b5b57cd34965b45e9297f39a/CMakeLists.txt) enables `GGML_SECDA` and builds that llama.cpp tree.
+  [CMakePresets.json](https://github.com/judeharis/SECDA-LLM/blob/183376a652b47a30b5b57cd34965b45e9297f39a/CMakePresets.json) distinguishes x64 SystemC simulation,
   backend-disabled builds, ARMv7 and AArch64 targets.
-- [ggml-secda.cpp](repo/SECDA-LLM/srcs/ggml_backend/ggml-secda/ggml-secda.cpp) implements backend/device
+- [ggml-secda.cpp](code-audit/srcs/ggml_backend/ggml-secda/ggml-secda.cpp) implements backend/device
   registration, `graph_compute`, a type/contiguity/dimension support gate and host-buffer access.
   `supports_op` admits selected quantized `MUL_MAT` nodes; it does not admit attention, softmax,
   normalization or KV-update operations. An `OUT_PROD` branch in the executor is not evidence of
   support: the admission function does not admit it and its helper is empty.
-- [ops_support.cpp](repo/SECDA-LLM/srcs/ggml_backend/ggml-secda/ops_support.cpp) quantizes F32 inputs
+- [ops_support.cpp](code-audit/srcs/ggml_backend/ggml-secda/ops_support.cpp) quantizes F32 inputs
   into Q8_K work buffers and calls `EntryMM` with tensor dimensions, strides and quantization type.
-  The selected v1 [driver](repo/SECDA-LLM/srcs/ggml_backend/ggml-secda/acc_dels/bfpp_acc/v1/accelerator/driver/acc_driver.h)
+  The selected v1 [driver](code-audit/srcs/ggml_backend/ggml-secda/acc_dels/bfpp_acc/v1/accelerator/driver/acc_driver.h)
   checks input/weight buffer limits, manages weight preloading and calls the accelerator path.
   The v1 configuration distinguishes Z1/Kria MMIO and DMA layouts; other versions were not fully audited.
-- The pinned framework's [KV cache](repo/llama.cpp/src/llama-kv-cache.cpp) retains layer K/V tensors,
+- The pinned framework's [KV cache](https://github.com/judeharis/llama.cpp/blob/b8b0a4c46ab43f1f777a4a0250908997c539bf11/src/llama-kv-cache.cpp) retains layer K/V tensors,
   provides historical views and appends current values through `ggml_set_rows`. SECDA returns the
   CPU buffer type and does not admit the update operators. This supports host/framework-managed
   persistent KV, not an FPGA-resident KV manager. Host state still counts under a system-level KV
   predicate; device residency is a separate property.
-- [run_llama_cli.sh](repo/SECDA-LLM/benchmark/scripts/run_llama_cli.sh) invokes a GGUF model with a
+- [run_llama_cli.sh](code-audit/benchmark/scripts/run_llama_cli.sh) invokes a GGUF model with a
   prompt, sampling parameters and output-token limit. It defaults to one token, so the script's
   presence alone is not a multi-step generation receipt. The newer CLI uses the framework server
   context; token selection/decode remain framework work. Config files for several models and runtime
@@ -129,7 +131,7 @@ accelerator for hardware context, and llama.cpp/GGML, TinyLlama, Guanaco and PYN
 and case-study inputs. These citations do not supply missing FPGA phase or accuracy measurements.
 
 See [[research/fpga-llm-inference/index|area index §Evidence Matrix]] and return to
-[[research/fpga-llm-inference/threads/paper-library/index|FPGA LLM paper library]].
+[[research/fpga-llm-inference/index#Paper Library|FPGA LLM paper library]].
 
 ## Model input and coverage audit (2026-09-15)
 
@@ -154,4 +156,4 @@ Inspected code (pinned copies, not executed):
 Checked against the original paper text or public code for the llama.cpp FPGA backend paper; supersedes earlier summaries where they differ.
 
 - Venue: ARC-LG workshop (New Approaches for Addressing the Computing Requirements of LLMs and GNNs) at ISCA 2024; repository has 0 stars (2026-09-27).
-- PYNQ-Z1, TinyLlama 1.1B (460 MB), 1.7 s per token with the accelerator offloading the quantized MatMul layers (source/extracted/04_evaluation.tex:87-96).
+- PYNQ-Z1, TinyLlama 1.1B (460 MB), 1.7 s per token with the accelerator offloading the quantized MatMul layers (`paper-tex/extracted/legacy/04_evaluation.tex:87-96`).

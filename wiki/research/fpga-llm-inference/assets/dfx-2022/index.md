@@ -10,7 +10,7 @@ tags: [paper, fpga, llm-inference]
 
 # DFX: A Low-latency Multi-FPGA Appliance for Accelerating Transformer-based Text Generation
 
-> Bibliographic record and local public asset cache. Full paper notes are pending.
+> Source-first reading notes, with targeted architecture, microarchitecture and evaluation verification recorded below.
 
 ## Paper Meta
 
@@ -24,7 +24,7 @@ tags: [paper, fpga, llm-inference]
 ## Local Assets
 
 - Paper PDF: [2209.10797.pdf](paper-pdf/2209.10797.pdf) (15 pages; SHA-256 `d817b30f1ac63d3b238e0d05e0db370eb6423c5e05c1df98879327b465c44cd0`)
-- arXiv source archive: [2209.10797-source.tar.gz](source/archives/2209.10797-source.tar.gz) (SHA-256 `b1f7ed1b60ac5ab0466402856811d2a90d57af4164fd8c16e5efbef09052e99b`); extracted TeX: [4_architecture.tex](paper-tex/extracted/legacy/4_architecture.tex), [5_microarchitecture.tex](paper-tex/extracted/legacy/5_microarchitecture.tex), [6_evaluation.tex](paper-tex/extracted/legacy/6_evaluation.tex)
+- arXiv source archive: [2209.10797-source.tar.gz](paper-tex/archives/2209.10797-source.tar.gz) (SHA-256 `b1f7ed1b60ac5ab0466402856811d2a90d57af4164fd8c16e5efbef09052e99b`); extracted TeX: [4_architecture.tex](paper-tex/extracted/legacy/4_architecture.tex), [5_microarchitecture.tex](paper-tex/extracted/legacy/5_microarchitecture.tex), [6_evaluation.tex](paper-tex/extracted/legacy/6_evaluation.tex)
 
 ## Read Notes
 
@@ -33,7 +33,7 @@ tags: [paper, fpga, llm-inference]
 - The paper uses FP16 operators and reports model-level text-generation latency, throughput and energy. Its results are useful as a complete-generation reference, not as a matched throughput baseline for the current Q4/Q6 llama.cpp profile.
 - Source-first read completed; no code repository was requested.
 
-Return to [[research/fpga-llm-inference/threads/paper-library/index|FPGA LLM paper library]].
+Return to [[research/fpga-llm-inference/index#Paper Library|FPGA LLM paper library]].
 
 ## Model input and coverage audit (2026-09-15)
 
@@ -49,6 +49,6 @@ Classification uses the paper text and available public artifact; unavailable so
 
 Checked against the original paper text or public code for the llama.cpp FPGA backend paper; supersedes earlier summaries where they differ.
 
-- Keys, values and tiled weights are stored in HBM by the DMA (source/extracted/5_microarchitecture.tex:34); the host only sends start/config and receives done after the whole GPT-2 run (5_microarchitecture.tex:19,23).
+- Keys, values and tiled weights are stored in HBM by the DMA (`paper-tex/extracted/legacy/5_microarchitecture.tex:34`); the host only sends start/config and receives done after the whole GPT-2 run (5_microarchitecture.tex:19,23).
 - LM head runs on the FPGA via the MM instruction (4_architecture.tex:119); the ISA is at assembly level and no compiler is described (4_architecture.tex:52).
 - Decode rate 185.19 token/s for GPT-2 345M on one U280 is the value StreamTensor tabulates from the DFX paper (streamtensor-2025 main.tex:892-906); 200 MHz, 39.93% LUT, 39.15% DSP (6_evaluation.tex:64).
