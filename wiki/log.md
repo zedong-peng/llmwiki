@@ -3,11 +3,18 @@ title: Super Personal Wiki Log
 domain: root
 type: timeline
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 tags: [log]
 ---
 
 # Super Personal Wiki Log
+
+## [2026-10-08] meta | Recovered FPGA TeX figures; lint errors back to zero
+
+- The 2026-10-07 migration left untracked figures behind in the old `papers/` trees. Copied 162 figure/aux files for 13 fpga-llm-inference papers into `assets/<slug>/paper-tex/extracted/legacy/` (no existing file overwritten).
+- Moved the five leftover `papers/` directories (cached repos, archives, already-migrated copies; 7.9 GB, never tracked) out of the repo to `~/Projects/llmwiki-legacy-papers-20261008/` on the Mac.
+- Qwen3.8 assets: added `reference.slug/topic`, `reading` and `ingest` to `g4090-agent-tools-2026` and `qwen38-4090-paper-search-2026`; pointed three thread links from `linear-attention/papers/` to `assets/`.
+- Lint: 0 errors. Remaining warnings: 103 unfetched TeX archives, 12 legacy `reading.source` gaps, `[[dlm/index]]` (submodule).
 
 ## [2026-10-07] meta | Git policy: PDF and full TeX tracked, archives and code restorable
 

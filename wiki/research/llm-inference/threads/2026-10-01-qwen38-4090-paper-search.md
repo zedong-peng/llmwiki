@@ -292,7 +292,7 @@ per-source hits: arxiv=50, dblp=0, open_alex=50, openreview=0, semantic_scholar=
 | [DFlare](https://arxiv.org/abs/2606.02091) / [AdaFlash](https://arxiv.org/abs/2607.19223) | diffusion draft scaling | API新召回，未读全文或审计代码；后续候选 |
 | [xPress](https://arxiv.org/abs/2608.02438) / [DARTree](https://arxiv.org/abs/2608.13524) / [BV Loss](https://arxiv.org/abs/2609.34832) | diffusion refine/tree/training loss | 全部保留新论文长名单，不能仅凭score转成可部署engine |
 
-GDN/FLA既有资料链接：[[research/linear-attention/papers/gated-deltanet-2025/index]]、[[research/linear-attention/papers/fla-2024/index]]、[[research/linear-attention/papers/linear-attn-gpu-kernel-2025/index]]。Qwen3.8 hybrid attention还要求speculation时的recurrent-state rollback，不仅是普通KV cropping。
+GDN/FLA既有资料链接：[[research/linear-attention/assets/gated-deltanet-2025/index]]、[[research/linear-attention/assets/fla-2024/index]]、[[research/linear-attention/assets/linear-attn-gpu-kernel-2025/index]]。Qwen3.8 hybrid attention还要求speculation时的recurrent-state rollback，不仅是普通KV cropping。
 
 ## Overview
 

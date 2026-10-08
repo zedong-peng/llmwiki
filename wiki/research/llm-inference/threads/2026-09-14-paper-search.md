@@ -96,7 +96,7 @@ unique papers: 21 (0 cross-source duplicate records merged)
 |---|---|---|---:|
 | 1 | [SGLang: Efficient Execution of Structured Language Model Programs](https://doi.org/10.52202/079017-2000) | 2024 | 110 |
 | 2 | [SLO-Aware GPU DVFS for Energy-Efficient LLM Inference Serving](https://doi.org/10.1109/lca.2024.3406038) | 2024 | 42 |
-| 3 | [[survey] LLM Inference Serving: Survey of Recent Advances and Opportunities](https://doi.org/10.1109/hpec62836.2024.10938426) | 2024 | 42 |
+| 3 | [\[survey\] LLM Inference Serving: Survey of Recent Advances and Opportunities](https://doi.org/10.1109/hpec62836.2024.10938426) | 2024 | 42 |
 | 4 | [Offline Energy-Optimal LLM Serving: Workload-Based Energy Models for LLM Inference on Heterogeneous Systems](https://doi.org/10.1145/3727200.3727217) | 2024 | 30 |
 | 5 | [LLMServingSim: A HW/SW Co-Simulation Infrastructure for LLM Inference Serving at Scale](https://doi.org/10.1109/iiswc63097.2024.00012) | 2024 | 25 |
 
