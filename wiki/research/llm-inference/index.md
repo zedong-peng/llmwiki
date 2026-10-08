@@ -4,7 +4,7 @@ domain: research
 area: llm-inference
 type: overview
 status: active
-updated: '2026-09-14'
+updated: '2026-10-01'
 tags:
 - llm-inference
 - serving
@@ -14,11 +14,11 @@ tags:
 
 # LLM Inference
 
-研究问题是：在指定模型、硬件、精度、请求分布和延迟要求下，如何减少生成成本并提高可用吞吐？先分清 **计算、数据搬运、KV 容量、跨请求复用、排队与调度**，再选择技术。页内结论来自2026-09-14归档的固定论文版本，不代表当前项目的实时性能排行。
+研究问题是：在指定模型、硬件、精度、请求分布和延迟要求下，如何减少生成成本并提高可用吞吐？先分清 **计算、数据搬运、KV 容量、跨请求复用、排队与调度**，再选择技术。机制部分来自2026-09-14归档的固定论文版本；2026-10-01增量另列当前工程检索与g4090实测，均不代表未测配置的性能排行。
 
-## 本次收录
+## 2026-09-14 核心论文归档
 
-10篇核心论文均已下载 TeX/PDF；vLLM 与 SGLang 完成主文/附录阅读，其余为方法与实验的定向阅读，metadata 明确为 partial。8个官方 Git 仓库有本地缓存与 commit；没有运行 GPU、模型或论文 benchmark。每篇资产位于 `assets/<slug>/`，采用 llmwiki skill 的规范布局。两代 FlashAttention 共享官方代码缓存，不复制第二份。
+10篇核心论文均已下载 TeX/PDF；vLLM 与 SGLang 完成主文/附录阅读，其余为方法与实验的定向阅读，metadata 明确为 partial。8个官方 Git 仓库有本地缓存与 commit；该批论文归档没有运行 GPU、模型或论文 benchmark。每篇资产位于 `assets/<slug>/`，采用 llmwiki skill 的规范布局。两代 FlashAttention 共享官方代码缓存，不复制第二份。
 
 | 主线 | 论文 / 本地笔记 | 证据版本 | 阅读状态 | 优先级 |
 |---|---|---|---|---|
@@ -32,6 +32,32 @@ tags:
 | draft / verify | [[research/llm-inference/assets/speculative-decoding-2023/index|speculative-decoding-2023]] | 2211.17192v2 | partial | P1 |
 | W4A16 / 端侧 decode | [[research/llm-inference/assets/awq-2024/index|awq-2024]] | 2306.00978v6 | partial | P1 |
 | 动态 attention engine | [[research/llm-inference/assets/flashinfer-2025/index|flashinfer-2025]] | 2501.01005v2 | partial | P0 |
+
+## Qwen3.8-27B / RTX 4090（2026-10-01 增量）
+
+官方模型确实为 `Qwen/Qwen3.8-27B`，架构沿用 `qwen3_5`：48 层 Gated DeltaNet + 16 层 full attention，含 MTP。当前增量围绕 24GB 消费卡、单请求 decode 与可复现部署；公开速度与 g4090 实测分开记录。
+
+- [[research/llm-inference/threads/2026-10-01-qwen38-4090-landscape]]：工程、博客、模型资产的广泛长名单，关注度、硬件支持、筛选依据与作者速度。
+- [[research/llm-inference/threads/2026-10-01-qwen38-4090-paper-search]]：ResearchStudio-Idea + installed paper-search + primary web 补召回，140 条合并结果及原始错误。
+- [[research/llm-inference/threads/2026-10-01-g4090-qwen38-speed]]：模型/engine 固定版本、实际启动、token/s、输出检查与部署命令。
+- [[research/llm-inference/threads/2026-10-01-g4090-agent-tools]]：Claude Code、Codex、OpenCode、CC Switch 在 g4090 的安装与验证。
+
+| 可复现工程证据 | 取舍 |
+|---|---|
+| [[research/llm-inference/assets/cinference-4090-2026/index|Cinference 4090]] | 精确 4090 公开矩阵与 raw data；固定 draft K 依赖负载 |
+| [[research/llm-inference/assets/ninfer-4090-2026/index|NInfer 4090]] | Ada 分支、MTP、长 context；须匹配 v2/v3 artifact |
+| [[research/llm-inference/assets/ninfer-all-2026/index|NInfer All]] | CUDA 12.8+、多消费卡架构、DFlash2；社区关注较少 |
+| [[research/llm-inference/assets/exllamav3-2026/index|ExLlamaV3 + DFlash2]] | EXL3 quants 与 native draft 支持；源码/PyTorch/CUDA ABI 需匹配 |
+| [[research/llm-inference/assets/hyperqwen-2026/index|HyperQwen]] | 受关注的 vLLM 配置 kit；当前 CUDA 13 依赖与 g4090 不直接匹配 |
+| [[research/llm-inference/assets/llama-cpp-2026/index|llama.cpp]] | GGUF 基线、MTP/DFlash2、易部署；比较精度/缓存/版本 |
+| [[research/llm-inference/assets/ik-llama-cpp-2026/index|ik_llama.cpp]] | CPU/GPU/量化工程优化；先核验 exact model/speculation 支持 |
+| [[research/llm-inference/assets/beellama-cpp-2026/index|BeeLlama.cpp]] | GGUF 新分支与 Ada 优化；较小社区，保留原始条件 |
+| [[research/llm-inference/assets/tokenspeed-2026/index|TokenSpeed]] | 官方 Qwen 列入支持；公开高端卡结果不等于单 4090 量化支持 |
+| [[research/llm-inference/assets/ninfer-4090-windows-2026/index|NInfer Windows 4090]] | 公开速度线索；操作系统/分支不同，不能外推 Linux |
+| [[research/llm-inference/assets/g4090-qwen38-benchmark-2026/index|本机实验资产]] | 固定模型 SHA、构建依赖、原始 HTTP 回复与测量脚本 |
+| [[research/llm-inference/assets/g4090-agent-tools-2026/index|本机工具资产]] | 固定版本安装脚本、包来源和验证日志 |
+
+新增论文为方法与实现的定向阅读，metadata 均标记 partial；没有把论文阅读或仓库缓存称为论文 benchmark 复现：[[research/llm-inference/assets/gptq-2023/index|GPTQ]]、[[research/llm-inference/assets/marlin-2024/index|Marlin]]、[[research/llm-inference/assets/qtip-2024/index|QTIP]]、[[research/llm-inference/assets/eagle-3-2025/index|EAGLE-3]]、[[research/llm-inference/assets/dflash-2026/index|DFlash]]。[[research/llm-inference/assets/qwen38-4090-paper-search-2026/index|全部原始检索日志]]。
 
 ## 机制地图
 

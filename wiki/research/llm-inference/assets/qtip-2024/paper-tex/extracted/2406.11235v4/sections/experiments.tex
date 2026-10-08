@@ -1,0 +1,96 @@
+\section{Experiments}
+
+Here, we present experiments quantizing the Llama family of models with \qts \cite{llama1,llama2,llama3}.
+These models offer strong performance across a wide range of sizes, allowing us to compare how different quantization methods perform and scale.
+We primarily compare \qts against \qss and AQLM.
+For Llama 1, we include GPTVQ-2D instead of AQLM since AQLM does not publish Llama 1 numbers \cite{vanbaalen-gptvq}. 
+GPTVQ-2D performs 2D VQ inside GPTQ and offers strong performance.
+These methods outperform scalar quantization methods including GPTQ, AWQ, and OmniQuant; comparisons to those methods can be found in \qss and AQLM \cite{awq,optq,omniquant,tseng2024quip,aqlm}.
+%Section \ref{sec:computedres} shows \qts with the 1MAD and 3INST computed codes, and section \ref{sec:hybres} shows how \qts performs with the hybrid lookup-computed code.
+We mainly focus on the hybrid code (Section \ref{sec:hybres}) since it is tailored for modern GPUs, and present a full suite of results for it.
+For the computed codes (Section \ref{sec:computedres}), we present results for Llama 2. 
+
+Since the proxy error is not an additive distortion metric, we cannot minimize it by quantizing $W$ as one sequence.
+Instead, for all experiments, we use \qts as a quantizer in \qs's BlockLDLQ, which allows us to simultaneously achieve high dimensionality and low proxy error \cite{tseng2024quip}.
+Specifically, we quantize a block of $T_x \times T_y$ weights as a sequence, where $T_x$ and $T_y$ span the output and input dimensions of $W$, respectively.
+Since BlockLDLQ only specifies feedback along the input dimension, this is equivalent to BlockLDLQ with $g=T_y$ but a vector dimension of $T_xT_y \gg T_y$. 
+This has the benefit of limiting the effect of $g$ in BlockLDLQ's error bound $gm\mu^2\sigma^2\mbox{tr}(H^{1/2})^2/n$ while achieving a high dimension for TCQ.
+Algorithm \ref{alg:qtblockldlq} in the Appendix describes this in more detail.
+\subsection{Lookup-Free Computed Codes}
+\label{sec:computedres}
+\input{tables/compnoft.tex}
+
+Here, we use 1MAD and 3INST with $L=16, V=1, T_x = T_y=16$.
+Setting $T_x = T_y = 16$ enables using a $16\times16$ MMA tile per trellis sequence to perform matrix multiplication during inference.
+$16 \times 16$ MMA tiles form the basis of many types of ``AI hardware,'' making fast decoding relatively simple \cite{9361255}.
+We do not perform fine-tuning since the codes themselves are not tunable, but these codes are fully compatible with \qs-style fine-tuning (recall that \qs's codebook is also not tunable).
+Table \ref{tab:llamacomp} shows that both 1MAD and 3INST significantly outperform \qss without fine-tuning (AQLM does not have numbers without fine-tuning).
+Even at 4 bits, where all methods are close to lossless, \qts results in significant improvements.
+Notably, the computed-code \qts variants \textit{without} fine-tuning outperforms both \qss and AQLM \textit{with} fine-tuning on almost all models and sizes, showing that fine-tuning is not a silver bullet.
+
+\subsection{Hybrid Lookup-Computed Codes}
+\begin{wraptable}{r}{6cm}
+\caption{Batch size 1 decoding throughput on a RTX6000 Ada (960GB/s mem. BW).}
+\small\sc
+\centering
+\tabcolsep=0.1cm
+\begin{tabular}{@{}cccc@{}}
+\toprule
+Method & Bits & 2-7B Tok/s & 2-70B Tok/s \\ \midrule
+FP16   & 16   & 55.9       & OOM         \\
+AQLM   & 2    & 81.5       & 8.78        \\
+QuIP\#  & 2    & 186        & 22.2        \\
+\rowcolor[HTML]{D9D9D9} 
+QTIP   & 2    & 188        & 23.5        \\
+\rowcolor[HTML]{D9D9D9} 
+QTIP   & 3    & 161        & 19.1        \\
+\rowcolor[HTML]{D9D9D9} 
+QTIP   & 4    & 140        & 16.3        \\ \bottomrule
+\end{tabular}
+\label{tab:genspeed}
+\end{wraptable}
+
+\label{sec:hybres}
+\input{tables/hybft.tex}
+\input{tables/hybft_zeroshot.tex}
+\input{tables/llama3.tex}
+\input{tables/llama31.tex}
+\input{tables/llama32.tex}
+
+Here, we use the hybrid lookup-computed code with $L=16, V=2, T_x = T_y=16, Q=9$.
+Setting $Q=9$ gives a 2KiB codebook, which fits in L1 cache \textit{even after} duplication for bank conflicts (32$\times$) on modern GPUs.
+This codebook is differentiable, so we can fine-tune it: to evaluate this, we fine-tune using \qs's methodology, tuning both the codebook entries and the as-yet-unquantized weights in a blockwise fashion.
+Table \ref{tab:hybft} shows the perplexity of quantized Llama 1 and 2 models.
+In all cases, \qts outperforms the other vector quantization-based methods.
+Even at 3 and 4 bits, where \qss and AQLM are close to lossless, \qts roughly \textit{halves} the perplexity gap. 
+These results also show the importance of dimensionality.
+Note that the 3- and 4-bit Llama 2 70B numbers here match those in \ref{tab:llamacomp}.
+Since Table \ref{tab:llamacomp} uses a pure-computed code \textit{without fine-tuning}, fine-tuning has no effect in these regimes and the improvement over \qss is purely from dimensionality.
+
+Table \ref{tab:hybftzs} shows zeroshot results computed with LM Eval, which are slightly random; \qts generally matches or exceeds \qss and AQLM on these tasks \cite{lmeval}.
+Table \ref{tab:llama3} contains results on Llama 3.
+In our experiments, we observed that quantizing layer 0 v of all Llama 3 70B variants (including 3.1, 3.3, and all instruct models) resulted in catastrophic collapse of zeroshot performance. 
+Since the focus of this work is on \textit{what to round with} and not \textit{how to round}, Table \ref{tab:llama3} includes results \textit{with} quantizing 0 v. 
+This catastrophic collapse can be remedied by prepending special tokens (e.g. \texttt{\textbackslash n}), applying the chat template for instruct models (Table 8), or just not quantizing 0 v (\cite{yaqa}).
+Regardless, \qts significantly improves upon \qss at all model sizes and bitrates, once again showing the dimensionality advantage of TCQ over VQ.
+
+Table \ref{tab:llama31} shows results for Llama 3.1 instruct-tuned models, including Llama 3.1 405B.
+At all sizes, QTIP achieves strong results.
+Notably, QTIP is able to match or exceed PV-Tuning, a recent quantization method that focuses on better fine-tuning algorithms \cite{pvtuning}.
+However, PV-Tuning is based off of AQLM and inherits its slow inference speed, making it significantly slower than QTIP.
+Finally, Table \ref{tab:llama32} shows results for quantizing Llama 3.2 instruct-tuned models to 4 bits.
+Since the embedding layers are very large relative to the decoder layers for small Llama 3 models ($\approx 500-750$MB), quantizing the decoder layers to fewer than 4 bits does not make a significant difference on the final model size. 
+Here, QTIP is still able to achieve a meaningful end-to-end compression rate (2.5-3X) without degrading the final model. 
+
+\subsection{Inference Speed}
+
+Table \ref{tab:genspeed} shows the batch size 1 inference speed of \qt, \qs, and AQLM on Llama 2 7B and 70B with matrix fusion.
+Here, the design choices of \qts and \qss become apparent.
+Whereas AQLM uses a codebook that is too large to fit in cache and thus prevents fast inference, both \qts and \qss achieve significant speedups over FP16. 
+Furthermore, while it is impressive that both \qss and \qts are $>2\times$ faster than AQLM, it is even more impressive that \qts is able to match \qs's throughput with an effective dimension size of 256, or $32 \times$ larger than \qs's.
+This means that the improved quantization quality of \qts comes with \textit{no additional inference-time cost}.
+Although our empirical throughput numbers were timed on NVIDIA GPUs, QTIP can be fast on a broad class of accelerators due to its flexibility.
+QTIP only requires generating a pseudorandom Gaussian efficiently, and can work on devices with no cache as well as devices with lookup hardware. 
+For example, if we were using a ARMv8 CPU, we could use the \texttt{vqtbl4q\_u8} NEON intrinsic to look up 16 indices in a 64-entry codebook. 
+This would let us use a 6 bit 1D codebook with the HYB code (Q=6, V=1). 
+Quantizing Llama 2 7B to 2 bits with this setup and w/out fine-tuning gives 6.89 Wikitext2 perplexity – essentially the same \sota quality as 3INST.

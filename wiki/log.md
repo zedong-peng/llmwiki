@@ -557,6 +557,22 @@ tags: [log]
 - The public FlightLLM code runs only prepared single-step cases; no frontend, packer or U280 compile flow, so it cannot deploy another model. The profile end-to-end time is composed from per-step times.
 - IMAX3-LLM repo: README build steps do not match the tree; no bitstream or IMAX compiler; the paper gives no token/s. Card 86 was already in a hot-reset-required state.
 
+
+## [2026-10-01] research + deployment | Qwen3.8-27B on RTX 4090
+
+- Expanded ResearchStudio-Idea / installed paper-search / primary web retrieval: 46 checked engineering repositories, primary blogs/model kits, and 140 merged paper-search results. The exact idearesearch skill was unavailable; the selected evidence/workflow and retrieval errors are recorded.
+- Added 10 pinned engineering assets, 5 source-first partial paper archives (GPTQ, Marlin, QTIP, EAGLE-3, DFlash), search evidence, g4090 deployment evidence, and four working threads. Paper reading/official results remain separate from actual g4090 measurements.
+- Kept local cached source repositories reference-only and clean. Actual independent Git clones, source work, SM89 CUDA12.8/GCC13 builds, conversion, model downloads and serving occurred on g4090; official exact commits and model hashes/payload integrity verified.
+- Completed 81 formal HTTP measurements (9 configurations, 3 workloads, 3 repetitions; plus warmups) and 27 native EXL3 measurements. Cinference MTP7 JSON/code medians: 238.6/213.9 decode token/s, 208.5/205.4 HTTP E2E; MTP3 prose100.2. Shared GPU, counter/precision/cache conventions and 512-token task truncation are explicit.
+- Started enabled user-systemd Cinference service on GPU3 at localhost18038, model qwen3.8-27b, 16K context, int8 KV/MTP7. Health/models/JSON/1449-token full code AST/SSE/Responses/Anthropic smoke passed; semantic tests and long-context/vision quality not run. Enabled user lingering; no machine reboot performed.
+- Installed and smoke-verified Claude Code2.1.286, Codex0.159.2, OpenCode1.18.33, cc-switch CLI5.10.5; CC Switch GUI3.20.4 AppImage downloaded/verified on headless host. No account/provider credentials configured. Preserved unsupported-mode and request-schema/port-guard failures and corrections.
+
+## [2026-10-02] deployment | Stopped Qwen3.8 service at user request
+
+- Stopped and disabled `qwen38-cinference.service` at 01:48 Asia/Shanghai; both operations succeeded. Verified MainPID0, inactive/dead, disabled and exit of previous PID2332782. GPU3 snapshot showed17MiB used,24076MiB free and0% utilization; NVIDIA compute process list was empty. Only this user's service unit was operated; other users' tasks were not terminated.
+- Updated [[research/llm-inference/threads/2026-10-01-g4090-qwen38-speed]] and [[research/llm-inference/assets/g4090-qwen38-benchmark-2026/index]] with the stopped state and hashed verification evidence. Preserved models, builds, historical benchmarks and prior deployment smoke records.
+- Clarified that Cinference, Erik NInfer, llama.cpp and ExLlamaV3 tests ran serially on physicalGPU3. No four-card parallel or tensor-parallel test was performed.
+
 ## Archived: research log before merge (2026-04)
 
 ### [2026-04-23] note | Mem0 2026 algorithm as moving agent-memory baseline

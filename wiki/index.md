@@ -22,6 +22,8 @@ tags: [index]
 
 ## Recent Research References
 
+- [[research/llm-inference/index|Qwen3.8-27B / RTX 4090]]：广泛工程与论文检索、固定资产、g4090 推理实验及 coding CLI 部署（2026-10-01）。
+
 - [[research/agent-memory/jev-related-work|Jev 相关工作通俗对照]]：LOTUS、UtilityQwen、SCARLet、OptiSet；原文、代码可用性与 RAG 接入位置（2026-09-22）。
 
 - [[research/agent-memory/assets/jev-system-one-2026/index|Jev / System One]]：9 月 15 日发布博客、类型化概率决策、检索 cookbook、评测与局限（2026-09-22）。
