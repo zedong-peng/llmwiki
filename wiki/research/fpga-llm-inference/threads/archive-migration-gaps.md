@@ -91,8 +91,5 @@ The following historical metadata records say `not_started`, while their retaine
 
 ## Bibliographic fields pending
 
-- `design-conductor-2-2026`: title/authors/publication year absent from metadata; cached original assets remain available, but no reading note is claimed.
 - `flexposit-2026`: title/authors/publication year absent from metadata; cached original assets remain available, but no reading note is claimed.
-- `secda-autonomous-2026`: title/authors/publication year absent from metadata; cached original assets remain available, but no reading note is claimed.
-- `secda-dse-2026`: title/authors/publication year absent from metadata; cached original assets remain available, but no reading note is claimed.
 - `unison-2026`: title/authors/publication year absent from metadata; cached original assets remain available, but no reading note is claimed.

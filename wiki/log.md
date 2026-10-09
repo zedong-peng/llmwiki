@@ -9,6 +9,11 @@ tags: [log]
 
 # Super Personal Wiki Log
 
+## [2026-10-09] cleanup | Removed 27 references below the citation bar
+
+- Deleted 21 references the reading agents judged below the bar (agent-memory 9, fpga-llm-inference 9, dlm 1, linear-attention 1, research-taste 1) and 6 research-taste/agent-memory citations whose paper could not be identified, with their index rows and per-paper threads. Links in research-taste design threads became plain text.
+- Removed legacy `**/supplementary/**` ignore rules.
+
 ## [2026-10-09] read | 10 references identified from vague citations
 
 - Identified 10 of 16 references whose citations had placeholder titles (author and year checked), archived their arXiv PDFs, corrected title/authors/arXiv id, and had one Claude Sonnet subagent per paper write `note.md` (unreviewed). 5 ambiguous and 1 unidentified record remain citation-only.

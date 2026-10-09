@@ -61,4 +61,3 @@ ResearchTaste-Bench 是**"Research Taste 的 SWE-bench-Live"**：
 
 ## 关联页面
 - [[research/research-taste/threads/researchTaste-bench-design]] — Living benchmark 在方案中的位置
-- [[research/research-taste/threads/ccv-contamination]] — CCV 污染检测（互补机制）

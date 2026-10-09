@@ -52,5 +52,4 @@ ResearchTaste-Bench 的主要评估任务是让 LLM 做 pairwise judgment，但 
 3. **Human-LLM agreement 验证**：用人类专家验证 LLM judge 的可靠性
 
 ## 关联页面
-- [[research/research-taste/threads/saraf-2025-label-bias]] — label bias（同类问题的不同维度）
 - [[research/research-taste/threads/researchTaste-bench-design]] — 四层防泄漏设计

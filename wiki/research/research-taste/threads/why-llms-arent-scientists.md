@@ -63,4 +63,3 @@ Taste 是乘数：execution 再强，taste 为零，结果也是零。
 
 ## 关联页面
 - [[research/research-taste/threads/researchTaste-bench-design]] — 方案如何回应这一动机
-- [[research/research-taste/threads/scientist-bench]] — execution 测量的对比工作

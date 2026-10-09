@@ -48,5 +48,4 @@ Gong et al. 测的是引用预测准确率（citation prediction），而 HindSi
 
 ## 关联页面
 - [[research/research-taste/threads/researchTaste-bench-design]] — 基线设计
-- [[research/research-taste/threads/hindsight-novelty-bias]] — novelty bias 补充
 - TastyBench（原引用条目已删除） — TastyBench 同类工作

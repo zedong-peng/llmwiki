@@ -36,7 +36,6 @@ tags: [research, linear-attention, sequence-models, hardware]
 | [FLA](assets/fla-2024/note.md) | 2024 | Repo | De facto Triton kernel baseline | `历史笔记` |
 | [Linear Attn GPU Kernel](assets/linear-attn-gpu-kernel-2025/note.md) | 2025 | Arxiv | GPU kernel optimization ceiling | `历史笔记` |
 | [Pimba](assets/pimba-2025/note.md) | 2025 | MICRO | Near-memory linear-attention accelerator | `agent-read` |
-| [PLENA](assets/plena-2025/note.md) | 2025 | Arxiv | Hybrid long-context accelerator baseline | `agent-read` |
 | [FlexLinearAttention](assets/flexla-forge-2025/note.md) | 2026 | ICLR | Compiler-generated linear-attention kernels | `历史笔记` |
 | [Tiled Flash Linear Attention](assets/tiled-flash-linear-attn-2025/note.md) | 2025 | NeurIPS | Register-pressure kernel evidence | `历史笔记` |
 | DANMP（原目录已移除） | 2026 | Arxiv | Near-memory attention accelerator | `历史笔记` |

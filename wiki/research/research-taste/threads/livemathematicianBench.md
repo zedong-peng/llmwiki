@@ -62,4 +62,3 @@ KI = WTA_synthetic - WTA_real
 
 ## 关联页面
 - [[research/research-taste/threads/researchTaste-bench-design]] — KI 指标设计、D4 合成 idea 子任务
-- [[research/research-taste/threads/ccv-contamination]] — 污染检测的互补机制

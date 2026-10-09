@@ -48,7 +48,6 @@ Agent memory 领域的论文库与研究线程。
 | Memory for Autonomous LLM Agents (原归档已移除) | 2026 | Arxiv   | Mechanisms and evaluation survey           | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | [Memobase](assets/memobase-2025/note.md)                                                 | 2025 | Repo    | Personalized agent memory platform         | `processed` | https://github.com/memodb-io/memobase/tree/main/docs/experiments/locomo-benchmark 结果对比表格引用的mem0的结果                                                                                                                                                                                                                                                                                                                      |
 | [MemOS](assets/memos-2026/note.md)                                                       | 2026 | Arxiv   | Unified agent-memory system framework      | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| [PRISM (Pareto-Efficient)](assets/prism-memory-2026/note.md)                             | 2026 | Arxiv   | Intent-aware structured retrieval on a cost frontier | `agent-read` | 与 prism-2025 (Precision-Recall Iterative Selection) 同名不同文 |
 | [REMem](assets/remem-2026/note.md)                                                       | 2026 | Arxiv   | Episodic-memory reasoning for agents       | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | SALM Survey (原归档已移除)                                           | 2025 | Arxiv   | Human-inspired memory systems survey       | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | [Temporal Semantic Memory](assets/temporal-semantic-memory-2026/note.md)                 | 2026 | Arxiv   | Time-aware semantic memory layer           | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -94,9 +93,7 @@ Agent memory 领域的论文库与研究线程。
 | [AutoBool](../retrieval/assets/autobool-2026/note.md) | 2026 | Arxiv | RL-trained LLM for Boolean query generation (literature retrieval) | `stub` |
 | [PRISM](../retrieval/assets/prism-2025/note.md) | 2025 | Arxiv (withdrawn ICLR 2026) | Precision-recall iterative selection; Prune-and-Recover loop | `stub` |
 | [Collab-RAG](assets/collab-rag-2025/note.md) | 2025 | Arxiv | Fine-tuned 3B SLM decomposer outperforms frozen 32B LLM | `agent-read` |
-| [Query Decomposition as Bandit](assets/query-decomp-bandit-2025/note.md) | 2025 | Arxiv | Multi-armed bandit for sub-query selection; 35% precision gain | `agent-read` |
 | [Query Optimization Survey](assets/query-optim-survey-2024/note.md) | 2024 | Arxiv | Taxonomy: Foundation→Expansion→Sophistication→Agentic | `agent-read` |
-| [Multi-Turn Conversational RAG](assets/multi-turn-conv-rag-2026/note.md) | 2026 | Arxiv | Retrieval stability in multi-turn settings; RRF improves stability | `agent-read` |
 
 ### Iterative / Active Retrieval
 
@@ -116,15 +113,12 @@ Agent memory 领域的论文库与研究线程。
 | [Think-on-Graph 2.0](assets/tog2-2025/note.md) | 2025 | ICLR | KG + unstructured text retrieval; graph traversal as beam search | `agent-read` |
 | [HopRAG](../retrieval/assets/hoprag-2025/note.md) | 2025 | ACL Findings | Passage graph with logical connections; multi-hop via LLM reasoning | `stub` |
 | ERL（原归档已移除） | 2026 | Arxiv | LLM-based retrieval 56.1% vs embedding baseline; quality > quantity | `stub` |
-| [Reranking Survey](assets/reranking-survey-2025/note.md) | 2025 | Arxiv | LLMs as zero-shot listwise rankers outperform supervised methods | `agent-read` |
 
 ### Memory Retrieval Granularity & Personalization
 
 | Paper | Year | Venue | Importance | Wiki Status |
 |---|---:|---|---|---|
 | [Segment-Level Memory](assets/segment-level-memory-2025/note.md) | 2025 | ICLR | Turn-level too fine, session-level too coarse; topically coherent units | `agent-read` |
-| [Entropy-Based Adaptive Memory](assets/entropy-adaptive-memory-2026/citation.bib) | 2026 | ICLR | Entropy router selects retrieval granularity per query | `stub` |
-| [Memoria](assets/memoria-2025/note.md) | 2025 | Arxiv | Session summarization + weighted KG; 115k→400 tokens, 87.1% accuracy | `agent-read` |
 | [Personalize Before Retrieve](../retrieval/assets/personalize-before-retrieve-2025/note.md) | 2025 | Arxiv | User-specific query expansion injecting history/preferences/persona | `stub` |
 | [Mintlify ChromaFs](../retrieval/assets/mintlify-chromafs-2026/note.md) | 2026 | Blog | Virtual filesystem for LLM retrieval; 460x speedup | `stub` |
 
@@ -135,7 +129,6 @@ Agent memory 领域的论文库与研究线程。
 | Paper | Year | Venue | Importance | Wiki Status |
 |---|---:|---|---|---|
 | [SmartSearch](assets/smartsearch-2026/note.md) | 2026 | Arxiv | Raw deterministic recall + learned rank fusion; ranking beats structure | `agent-read` |
-| [AgentIR](assets/agentir-2026/note.md) | 2026 | Arxiv | BM25-margin cascade skipping dense retrieval | `agent-read` |
 | [Lexical-Dense Fusion](assets/lexical-dense-fusion-2026/note.md) | 2026 | Arxiv | Controlled BM25 + max-turn dense fusion; +11.2 Hit@1 on LoCoMo | `agent-read` |
 | [Back to Basics (Nano-Memory)](assets/back-to-basics-2026/note.md) | 2026 | Arxiv | Turn Isolation Retrieval + Query-Driven Pruning | `agent-read` |
 | [SelRoute](assets/selroute-2026/note.md) | 2026 | Arxiv | Query-type routing among lexical/semantic/hybrid/enriched pipelines | `agent-read` |
@@ -145,10 +138,7 @@ Agent memory 领域的论文库与研究线程。
 | [Event-Memory Baseline](assets/event-memory-baseline-2025/note.md) | 2025 | Arxiv | Non-compressive event memory + simple dense retrieval | `agent-read` |
 | [DeferMem](assets/defermem-2026/note.md) | 2026 | Arxiv | High-recall retrieval + RL evidence distillation | `agent-read` |
 | [MGRetrieval](assets/mgretrieval-2026/note.md) | 2026 | Arxiv | Memory-guided reflective retrieval with sufficiency stopping | `agent-read` |
-| [Eywa](assets/eywa-2026/note.md) | 2026 | Arxiv | Immutable evidence + derived facts with provenance | `agent-read` |
-| [ConvMemory](assets/convmemory-2026/note.md) | 2026 | Arxiv | Lightweight lexical-dense reranker; negative attribution result | `agent-read` |
 | [EAR](assets/ear-2026/note.md) | 2026 | Arxiv | Reflective recall cycle + experience-based reranker adaptation | `agent-read` |
-| [Training-Free Control](assets/training-free-control-2026/note.md) | 2026 | Arxiv | Whether to apply retrieved memory at all: acceptance/rollback/retirement | `agent-read` |
 | [Recursive Language Models](assets/recursive-language-models-2025/note.md) | 2025 | Arxiv | Programmatic query-time inspection of long contexts | `agent-read` |
 
 ### IR Foundations

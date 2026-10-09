@@ -41,7 +41,7 @@ Taste/Direction -> Idea Generation -> Proposal -> Execution -> Writing -> Evalua
 
 ### 4. Execution / Experimentation
 **What**: Implementing the plan, running experiments, getting results
-**Measured by**: [[research/research-taste/threads/starace-2025-paperbench]] (replication), [[research/research-taste/threads/mlrc-bench-2025]] (competition tasks), [[research/research-taste/threads/scientist-bench]]
+**Measured by**: [[research/research-taste/threads/starace-2025-paperbench]] (replication), [[research/research-taste/threads/mlrc-bench-2025]] (competition tasks), Scientist-Bench
 **Key challenge**: Long-horizon coding, debugging, reproducibility
 
 ### 5. Scientific Writing

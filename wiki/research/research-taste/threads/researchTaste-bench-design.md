@@ -15,7 +15,7 @@ tags: [benchmark-design, construct-validity, contamination, living-benchmark, re
 ## Why This Benchmark Exists
 The field already has serious **execution** benchmarks:
 - [[research/research-taste/threads/starace-2025-paperbench]]
-- [[research/research-taste/threads/scientist-bench]]
+- Scientist-Bench
 - [[research/research-taste/threads/mlrc-bench-2025]]
 
 What is still weakly measured is the upstream question:
@@ -69,7 +69,7 @@ Contrast:
 - lower novelty, higher long-term impact
 
 Purpose:
-- detect novelty bias, motivated by [[research/research-taste/threads/hindsight-novelty-bias]]
+- detect novelty bias, motivated by HindSight (novelty bias)
 
 ### D2. Timing Sense Test
 Give the same idea under three historical field states and ask when it was most ripe.
@@ -143,14 +143,14 @@ Strip:
 - year
 
 Motivation:
-- [[research/research-taste/threads/saraf-2025-label-bias]]
+- label bias in LLM evaluation (Saraf et al. 2025)
 - [[research/research-taste/threads/li-2026-preference-leakage]]
 
 ### Defense 2. CCV-Style Contamination Check
 Probe whether the model appears to know the paper identity across fresh sessions.
 
 Motivation:
-- [[research/research-taste/threads/ccv-contamination]]
+- CCV (cross-session contamination check)
 
 ### Defense 3. Objective Ground Truth
 The final answer key should come from citation dynamics and downstream uptake, not from an LLM judge.
@@ -173,8 +173,8 @@ Questions to answer:
 - Do novelty-trap items load on elegance, or on a distinct bias factor?
 
 Motivation:
-- [[research/research-taste/threads/salaudeen-2025-construct-validity]]
-- [[research/research-taste/threads/chen-2025-irt-llm]]
+- construct validity (Salaudeen et al. 2025)
+- IRT for LLM evaluation (Chen et al. 2025)
 
 ### Predictive Validity
 A strong benchmark score should predict at least one more realistic research judgment task:
