@@ -15,7 +15,7 @@ tags: [paper, agent-memory, architecture, structured-memory, cost-frontier]
 
 # PRISM: Pareto-Efficient Retrieval over Intent-Aware Structured Memory for Long-Horizon Agents
 
-> Note: distinct from [PRISM: Precision-Recall Iterative Selection](../../misc/assets/prism-2025/note.md) (2510.14278) — same name, different paper.
+> Note: distinct from [PRISM: Precision-Recall Iterative Selection](../../retrieval/assets/prism-2025/note.md) (2510.14278) — same name, different paper.
 
 ## Paper Meta
 - Title: PRISM: Pareto-Efficient Retrieval over Intent-Aware Structured Memory for Long-Horizon Agents

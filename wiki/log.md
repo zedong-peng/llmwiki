@@ -9,6 +9,11 @@ tags: [log]
 
 # Super Personal Wiki Log
 
+## [2026-10-09] reorg | Split misc into retrieval and agents topics
+
+- Created `research/retrieval/` (31 references: RAG, retrieval optimization, code retrieval benchmarks, AI data systems, long context) and `research/agents/` (11: agent frameworks, coding agents, self-improving agents, agentic science); moved CoALA, Generative Agents and MemRL to `agent-memory`. Threads moved with their topic; `misc` keeps the leaderboard thread as a buffer.
+- Rewrote 169 inbound links, updated research and root indexes; unlinked five relative links inside copied upstream READMEs. Lint: 0 errors.
+
 ## [2026-10-09] cleanup | Removed unpublished project material
 
 - Removed two unpublished projects at the user's request: their threads, related-work corpus and paper plan, plus project-specific relevance sections in reference notes, unread stubs and indexes. Public-paper stubs and notes remain.

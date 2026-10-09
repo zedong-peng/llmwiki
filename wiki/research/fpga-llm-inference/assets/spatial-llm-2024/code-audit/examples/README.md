@@ -6,7 +6,7 @@
 This folder contains examples of using Allo to design hardware accelerators for various applications.
 
 ## PolyBench
-[PolyBench](https://github.com/MatthiasJReisinger/PolyBenchC-4.2.1) is a C-based benchmark suite that contains a set of kernels commonly used in scientific computing. We provide Allo implementations under the [`polybench`](polybench/) folder. For example, you can directly run the GEMM kernel using the CPU backend by typing the following command:
+[PolyBench](https://github.com/MatthiasJReisinger/PolyBenchC-4.2.1) is a C-based benchmark suite that contains a set of kernels commonly used in scientific computing. We provide Allo implementations under the `polybench` folder. For example, you can directly run the GEMM kernel using the CPU backend by typing the following command:
 ```bash
 python3 polybench/gemm.py
 ```

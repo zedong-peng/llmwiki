@@ -15,7 +15,7 @@ tags: [paper, agent-memory, raw-retrieval, long-context, programmatic-access]
 
 # Recursive Language Models
 
-> Fuller processed note exists at [research/misc/papers/rlm-2026](../../misc/assets/rlm-2026/note.md).
+> Fuller processed note exists at [research/misc/papers/rlm-2026](../../agents/assets/rlm-2026/note.md).
 
 ## Paper Meta
 - Title: Recursive Language Models

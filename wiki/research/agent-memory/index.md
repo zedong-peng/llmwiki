@@ -26,7 +26,7 @@ Agent memory 领域的论文库与研究线程。
 
 ### Corpora & Syntheses
 
-- [Jev 相关工作通俗对照](threads/jev-related-work.md)：[LOTUS](../misc/assets/lotus-2025/note.md)、[UtilityQwen](assets/utilityqwen-2025/note.md)、[SCARLet](assets/scarlet-2025/note.md)、[OptiSet](assets/optiset-2026/note.md)。语义算子、证据效用与集合选择。
+- [Jev 相关工作通俗对照](threads/jev-related-work.md)：[LOTUS](../retrieval/assets/lotus-2025/note.md)、[UtilityQwen](assets/utilityqwen-2025/note.md)、[SCARLet](assets/scarlet-2025/note.md)、[OptiSet](assets/optiset-2026/note.md)。语义算子、证据效用与集合选择。
 
 - [MemAgent](assets/memagent-2025/note.md) — existing paper reading and source archive.
 
@@ -90,9 +90,9 @@ Agent memory 领域的论文库与研究线程。
 | [HyDE](threads/unread-hyde-2023.md) | 2023 | SIGIR | Hypothetical document embeddings for zero-shot dense retrieval | `stub` |
 | [Query2doc](threads/unread-query2doc-2023.md) | 2023 | EMNLP | LLM query expansion with pseudo-documents | `stub` |
 | RAG-Fusion（原归档已移除） | 2023 | Blog | Multi-query generation + Reciprocal Rank Fusion | `stub` |
-| [MemoRAG](../misc/assets/memorag-2025/note.md) | 2025 | WWW | Global memory model generates clue drafts as retrieval queries | `stub` |
-| [AutoBool](../misc/assets/autobool-2026/note.md) | 2026 | Arxiv | RL-trained LLM for Boolean query generation (literature retrieval) | `stub` |
-| [PRISM](../misc/assets/prism-2025/note.md) | 2025 | Arxiv (withdrawn ICLR 2026) | Precision-recall iterative selection; Prune-and-Recover loop | `stub` |
+| [MemoRAG](../retrieval/assets/memorag-2025/note.md) | 2025 | WWW | Global memory model generates clue drafts as retrieval queries | `stub` |
+| [AutoBool](../retrieval/assets/autobool-2026/note.md) | 2026 | Arxiv | RL-trained LLM for Boolean query generation (literature retrieval) | `stub` |
+| [PRISM](../retrieval/assets/prism-2025/note.md) | 2025 | Arxiv (withdrawn ICLR 2026) | Precision-recall iterative selection; Prune-and-Recover loop | `stub` |
 | [Collab-RAG](threads/unread-collab-rag-2025.md) | 2025 | Arxiv | Fine-tuned 3B SLM decomposer outperforms frozen 32B LLM | `stub` |
 | [Query Decomposition as Bandit](threads/unread-query-decomp-bandit-2025.md) | 2025 | Arxiv | Multi-armed bandit for sub-query selection; 35% precision gain | `stub` |
 | [Query Optimization Survey](threads/unread-query-optim-survey-2024.md) | 2024 | Arxiv | Taxonomy: Foundation→Expansion→Sophistication→Agentic | `stub` |
@@ -103,7 +103,7 @@ Agent memory 领域的论文库与研究线程。
 | Paper | Year | Venue | Importance | Wiki Status |
 |---|---:|---|---|---|
 | [IRCoT](threads/unread-irco-2023.md) | 2023 | ACL | Interleave CoT reasoning with retrieval; key multi-hop baseline | `stub` |
-| [Self-RAG](../misc/assets/self-rag-2024/note.md) | 2024 | ICLR | Fine-tuned adaptive retrieve-generate-critique cycle | `stub` |
+| [Self-RAG](../retrieval/assets/self-rag-2024/note.md) | 2024 | ICLR | Fine-tuned adaptive retrieve-generate-critique cycle | `stub` |
 | [FLARE](threads/unread-flare-2023.md) | 2023 | EMNLP | Generation-uncertainty-triggered active retrieval | `stub` |
 | FAIR-RAG（原归档已移除） | 2025 | Arxiv | Multi-model pipeline with LLM-as-Judge ablations | `stub` |
 | [ReAct](threads/unread-react-2023.md) | 2023 | ICLR | Interleave reasoning traces with actions (search); framework inspiration | `stub` |
@@ -114,7 +114,7 @@ Agent memory 领域的论文库与研究线程。
 |---|---:|---|---|---|
 | [LLM-A*](threads/unread-llm-astar-2024.md) | 2024 | EMNLP Findings | LLM provides heuristic h(n) in A*; proof-of-concept for LLM-as-heuristic | `stub` |
 | [Think-on-Graph 2.0](threads/unread-tog2-2025.md) | 2025 | ICLR | KG + unstructured text retrieval; graph traversal as beam search | `stub` |
-| [HopRAG](../misc/assets/hoprag-2025/note.md) | 2025 | ACL Findings | Passage graph with logical connections; multi-hop via LLM reasoning | `stub` |
+| [HopRAG](../retrieval/assets/hoprag-2025/note.md) | 2025 | ACL Findings | Passage graph with logical connections; multi-hop via LLM reasoning | `stub` |
 | ERL（原归档已移除） | 2026 | Arxiv | LLM-based retrieval 56.1% vs embedding baseline; quality > quantity | `stub` |
 | [Reranking Survey](threads/unread-reranking-survey-2025.md) | 2025 | Arxiv | LLMs as zero-shot listwise rankers outperform supervised methods | `stub` |
 
@@ -125,8 +125,8 @@ Agent memory 领域的论文库与研究线程。
 | [Segment-Level Memory](threads/unread-segment-level-memory-2025.md) | 2025 | ICLR | Turn-level too fine, session-level too coarse; topically coherent units | `stub` |
 | [Entropy-Based Adaptive Memory](threads/unread-entropy-adaptive-memory-2026.md) | 2026 | ICLR | Entropy router selects retrieval granularity per query | `stub` |
 | [Memoria](threads/unread-memoria-2025.md) | 2025 | Arxiv | Session summarization + weighted KG; 115k→400 tokens, 87.1% accuracy | `stub` |
-| [Personalize Before Retrieve](../misc/assets/personalize-before-retrieve-2025/note.md) | 2025 | Arxiv | User-specific query expansion injecting history/preferences/persona | `stub` |
-| [Mintlify ChromaFs](../misc/assets/mintlify-chromafs-2026/note.md) | 2026 | Blog | Virtual filesystem for LLM retrieval; 460x speedup | `stub` |
+| [Personalize Before Retrieve](../retrieval/assets/personalize-before-retrieve-2025/note.md) | 2025 | Arxiv | User-specific query expansion injecting history/preferences/persona | `stub` |
+| [Mintlify ChromaFs](../retrieval/assets/mintlify-chromafs-2026/note.md) | 2026 | Blog | Virtual filesystem for LLM retrieval; 460x speedup | `stub` |
 
 ### Raw-History Retrieval & Adaptive Routing
 
@@ -158,7 +158,15 @@ Agent memory 领域的论文库与研究线程。
 | [DPR](threads/unread-dpr-2020.md) | 2020 | EMNLP | Canonical dense dual-encoder retrieval baseline | `stub` |
 | [ColBERT](threads/unread-colbert-2020.md) | 2020 | SIGIR | Token-level late interaction; strong reranking primitive | `stub` |
 | [SPLADE v2](threads/unread-splade-v2-2021.md) | 2021 | Arxiv | Learned sparse lexical expansion beyond BM25 | `stub` |
-| [BEIR](../misc/assets/beir-2021/note.md) | 2021 | NeurIPS D&B | Heterogeneous zero-shot retrieval evaluation | `stub` |
+| [BEIR](../retrieval/assets/beir-2021/note.md) | 2021 | NeurIPS D&B | Heterogeneous zero-shot retrieval evaluation | `stub` |
+
+### Agent Architectures And Experience Learning
+
+| Paper | Year | Venue | Importance | Wiki Status |
+|---|---:|---|---|---|
+| [CoALA](assets/coala-2024/note.md) | 2024 | TMLR | Language-agent cognitive architecture | `processed` |
+| [Generative Agents](assets/generative-agents-2023/note.md) | 2023 | UIST | Memory stream, reflection and planning for social agents | `processed` |
+| [MemRL](assets/memrl-2025/note.md) | 2026 | Arxiv | Runtime RL over episodic memory | `processed` |
 
 ## Archive Migration Caveats
 

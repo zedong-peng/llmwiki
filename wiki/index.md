@@ -32,7 +32,7 @@ tags: [index]
 
 - [[research/agent-memory/assets/mem0-2026/note|Mem0 2026 software / technical release]]: SDK 2.1.0 and evaluation archive; platform-only features, changed judge, and shared 2025 evaluation protocol decision (2026-09-20).
 
-- [[research/misc/assets/dream-rsi-2026/note|Dream-RSI]]：Google / DeepMind 历史树回放与探索策略自改进；misc 新增 self-improving agents 小分类（2026-09-17）。
+- [[research/agents/assets/dream-rsi-2026/note|Dream-RSI]]：Google / DeepMind 历史树回放与探索策略自改进；归入 agents 的 self-improving 小分类（2026-09-17）。
 
 - [[research/fpga-llm-inference/index#Paper-only competition audit (2026-09-15)|FPGA 仅论文竞争核查]]：IMAX、GDN 新增深读；WPU/纯仓库排除，五篇外围论文缓存待读。
 

@@ -205,7 +205,7 @@ No additional unverified recall entries added to this targeted identification se
 
 ## Overview
 
-Identified Dream-RSI as the exact requested paper. Live arXiv abstract/version history confirms v1, submitted September 14, 2026; PDF and official repository confirm Google, Google DeepMind, UMD and UVA affiliations. See [[research/misc/assets/dream-rsi-2026/note]].
+Identified Dream-RSI as the exact requested paper. Live arXiv abstract/version history confirms v1, submitted September 14, 2026; PDF and official repository confirm Google, Google DeepMind, UMD and UVA affiliations. See [[research/agents/assets/dream-rsi-2026/note]].
 
 ## Trends
 
@@ -247,7 +247,7 @@ All returned citation counts are zero; no meaningful most-cited ranking. First-a
 
 ## Recommendations for reading
 
-Read Dream-RSI (#1), then the existing [[research/misc/assets/meta-harness/note|Meta-Harness]] and ERL（原归档已移除） notes for harness search versus heuristic-memory comparisons. The latter two are existing wiki context, not additional API hits.
+Read Dream-RSI (#1), then the existing [[research/agents/assets/meta-harness/note|Meta-Harness]] and ERL（原归档已移除） notes for harness search versus heuristic-memory comparisons. The latter two are existing wiki context, not additional API hits.
 
 ## Verbatim search output
 

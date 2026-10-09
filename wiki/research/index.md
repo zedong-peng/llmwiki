@@ -18,7 +18,9 @@ tags: [research, index]
 | FPGA LLM Inference | [[fpga-llm-inference/index]] | FPGA 上的 LLM prefill/decode、系统架构、编译/runtime 与端到端评测 |
 | Research Taste   | [[research-taste/index]]   | AI 科研品味的衡量与 benchmark 设计                                |
 | LLM Inference | [[llm-inference/index]] | Qwen3.8-27B/4090 部署与速度；vLLM/SGLang、Attention/KV、调度、speculation与量化 |
-| Misc             | [[misc/index]]             | 未归类论文缓冲区                                                |
+| Retrieval | [[retrieval/index]] | 检索与 RAG benchmark、检索优化、长上下文、AI 数据系统 |
+| Agents | [[agents/index]] | agent 框架、编码 agent、自我改进与 harness、agentic science |
+| Misc             | [[misc/index]]             | 未归类资料缓冲区                                                |
 
 ## Log
 

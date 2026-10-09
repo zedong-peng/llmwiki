@@ -17,8 +17,8 @@ HBF/HBM tier) — all figures info-only, every projection tagged `[EST]`.
 
 > **🙏 Looking for an arXiv endorsement (cs.AR).** The preprint of this work —
 > *Bit-Exact by Construction: A Verification-First RTL Accelerator that Inherits the
-> GGUF k-Quant Checkpoint Ecosystem* ([`paper/wpu.tex`](paper/wpu.tex),
-> [compiled PDF](paper/wpu.pdf)) — needs a first-time-author endorsement for arXiv **cs.AR**.
+> GGUF k-Quant Checkpoint Ecosystem* (`paper/wpu.tex`,
+> compiled PDF) — needs a first-time-author endorsement for arXiv **cs.AR**.
 > If you are qualified to endorse in cs.AR and, after looking at the paper and the verification
 > ledger, consider the work credible, you can endorse here:
 > **<https://arxiv.org/auth/endorse?x=7L4XXQ>** (contact: <wicklim90@gmail.com>).
@@ -113,7 +113,7 @@ The per-claim ledger lives in each model branch's README.
 
 | Branch | Contents |
 |---|---|
-| `main` (this) | Project hub: this README, the [project site](https://wick-lim.github.io/WPU/), and the [paper](paper/). |
+| `main` (this) | Project hub: this README, the [project site](https://wick-lim.github.io/WPU/), and the paper. |
 | [`glm5.3-flash/UD-Q4_K_XL`](https://github.com/Wick-Lim/WPU/tree/glm5.3-flash/UD-Q4_K_XL) | The GLM-5.3-Flash port: locked config + its two-sided guard, Q5_K dequant, clamped SwiGLU, the four KDA units (recurrence, conv, gate, output norm), the executable spec for KDA/mHC, the GGUF census + memory-budget tools, `make fp-ieee`, the port ledger. Forked at the GLM-5.2 tip, so it carries every gate that branch has. |
 | [`glm5.2/UD-Q4_K_XL`](https://github.com/Wick-Lim/WPU/tree/glm5.2/UD-Q4_K_XL) | The GLM-5.2 accelerator: RTL, testbenches, `make` gates, docs, host runtime, FPGA flow. |
 | [`laguna-s-2.1/UD-Q4_K_XL`](https://github.com/Wick-Lim/WPU/tree/laguna-s-2.1/UD-Q4_K_XL) | The Laguna-S-2.1 port: locked config, executable references, gates. |
@@ -124,5 +124,5 @@ study) — both **tags**, inspectable with `git checkout fp8-verified-baseline`.
 
 ## License
 
-[Apache-2.0](LICENSE). The repository-level license governs all files; there are no per-file SPDX
+Apache-2.0. The repository-level license governs all files; there are no per-file SPDX
 headers by policy.
