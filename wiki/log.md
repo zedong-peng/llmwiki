@@ -9,6 +9,10 @@ tags: [log]
 
 # Super Personal Wiki Log
 
+## [2026-10-09] cleanup | Removed remaining unread stubs
+
+- Deleted 83 more unread stubs (fpga-llm-inference 67, dlm 10, agents 2, retrieval 2, linear-attention 2); index entries link to `citation.bib`. AGENTS.md now says unread references get no summary page. research-taste's per-paper discussion threads are kept.
+
 ## [2026-10-09] cleanup | Removed agent-memory unread stubs
 
 - Deleted 43 `agent-memory/threads/unread-*.md` secondary summaries; index rows now link to each reference's `citation.bib`. PDFs and citations are kept.

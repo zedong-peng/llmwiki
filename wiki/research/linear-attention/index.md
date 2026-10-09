@@ -35,8 +35,8 @@ tags: [research, linear-attention, sequence-models, hardware]
 | [Jamba](assets/jamba-2024/note.md) | 2024 | Arxiv | Hybrid Transformer-Mamba model | `历史笔记` |
 | [FLA](assets/fla-2024/note.md) | 2024 | Repo | De facto Triton kernel baseline | `历史笔记` |
 | [Linear Attn GPU Kernel](assets/linear-attn-gpu-kernel-2025/note.md) | 2025 | Arxiv | GPU kernel optimization ceiling | `历史笔记` |
-| [Pimba](threads/unread-pimba-2025.md) | 2025 | MICRO | Near-memory linear-attention accelerator | `未读素材` |
-| [PLENA](threads/unread-plena-2025.md) | 2025 | Arxiv | Hybrid long-context accelerator baseline | `未读素材` |
+| [Pimba](assets/pimba-2025/citation.bib) | 2025 | MICRO | Near-memory linear-attention accelerator | `未读素材` |
+| [PLENA](assets/plena-2025/citation.bib) | 2025 | Arxiv | Hybrid long-context accelerator baseline | `未读素材` |
 | [FlexLinearAttention](assets/flexla-forge-2025/note.md) | 2026 | ICLR | Compiler-generated linear-attention kernels | `历史笔记` |
 | [Tiled Flash Linear Attention](assets/tiled-flash-linear-attn-2025/note.md) | 2025 | NeurIPS | Register-pressure kernel evidence | `历史笔记` |
 | DANMP（原目录已移除） | 2026 | Arxiv | Near-memory attention accelerator | `历史笔记` |
