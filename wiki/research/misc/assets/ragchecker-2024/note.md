@@ -145,8 +145,6 @@ Meta-evaluation highlights (`tables/human_eval_selected.tex`):
 - RAGChecker is a diagnosis framework, not a substitute for strong task-specific benchmarks.
 
 ## Takeaways
-- RAGChecker is highly relevant for future `grepqa`-style experiments on RAG benchmarks because it can separate "better answers" from "better retrieval."
-- It is especially useful if a new lexical or compiled retrieval method changes the signal-to-noise ratio of retrieved context; end-to-end F1 alone would hide that.
 - If the project expands beyond memory into general RAG, RAGChecker is one of the best local tools in the wiki for evidence-based ablation and failure analysis.
 
 ## Open Questions

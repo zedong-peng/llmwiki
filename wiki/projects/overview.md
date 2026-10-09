@@ -16,7 +16,7 @@ tags: [projects]
 | Group | Examples |
 |---|---|
 | HLS / EDA | ForgeHLS, DiffHLS, HLSFactory, ML4Accel, benchmark tools |
-| Memory / Retrieval | agent-memory-locomo, LongMemEval, grepqa, LoRA-Mem |
+| Memory / Retrieval | agent-memory-locomo, LongMemEval, LoRA-Mem |
 | Writing / Sites | personal homepage, Hugo blog, thesis proposal |
 | Infrastructure | tailscale remote HPC, proxy tools, installers, [[projects/token-pricing\|低价 Token 渠道]] |
 

@@ -26,6 +26,3 @@ tags: [paper, retrieval, query-decomposition, fine-tuning, slm]
 - Fine-tune 3B SLM as decomposer via iterative preference optimization.
 - 3B SLM outperforms frozen 32B LLM on decomposition.
 - Query decomposition is a learnable, specialized skill.
-
-## Relevance to LAzyMem
-Potential future direction: fine-tune a small model specifically for LoCoMo predicate compilation. The 3B SLM > 32B LLM result suggests that task-specific fine-tuning for boolean predicate generation could improve LAzyMem's predicate quality beyond its current zero-shot prompting approach.

@@ -27,10 +27,3 @@ tags: [paper, agent-memory, architecture, structured-memory, cost-frontier]
 - Training-free graph retrieval, routing, compression, and an explicit cost frontier over intent-aware structured memory.
 - Evaluates structured retrieval on a Pareto (quality vs cost) frontier rather than accuracy alone.
 
-## Local Files
-- PDF: [2605.12260-prism.pdf](../assets/lazymem-related-work/pdfs/2605.12260-prism.pdf)
-- Text: [2605.12260-prism.txt](../assets/lazymem-related-work/text/2605.12260-prism.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: architecture)
-
-## Relevance to LazyMem
-- Cost-frontier evaluation is exactly the framing LazyMem's lifecycle-cost objective needs; a structured-memory competitor on that frontier.

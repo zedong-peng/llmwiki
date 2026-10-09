@@ -31,6 +31,3 @@ tags: [paper, retrieval, query-expansion, hyde, embedding]
 1. LLM generates a hypothetical document/answer for the query.
 2. Embed the hypothetical document.
 3. Retrieve real documents by similarity to the hypothetical embedding.
-
-## Relevance to LAzyMem
-Baseline for query expansion via hypothetical documents. LAzyMem takes a different approach: instead of embedding a hypothetical answer, it compiles the question into boolean predicates (must/should keywords + optional speaker filter) for exact string matching. No embedding required.

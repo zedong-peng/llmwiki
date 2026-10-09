@@ -25,10 +25,3 @@ tags: [paper, agent-memory, architecture, adaptive-retrieval]
 - Event boundaries plus query-adaptive routing and retrieval depth.
 - Structured memory system combining boundary detection with per-query route selection.
 
-## Local Files
-- PDF: [2604.06845-hingemem.pdf](../assets/lazymem-related-work/pdfs/2604.06845-hingemem.pdf)
-- Text: [2604.06845-hingemem.txt](../assets/lazymem-related-work/text/2604.06845-hingemem.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: architecture)
-
-## Relevance to LazyMem
-- Query-adaptive depth is adjacent to LazyMem's lazy-routing claim; another occupant of the adaptive-control space.

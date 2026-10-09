@@ -25,10 +25,3 @@ tags: [paper, agent-memory, raw-retrieval, provenance, deterministic]
 - Separates immutable evidence from derived facts with deterministic multi-route retrieval.
 - Refines the raw-memory idea: preserve evidence, but permit derived views with provenance instead of forcing a raw-vs-structured dichotomy.
 
-## Local Files
-- PDF: [2605.30771-eywa.pdf](../assets/lazymem-related-work/pdfs/2605.30771-eywa.pdf)
-- Text: [2605.30771-eywa.txt](../assets/lazymem-related-work/text/2605.30771-eywa.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: raw-retrieval)
-
-## Relevance to LazyMem
-- Direct collision on "preserve raw source behind cheap derived memory"; also deterministic/auditable, crowding the auditable-executor distinction.

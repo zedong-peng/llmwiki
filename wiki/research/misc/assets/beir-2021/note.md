@@ -153,7 +153,3 @@ tags: [paper, retrieval, benchmark, beir, zero-shot, bm25, dense-retrieval, rera
 - How much of BM25's strength on BEIR is true lexical robustness versus artifact from dataset creation pipelines that already favored lexical candidate generation?
 - Can modern embedding models and rerankers close the transfer gap without inheriting the latency and memory penalties that made BM25+CE and ColBERT expensive here?
 - Should future retrieval benchmarks report only macro-averaged scores, or should they more explicitly group by task family, domain shift, and annotation bias profile?
-
-## Relevance to Agent Memory (LazyMem)
-
-- Warns against tuning retrieval choices on one corpus (LoCoMo) and expecting transfer; motivates held-out evaluation discipline.

@@ -25,10 +25,3 @@ tags: [paper, agent-memory, architecture, typed-memory]
 - Lightweight typed episodic, semantic, and procedural memory for conversational agents.
 - Part of the 2025-2026 wave of structured memory systems adding tiers, typed objects, and routing.
 
-## Local Files
-- PDF: [2511.12960-engram.pdf](../assets/lazymem-related-work/pdfs/2511.12960-engram.pdf)
-- Text: [2511.12960-engram.txt](../assets/lazymem-related-work/text/2511.12960-engram.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: architecture)
-
-## Relevance to LazyMem
-- Structured-memory comparison point; lossy structure should not become the only source of truth before future queries are known.

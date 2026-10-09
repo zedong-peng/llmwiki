@@ -25,10 +25,3 @@ tags: [paper, ir-foundation, late-interaction, reranking]
 - Retains token-level representations and uses late interaction, reducing the information bottleneck of a single pooled vector.
 - Strong reranking primitive used by raw-history systems (e.g. SmartSearch).
 
-## Local Files
-- PDF: [2004.12832-colbert.pdf](../assets/lazymem-related-work/pdfs/2004.12832-colbert.pdf)
-- Text: [2004.12832-colbert.txt](../assets/lazymem-related-work/text/2004.12832-colbert.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: ir-foundation)
-
-## Relevance to LazyMem
-- Conversational memory adds a second late-interaction level: scoring a session by its best-matching turn (max-turn) rather than pooling the whole session.

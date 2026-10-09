@@ -25,10 +25,3 @@ tags: [paper, agent-memory, benchmark, evaluation, memory-writing]
 - Isolates memory-writing quality from downstream retrieval and reader choices via a package-oracle protocol.
 - General lesson: if the claim is about write-time representation, evaluate what the representation preserved before attributing a final QA score to it.
 
-## Local Files
-- PDF: [2605.02199-memaudit.pdf](../assets/lazymem-related-work/pdfs/2605.02199-memaudit.pdf)
-- Text: [2605.02199-memaudit.txt](../assets/lazymem-related-work/text/2605.02199-memaudit.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: benchmark)
-
-## Relevance to LazyMem
-- Separates write-time preservation claims from retrieval/reader confounds — required discipline for LazyMem's raw-storage premise.

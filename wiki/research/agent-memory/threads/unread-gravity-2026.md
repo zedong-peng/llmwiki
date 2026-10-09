@@ -25,10 +25,3 @@ tags: [paper, agent-memory, architecture, structured-anchoring]
 - Generation-time relational, temporal, and topical anchoring, agnostic to the underlying memory architecture.
 - Adds structure at generation time rather than write time.
 
-## Local Files
-- PDF: [2605.01688-gravity.pdf](../assets/lazymem-related-work/pdfs/2605.01688-gravity.pdf)
-- Text: [2605.01688-gravity.txt](../assets/lazymem-related-work/text/2605.01688-gravity.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: architecture)
-
-## Relevance to LazyMem
-- Shows structure can be layered onto raw records without lossy write-time commitments — compatible with LazyMem's preservation contract.

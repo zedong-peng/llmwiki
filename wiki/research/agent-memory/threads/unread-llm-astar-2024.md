@@ -31,6 +31,3 @@ tags: [paper, search, heuristic, astar, planning, llm-as-heuristic]
 - Standard A* search framework.
 - Replace hand-crafted h(n) with LLM-generated estimate of cost-to-goal.
 - LLM uses world knowledge to estimate remaining path cost.
-
-## Relevance to LAzyMem
-Formal justification for the "LLM as heuristic" framing. In LAzyMem, the LLM acts as a heuristic by compiling questions into boolean predicates — estimating which keywords and speaker filters will locate the relevant conversation turns. See also: LLM Inference via Search Survey (TMLR 2025).

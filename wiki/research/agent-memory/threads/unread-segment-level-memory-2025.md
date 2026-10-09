@@ -31,6 +31,3 @@ tags: [paper, memory, segmentation, granularity, retrieval-unit]
 - Segment conversations into topically coherent units (neither turn-level nor session-level).
 - Use segments as retrieval units.
 - Segmentation can be done by topic shift detection or LLM-based segmentation.
-
-## Relevance to LAzyMem
-Retrieval unit granularity is a key design decision. LAzyMem uses individual conversation turns as retrieval units, which this paper suggests may be too fine. Segment-level units could improve LAzyMem's recall by matching boolean predicates against topically coherent chunks rather than single turns.

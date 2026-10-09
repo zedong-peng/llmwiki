@@ -24,10 +24,3 @@ tags: [paper, agent-memory, raw-retrieval, iterative, sufficiency]
 ## TL;DR
 - Memory-guided reflective iterative retrieval with sufficiency stopping.
 
-## Local Files
-- PDF: [2605.27437-mgretrieval.pdf](../assets/lazymem-related-work/pdfs/2605.27437-mgretrieval.pdf)
-- Text: [2605.27437-mgretrieval.txt](../assets/lazymem-related-work/text/2605.27437-mgretrieval.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: raw-retrieval)
-
-## Relevance to LazyMem
-- With EviMem and DeferMem, occupies the "test intermediate result, then retrieve again" space — conceptual collision with sufficiency-based escalation.

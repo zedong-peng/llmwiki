@@ -25,7 +25,7 @@ tags: [paper, misc, code-retrieval, swe-bench, software-engineering, benchmark, 
 ## TL;DR
 - SWE-bench is a benchmark for evaluating LLMs on resolving real-world GitHub issues by generating code patches.
 - The dataset contains 2,294 task instances from 12 popular Python repositories.
-- **File localization** — identifying which files need to be modified — is a critical sub-task and the most relevant aspect for the compiled retrieval project.
+- **File localization** — identifying which files need to be modified — is a critical sub-task.
 - SWE-bench Lite (300 instances) and SWE-bench Verified (500 instances) are curated subsets.
 
 ## Problem
@@ -33,12 +33,11 @@ tags: [paper, misc, code-retrieval, swe-bench, software-engineering, benchmark, 
 - Real software engineering requires understanding large codebases, finding relevant files, understanding context, and generating correct patches.
 - The retrieval/localization step is often the bottleneck — if you can't find the right files, you can't fix the bug.
 
-## Relevance to Compiled Retrieval Project
+## Retrieval Notes
 
 ### File Localization as Code Retrieval
 - Given an issue description, the agent must find which files (out of hundreds or thousands) need to be modified.
 - Issue descriptions often contain: error messages, function names, file paths, stack traces — all **lexical-faithful** signals.
-- This is a natural testbed for GrepQA-Code: LLM generates keyword predicates from the issue, grep over the codebase.
 
 ### Known Retrieval Approaches on SWE-bench
 | Method | Approach | Notes |
@@ -68,14 +67,12 @@ tags: [paper, misc, code-retrieval, swe-bench, software-engineering, benchmark, 
 - Most top-performing systems use some form of lexical search (grep, find) as part of their pipeline
 
 ## Open Questions
-- What is the exact file localization accuracy of pure GrepQA-style keyword search vs embedding-based retrieval?
 - How does the number of files in the repo affect the relative performance of lexical vs dense retrieval?
 - Can structured predicates (with file_pattern, language filters) outperform free-form LLM reasoning for localization?
 
 ## Next Steps
 - [ ] Download and read full paper (TeX or PDF)
 - [ ] Download SWE-bench Verified dataset
-- [ ] Implement GrepQA-Code file localization pipeline
 - [ ] Run comparison experiments
 
 ## Migration Reading Boundary

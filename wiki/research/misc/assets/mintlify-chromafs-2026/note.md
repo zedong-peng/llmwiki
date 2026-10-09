@@ -90,7 +90,3 @@ tags: [misc, blog, systems, retrieval, filesystem, chroma]
 - How well would ChromaFs scale to much larger or more heterogeneous documentation trees?
 - What answer-quality tradeoffs, if any, appear when filesystem semantics are approximated over a vector store?
 - How much of the reported speedup comes from the architectural shift versus caching and pre-indexing?
-
-## Relevance to Agent Memory (LazyMem)
-
-Conceptual precedent: LLM-generated executable search programs over structured data beat semantic search when the information has natural structure. LAzyMem applies the same principle to raw conversation turns via boolean predicates (must/should keywords + speaker filter), achieving F1 0.495 on LoCoMo-10 at 2,334 tokens/query.

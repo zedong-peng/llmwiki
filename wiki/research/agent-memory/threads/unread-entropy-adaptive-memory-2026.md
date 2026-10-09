@@ -33,9 +33,3 @@ tags: [paper, retrieval, adaptive, granularity, entropy, memory]
   - High entropy (uncertain/broad) → session-level or summary retrieval
   - Low entropy (specific/precise) → turn-level or keyword retrieval
 - Combines multiple granularity levels in a unified retrieval framework.
-
-## Relevance to LAzyMem
-Adaptive granularity is a potential extension for LAzyMem's predicate compilation:
-- High-entropy queries → broader must/should keyword sets
-- Low-entropy queries → tighter, more specific predicates
-- Entropy-based routing as a meta-heuristic for predicate complexity selection

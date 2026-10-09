@@ -140,17 +140,13 @@ codex exec --json "..."
 
 适合测试 Codex agent 行为，而不是普通 LLM QA。1540 个 QA 不应手动逐条开启；应写脚本循环/并发调用 `codex exec`，但并发建议从 2-4 开始，避免 CLI session/rate-limit 问题。若 QA 不需要本地 repo 上下文，直接用模型 API 或 Batch API 更合适；若目标是测 Codex CLI agent 的行为，则 `codex exec` 是正确入口。
 
-### Mem0 / Memobase / MemOS / GrepQA Prompt Difference
+### Mem0 / Memobase / MemOS Prompt Difference
 
 Mem0 和 Memobase 的 LoCoMo answer prompt 基本同源：长 prompt，强调 two-speaker memories、timestamps、contradiction 用 recent memory、relative time 转 absolute date，并要求答案少于 5-6 words；但同时包含 “Think step by step / show your work”，可能让答案变长或泄露推理。
 
 MemOS 的 LoCoMo answer prompt 更宽松：允许 synthesize across entries，并允许用 general world knowledge 解释 memory 中的信息。这会影响 open-domain 和 implicit reference 题，不能和更严格的 prompt 直接视为同一 answerer。
 
-GrepQA 是两段式：
-- retrieval prompt：`grepqa_v21` 用 LLM 生成 3 个 question-side JSON predicates，是方法本身的一部分。
-- answer prompt：`grepqa_v13` 是短 prompt，只允许基于 retrieved conversation turns 回答，要求用 session date 解析 relative time，并且不输出 full sentence / explanation。
-
-结论：如果要做 NeurIPS-level harness，应把 **retrieval prompt** 视为方法组成部分保留，但统一 **answer prompt / answer model / scoring / category filtering**。否则 prompt 差异会混入 retrieval 方法比较。
+结论：统一 harness 时应把 **retrieval prompt** 视为方法组成部分保留，但统一 **answer prompt / answer model / scoring / category filtering**。否则 prompt 差异会混入 retrieval 方法比较。
 
 推荐主表设置：
 
@@ -169,7 +165,7 @@ Return only the final short answer. Do not explain.
 
 ### EverMemOS / EverOS
 
-EverMemOS 需要作为 2026 年 5 月 NeurIPS 投稿的重要 baseline。其 repo 中 LoCoMo evaluation 明确报告 EverMemOS 在 LoCoMo 上约 92+ overall，并且 README 指向 2026 年初工作；审稿人很可能期待讨论或对比。
+EverMemOS 的 repo 中 LoCoMo evaluation 明确报告 EverMemOS 在 LoCoMo 上约 92+ overall，README 指向 2026 年初工作。
 
 EverMemOS answer prompt 很强，不是普通短答 prompt。它要求结构化 CoT：
 - relevant memories extraction
@@ -180,13 +176,11 @@ EverMemOS answer prompt 很强，不是普通短答 prompt。它要求结构化 
 - detail verification checklist
 - final answer extraction
 
-代码会切出 `FINAL ANSWER:` 后面的内容作为最终答案。因此 native EverMemOS 数字不应直接和 GrepQA short-answer prompt 数字混用。
+代码会切出 `FINAL ANSWER:` 后面的内容作为最终答案。因此 native EverMemOS 数字不应直接和短答 prompt 下的数字混用。
 
 EverMemOS retrieval 也强依赖 agentic prompt：
 - sufficiency check prompt：判断当前 docs 是否覆盖实体、start/end time、temporal relation。
 - multi-query generation prompt：强制 temporal boundary decomposition，生成 2-3 个 query，并包含 HyDE-style declarative query。
-
-这与 GrepQA v21 的 question-side multi-predicate 有相似动机，但 EverMemOS 是更重的 agentic multi-round retrieval。
 
 ### Zep LoCoMo Harness
 
@@ -215,7 +209,7 @@ repo 内已有实验 config 使用更强 retrieval：`edge_limit=30`, `node_limi
 
 Zep 官方 LoCoMo harness **不计算 F1、BLEU、ROUGE**。它的主指标是 LLM-judge accuracy，并额外报告 context completeness、latency、context token/char stats、category accuracy。因此表中如果出现 Zep F1，应该说明是用 saved `hypothesis` 和 `golden_answer` 后处理计算，不是 Zep 原 harness 原生指标。
 
-GrepQA 当前使用 `mem0_old_compatible` token F1：
+`mem0_old_compatible` token F1 的做法：
 - lower-case
 - punctuation 转空格
 - split token set
@@ -232,13 +226,13 @@ Mem0/Memobase old evaluation 的 F1 也是 set-token 风格，但依赖其 `metr
 
 2026-04-26 inspection of `wiki/research/agent-memory/papers/evermemos-2026/repo/EverMemOS_Eval_Results`:
 
-- The saved `answer_results.json` files contain `question`, `answer`, `golden_answer`, `category`, `conversation_id`, and formatted retrieved context. This is enough to recompute GrepQA-style token F1 and BLEU-1 without regenerating answers.
-- The saved `eval_results.json` files contain three boolean LLM judgments per question and an aggregate accuracy. This is enough to report EverMemOS-native LLM-as-judge accuracy, but not to prove exact equivalence to a rerun with GrepQA's judge client.
-- The judge prompts are effectively the same core prompt as GrepQA's `locomo/judge.py`: generous `CORRECT`/`WRONG` grading, same shell-necklace example, same relaxed date/time equivalence rule. Minor differences remain: EverMemOS uses a separate system prompt and asks for `{"label": ...}`, while GrepQA asks for JSON with `reasoning` and `label`.
+- The saved `answer_results.json` files contain `question`, `answer`, `golden_answer`, `category`, `conversation_id`, and formatted retrieved context. This is enough to recompute Mem0-compatible token F1 and BLEU-1 without regenerating answers.
+- The saved `eval_results.json` files contain three boolean LLM judgments per question and an aggregate accuracy. This is enough to report EverMemOS-native LLM-as-judge accuracy, but not to prove exact equivalence to a rerun with a different judge client.
+- The judge prompts use the common generous `CORRECT`/`WRONG` LoCoMo grading, with the shell-necklace example and relaxed date/time equivalence; EverMemOS uses a separate system prompt and asks for `{"label": ...}`.
 
-Offline re-score with GrepQA `mem0_old_compatible` token F1 and BLEU-1 over 1540 LoCoMo questions, no category 5 present:
+Offline re-score with `mem0_old_compatible` token F1 and BLEU-1 over 1540 LoCoMo questions, no category 5 present:
 
-| Saved run | Native LLM judge accuracy | GrepQA token F1 | GrepQA BLEU-1 |
+| Saved run | Native LLM judge accuracy | Token F1 | BLEU-1 |
 |---|---:|---:|---:|
 | EverMemOS | 92.32 | 16.41 | 9.01 |
 | Zep | 85.22 | 18.00 | 9.77 |
@@ -247,16 +241,6 @@ Offline re-score with GrepQA `mem0_old_compatible` token F1 and BLEU-1 over 1540
 | Mem0 | 64.20 | 41.31 | 34.87 |
 
 Interpretation: direct post-hoc F1/BLEU is mechanically possible, but it is a harsh short-answer precision metric. Verbose answer prompts like EverMemOS and Zep get penalized despite high LLM-judge correctness. These numbers should be labeled "post-hoc token metrics on native generated answers," not treated as an apples-to-apples unified-answerer comparison.
-
-### NeurIPS Harness Decision
-
-主张用 “decoupled retrieval and answer generation” 表述：
-
-> Each memory system constructs and retrieves its own memory context using its native retrieval mechanism. To avoid prompt-induced confounds, all retrieved contexts are passed to the same answer-generation prompt and evaluated with identical metrics.
-
-同时保留 native-prompt appendix，解释 Zep event_time prompt、EverMemOS CoT answer prompt、MemOS world-knowledge permission 等官方设置与统一设置的差异。
-
----
 
 ## 相关论文
 

@@ -31,23 +31,17 @@ tags: [paper, misc, code-retrieval, code-search, benchmark, codesearchnet]
 - Code search is a fundamental developer task but lacked a standardized benchmark.
 - Existing code search tools relied on keyword matching; the challenge was to evaluate semantic understanding.
 
-## Relevance to Compiled Retrieval Project
+## Retrieval Notes
 
-### Why Include
+### Baselines
 - Classic NL → code retrieval benchmark with established baselines.
 - Many dense retrieval models have been evaluated on it (CodeBERT, GraphCodeBERT, UniXcoder, StarCoder).
-- Provides a clean testbed for comparing GrepQA-Code keyword predicates vs code embeddings.
 
 ### Lexical Faithfulness Analysis
 - NL queries often contain function names, API names, or technical terms that appear verbatim in code.
 - Example: "sort a list of dictionaries by key" → code contains `sorted`, `dict`, `key`, `lambda`.
 - But some queries are more semantic: "find duplicates in an array" → code might use `set()` or `Counter`.
 - This makes CodeSearchNet a **mixed regime** — some queries are lexical-faithful, some are not.
-
-### GrepQA-Code Approach
-- LLM generates predicates from NL query: `{"must_keywords": ["sorted", "dict"], "should_keywords": ["key", "lambda", "list"]}`
-- Grep over function bodies + docstrings
-- Compare vs CodeBERT/UniXcoder embeddings
 
 ## Limitations
 - Annotations are noisy (docstring-based relevance, not human-judged).
@@ -56,7 +50,6 @@ tags: [paper, misc, code-retrieval, code-search, benchmark, codesearchnet]
 
 ## Open Questions
 - What fraction of CodeSearchNet queries are lexical-faithful vs paraphrastic?
-- Can GrepQA-Code beat code embeddings on the lexical-faithful subset?
 - Is CodeSearchNet too dated to be convincing for a 2026 paper?
 
 ## Next Steps

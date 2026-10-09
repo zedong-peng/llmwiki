@@ -31,6 +31,3 @@ tags: [paper, memory, summarization, knowledge-graph, compression]
 - Session-level summarization to compress conversation history.
 - Weighted knowledge graph to represent key facts and relationships.
 - Retrieval from both summaries and KG nodes.
-
-## Relevance to LAzyMem
-Demonstrates extreme compression is possible (115k → 400 tokens). LAzyMem takes the opposite design choice: store raw dialogue unchanged and rely on boolean predicate execution rather than compression. The tradeoff is storage vs. retrieval precision.

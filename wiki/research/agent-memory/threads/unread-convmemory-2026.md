@@ -24,10 +24,3 @@ tags: [paper, agent-memory, raw-retrieval, reranking, attribution]
 ## TL;DR
 - Low-cost fused lexical-dense reranking with attribution and conflict controls; includes an explicit negative attribution result.
 
-## Local Files
-- PDF: [2605.28062-convmemory.pdf](../assets/lazymem-related-work/pdfs/2605.28062-convmemory.pdf)
-- Text: [2605.28062-convmemory.txt](../assets/lazymem-related-work/text/2605.28062-convmemory.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: raw-retrieval)
-
-## Relevance to LazyMem
-- Lightweight reranking baseline for the ranking stage; precedent for publishing negative results in this space.

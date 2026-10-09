@@ -97,7 +97,3 @@ tags: [paper, misc, query-expansion, personalized-retrieval]
 - How well does PBR transfer to domains where user histories are short, noisy, or not semantically coherent?
 - Would a learned retriever or reranker reduce the need for manual threshold tuning in P-Anchor?
 - Can the pseudo utterance and pseudo reasoning generators be trained to reduce generation latency without losing personalized signal?
-
-## Relevance to Agent Memory (LazyMem)
-
-Conversation history as personalization signal for query generation is directly applicable to LoCoMo. LAzyMem leverages this differently: rather than expanding queries, it uses the question to compile speaker-filtered boolean predicates, treating the conversation as a structured corpus rather than a personalization signal.

@@ -16,8 +16,6 @@ Agent memory 领域的论文库与研究线程。
 
 ## Thread Directory
 
-- [[research/agent-memory/threads/2026-09-14-lazymem-arxiv-preparation|LazyMem arXiv 提交准备]] — 既有实验负结果论文、11 页 PDF、独立编译与数值复算提交包。
-- [[research/agent-memory/threads/2026-09-14-work-continuity-memory|长期 agent 的工作状态与失效机制]] — LazyMem 工作区审计、Hindsight 源码范围刷新、候选方案查新与证伪条件。
 - [Mem0 New Algorithm Benchmark Decision](threads/2026-04-23-mem0-new-algorithm-benchmark-decision.md)
 - [Benchmark Comparison Thread](threads/2026-04-25-benchmark-comparison-thread.md) — 各论文 baseline / benchmark / judge model 对比矩阵
 - locomo leadboard: https://www.wizwand.com/sota/long-term-memory-evaluation-on-locomo
@@ -30,8 +28,6 @@ Agent memory 领域的论文库与研究线程。
 
 - [Jev 相关工作通俗对照](threads/jev-related-work.md)：[LOTUS](../misc/assets/lotus-2025/note.md)、[UtilityQwen](assets/utilityqwen-2025/note.md)、[SCARLet](assets/scarlet-2025/note.md)、[OptiSet](assets/optiset-2026/note.md)。语义算子、证据效用与集合选择。
 
-- [LazyMem Related-Work Corpus](threads/lazymem-related-work.md) — 45 篇冻结 arXiv 语料 + 新颖性审计 + ResearchStudio 复核;结论:BM25-window 是当前最强默认,compiler 为被拒 ablation
-
 - [MemAgent](assets/memagent-2025/note.md) — existing paper reading and source archive.
 
 ### Agent Memory Architectures
@@ -42,17 +38,17 @@ Agent memory 领域的论文库与研究线程。
 | [Agentic Memory](assets/agemem-2026/note.md)                                             | 2026 | Arxiv   | Tool-driven memory control policy          | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | [ByteRover](assets/byterover-2026/note.md)                                               | 2026 | Arxiv   | LLM-curated hierarchical memory            | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | [Claude-Mem](assets/claude-mem-2026/note.md)                                             | 2026 | Repo    | Persistent coding-memory sidecar           | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| [ENGRAM](threads/unread-engram-2025.md)                                                     | 2025 | Arxiv   | Lightweight typed episodic/semantic/procedural memory | `stub` | LazyMem corpus |
+| [ENGRAM](threads/unread-engram-2025.md)                                                     | 2025 | Arxiv   | Lightweight typed episodic/semantic/procedural memory | `stub` |  |
 | [EverMemOS](assets/evermemos-2026/note.md)                                               | 2026 | Arxiv   | Self-organizing MemCell/MemScene memory OS | `processed` | https://github.com/EverMind-AI/EverOS/issues/56 paper里的token不是消耗token而是记忆有多少token<br>多个issure提到无法复现 https://github.com/EverMind-AI/EverOS/issues/41, https://github.com/EverMind-AI/EverOS/issues/73<br>                                                                                                                                                                                                                |
-| [GRAVITY](threads/unread-gravity-2026.md)                                                   | 2026 | Arxiv   | Generation-time relational/temporal/topical anchoring | `stub` | LazyMem corpus |
+| [GRAVITY](threads/unread-gravity-2026.md)                                                   | 2026 | Arxiv   | Generation-time relational/temporal/topical anchoring | `stub` |  |
 | [Hindsight](assets/hindsight-2025/note.md)                                               | 2025 | Arxiv   | Retain-recall-reflect memory pipeline      | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| [HingeMem](threads/unread-hingemem-2026.md)                                                 | 2026 | Arxiv   | Event boundaries + query-adaptive routing/depth | `stub` | LazyMem corpus |
+| [HingeMem](threads/unread-hingemem-2026.md)                                                 | 2026 | Arxiv   | Event boundaries + query-adaptive routing/depth | `stub` |  |
 | [Mem0 2025 paper + experiment code](assets/mem0-2025/note.md)                                                         | 2025 | Arxiv   | Production dialogue memory operations      | `processed` | Official historical evaluation/src/rag.py, 256-token k=2 RAG, and paper/code citations; newer memory-benchmarks prompts belong to the separate [Mem0 2026 reference](assets/mem0-2026/note.md)                                                                                                                                                                                                                                                               |
 | [MemGPT](assets/memgpt-letta-2023/note.md)                                               | 2023 | Arxiv   | Virtual-context memory hierarchy           | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Memory for Autonomous LLM Agents (原归档已移除) | 2026 | Arxiv   | Mechanisms and evaluation survey           | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | [Memobase](assets/memobase-2025/note.md)                                                 | 2025 | Repo    | Personalized agent memory platform         | `processed` | https://github.com/memodb-io/memobase/tree/main/docs/experiments/locomo-benchmark 结果对比表格引用的mem0的结果                                                                                                                                                                                                                                                                                                                      |
 | [MemOS](assets/memos-2026/note.md)                                                       | 2026 | Arxiv   | Unified agent-memory system framework      | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| [PRISM (Pareto-Efficient)](threads/unread-prism-memory-2026.md)                             | 2026 | Arxiv   | Intent-aware structured retrieval on a cost frontier | `stub` | LazyMem corpus;与 prism-2025 (Precision-Recall Iterative Selection) 同名不同文 |
+| [PRISM (Pareto-Efficient)](threads/unread-prism-memory-2026.md)                             | 2026 | Arxiv   | Intent-aware structured retrieval on a cost frontier | `stub` | 与 prism-2025 (Precision-Recall Iterative Selection) 同名不同文 |
 | [REMem](assets/remem-2026/note.md)                                                       | 2026 | Arxiv   | Episodic-memory reasoning for agents       | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | SALM Survey (原归档已移除)                                           | 2025 | Arxiv   | Human-inspired memory systems survey       | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | [Temporal Semantic Memory](assets/temporal-semantic-memory-2026/note.md)                 | 2026 | Arxiv   | Time-aware semantic memory layer           | `processed` |                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -92,9 +88,9 @@ Agent memory 领域的论文库与研究线程。
 | Paper | Year | Venue | Importance | Wiki Status |
 |---|---:|---|---|---|
 | [HyDE](threads/unread-hyde-2023.md) | 2023 | SIGIR | Hypothetical document embeddings for zero-shot dense retrieval | `stub` |
-| [Query2doc](threads/unread-query2doc-2023.md) | 2023 | EMNLP | LLM query expansion with pseudo-documents; adjacent to LazyMem predicate compilation | `stub` |
-| RAG-Fusion（原归档已移除） | 2023 | Blog | Multi-query generation + Reciprocal Rank Fusion — closest prior to LAzyMem | `stub` |
-| [MemoRAG](../misc/assets/memorag-2025/note.md) | 2025 | WWW | Global memory model generates clue drafts as retrieval queries — closest published work to LAzyMem | `stub` |
+| [Query2doc](threads/unread-query2doc-2023.md) | 2023 | EMNLP | LLM query expansion with pseudo-documents | `stub` |
+| RAG-Fusion（原归档已移除） | 2023 | Blog | Multi-query generation + Reciprocal Rank Fusion | `stub` |
+| [MemoRAG](../misc/assets/memorag-2025/note.md) | 2025 | WWW | Global memory model generates clue drafts as retrieval queries | `stub` |
 | [AutoBool](../misc/assets/autobool-2026/note.md) | 2026 | Arxiv | RL-trained LLM for Boolean query generation (literature retrieval) | `stub` |
 | [PRISM](../misc/assets/prism-2025/note.md) | 2025 | Arxiv (withdrawn ICLR 2026) | Precision-recall iterative selection; Prune-and-Recover loop | `stub` |
 | [Collab-RAG](threads/unread-collab-rag-2025.md) | 2025 | Arxiv | Fine-tuned 3B SLM decomposer outperforms frozen 32B LLM | `stub` |
@@ -130,16 +126,16 @@ Agent memory 领域的论文库与研究线程。
 | [Entropy-Based Adaptive Memory](threads/unread-entropy-adaptive-memory-2026.md) | 2026 | ICLR | Entropy router selects retrieval granularity per query | `stub` |
 | [Memoria](threads/unread-memoria-2025.md) | 2025 | Arxiv | Session summarization + weighted KG; 115k→400 tokens, 87.1% accuracy | `stub` |
 | [Personalize Before Retrieve](../misc/assets/personalize-before-retrieve-2025/note.md) | 2025 | Arxiv | User-specific query expansion injecting history/preferences/persona | `stub` |
-| [Mintlify ChromaFs](../misc/assets/mintlify-chromafs-2026/note.md) | 2026 | Blog | Virtual filesystem for LLM retrieval; 460x speedup; direct LAzyMem inspiration | `stub` |
+| [Mintlify ChromaFs](../misc/assets/mintlify-chromafs-2026/note.md) | 2026 | Blog | Virtual filesystem for LLM retrieval; 460x speedup | `stub` |
 
-### Raw-History Retrieval & Adaptive Routing (LazyMem Corpus)
+### Raw-History Retrieval & Adaptive Routing
 
-来自 [LazyMem Related-Work Corpus](threads/lazymem-related-work.md) 的 raw-retrieval 类论文,均为 `stub`。
+以下均为未读 `stub`。
 
 | Paper | Year | Venue | Importance | Wiki Status |
 |---|---:|---|---|---|
 | [SmartSearch](threads/unread-smartsearch-2026.md) | 2026 | Arxiv | Raw deterministic recall + learned rank fusion; ranking beats structure | `stub` |
-| [AgentIR](threads/unread-agentir-2026.md) | 2026 | Arxiv | BM25-margin cascade skipping dense retrieval — Level 1 collision with LazyMem | `stub` |
+| [AgentIR](threads/unread-agentir-2026.md) | 2026 | Arxiv | BM25-margin cascade skipping dense retrieval | `stub` |
 | [Lexical-Dense Fusion](threads/unread-lexical-dense-fusion-2026.md) | 2026 | Arxiv | Controlled BM25 + max-turn dense fusion; +11.2 Hit@1 on LoCoMo | `stub` |
 | [Back to Basics (Nano-Memory)](threads/unread-back-to-basics-2026.md) | 2026 | Arxiv | Turn Isolation Retrieval + Query-Driven Pruning | `stub` |
 | [SelRoute](threads/unread-selroute-2026.md) | 2026 | Arxiv | Query-type routing among lexical/semantic/hybrid/enriched pipelines | `stub` |

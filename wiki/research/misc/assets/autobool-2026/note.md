@@ -96,7 +96,3 @@ tags: [paper, misc, reinforcement-learning, boolean-query-generation, systematic
 - How far does the approach transfer beyond PubMed-style biomedical systematic reviews?
 - Can the recall advantage survive training on larger backbones without the stability issues seen in LLaMA3.1?
 - Which reward variant would be preferred if downstream screening cost were explicitly priced into the objective?
-
-## Relevance to Agent Memory (LazyMem)
-
-Key prior art for LAzyMem's boolean predicate approach. Demonstrates that LLM-generated executable Boolean queries are a viable retrieval direction. LAzyMem extends this to long-conversation memory QA (LoCoMo-10, F1 0.495) using zero-shot prompting rather than RL training, and targets exact string matching over raw dialogue rather than literature retrieval.

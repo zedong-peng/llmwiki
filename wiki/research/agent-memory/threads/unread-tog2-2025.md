@@ -33,6 +33,3 @@ tags: [paper, retrieval, knowledge-graph, beam-search, multi-source]
 3. At each node, also retrieve unstructured text passages.
 4. LLM scores and prunes the beam.
 5. Aggregate evidence from both KG and text.
-
-## Relevance to LAzyMem
-Formal vocabulary: graph traversal as beam search = LLM-guided heuristic search. LAzyMem takes a simpler approach — compiling questions into boolean predicates for exact string matching — but the LLM-as-planner framing is shared. Multi-source retrieval (KG + text) contrasts with LAzyMem's raw-dialogue-only storage.

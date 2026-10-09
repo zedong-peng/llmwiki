@@ -25,10 +25,3 @@ tags: [paper, agent-memory, raw-retrieval, minimal-architecture]
 - Nano-Memory: minimal retrieval-generation architecture over unstructured memory.
 - Attacks two sources of signal sparsity: Turn Isolation Retrieval scores a session by its best-matching turn (vs averaging a long session); Query-Driven Pruning removes conversational padding before answering.
 
-## Local Files
-- PDF: [2604.11628-back-to-basics.pdf](../assets/lazymem-related-work/pdfs/2604.11628-back-to-basics.pdf)
-- Text: [2604.11628-back-to-basics.txt](../assets/lazymem-related-work/text/2604.11628-back-to-basics.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: raw-retrieval)
-
-## Relevance to LazyMem
-- Consumes the "minimal raw memory beats complex memory" claim from a retrieval perspective; its max-turn scoring is a simple instance of turn-level late interaction.

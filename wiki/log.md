@@ -9,6 +9,11 @@ tags: [log]
 
 # Super Personal Wiki Log
 
+## [2026-10-09] cleanup | Removed unpublished project material
+
+- Removed two unpublished projects at the user's request: their threads, related-work corpus and paper plan, plus project-specific relevance sections in reference notes, unread stubs and indexes. Public-paper stubs and notes remain.
+- Moved 31 corpus PDFs into the matching `assets/<slug>/paper-pdf/`; references that already had a PDF kept theirs. Git history still contains the removed material.
+
 ## [2026-10-09] cleanup | Removed local engineering records from reference assets
 
 - Deleted `research/llm-inference/assets/g4090-agent-tools-2026` and `research/llm-inference/assets/g4090-qwen38-benchmark-2026` at the user's request: local tool installation and benchmark records are not reference literature.
@@ -59,7 +64,7 @@ tags: [log]
 ## [2026-10-07] research | Unified all references under the canonical assets/ layout
 
 - Migrated 237 legacy `papers/<slug>/` references (and 18 loose research-taste notes) to `assets/<slug>/{paper-pdf,paper-tex,github-repo}` with `scripts/migrate_legacy.py`; metadata rewritten to schema v1, old fields kept under `legacy:`; 130 files of inbound links rewritten. Loose `source/source.bin` copies removed only where byte-identical to `source/archives/`.
-- Merged 11 slugs that existed in both agent-memory and misc into the misc copy (agent-memory kept its "Relevance to LazyMem" section there).
+- Merged 11 slugs that existed in both agent-memory and misc into the misc copy.
 - Note frontmatter `status` is now page-only (`seed|active|stable|stale`); ingest progress lives in `metadata.yaml`.
 - Removed `papers/index.md` guides (old layout docs), `paper-ingest-protocol.skills.md` (superseded by the skill), `research/log.md` (folded into this file), and the dead `sources/` and `inbox/` references. Moved `allinone.md` over its trimmed copy in `llm-inference/threads/`, Karpathy files to `wiki/projects/karpathy-llm-wiki.md`, FPGA paper ledger to `fpga-llm-inference/threads/paper-library/`.
 - `paper-tex/archives/` is now ignored consistently (22 tracked ones untracked; history keeps them). Broken wikilinks 142 → 3 (submodule `dlm`, one false positive, historical log entries).
@@ -250,7 +255,6 @@ tags: [log]
 ## [2026-04-19] threads | Added `misc/threads` for durable session records
 
 - Added `wiki/research/misc/threads/index.md` as the entry page for conversation-driven research threads that should be preserved separately from formal paper notes.
-- Added `wiki/research/misc/threads/2026-04-19-compiled-lexical-retrieval-and-rag-benchmarks.md` to summarize the current discussion around `grepqa`, BM25 vs grep, CoT reasoning queries, dense retrieval, and benchmark choices such as BRIGHT / CORAL / RAGChecker.
 - Updated `wiki/research/misc/index.md` so the Thread Directory now links to the new session-record area.
 
 ## [2026-04-19] docs | Restored a `papers/` structure guide under `misc`
@@ -350,8 +354,7 @@ tags: [log]
 ## [2026-04-26] synth | Re-scored EverMemOS saved LoCoMo outputs
 
 - Updated `wiki/research/agent-memory/threads/2026-04-25-benchmark-comparison-thread.md` with an inspection of `EverMemOS_Eval_Results`.
-- Confirmed the saved answer files are enough for offline GrepQA-style F1/BLEU-1 post-processing, while saved judge files should be reported as EverMemOS-native LLM judge accuracy.
-- Recorded that EverMemOS and GrepQA use effectively the same generous LoCoMo judge prompt, with only minor output-format and system-prompt differences.
+- Confirmed the saved answer files are enough for offline token F1/BLEU-1 post-processing, while saved judge files should be reported as EverMemOS-native LLM judge accuracy.
 - Added the post-hoc metric table showing that verbose native answers can have high LLM-judge accuracy but low token F1/BLEU-1, so these numbers should not replace a unified-answerer comparison.
 
 ## [2026-04-21] ingest | Parallelized processed notes for linear-attention bibliography
@@ -394,13 +397,6 @@ tags: [log]
 - Moved the linear-attention paper set from `wiki/research/misc/papers/` into `wiki/research/linear-attention/papers/`, preserving each paper directory's PDFs, source trees, metadata, and repos.
 - Moved the two linear-attention research threads and their local benchmark figures into `wiki/research/linear-attention/threads/`.
 - Updated root and research indexes so the new area is reachable, and removed the migrated entries from `misc` navigation.
-
-## [2026-07-27] ingest | Normalized lazymem-related-work corpus into agent-memory structure
-
-- Kept `wiki/research/agent-memory/papers/lazymem-related-work/` as a frozen 45-PDF corpus (SHA256SUMS untouched) and added a wiki-conformant `index.md` (type: synthesis) summarizing the novelty audit, ResearchStudio rerun, and corpus catalog.
-- Created 31 new `stub` paper pages under `wiki/research/agent-memory/papers/` for corpus papers previously absent from the wiki, each linking the corpus-local PDF/text: benchmarks (memtrace-2026, memops-2026, rumba-2026, budgeted-context-restoration-2026, memaudit-2026), architectures (engram-2025, hingemem-2026, prism-memory-2026, gravity-2026), raw-retrieval (smartsearch-2026, agentir-2026, lexical-dense-fusion-2026, back-to-basics-2026, selroute-2026, evimem-2026, tiermem-2026, fidelity-before-structure-2026, event-memory-baseline-2025, defermem-2026, mgretrieval-2026, eywa-2026, convmemory-2026, ear-2026, training-free-control-2026, recursive-language-models-2025), IR foundations (dpr-2020, colbert-2020, splade-v2-2021, beir-2021), query transformation (query2doc-2023), adaptive retrieval (flare-2023).
-- Named `prism-memory-2026` to avoid collision with the existing `prism-2025` (same name, different paper); cross-linked both pages. Cross-linked beir-2021 and recursive-language-models-2025 stubs to their fuller notes under `research/misc/papers/`.
-- Updated `wiki/research/agent-memory/index.md`: new "Corpora & Syntheses" entry, new "Raw-History Retrieval & Adaptive Routing (LazyMem Corpus)" and "IR Foundations" sections, and rows for the new benchmark/architecture/query/adaptive papers.
 
 ## [2026-09-07] ingest | Added Vitis AI DPU, FINN and PYNQ references for FPGA inference
 
@@ -521,20 +517,9 @@ tags: [log]
 - Replaced the manuscript's Multi-model evaluation feature with Model-file deployment and kept its full definition below the table. Reassessed marks, preserved auto-mapping credit, and made the planned GGUF flow explicit about unchanged deployment code within declared support bounds. Synchronized the blog and [[research/fpga-llm-inference/index|area index §Evidence Matrix]].
 - Rechecked FlightLLM's paper, official Zenodo record and cached artifact README: automatic graph parsing is reported, while new public hardware cases require the authors' environment. Recorded this boundary in [[research/fpga-llm-inference/assets/flightllm-2024/index]] without asserting a two-model hardware limit. Credited SECDA's inspected model-file entry within MatMul offload support, distinct from the planned automatic hardware build.
 
-## [2026-09-14] synthesis | Long-agent work continuity and memory invalidation
-
-- Added a research synthesis connecting the GrepQA/LazyMem code and saved-result audit to long-running workspace memory. Verified Hindsight source deletion, tag-scoped staleness and mental-model refresh at a recorded local commit; separated paper and later implementation evidence.
-- Recorded strong prior-art overlap, the narrower untested tool-footprint hypothesis, simple baselines and kill conditions. Linked the full 29-record audit; retained failed-search and unavailable-fulltext limitations. No new model or training experiment was run. Updated root and agent-memory indexes.
-
-## [2026-09-14] paper | Prepared LazyMem arXiv source package
-
-- Reworked the existing LazyMem manuscript as a scoped raw-text baseline and negative query-compilation result; author confirmed as Zedong Peng without affiliation. Kept historical development-set/protocol limitations, corrected citations and separated the historical direct baseline from the later SDK.
-- Froze 3,080 numerical rows from 1,540 paired questions with input hashes; generated category/conversation/cost/support analyses and a vector figure. No new model or benchmark calls.
-- Produced an 11-page PDF and an allowlisted arXiv source package in the existing paper directory. Extracted-source pdfLaTeX compilation and standalone numeric reproduction passed with no TeX warnings or overflow. Added wiki delivery links; no upload, Git commit or push.
-
 ## [2026-09-14] sync | Merged local and fpga-tailscale wiki updates
 
-- Preserved local LazyMem/arXiv and long-agent memory notes in commit `13986ec`, and server CODO execution/timing and FlightLLM deployment notes in commit `40e8210`, before merging both histories and log entries.
+- Preserved local notes in commit `13986ec`, and server CODO execution/timing and FlightLLM deployment notes in commit `40e8210`, before merging both histories and log entries.
 - Retained the canonical FPGA layout, retargeted links to folded pages, and reconciled the historical Model-file deployment name with the current New-model entry label.
 
 ## [2026-09-14] ingest | LLM inference foundational paper archive
@@ -563,7 +548,6 @@ tags: [log]
 - Archived seven v1 source/PDF pairs with safe extraction and SHA-256; completed IMAX and GDN full TeX reading and formal notes. Five peripheral papers remain explicitly unread, outside verified comparisons.
 - Inspected pinned IMAX official implementation: CPU MatMul offload, not established independent device registration; separated ASIC projection from FPGA measurement. GDN single-layer HLS estimates are not board E2E. Updated topic and main navigation. Preserved pre-existing duplicate legacy PDF cache; no migration, execution, commit or push.
 
-
 ## [2026-09-17] ingest | Dream-RSI and misc self-improvement grouping
 
 - Identified Dream-RSI, arXiv:2609.14858v1 (2026-09-14), from Google/Google DeepMind/UMD/UVA. Read active TeX main text, figures/tables, task appendix, prompts, bibliography and included Lasso solver; archived source/PDF with hashes and safe extraction.
@@ -581,7 +565,6 @@ tags: [log]
 
 - 2026-09-20: Separated Mem0 citation identities: 2025 paper + official historical experiment/RAG code versus 2026 technical article + SDK + independent evaluator. Added separate citations.bib files, corrected legacy benchmark-cache ownership in both notes/metadata, and updated navigation. Preserved existing archive paths; no migration or inference.
 
-
 ## 2026-09-22 — Jev / System One 官方博客与检索文档
 
 - 新增 [[research/agent-memory/assets/jev-system-one-2026/index]]：阅读 2026-09-15 发布博客、当前 1.13 文档与 1.12 检索 cookbook，归档原文及校验信息。
@@ -597,7 +580,6 @@ tags: [log]
 - Corrected FlightLLM: its Fig. 1 prints U280 ~55 token/s. Ran the Zenodo U280 package on fpga-epcc card 5e (XRT 2.14 via an LD_PRELOAD shim): one decode step per case, 17.50 ms at KV 128 (57.1 token/s) and 18.99 ms at KV 512 (52.7 token/s); golden outputs match. The model is inferred to be LLaMA2-7B from instruction constants.
 - The public FlightLLM code runs only prepared single-step cases; no frontend, packer or U280 compile flow, so it cannot deploy another model. The profile end-to-end time is composed from per-step times.
 - IMAX3-LLM repo: README build steps do not match the tree; no bitstream or IMAX compiler; the paper gives no token/s. Card 86 was already in a hot-reset-required state.
-
 
 ## [2026-10-01] research + deployment | Qwen3.8-27B on RTX 4090
 
@@ -724,8 +706,6 @@ TODO:
 - [ ] Read SQUINT to determine exact differentiation
 - [ ] Decide: memory domain vs general IR framing
 - [ ] If VLDB/CIDR: add cost/latency analysis (embedding cost vs LLM grep token cost)
-
-
 
 Full sweep of `agent-memory-locomo/research/survey.md` (39 papers, 16 sections). Synchronized all wiki pages with latest survey content.
 

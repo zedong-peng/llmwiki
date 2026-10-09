@@ -24,10 +24,3 @@ tags: [paper, adaptive-retrieval, uncertainty, active-retrieval]
 ## TL;DR
 - Triggers retrieval from generation-time uncertainty: retrieve when the model is about to generate low-confidence content.
 
-## Local Files
-- PDF: [2305.06983-flare.pdf](../assets/lazymem-related-work/pdfs/2305.06983-flare.pdf)
-- Text: [2305.06983-flare.txt](../assets/lazymem-related-work/text/2305.06983-flare.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: adaptive-retrieval)
-
-## Relevance to LazyMem
-- With Self-RAG and IRCoT, defines the adaptive-RAG lineage a LazyMem cascade belongs to and must cite.

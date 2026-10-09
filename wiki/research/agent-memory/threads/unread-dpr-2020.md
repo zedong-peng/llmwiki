@@ -25,10 +25,3 @@ tags: [paper, ir-foundation, dense-retrieval, dual-encoder]
 - Establishes learned dual-encoder dense retrieval: query and passage vectors make semantic matching efficient but compress each unit into a single vector.
 - Canonical dense retrieval baseline.
 
-## Local Files
-- PDF: [2004.04906-dpr.pdf](../assets/lazymem-related-work/pdfs/2004.04906-dpr.pdf)
-- Text: [2004.04906-dpr.txt](../assets/lazymem-related-work/text/2004.04906-dpr.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: ir-foundation)
-
-## Relevance to LazyMem
-- Defines the dense channel that any BM25-first cascade would conditionally invoke.

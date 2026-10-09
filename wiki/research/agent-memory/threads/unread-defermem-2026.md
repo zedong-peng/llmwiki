@@ -25,10 +25,3 @@ tags: [paper, agent-memory, raw-retrieval, evidence-distillation, rl]
 - High-recall raw retrieval followed by learned query-conditioned evidence distillation.
 - Defers evidence selection to query time instead of committing at write time.
 
-## Local Files
-- PDF: [2605.22411-defermem.pdf](../assets/lazymem-related-work/pdfs/2605.22411-defermem.pdf)
-- Text: [2605.22411-defermem.txt](../assets/lazymem-related-work/text/2605.22411-defermem.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: raw-retrieval)
-
-## Relevance to LazyMem
-- Occupies the "retrieve broadly, then distill" corner of the rank/pack space; crowds the ranking-and-truncation claim.

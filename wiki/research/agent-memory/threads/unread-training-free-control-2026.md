@@ -25,10 +25,3 @@ tags: [paper, agent-memory, raw-retrieval, control, selective-acceptance]
 - Asks whether retrieved memory should be applied at all: separates routing, selective acceptance, bank choice, rollback, and retirement under compute-matched controls.
 - Main gains on arithmetic rather than conversational memory — not a direct benchmark competitor.
 
-## Local Files
-- PDF: [2604.18206-training-free-control.pdf](../assets/lazymem-related-work/pdfs/2604.18206-training-free-control.pdf)
-- Text: [2604.18206-training-free-control.txt](../assets/lazymem-related-work/text/2604.18206-training-free-control.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: raw-retrieval)
-
-## Relevance to LazyMem
-- Exposes a missing counterfactual in most memory studies: a retrieval can be relevant and still harm the answer. Retrieval is not the only control point.

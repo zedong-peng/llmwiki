@@ -126,7 +126,3 @@ tags: [paper, misc, self-rag, rag, reflection-tokens]
 - Would stronger retrievers or joint retriever-LM training change the balance between citation quality and fluency?
 - How stable are the reflection-token behaviors when moved to newer base models or domains outside the paper's training mix?
 - Can the same approach scale cleanly to longer-form generation where support checking is more complex than sentence-level critique?
-
-## Relevance to Agent Memory (LazyMem)
-
-Key baseline for adaptive retrieval. Training-required approach vs LAzyMem's zero-shot prompting. Demonstrates that adaptive retrieval decisions can be learned; LAzyMem achieves retrieval selectivity through boolean predicate compilation rather than fine-tuned special tokens.

@@ -26,11 +26,3 @@ tags: [paper, agent-memory, raw-retrieval, cascade, bm25, adaptive-retrieval]
 - LongMemEval (500-question): skips dense retrieval for 63% of queries at parity LLM-judged accuracy, 2.67x speedup; per-question-type thresholds reach 5.76x.
 - LoCoMo: trigger chooses 100% skip rate, +0.089 Hit@5 over the dense path at a 132x latency ratio.
 
-## Local Files
-- PDF: [2605.25092-agentir.pdf](../assets/lazymem-related-work/pdfs/2605.25092-agentir.pdf)
-- Text: [2605.25092-agentir.txt](../assets/lazymem-related-work/text/2605.25092-agentir.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: raw-retrieval)
-
-## Relevance to LazyMem
-- **Level 1 direct collision** (ResearchStudio scoop audit): a confidence-triggered BM25-to-dense cascade with workload retuning already exists in the same domain.
-- The generic "BM25 first, semantic retrieval only when useful" claim is not available to LazyMem; any gate must beat AgentIR-style retrieval-margin gating.

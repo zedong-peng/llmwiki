@@ -100,7 +100,3 @@ tags: [paper, misc, long-context, rag, memory, processed]
 - Would the same pipeline hold up with a different generator than Phi-3-mini-128K-instruct?
 - How much performance is lost if the compression ratio is pushed beyond the tested range?
 - The local repo folder is empty, so the implementation is not cross-checked against code here.
-
-## Relevance to Agent Memory (LazyMem)
-
-**Closest published work** in spirit. Both use LLM-generated intermediate representations as retrieval queries. Key differentiators: LAzyMem uses zero-shot prompting (no training), targets exact string matching over raw dialogue (not embedding similarity), and is evaluated on LoCoMo-10 (F1 0.495, beating Mem0 by 9.5pp and dense RAG by 3.4pp).

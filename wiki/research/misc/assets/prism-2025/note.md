@@ -125,9 +125,3 @@ tags: [paper, misc, prism, agentic-retrieval, multi-hop-qa]
 - How much of the gain comes from decomposition versus selection versus addition?
 - Would a smaller open model preserve the same retrieval gains across all datasets?
 - What parts of PRISM transfer best to domain-specific corpora with different evidence structure?
-
-## Relevance to Agent Memory (LazyMem)
-
-- Precision-recall split maps onto LoCoMo categories: Cat 1/2 = precision, Cat 3 = recall.
-- Not a published competitor — safe to cite as concurrent unpublished work.
-- Ablation methodology (FAIR-RAG style) directly usable for LoCoMo experiments with LAzyMem.

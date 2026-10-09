@@ -25,10 +25,3 @@ tags: [paper, agent-memory, benchmark, multilingual]
 - Multilingual diagnostic benchmark with temporal and session-scope factors.
 - Highlights a likely weakness of exact lexical predicates: morphology, transliteration, and lexical variation change the relative strength of BM25, character/subword retrieval, and dense models.
 
-## Local Files
-- PDF: [2607.21447-rumba.pdf](../assets/lazymem-related-work/pdfs/2607.21447-rumba.pdf)
-- Text: [2607.21447-rumba.txt](../assets/lazymem-related-work/text/2607.21447-rumba.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: benchmark)
-
-## Relevance to LazyMem
-- Tests whether BM25-first designs transfer to morphologically rich languages.

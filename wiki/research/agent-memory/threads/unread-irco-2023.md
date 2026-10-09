@@ -33,6 +33,3 @@ tags: [paper, retrieval, iterative, chain-of-thought, multi-hop]
 3. Retrieve relevant passages.
 4. Continue CoT with retrieved context.
 5. Repeat until answer is generated.
-
-## Relevance to LAzyMem
-Key baseline for iterative retrieval. PRISM (arXiv 2510.14278) extends IRCoT with precision-recall split. LAzyMem takes a different approach: instead of sequential CoT-driven retrieval, it compiles questions into boolean predicates executed via exact string matching over raw conversation turns.

@@ -27,10 +27,3 @@ tags: [paper, agent-memory, raw-retrieval, bm25, dense, fusion]
 - LongMemEval-S: BM25 saturates the lexical regime; net fusion gain small and non-significant — the conditional-value pattern a lazy system must model.
 - Negative result: adding an off-the-shelf MS MARCO cross-encoder to fused top-10 drops Hit@1 0.701 → 0.633.
 
-## Local Files
-- PDF: [2606.04194-lexical-dense-fusion.pdf](../assets/lazymem-related-work/pdfs/2606.04194-lexical-dense-fusion.pdf)
-- Text: [2606.04194-lexical-dense-fusion.txt](../assets/lazymem-related-work/text/2606.04194-lexical-dense-fusion.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: raw-retrieval)
-
-## Relevance to LazyMem
-- Strongest direct control for a simple LazyMem redesign; defines the B4 hybrid baseline any new mechanism must survive.

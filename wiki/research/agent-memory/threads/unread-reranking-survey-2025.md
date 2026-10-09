@@ -25,6 +25,3 @@ tags: [paper, survey, reranking, llm-as-ranker, zero-shot]
 ## TL;DR
 - LLMs as zero-shot listwise rankers outperform prior supervised methods.
 - LLM-as-ranker = heuristic-search view of retrieval.
-
-## Relevance to LAzyMem
-Supports the LLM-as-heuristic framing: if LLMs can outperform supervised rankers zero-shot, they can also compile better boolean predicates zero-shot. Relevant as a potential post-processing step for LAzyMem: reranking exact-match results before passing to the answer LLM.

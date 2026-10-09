@@ -104,7 +104,6 @@ tags: [paper, misc, retrieval, benchmark, reasoning-intensive-retrieval, bright]
 ## Takeaways
 - BRIGHT is already direct evidence that "LLM-generated intermediate retrieval queries" is a serious line of work, not just a quirky memory-specific trick.
 - For the current project, the most relevant gap is not whether reasoning helps BM25 at all; BRIGHT has already shown that. The open gap is whether structured lexical programs or keyword predicates can outperform free-form reasoning traces on the same benchmark.
-- This makes BRIGHT one of the strongest external benchmarks for testing whether compiled lexical retrieval generalizes beyond memory tasks.
 
 ## Open Questions
 - Does a structured keyword / boolean / operator program beat BRIGHT's current free-form reasoning-query setup?

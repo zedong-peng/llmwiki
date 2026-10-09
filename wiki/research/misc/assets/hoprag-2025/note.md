@@ -109,7 +109,3 @@ Additional extracted scores worth keeping:
 - Can traversal be made cheaper without sacrificing the benefits of multi-hop reasoning?
 - How well does HopRAG transfer to non-QA tasks or much larger corpora?
 - Would a learned helpfulness scorer outperform the current heuristic pruning rule?
-
-## Relevance to Agent Memory (LazyMem)
-
-LoCoMo Cat 3 (multi-hop) requires logical relevance beyond semantic similarity. HopRAG's graph traversal approach contrasts with LAzyMem's boolean predicate strategy: LAzyMem handles multi-hop by decomposing questions into must/should keyword predicates rather than graph traversal.

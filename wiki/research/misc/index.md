@@ -18,9 +18,6 @@ tags: [research, misc, papers, index]
 
 - [BEIR Related Paper Search](threads/2026-04-19-beir-related-paper-search.md)
 - [BEIR Current SOTA Snapshot](threads/2026-04-19-beir-current-sota-snapshot.md)
-- [Compiled Lexical Retrieval and RAG Benchmarks](threads/2026-04-19-compiled-lexical-retrieval-and-rag-benchmarks.md)
-- [Compiled Retrieval NeurIPS Paper Plan](threads/2026-04-20-compiled-retrieval-nips-paper-plan.md)
-- [Code Retrieval Benchmarks Survey](threads/2026-04-20-code-retrieval-benchmarks-survey.md)
 - [Cursor Blog Reading Notes](threads/2026-04-19-cursor-blog-reading-notes.md)
 - [LLM Leaderboard Resources](threads/2026-04-25-llm-leaderboard-resources.md)
 - [Dream-RSI Search](threads/2026-09-17-dream-rsi-search.md)
@@ -36,7 +33,6 @@ tags: [research, misc, papers, index]
 关键判断需尽量带本地文献锚点，优先链接 `assets/<slug>/note.md` 或相关线程。尤其是已有工作、benchmark 有效性或局限、venue framing 等判断，应说明对应参考。论文尚未归档时，先标记“待 ingest”，再按 llmwiki skill 的 `scaffold-template.md` 补齐正式笔记；线程虽非正式 survey，也应避免大段无出处的 literature claims。
 
 ## Paper Directory
-
 
 ### Retrieval-Augmented Generation And Retrieval Reasoning
 
@@ -114,7 +110,6 @@ tags: [research, misc, papers, index]
 | Paper                                             | Year | Venue | Importance                          | Wiki Status |
 | ------------------------------------------------- | ---: | ----- | ----------------------------------- | ----------- |
 | [In-Place TTT](assets/in-place-ttt-2026/note.md) | 2026 | ICLR  | Fast-weight long-context adaptation | `processed` |
-
 
 ### Self-Improving Agents and Harness Optimization
 

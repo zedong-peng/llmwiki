@@ -46,9 +46,6 @@ tags: [index]
 - [[research/fpga-llm-inference/index|FPGA LLM 证据矩阵]]：对照谓词与行判（New-model entry、Resident exec.、E2E、公开 artifact）。
 - [[research/fpga-llm-inference/index|KV-cache 边界]]：K/V 计算、持久状态、KV 优化三层区分与执行对象决定指标。
 
-- [[research/agent-memory/threads/2026-09-14-lazymem-arxiv-preparation|LazyMem 论文提交包]]：既有实验的负结果、11 页 PDF 与独立复算（2026-09-14）。
-- [[research/agent-memory/threads/2026-09-14-work-continuity-memory|长期 agent memory 调查]]：工作状态、范围依赖与 Hindsight 源码重叠核查（2026-09-14）。
-
 ## Operating Files
 
 | File | Purpose |

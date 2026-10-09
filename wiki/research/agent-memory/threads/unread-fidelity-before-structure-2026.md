@@ -26,10 +26,3 @@ tags: [paper, agent-memory, raw-retrieval, verbatim, controlled-study]
 - Verbatim wins by 15.9 accuracy points on LoCoMo (43.9 vs 28.0) and 22.0 points on LongMemEval-S (67.4 vs 45.4); artifact-union does not close the gap.
 - Conclusion is deliberately narrow: structure should augment verbatim evidence, not replace it.
 
-## Local Files
-- PDF: [2601.00821-fidelity-before-structure.pdf](../assets/lazymem-related-work/pdfs/2601.00821-fidelity-before-structure.pdf)
-- Text: [2601.00821-fidelity-before-structure.txt](../assets/lazymem-related-work/text/2601.00821-fidelity-before-structure.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: raw-retrieval)
-
-## Relevance to LazyMem
-- Supports LazyMem's preservation premise but consumes much of its novelty: raw storage is now an experimental baseline with direct positive evidence.

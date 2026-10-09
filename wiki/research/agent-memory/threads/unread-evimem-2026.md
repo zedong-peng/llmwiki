@@ -25,10 +25,3 @@ tags: [paper, agent-memory, raw-retrieval, iterative, sufficiency]
 - Evaluates the accumulated evidence set, labels sufficiency, diagnoses what is missing, refines the query, and abstains when the loop cannot close the gap.
 - Particularly large gains on multi-hop questions; lower latency than a multi-agent comparator.
 
-## Local Files
-- PDF: [2604.27695-evimem.pdf](../assets/lazymem-related-work/pdfs/2604.27695-evimem.pdf)
-- Text: [2604.27695-evimem.txt](../assets/lazymem-related-work/text/2604.27695-evimem.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: raw-retrieval)
-
-## Relevance to LazyMem
-- Direct collision on evidence-sufficiency escalation; LazyMem cannot claim novelty for "test intermediate result, retrieve again". A cheaper/calibrated deterministic gap certificate would be the only remaining distinction.

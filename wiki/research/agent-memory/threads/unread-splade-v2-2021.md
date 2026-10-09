@@ -24,10 +24,3 @@ tags: [paper, ir-foundation, sparse-retrieval, lexical-expansion]
 ## TL;DR
 - Learned sparse lexical expansion beyond BM25's exact vocabulary while retaining inverted-index execution.
 
-## Local Files
-- PDF: [2109.10086-splade-v2.pdf](../assets/lazymem-related-work/pdfs/2109.10086-splade-v2.pdf)
-- Text: [2109.10086-splade-v2.txt](../assets/lazymem-related-work/text/2109.10086-splade-v2.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: ir-foundation)
-
-## Relevance to LazyMem
-- A stronger sparse control than raw BM25; relevant when exact lexical predicates fail on vocabulary mismatch.

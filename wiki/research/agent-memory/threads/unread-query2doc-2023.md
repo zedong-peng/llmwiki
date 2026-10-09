@@ -24,10 +24,3 @@ tags: [paper, query-transformation, query-expansion, llm]
 ## TL;DR
 - Expands queries with LLM-generated pseudo-documents for both sparse and dense retrieval.
 
-## Local Files
-- PDF: [2303.07678-query2doc.pdf](../assets/lazymem-related-work/pdfs/2303.07678-query2doc.pdf)
-- Text: [2303.07678-query2doc.txt](../assets/lazymem-related-work/text/2303.07678-query2doc.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: query-transformation)
-
-## Relevance to LazyMem
-- Directly adjacent prior art to LazyMem's predicate compiler; establishes that LLM-side query transformation must be judged by downstream retrieval, not plausibility.

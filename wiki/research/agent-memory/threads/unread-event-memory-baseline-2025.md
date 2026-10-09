@@ -25,10 +25,3 @@ tags: [paper, agent-memory, raw-retrieval, baseline, event-memory]
 - Event-centric non-compressive memory with straightforward dense retrieval.
 - Demonstrates a minimally abstractive unit can be competitive without a heavy memory operating system.
 
-## Local Files
-- PDF: [2511.17208-event-memory-baseline.pdf](../assets/lazymem-related-work/pdfs/2511.17208-event-memory-baseline.pdf)
-- Text: [2511.17208-event-memory-baseline.txt](../assets/lazymem-related-work/text/2511.17208-event-memory-baseline.txt)
-- Corpus: [lazymem-related-work](lazymem-related-work.md) (category: raw-retrieval)
-
-## Relevance to LazyMem
-- Another simple-baseline occupant of the raw/minimal-memory space LazyMem targets.

@@ -32,6 +32,3 @@ tags: [paper, retrieval, query-decomposition, bandit, exploration-exploitation]
 - Reward = retrieval precision for that sub-query.
 - Bandit algorithm selects which sub-queries to execute based on past performance.
 - Balances exploration (new query types) vs exploitation (known good queries).
-
-## Relevance to LAzyMem
-Bandit-based sub-query selection is a potential extension for LAzyMem: iteratively select the most informative boolean predicates from a candidate set rather than executing all in parallel. Could reduce the 2,334 tokens/query cost while maintaining the F1 0.495 quality.
