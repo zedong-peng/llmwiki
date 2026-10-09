@@ -29,8 +29,8 @@ LLM agent 框架、编码 agent 与评测、自我改进与 harness 优化、tes
 
 | Paper | Year | Venue | Importance | Wiki Status |
 |---|---:|---|---|---|
-| [SWE-bench](assets/swebench-2024/citation.bib) | 2024 | ICLR | Real-world code issue benchmark | `queued` |
-| [Agentless](assets/agentless-2024/citation.bib) | 2024 | Arxiv | Hierarchical code localization pipeline | `queued` |
+| [SWE-bench](assets/swebench-2024/note.md) | 2024 | ICLR | Real-world code issue benchmark | `agent-read` |
+| [Agentless](assets/agentless-2024/note.md) | 2024 | Arxiv | Hierarchical code localization pipeline | `agent-read` |
 | [Claude Code Lead Source Collection](assets/claude-code-lead-source-2026/note.md) | 2026 | Repo | Claude Code source meta-collection | `stable` |
 | [CursorBench](assets/cursorbench-2026/note.md) | 2026 | Blog | Real-session coding benchmark design | `processed` |
 

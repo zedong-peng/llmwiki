@@ -28,11 +28,11 @@ tags: [research, research-taste, index]
 
 | Paper | Year | Venue | 状态 |
 |---|---:|---|---|
-| [InnoGym](threads/zhang-2024-innogym.md) | 2024（原记录，与 arXiv 编号年份冲突） | Arxiv | 未读；检索/讨论素材 |
-| [PaperBench](threads/starace-2025-paperbench.md) | 2025 | Arxiv | 未读；检索/讨论素材 |
-| [The AI Scientist](threads/lu-2024-ai-scientist.md) | 2024 | Arxiv | 未读；检索/讨论素材 |
-| [MLR-Bench](threads/liang-2025-mlr-bench.md) | 2025 | Arxiv | 未读；检索/讨论素材 |
-| [MLRC-Bench](threads/mlrc-bench-2025.md) | 2025 | Arxiv | 未读；检索/讨论素材 |
+| [InnoGym](threads/zhang-2024-innogym.md) | 2024（原记录，与 arXiv 编号年份冲突） | Arxiv | agent-read；[note](assets/zhang-2024-innogym/note.md)；检索/讨论素材 |
+| [PaperBench](threads/starace-2025-paperbench.md) | 2025 | Arxiv | agent-read；[note](assets/starace-2025-paperbench/note.md)；检索/讨论素材 |
+| [The AI Scientist](threads/lu-2024-ai-scientist.md) | 2024 | Arxiv | agent-read；[note](assets/lu-2024-ai-scientist/note.md)；检索/讨论素材 |
+| [MLR-Bench](threads/liang-2025-mlr-bench.md) | 2025 | Arxiv | agent-read；[note](assets/liang-2025-mlr-bench/note.md)；检索/讨论素材 |
+| [MLRC-Bench](threads/mlrc-bench-2025.md) | 2025 | Arxiv | agent-read；[note](assets/mlrc-bench-2025/note.md)；检索/讨论素材 |
 | [Construct Validity in AI Benchmarks](threads/salaudeen-2025-construct-validity.md) | 2025 | Arxiv | 未读；检索/讨论素材 |
 | [IRT for LLM Evaluation](threads/chen-2025-irt-llm.md) | 2025 | Arxiv | 未读；检索/讨论素材 |
 | [LLM Research Taste in Economics](threads/gong-2025-economics-taste.md) | 2025 | Arxiv | 未读；检索/讨论素材 |
@@ -54,14 +54,14 @@ tags: [research, research-taste, index]
 - [hindsight-novelty-bias](assets/hindsight-novelty-bias/citation.bib)
 - [ke-2015-sleeping-beauty](assets/ke-2015-sleeping-beauty/citation.bib)
 - [li-2026-preference-leakage](assets/li-2026-preference-leakage/citation.bib)
-- [liang-2025-mlr-bench](assets/liang-2025-mlr-bench/citation.bib)
+- [liang-2025-mlr-bench](assets/liang-2025-mlr-bench/note.md)
 - [livemathematicianBench](assets/livemathematicianBench/citation.bib)
-- [lu-2024-ai-scientist](assets/lu-2024-ai-scientist/citation.bib)
-- [mlrc-bench-2025](assets/mlrc-bench-2025/citation.bib)
+- [lu-2024-ai-scientist](assets/lu-2024-ai-scientist/note.md)
+- [mlrc-bench-2025](assets/mlrc-bench-2025/note.md)
 - [salaudeen-2025-construct-validity](assets/salaudeen-2025-construct-validity/citation.bib)
 - [saraf-2025-label-bias](assets/saraf-2025-label-bias/citation.bib)
 - [scientist-bench](assets/scientist-bench/citation.bib)
-- [starace-2025-paperbench](assets/starace-2025-paperbench/citation.bib)
+- [starace-2025-paperbench](assets/starace-2025-paperbench/note.md)
 - [swe-bench-live](assets/swe-bench-live/citation.bib)
 - [why-llms-arent-scientists](assets/why-llms-arent-scientists/citation.bib)
-- [zhang-2024-innogym](assets/zhang-2024-innogym/citation.bib)
+- [zhang-2024-innogym](assets/zhang-2024-innogym/note.md)

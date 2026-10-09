@@ -9,6 +9,12 @@ tags: [log]
 
 # Super Personal Wiki Log
 
+## [2026-10-09] read | Agent notes for 100 unread references
+
+- Claude Sonnet subagents read the archived PDF text of 100 previously unread references and wrote `note.md` for each; every note states the reader and reading scope and has not been reviewed by the user. Index entries now link these notes with status `agent-read`.
+- Archived 18 missing arXiv PDFs. 32 paywalled ACM/IEEE papers and 17 records without identifiers remain unread.
+- Added `code` to 48 more citations (paper text, verified repositories, or full text plus search showing none); 70 remain unchecked.
+
 ## [2026-10-09] cleanup | Removed remaining unread stubs
 
 - Deleted 83 more unread stubs (fpga-llm-inference 67, dlm 10, agents 2, retrieval 2, linear-attention 2); index entries link to `citation.bib`. AGENTS.md now says unread references get no summary page. research-taste's per-paper discussion threads are kept.

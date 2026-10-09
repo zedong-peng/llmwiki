@@ -59,8 +59,8 @@ tags: [research, retrieval, rag, index]
 
 | Paper | Year | Venue | Importance | Wiki Status |
 |---|---:|---|---|---|
-| [CodeSearchNet](assets/codesearchnet-2019/citation.bib) | 2019 | Arxiv | Multilingual code search benchmark | `queued` |
-| [CoIR](assets/coir-2024/citation.bib) | 2024 | Arxiv | Comprehensive code retrieval benchmark | `queued` |
+| [CodeSearchNet](assets/codesearchnet-2019/note.md) | 2019 | Arxiv | Multilingual code search benchmark | `agent-read` |
+| [CoIR](assets/coir-2024/note.md) | 2024 | Arxiv | Comprehensive code retrieval benchmark | `agent-read` |
 
 ## AI Data Systems
 
