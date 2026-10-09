@@ -102,7 +102,7 @@ Agent memory 领域的论文库与研究线程。
 
 | Paper | Year | Venue | Importance | Wiki Status |
 |---|---:|---|---|---|
-| [IRCoT](assets/irco-2023/citation.bib) | 2023 | ACL | Interleave CoT reasoning with retrieval; key multi-hop baseline | `stub` |
+| [IRCoT](assets/irco-2023/note.md) | 2023 | ACL | Interleave CoT reasoning with retrieval; key multi-hop baseline | `agent-read` |
 | [Self-RAG](../retrieval/assets/self-rag-2024/note.md) | 2024 | ICLR | Fine-tuned adaptive retrieve-generate-critique cycle | `stub` |
 | [FLARE](assets/flare-2023/note.md) | 2023 | EMNLP | Generation-uncertainty-triggered active retrieval | `agent-read` |
 | FAIR-RAG（原归档已移除） | 2025 | Arxiv | Multi-model pipeline with LLM-as-Judge ablations | `stub` |
@@ -112,7 +112,7 @@ Agent memory 领域的论文库与研究线程。
 
 | Paper | Year | Venue | Importance | Wiki Status |
 |---|---:|---|---|---|
-| [LLM-A*](assets/llm-astar-2024/citation.bib) | 2024 | EMNLP Findings | LLM provides heuristic h(n) in A*; proof-of-concept for LLM-as-heuristic | `stub` |
+| [LLM-A*](assets/llm-astar-2024/note.md) | 2024 | EMNLP Findings | LLM provides heuristic h(n) in A*; proof-of-concept for LLM-as-heuristic | `agent-read` |
 | [Think-on-Graph 2.0](assets/tog2-2025/note.md) | 2025 | ICLR | KG + unstructured text retrieval; graph traversal as beam search | `agent-read` |
 | [HopRAG](../retrieval/assets/hoprag-2025/note.md) | 2025 | ACL Findings | Passage graph with logical connections; multi-hop via LLM reasoning | `stub` |
 | ERL（原归档已移除） | 2026 | Arxiv | LLM-based retrieval 56.1% vs embedding baseline; quality > quantity | `stub` |
@@ -122,7 +122,7 @@ Agent memory 领域的论文库与研究线程。
 
 | Paper | Year | Venue | Importance | Wiki Status |
 |---|---:|---|---|---|
-| [Segment-Level Memory](assets/segment-level-memory-2025/citation.bib) | 2025 | ICLR | Turn-level too fine, session-level too coarse; topically coherent units | `stub` |
+| [Segment-Level Memory](assets/segment-level-memory-2025/note.md) | 2025 | ICLR | Turn-level too fine, session-level too coarse; topically coherent units | `agent-read` |
 | [Entropy-Based Adaptive Memory](assets/entropy-adaptive-memory-2026/citation.bib) | 2026 | ICLR | Entropy router selects retrieval granularity per query | `stub` |
 | [Memoria](assets/memoria-2025/note.md) | 2025 | Arxiv | Session summarization + weighted KG; 115k→400 tokens, 87.1% accuracy | `agent-read` |
 | [Personalize Before Retrieve](../retrieval/assets/personalize-before-retrieve-2025/note.md) | 2025 | Arxiv | User-specific query expansion injecting history/preferences/persona | `stub` |

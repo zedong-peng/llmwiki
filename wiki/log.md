@@ -9,6 +9,10 @@ tags: [log]
 
 # Super Personal Wiki Log
 
+## [2026-10-09] read | 10 references identified from vague citations
+
+- Identified 10 of 16 references whose citations had placeholder titles (author and year checked), archived their arXiv PDFs, corrected title/authors/arXiv id, and had one Claude Sonnet subagent per paper write `note.md` (unreviewed). 5 ambiguous and 1 unidentified record remain citation-only.
+
 ## [2026-10-09] read | Agent notes for 100 unread references
 
 - Claude Sonnet subagents read the archived PDF text of 100 previously unread references and wrote `note.md` for each; every note states the reader and reading scope and has not been reviewed by the user. Index entries now link these notes with status `agent-read`.

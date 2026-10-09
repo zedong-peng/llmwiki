@@ -35,33 +35,33 @@ tags: [research, research-taste, index]
 | [MLRC-Bench](threads/mlrc-bench-2025.md) | 2025 | Arxiv | agent-read；[note](assets/mlrc-bench-2025/note.md)；检索/讨论素材 |
 | [Construct Validity in AI Benchmarks](threads/salaudeen-2025-construct-validity.md) | 2025 | Arxiv | 未读；检索/讨论素材 |
 | [IRT for LLM Evaluation](threads/chen-2025-irt-llm.md) | 2025 | Arxiv | 未读；检索/讨论素材 |
-| [LLM Research Taste in Economics](threads/gong-2025-economics-taste.md) | 2025 | Arxiv | 未读；检索/讨论素材 |
-| [Sleeping Beauty Index](threads/ke-2015-sleeping-beauty.md) | 2015 | — | 未读；检索/讨论素材 |
+| [LLM Research Taste in Economics](threads/gong-2025-economics-taste.md) | 2025 | Arxiv | agent-read；[note](assets/gong-2025-economics-taste/note.md)；检索/讨论素材 |
+| [Sleeping Beauty Index](threads/ke-2015-sleeping-beauty.md) | 2015 | — | agent-read；[note](assets/ke-2015-sleeping-beauty/note.md)；检索/讨论素材 |
 | [HindSight: LLM Novelty Bias](threads/hindsight-novelty-bias.md) | 2025 | Arxiv | 未读；检索/讨论素材 |
-| [Label Bias in LLM Evaluation](threads/saraf-2025-label-bias.md) | 2025 | Arxiv | 未读；检索/讨论素材 |
-| [Preference Leakage in LLM-as-Judge](threads/li-2026-preference-leakage.md) | 2026 | Arxiv | 未读；检索/讨论素材 |
-| [SWE-bench-Live](threads/swe-bench-live.md) | 2025 | Arxiv | 未读；检索/讨论素材 |
+| [Label Bias in LLM Evaluation](threads/saraf-2025-label-bias.md) | 2025 | Arxiv | agent-read；[note](assets/saraf-2025-label-bias/note.md)；检索/讨论素材 |
+| [Preference Leakage in LLM-as-Judge](threads/li-2026-preference-leakage.md) | 2026 | Arxiv | agent-read；[note](assets/li-2026-preference-leakage/note.md)；检索/讨论素材 |
+| [SWE-bench-Live](threads/swe-bench-live.md) | 2025 | Arxiv | agent-read；[note](assets/swe-bench-live/note.md)；检索/讨论素材 |
 | [CCV Contamination Check](threads/ccv-contamination.md) | 2025 | Arxiv | 未读；检索/讨论素材 |
 | [Scientist-Bench](threads/scientist-bench.md) | 2026 | Arxiv | 未读；检索/讨论素材 |
-| [LiveMathematicianBench](threads/livemathematicianBench.md) | 2026 | Arxiv | 未读；检索/讨论素材 |
-| [Why LLMs Aren't Scientists Yet](threads/why-llms-arent-scientists.md) | 2025 | Arxiv | 未读；检索/讨论素材 |
+| [LiveMathematicianBench](threads/livemathematicianBench.md) | 2026 | Arxiv | agent-read；[note](assets/livemathematicianBench/note.md)；检索/讨论素材 |
+| [Why LLMs Aren't Scientists Yet](threads/why-llms-arent-scientists.md) | 2025 | Arxiv | agent-read；[note](assets/why-llms-arent-scientists/note.md)；检索/讨论素材 |
 
 ### Citation Files
 
 - [ccv-contamination](assets/ccv-contamination/citation.bib)
 - [chen-2025-irt-llm](assets/chen-2025-irt-llm/citation.bib)
-- [gong-2025-economics-taste](assets/gong-2025-economics-taste/citation.bib)
+- [gong-2025-economics-taste](assets/gong-2025-economics-taste/note.md)
 - [hindsight-novelty-bias](assets/hindsight-novelty-bias/citation.bib)
-- [ke-2015-sleeping-beauty](assets/ke-2015-sleeping-beauty/citation.bib)
-- [li-2026-preference-leakage](assets/li-2026-preference-leakage/citation.bib)
+- [ke-2015-sleeping-beauty](assets/ke-2015-sleeping-beauty/note.md)
+- [li-2026-preference-leakage](assets/li-2026-preference-leakage/note.md)
 - [liang-2025-mlr-bench](assets/liang-2025-mlr-bench/note.md)
-- [livemathematicianBench](assets/livemathematicianBench/citation.bib)
+- [livemathematicianBench](assets/livemathematicianBench/note.md)
 - [lu-2024-ai-scientist](assets/lu-2024-ai-scientist/note.md)
 - [mlrc-bench-2025](assets/mlrc-bench-2025/note.md)
 - [salaudeen-2025-construct-validity](assets/salaudeen-2025-construct-validity/citation.bib)
-- [saraf-2025-label-bias](assets/saraf-2025-label-bias/citation.bib)
+- [saraf-2025-label-bias](assets/saraf-2025-label-bias/note.md)
 - [scientist-bench](assets/scientist-bench/citation.bib)
 - [starace-2025-paperbench](assets/starace-2025-paperbench/note.md)
-- [swe-bench-live](assets/swe-bench-live/citation.bib)
-- [why-llms-arent-scientists](assets/why-llms-arent-scientists/citation.bib)
+- [swe-bench-live](assets/swe-bench-live/note.md)
+- [why-llms-arent-scientists](assets/why-llms-arent-scientists/note.md)
 - [zhang-2024-innogym](assets/zhang-2024-innogym/note.md)
