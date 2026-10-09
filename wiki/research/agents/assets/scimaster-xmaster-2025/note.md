@@ -177,7 +177,7 @@ Solver 平均每题调用外部工具 **3 次**。
 
 ## Takeaways
 - **对 agent 架构研究**：scattered-and-stacked 是一个值得借鉴的 workflow 模式；Initial Reasoning Guidance 是让 non-agentic 推理模型具备 agentic 行为的低成本方案。
-- **对 HLE leaderboard 追踪**：32.1% 是当前开源 SOTA（2025-07），可作为后续工作的参照基线。参见 [[../../../misc/threads/2026-04-25-llm-leaderboard-resources]]。
+- **对 HLE leaderboard 追踪**：32.1% 是当前开源 SOTA（2025-07），可作为后续工作的参照基线。
 - **对 scientific AI 方向**：本文是"不训练模型，只设计 agent 架构"路线的一个重要数据点；2 个通用工具超越 500 个专业工具的结果值得重视。
 
 ## Related Work（来自 .bib）

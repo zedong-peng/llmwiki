@@ -9,6 +9,11 @@ tags: [log]
 
 # Super Personal Wiki Log
 
+## [2026-10-09] cleanup | Removed agent-memory unread stubs
+
+- Deleted 43 `agent-memory/threads/unread-*.md` secondary summaries; index rows now link to each reference's `citation.bib`. PDFs and citations are kept.
+- The misc leaderboard-resources thread was deleted outside this session; removed the two links to it.
+
 ## [2026-10-09] ingest | zvec-grep (zg)
 
 - Added `research/retrieval/assets/zvec-grep-2026/`: citation, note and repository cache at `a09cd12` (ignored by Git). Read README, pipeline/architecture docs, benchmark READMEs and the RRF fusion code; no code executed. Benchmark results are the repository's own, recorded with their inconsistencies.
