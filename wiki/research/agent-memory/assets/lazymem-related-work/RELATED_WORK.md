@@ -431,7 +431,7 @@ The Related Work section should explicitly state that LazyMem does not claim nov
 
 ## 11. Microsoft ResearchStudio rerun
 
-The initial synthesis was re-audited on 2026-07-27 with the Microsoft ResearchStudio `paper-search`, `scoop-check`, and `idea-spark` workflows. The independent run artifacts are under [`researchstudio-rerun/`](researchstudio-rerun/). They preserve the raw multi-source output, all 53 API records without relevance filtering, a 58-record abstract triage after adding five verified core papers, and the seven-paper full-text novelty audit.
+The initial synthesis was re-audited on 2026-07-27 with the Microsoft ResearchStudio `paper-search`, `scoop-check`, and `idea-spark` workflows. The independent run artifacts are under [`researchstudio-rerun/`](researchstudio-rerun). They preserve the raw multi-source output, all 53 API records without relevance filtering, a 58-record abstract triage after adding five verified core papers, and the seven-paper full-text novelty audit.
 
 ### 11.1 Search coverage and failure disclosure
 

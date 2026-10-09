@@ -9,6 +9,23 @@ tags: [log]
 
 # Super Personal Wiki Log
 
+## [2026-10-09] cleanup | Removed local engineering records from reference assets
+
+- Deleted `research/llm-inference/assets/g4090-agent-tools-2026` and `research/llm-inference/assets/g4090-qwen38-benchmark-2026` at the user's request: local tool installation and benchmark records are not reference literature.
+- Removed both reference-index entries; redirected incoming links to the existing engineering threads and marked their asset directories as deleted. Historical missing-file lists remain historical records.
+- Current archive totals: 291 citation records and 141 reading notes across seven topics. No commit or push performed.
+
+## [2026-10-09] meta | Migrated research archives to minimal collect/query layout
+
+- Updated wiki instructions to `llmwiki-collect` / `llmwiki-query`, removed obsolete protocol/lint/fetch commands, and installed both local skill links. Querying no longer implies writing back.
+- Migrated 268 existing references across six parent-repository topics to `citation.bib`; preserved all 268 legacy metadata files verbatim as historical BibTeX comments, including provenance, versions, hashes, repository commits, and reading scope. Kept existing slugs. These snapshots describe historical state, not current file availability.
+- Retained 128 source-reading or implementation-inspection records as `note.md`; preserved search-only summaries and unread seeds in `threads/` with explicit reading boundaries. No migration was treated as a fresh reading, publication verification, or experimental reproduction.
+- Preserved the 539 file deletions already present before this task. Removed dead navigation to previously removed archives and documented missing evidence in the affected topic notes/threads. Moved Meta-Harness source files into `paper-tex/` with byte-identical content.
+- Repaired topic and cross-topic links, including the relocated Jev comparison thread. Historical logs and archived upstream snapshots retain their historical paths.
+- Synchronized DLM reference layout inside its independent submodule: 25 citation records, 15 reading notes, 10 unread threads, and 25 PDF/text pairs under `assets/`. All 50 moved files match their original Git bytes; 340 local links and active-paper citation keys pass checks. The active `paper/` project remains in place. Across all seven topics: 293 citation records and 143 reading notes.
+- Validation: all 268 citation records parse with keys matching their directory names; metadata snapshots match the original files exactly; migrated source assets match original Git blobs; active wiki Markdown links outside the DLM submodule resolve. The DLM submodule is migrated and checked independently.
+- No downloaded research code or experiments were executed. Changes remain local and uncommitted.
+
 ## [2026-10-09] integrity | Restored recoverable archives and repository evidence
 
 - Recovered all 103 previously missing TeX archive files from historical Git blobs without substituting newer arXiv versions. All 108 metadata-recorded archives now exist and match their recorded byte counts and SHA-256 hashes.
@@ -594,7 +611,7 @@ tags: [log]
 ## [2026-10-02] deployment | Stopped Qwen3.8 service at user request
 
 - Stopped and disabled `qwen38-cinference.service` at 01:48 Asia/Shanghai; both operations succeeded. Verified MainPID0, inactive/dead, disabled and exit of previous PID2332782. GPU3 snapshot showed17MiB used,24076MiB free and0% utilization; NVIDIA compute process list was empty. Only this user's service unit was operated; other users' tasks were not terminated.
-- Updated [[research/llm-inference/threads/2026-10-01-g4090-qwen38-speed]] and [[research/llm-inference/assets/g4090-qwen38-benchmark-2026/index]] with the stopped state and hashed verification evidence. Preserved models, builds, historical benchmarks and prior deployment smoke records.
+- Updated [[research/llm-inference/threads/2026-10-01-g4090-qwen38-speed]] and [[research/llm-inference/threads/2026-10-01-g4090-qwen38-speed]] with the stopped state and hashed verification evidence. Preserved models, builds, historical benchmarks and prior deployment smoke records.
 - Clarified that Cinference, Erik NInfer, llama.cpp and ExLlamaV3 tests ran serially on physicalGPU3. No four-card parallel or tensor-parallel test was performed.
 
 ## Archived: research log before merge (2026-04)

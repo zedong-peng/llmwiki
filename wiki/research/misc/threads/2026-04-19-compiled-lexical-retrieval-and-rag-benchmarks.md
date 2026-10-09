@@ -23,33 +23,33 @@ The concrete local motivation was:
 1. The broad idea "LLM helps retrieval" is not new.
    Prior work already covers query rewriting, free-form reasoning-as-query, boolean query generation, and tool-style search workflows.
    References:
-   [[research/misc/assets/query-optimization-survey-2024/index]], [[research/misc/assets/rag-fusion-2023/index]], [[research/misc/assets/bright-2025/index]], [[research/misc/assets/autobool-2026/index]], [[research/misc/assets/mintlify-chromafs-2026/index]]
+   research/misc/assets/query-optimization-survey-2024/index, research/misc/assets/rag-fusion-2023/index, [[research/misc/assets/bright-2025/note]], [[research/misc/assets/autobool-2026/note]], [[research/misc/assets/mintlify-chromafs-2026/note]]
 
 2. `grepqa` should not be framed as "LLM as retrieval" in the generic sense.
    The more precise framing is:
    - LLM as **query compiler**
    - lexical / symbolic backend as **retrieval executor**
    References:
-   [[research/misc/assets/bright-2025/index]], [[research/misc/assets/autobool-2026/index]], [[research/misc/assets/lotus-2025/index]], [[research/misc/assets/palimpzest-2024/index]]
+   [[research/misc/assets/bright-2025/note]], [[research/misc/assets/autobool-2026/note]], [[research/misc/assets/lotus-2025/note]], [[research/misc/assets/palimpzest-2024/note]]
 
 3. The strongest claim is not "grep beats RAG."
    The stronger claim is:
    - structured lexical compilation is a useful retrieval representation
    - and it may be preferable to free-form reasoning queries in some regimes
    References:
-   [[research/misc/assets/bright-2025/index]], [[research/misc/assets/coral-2024/index]], [[research/misc/assets/multi-turn-conversational-rag-2026/index]]
+   [[research/misc/assets/bright-2025/note]], [[research/misc/assets/coral-2024/note]], [[research/misc/assets/multi-turn-conversational-rag-2026/note]]
 
 4. The current `grepqa` contribution is more about **query representation** than about BM25.
    BM25, grep, boolean filtering, and related lexical engines are backend choices.
    References:
-   [[research/misc/assets/bright-2025/index]], [[research/misc/assets/autobool-2026/index]]
+   [[research/misc/assets/bright-2025/note]], [[research/misc/assets/autobool-2026/note]]
 
 5. The most promising long-term framing is something like:
    - compiled retrieval
    - retrieval as query compilation
    - executable lexical retrieval programs
    References:
-   [[research/misc/assets/lotus-2025/index]], [[research/misc/assets/palimpzest-2024/index]], [[research/misc/assets/mintlify-chromafs-2026/index]]
+   [[research/misc/assets/lotus-2025/note]], [[research/misc/assets/palimpzest-2024/note]], [[research/misc/assets/mintlify-chromafs-2026/note]]
 
 ## Definitions / Clarifications
 
@@ -77,7 +77,7 @@ It is closer to:
 
 BRIGHT is the clearest current reference point for this pattern.
 References:
-[[research/misc/assets/bright-2025/index]], [[research/misc/assets/rag-fusion-2023/index]], [[research/misc/assets/query-optimization-survey-2024/index]]
+[[research/misc/assets/bright-2025/note]], research/misc/assets/rag-fusion-2023/index, research/misc/assets/query-optimization-survey-2024/index
 
 ### BM25 vs grep
 
@@ -105,7 +105,7 @@ So the practical contrast is:
 - grep / BM25: lexical matching
 - dense: semantic similarity
 References:
-[[research/misc/assets/multi-turn-conversational-rag-2026/index]], [[research/misc/assets/personalize-before-retrieve-2025/index]], [[research/agent-memory/assets/recollection-familiarity-retrieval-2026/index]]
+[[research/misc/assets/multi-turn-conversational-rag-2026/note]], [[research/misc/assets/personalize-before-retrieve-2025/note]], [[research/agent-memory/assets/recollection-familiarity-retrieval-2026/note]]
 
 ### Retrieval unit matters
 
@@ -128,7 +128,7 @@ BRIGHT matters because it already shows that:
 - LLM-generated reasoning queries can improve retrieval
 - BM25 plus reasoning is a serious baseline, not a toy idea
 References:
-[[research/misc/assets/bright-2025/index]]
+[[research/misc/assets/bright-2025/note]]
 
 This weakens the novelty of any claim like:
 - "LLM-generated lexical hints help retrieval"
@@ -140,11 +140,11 @@ What remains open:
 - whether lexical query compilation can be more controllable and cheaper than reasoning-text augmentation
 - when lexical programs beat dense retrieval, and when they fail
 Related references:
-[[research/misc/assets/bright-2025/index]], [[research/misc/assets/autobool-2026/index]], [[research/misc/assets/multi-turn-conversational-rag-2026/index]], [[research/misc/assets/ragchecker-2024/index]]
+[[research/misc/assets/bright-2025/note]], [[research/misc/assets/autobool-2026/note]], [[research/misc/assets/multi-turn-conversational-rag-2026/note]], [[research/misc/assets/ragchecker-2024/note]]
 
 ## Role of the new papers added to `misc/papers`
 
-### [[research/misc/assets/bright-2025/index]]
+### [[research/misc/assets/bright-2025/note]]
 
 Used as the main benchmark reference for reasoning-intensive retrieval.
 
@@ -153,7 +153,7 @@ Key relevance to this thread:
 - direct novelty pressure on generic "LLM improves BM25" claims
 - strong candidate benchmark for generalizing `grepqa` beyond memory
 
-### [[research/misc/assets/coral-2024/index]]
+### [[research/misc/assets/coral-2024/note]]
 
 Used as the main conversational RAG benchmark reference.
 
@@ -162,7 +162,7 @@ Key relevance:
 - response generation plus citation labeling
 - good testbed for whether lexical query compilation survives beyond static retrieval
 
-### [[research/misc/assets/ragchecker-2024/index]]
+### [[research/misc/assets/ragchecker-2024/note]]
 
 Used as the evaluation-diagnosis reference.
 
@@ -200,42 +200,42 @@ Key relevance:
    - dispersed multi-answer
 
 References for these directions:
-- structured lexical compilation: [[research/misc/assets/autobool-2026/index]], [[research/misc/assets/bright-2025/index]]
-- operator / compiled retrieval framing: [[research/misc/assets/lotus-2025/index]], [[research/misc/assets/palimpzest-2024/index]], [[research/misc/assets/mintlify-chromafs-2026/index]]
-- regime-sensitive retrieval and routing: [[research/misc/assets/multi-turn-conversational-rag-2026/index]], [[research/agent-memory/assets/recollection-familiarity-retrieval-2026/index]], [[research/misc/assets/personalize-before-retrieve-2025/index]]
+- structured lexical compilation: [[research/misc/assets/autobool-2026/note]], [[research/misc/assets/bright-2025/note]]
+- operator / compiled retrieval framing: [[research/misc/assets/lotus-2025/note]], [[research/misc/assets/palimpzest-2024/note]], [[research/misc/assets/mintlify-chromafs-2026/note]]
+- regime-sensitive retrieval and routing: [[research/misc/assets/multi-turn-conversational-rag-2026/note]], [[research/agent-memory/assets/recollection-familiarity-retrieval-2026/note]], [[research/misc/assets/personalize-before-retrieve-2025/note]]
 
 ## References / Evidence
 
 The most important local references for this thread are:
 
-- [[research/misc/assets/bright-2025/index]]
+- [[research/misc/assets/bright-2025/note]]
   Main evidence that free-form reasoning queries can materially improve retrieval, and that BM25 plus reasoning is already a real benchmark baseline.
 
-- [[research/misc/assets/coral-2024/index]]
+- [[research/misc/assets/coral-2024/note]]
   Main conversational RAG benchmark reference for testing whether retrieval methods survive multi-turn history and topic shift.
 
-- [[research/misc/assets/ragchecker-2024/index]]
+- [[research/misc/assets/ragchecker-2024/note]]
   Main diagnosis reference for separating retrieval improvements from generation-side effects.
 
-- [[research/misc/assets/autobool-2026/index]]
+- [[research/misc/assets/autobool-2026/note]]
   Strong prior for LLM-generated executable boolean queries as a retrieval object in its own right.
 
-- [[research/misc/assets/mintlify-chromafs-2026/index]]
+- [[research/misc/assets/mintlify-chromafs-2026/note]]
   Industrial evidence that agentic retrieval can be mediated through search primitives such as `grep`, `cat`, and filesystem navigation.
 
-- [[research/misc/assets/lotus-2025/index]]
+- [[research/misc/assets/lotus-2025/note]]
   Declarative / systems-side reference point for query operators and execution planning over unstructured or semi-structured data.
 
-- [[research/misc/assets/palimpzest-2024/index]]
+- [[research/misc/assets/palimpzest-2024/note]]
   Broader declarative AI workload framing; useful for positioning "compiled retrieval" beyond a single benchmark.
 
-- [[research/misc/assets/multi-turn-conversational-rag-2026/index]]
+- [[research/misc/assets/multi-turn-conversational-rag-2026/note]]
   Useful reference for retrieval-regime differences and the instability of some rewrite-heavy methods.
 
-- [[research/misc/assets/personalize-before-retrieve-2025/index]]
+- [[research/misc/assets/personalize-before-retrieve-2025/note]]
   Reference for query-side expansion as a primary lever rather than a post-retrieval fix.
 
-- [[research/agent-memory/assets/recollection-familiarity-retrieval-2026/index]]
+- [[research/agent-memory/assets/recollection-familiarity-retrieval-2026/note]]
   Reference for routing / adaptive retrieval strategy rather than one fixed retrieval mode.
 
 
@@ -263,3 +263,10 @@ The most important local references for this thread are:
 - Can structured predicates consistently outperform free-form reasoning queries on BRIGHT?
 - On conversational RAG, when does lexical query compilation survive topic shift?
 - Should `grepqa` stay lexical-only, or become a compiler that can route to lexical and dense backends?
+
+## Migration Archive Gaps
+
+The following historical targets are absent in the current working tree (including previously deleted archives). Their labels and research discussion are retained as plain text; migration did not restore deleted material:
+
+- `research/misc/assets/query-optimization-survey-2024/index`
+- `research/misc/assets/rag-fusion-2023/index`

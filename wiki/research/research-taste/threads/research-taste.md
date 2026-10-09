@@ -69,5 +69,5 @@ Possible approaches to this problem:
 - [[research/research-taste/threads/researchTaste-bench-design]] — current benchmark proposal
 
 ## Key Papers
-- [[research/research-taste/assets/hicke-2025-tastybench/index]] — first direct taste benchmark attempt
-- [[research/research-taste/assets/zhang-2024-innogym/index]] — novelty as one component of the story
+- TastyBench（原引用条目已删除） — first direct taste benchmark attempt
+- [[research/research-taste/threads/zhang-2024-innogym]] — novelty as one component of the story

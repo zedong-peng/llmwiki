@@ -154,7 +154,7 @@ If I need one short answer for conversation, I should say:
 
 ## References / Evidence
 
-- Official BEIR paper note: [[research/misc/assets/beir-2021/index]]
+- Official BEIR paper note: [[research/misc/assets/beir-2021/note]]
 - AILog BEIR update page: `https://app.ailog.fr/en/blog/news/beir-benchmark-update`
 - Official MTEB project: `https://github.com/embeddings-benchmark/mteb`
 - Official MTEB retrieval task page: `https://embeddings-benchmark.github.io/mteb/overview/available_tasks/retrieval/`

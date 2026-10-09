@@ -7,11 +7,11 @@ This directory is a frozen literature corpus for evaluating the scientific posit
 - [`RELATED_WORK.md`](RELATED_WORK.md): detailed synthesis, novelty audit, and recommended experimental program.
 - [`selection.tsv`](selection.tsv): 45-paper inclusion ledger with category, arXiv identifier, title, and inclusion rationale.
 - [`arxiv_metadata.xml`](arxiv_metadata.xml): raw arXiv API metadata returned for the selected identifiers.
-- [`pdfs/`](pdfs/): 45 official arXiv PDFs, named `<arxiv-id>-<slug>.pdf`.
-- [`text/`](text/): `pdftotext -layout` extractions used for full-text checks.
+- [`pdfs/`](pdfs): 45 official arXiv PDFs, named `<arxiv-id>-<slug>.pdf`.
+- [`text/`](text): `pdftotext -layout` extractions used for full-text checks.
 - [`SHA256SUMS`](SHA256SUMS): checksums for the downloaded PDFs and source metadata.
-- [`researchstudio-rerun/`](researchstudio-rerun/): independent Microsoft ResearchStudio rerun, including raw connector output, all-record abstract triage, seven-paper full-text scoop audit, S2G-RAG PDF/text, and the surviving-hypothesis falsification plan.
-- [`researchstudio-rerun/utility-gate-search/`](researchstudio-rerun/utility-gate-search/): narrow follow-up on downstream answer utility, cost-aware retrieval, and learning-to-defer; includes 137-record search output, evidence-gated deep dive, and verified PDFs.
+- [`researchstudio-rerun/`](researchstudio-rerun): independent Microsoft ResearchStudio rerun, including raw connector output, all-record abstract triage, seven-paper full-text scoop audit, S2G-RAG PDF/text, and the surviving-hypothesis falsification plan.
+- [`researchstudio-rerun/utility-gate-search/`](researchstudio-rerun/utility-gate-search): narrow follow-up on downstream answer utility, cost-aware retrieval, and learning-to-defer; includes 137-record search output, evidence-gated deep dive, and verified PDFs.
 
 ## Scope and selection rule
 

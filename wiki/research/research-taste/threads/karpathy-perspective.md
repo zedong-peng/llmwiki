@@ -144,6 +144,6 @@ Claude Code memory 系统是这套方案的工业落地，但它的 taste 完全
 - [[research/research-taste/threads/evaluation-approaches]] — 现有评估方法
 - [[research/research-taste/threads/researchTaste-bench-design]] — 完整方案设计
 - [[research/research-taste/threads/benchmark-landscape]] — benchmark 全景
-- [[research/research-taste/assets/hindsight-novelty-bias/index]] — novelty bias 量化（HindSight）
-- [[research/research-taste/assets/gong-2025-economics-taste/index]] — 人类 taste 基线
+- [[research/research-taste/threads/hindsight-novelty-bias]] — novelty bias 量化（HindSight）
+- [[research/research-taste/threads/gong-2025-economics-taste]] — 人类 taste 基线
 - claude-code-memory — Claude Code memory 实现（taste 的工业化落地）

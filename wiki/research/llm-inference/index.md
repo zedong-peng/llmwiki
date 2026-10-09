@@ -18,20 +18,20 @@ tags:
 
 ## 2026-09-14 核心论文归档
 
-10篇核心论文均已下载 TeX/PDF；vLLM 与 SGLang 完成主文/附录阅读，其余为方法与实验的定向阅读，metadata 明确为 partial。8个官方 Git 仓库有本地缓存与 commit；该批论文归档没有运行 GPU、模型或论文 benchmark。每篇资产位于 `assets/<slug>/`，采用 llmwiki skill 的规范布局。两代 FlashAttention 共享官方代码缓存，不复制第二份。
+10篇核心论文均已下载 TeX/PDF；vLLM 与 SGLang 完成主文/附录阅读，其余为方法与实验的定向阅读，阅读记录明确为 partial。8个官方 Git 仓库有本地缓存与 commit；该批论文归档没有运行 GPU、模型或论文 benchmark。每篇资产位于 `assets/<slug>/`，采用 llmwiki skill 的规范布局。两代 FlashAttention 共享官方代码缓存，不复制第二份。
 
 | 主线 | 论文 / 本地笔记 | 证据版本 | 阅读状态 | 优先级 |
 |---|---|---|---|---|
-| IO-aware attention | [[research/llm-inference/assets/flashattention-2022/index|flashattention-2022]] | 2205.14135v2 | partial | P0 |
-| GPU work partitioning | [[research/llm-inference/assets/flashattention-2-2023/index|flashattention-2-2023]] | 2307.08691v1 | partial | P1 |
-| KV 分页与 batching | [[research/llm-inference/assets/vllm-2023/index|vllm-2023]] | 2309.06180v1 | read | P0 |
-| 多调用 prefix reuse | [[research/llm-inference/assets/sglang-2024/index|sglang-2024]] | 2312.07104v2 | read | P0 |
-| chunked prefill / TBT | [[research/llm-inference/assets/sarathi-serve-2024/index|sarathi-serve-2024]] | 2403.02310v3 | partial | P0 |
-| PD 分离 / goodput | [[research/llm-inference/assets/distserve-2024/index|distserve-2024]] | 2401.09670v3 | partial | P1 |
-| 异构集群 / phase splitting | [[research/llm-inference/assets/splitwise-2024/index|splitwise-2024]] | 2311.18677v2 | partial | P1 |
-| draft / verify | [[research/llm-inference/assets/speculative-decoding-2023/index|speculative-decoding-2023]] | 2211.17192v2 | partial | P1 |
-| W4A16 / 端侧 decode | [[research/llm-inference/assets/awq-2024/index|awq-2024]] | 2306.00978v6 | partial | P1 |
-| 动态 attention engine | [[research/llm-inference/assets/flashinfer-2025/index|flashinfer-2025]] | 2501.01005v2 | partial | P0 |
+| IO-aware attention | [[research/llm-inference/assets/flashattention-2022/note|flashattention-2022]] | 2205.14135v2 | partial | P0 |
+| GPU work partitioning | [[research/llm-inference/assets/flashattention-2-2023/note|flashattention-2-2023]] | 2307.08691v1 | partial | P1 |
+| KV 分页与 batching | [[research/llm-inference/assets/vllm-2023/note|vllm-2023]] | 2309.06180v1 | read | P0 |
+| 多调用 prefix reuse | [[research/llm-inference/assets/sglang-2024/note|sglang-2024]] | 2312.07104v2 | read | P0 |
+| chunked prefill / TBT | [[research/llm-inference/assets/sarathi-serve-2024/note|sarathi-serve-2024]] | 2403.02310v3 | partial | P0 |
+| PD 分离 / goodput | [[research/llm-inference/assets/distserve-2024/note|distserve-2024]] | 2401.09670v3 | partial | P1 |
+| 异构集群 / phase splitting | [[research/llm-inference/assets/splitwise-2024/note|splitwise-2024]] | 2311.18677v2 | partial | P1 |
+| draft / verify | [[research/llm-inference/assets/speculative-decoding-2023/note|speculative-decoding-2023]] | 2211.17192v2 | partial | P1 |
+| W4A16 / 端侧 decode | [[research/llm-inference/assets/awq-2024/note|awq-2024]] | 2306.00978v6 | partial | P1 |
+| 动态 attention engine | [[research/llm-inference/assets/flashinfer-2025/note|flashinfer-2025]] | 2501.01005v2 | partial | P0 |
 
 ## Qwen3.8-27B / RTX 4090（2026-10-01 增量）
 
@@ -44,20 +44,18 @@ tags:
 
 | 可复现工程证据 | 取舍 |
 |---|---|
-| [[research/llm-inference/assets/cinference-4090-2026/index|Cinference 4090]] | 精确 4090 公开矩阵与 raw data；固定 draft K 依赖负载 |
-| [[research/llm-inference/assets/ninfer-4090-2026/index|NInfer 4090]] | Ada 分支、MTP、长 context；须匹配 v2/v3 artifact |
-| [[research/llm-inference/assets/ninfer-all-2026/index|NInfer All]] | CUDA 12.8+、多消费卡架构、DFlash2；社区关注较少 |
-| [[research/llm-inference/assets/exllamav3-2026/index|ExLlamaV3 + DFlash2]] | EXL3 quants 与 native draft 支持；源码/PyTorch/CUDA ABI 需匹配 |
-| [[research/llm-inference/assets/hyperqwen-2026/index|HyperQwen]] | 受关注的 vLLM 配置 kit；当前 CUDA 13 依赖与 g4090 不直接匹配 |
-| [[research/llm-inference/assets/llama-cpp-2026/index|llama.cpp]] | GGUF 基线、MTP/DFlash2、易部署；比较精度/缓存/版本 |
-| [[research/llm-inference/assets/ik-llama-cpp-2026/index|ik_llama.cpp]] | CPU/GPU/量化工程优化；先核验 exact model/speculation 支持 |
-| [[research/llm-inference/assets/beellama-cpp-2026/index|BeeLlama.cpp]] | GGUF 新分支与 Ada 优化；较小社区，保留原始条件 |
-| [[research/llm-inference/assets/tokenspeed-2026/index|TokenSpeed]] | 官方 Qwen 列入支持；公开高端卡结果不等于单 4090 量化支持 |
-| [[research/llm-inference/assets/ninfer-4090-windows-2026/index|NInfer Windows 4090]] | 公开速度线索；操作系统/分支不同，不能外推 Linux |
-| [[research/llm-inference/assets/g4090-qwen38-benchmark-2026/index|本机实验资产]] | 固定模型 SHA、构建依赖、原始 HTTP 回复与测量脚本 |
-| [[research/llm-inference/assets/g4090-agent-tools-2026/index|本机工具资产]] | 固定版本安装脚本、包来源和验证日志 |
+| [[research/llm-inference/assets/cinference-4090-2026/note|Cinference 4090]] | 精确 4090 公开矩阵与 raw data；固定 draft K 依赖负载 |
+| [[research/llm-inference/assets/ninfer-4090-2026/note|NInfer 4090]] | Ada 分支、MTP、长 context；须匹配 v2/v3 artifact |
+| [[research/llm-inference/assets/ninfer-all-2026/note|NInfer All]] | CUDA 12.8+、多消费卡架构、DFlash2；社区关注较少 |
+| [[research/llm-inference/assets/exllamav3-2026/note|ExLlamaV3 + DFlash2]] | EXL3 quants 与 native draft 支持；源码/PyTorch/CUDA ABI 需匹配 |
+| [[research/llm-inference/assets/hyperqwen-2026/note|HyperQwen]] | 受关注的 vLLM 配置 kit；当前 CUDA 13 依赖与 g4090 不直接匹配 |
+| [[research/llm-inference/assets/llama-cpp-2026/note|llama.cpp]] | GGUF 基线、MTP/DFlash2、易部署；比较精度/缓存/版本 |
+| [[research/llm-inference/assets/ik-llama-cpp-2026/note|ik_llama.cpp]] | CPU/GPU/量化工程优化；先核验 exact model/speculation 支持 |
+| [[research/llm-inference/assets/beellama-cpp-2026/note|BeeLlama.cpp]] | GGUF 新分支与 Ada 优化；较小社区，保留原始条件 |
+| [[research/llm-inference/assets/tokenspeed-2026/note|TokenSpeed]] | 官方 Qwen 列入支持；公开高端卡结果不等于单 4090 量化支持 |
+| [[research/llm-inference/assets/ninfer-4090-windows-2026/note|NInfer Windows 4090]] | 公开速度线索；操作系统/分支不同，不能外推 Linux |
 
-新增论文为方法与实现的定向阅读，metadata 均标记 partial；没有把论文阅读或仓库缓存称为论文 benchmark 复现：[[research/llm-inference/assets/gptq-2023/index|GPTQ]]、[[research/llm-inference/assets/marlin-2024/index|Marlin]]、[[research/llm-inference/assets/qtip-2024/index|QTIP]]、[[research/llm-inference/assets/eagle-3-2025/index|EAGLE-3]]、[[research/llm-inference/assets/dflash-2026/index|DFlash]]。[[research/llm-inference/assets/qwen38-4090-paper-search-2026/index|全部原始检索日志]]。
+新增论文为方法与实现的定向阅读，阅读记录均标记 partial；没有把论文阅读或仓库缓存称为论文 benchmark 复现：[[research/llm-inference/assets/gptq-2023/note|GPTQ]]、[[research/llm-inference/assets/marlin-2024/note|Marlin]]、[[research/llm-inference/assets/qtip-2024/note|QTIP]]、[[research/llm-inference/assets/eagle-3-2025/note|EAGLE-3]]、[[research/llm-inference/assets/dflash-2026/note|DFlash]]。[[research/llm-inference/threads/qwen38-4090-paper-search-2026|全部原始检索日志]]。
 
 ## 机制地图
 
@@ -130,5 +128,7 @@ FP16 MHA 的 KV 容量近似为 `2 × layers × tokens × kv_heads × head_dim �
 - 入库时已完成格式、哈希、路径、Git commit 与链接检查；历史校验中间文件已清理。上述检查不证明科学结论或实验复现。
 - [[research/fpga-llm-inference/index]]：可借鉴内存/调度机制，但 GPU 特定 kernel 性能不能直接移植为 FPGA 优势。
 - [[research/linear-attention/index]]：改 attention 运算形式的另一条路线；与 exact dense attention 优化分开评估。
-- [[research/lora-training-opt/index]]：FlashAttention 内核也影响训练，但训练与服务指标不同。
+- LoRA Training Opt（原目录已移除）：FlashAttention 内核也影响训练，但训练与服务指标不同。
 - [[research/index]]；[[index]]。
+
+- [[research/llm-inference/threads/archive-migration-2026-10-09]]：迁移范围、预先删除资产与当前缺失证据；历史结果未重新复核。

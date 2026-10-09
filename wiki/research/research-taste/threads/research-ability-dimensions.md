@@ -26,32 +26,32 @@ Taste/Direction -> Idea Generation -> Proposal -> Execution -> Writing -> Evalua
 
 ### 1. Research Taste / Direction Setting
 **What**: Identifying which problems and approaches are worth pursuing
-**Measured by**: [[research/research-taste/assets/hicke-2025-tastybench/index]], [[research/research-taste/threads/researchTaste-bench-design]]
+**Measured by**: TastyBench（原引用条目已删除）, [[research/research-taste/threads/researchTaste-bench-design]]
 **Key challenge**: Prospective judgment under uncertainty, disentangled from fame recall
 
 ### 2. Idea Generation / Novelty
 **What**: Generating new hypotheses, methods, or approaches
-**Measured by**: [[research/research-taste/assets/zhang-2024-innogym/index]] (novelty + performance), [[research/research-taste/assets/liang-2025-mlr-bench/index]] (ideation stage)
+**Measured by**: [[research/research-taste/threads/zhang-2024-innogym]] (novelty + performance), [[research/research-taste/threads/liang-2025-mlr-bench]] (ideation stage)
 **Key challenge**: Distinguishing genuine novelty from recombination
 
 ### 3. Proposal Formulation
 **What**: Turning an idea into a concrete, testable research plan
-**Measured by**: [[research/research-taste/assets/liang-2025-mlr-bench/index]] (proposal stage)
+**Measured by**: [[research/research-taste/threads/liang-2025-mlr-bench]] (proposal stage)
 **Key challenge**: Feasibility and scope control
 
 ### 4. Execution / Experimentation
 **What**: Implementing the plan, running experiments, getting results
-**Measured by**: [[research/research-taste/assets/starace-2025-paperbench/index]] (replication), [[research/research-taste/assets/mlrc-bench-2025/index]] (competition tasks), [[research/research-taste/assets/scientist-bench/index]]
+**Measured by**: [[research/research-taste/threads/starace-2025-paperbench]] (replication), [[research/research-taste/threads/mlrc-bench-2025]] (competition tasks), [[research/research-taste/threads/scientist-bench]]
 **Key challenge**: Long-horizon coding, debugging, reproducibility
 
 ### 5. Scientific Writing
 **What**: Communicating results clearly and persuasively
-**Measured by**: [[research/research-taste/assets/liang-2025-mlr-bench/index]] (writing stage), [[research/research-taste/assets/lu-2024-ai-scientist/index]] (full paper)
+**Measured by**: [[research/research-taste/threads/liang-2025-mlr-bench]] (writing stage), [[research/research-taste/threads/lu-2024-ai-scientist]] (full paper)
 **Key challenge**: Narrative coherence and honest limitations
 
 ### 6. Peer Review / Evaluation
 **What**: Judging the quality of others' (or one's own) research
-**Measured by**: [[research/research-taste/assets/lu-2024-ai-scientist/index]] (automated reviewer), [[research/research-taste/assets/liang-2025-mlr-bench/index]] (MLR-Judge)
+**Measured by**: [[research/research-taste/threads/lu-2024-ai-scientist]] (automated reviewer), [[research/research-taste/threads/liang-2025-mlr-bench]] (MLR-Judge)
 **Key challenge**: Avoiding self-serving bias and circular evaluation
 
 ## Key Insight: The Decoupling Problem

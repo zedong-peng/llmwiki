@@ -50,15 +50,15 @@ unique papers: 21 (0 cross-source duplicate records merged)
 
 | # | Title | Year | Venue / 状态 | Notes |
 |---|---|---|---|---|
-| [M1](https://arxiv.org/abs/2205.14135v2) | FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness | 2022 | NeurIPS 2022；归档 TeX 使用 NeurIPS 2022 模板；出版信息未另外查 proceedings | Dao, Tri；IO-aware exact attention 基础；[[research/llm-inference/assets/flashattention-2022/index|本地笔记]] |
-| [M2](https://arxiv.org/abs/2211.17192v2) | Fast Inference from Transformers via Speculative Decoding | 2022 | ICML 2023；归档 main.tex 包含 ICML 2023 接收版设置，首个 arXiv 版本为2022年 | Leviathan, Yaniv；draft/verify 与精确分布校正；[[research/llm-inference/assets/speculative-decoding-2023/index|本地笔记]] |
-| [M3](https://arxiv.org/abs/2307.08691v1) | FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning | 2023 | 本次证据版本为 arXiv 2023 v1；后续 ICLR 2024 发表信息未独立复核 | Dao, Tri；GPU work partitioning；[[research/llm-inference/assets/flashattention-2-2023/index|本地笔记]] |
-| [M4](https://arxiv.org/abs/2309.06180v1) | Efficient Memory Management for Large Language Model Serving with PagedAttention | 2023 | SOSP 2023；主 TeX 含会议元数据与 DOI 10.1145/3600006.3613165 | Kwon, Woosuk；分页 KV 与服务批处理；[[research/llm-inference/assets/vllm-2023/index|本地笔记]] |
-| [M5](https://arxiv.org/abs/2306.00978v6) | AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration | 2023 | MLSys 2024；arXiv comments 标记 Best Paper Award；本次 v6 含后续实验 | Lin, Ji；低比特权重与端侧 decode；[[research/llm-inference/assets/awq-2024/index|本地笔记]] |
-| [M6](https://arxiv.org/abs/2311.18677v2) | Splitwise: Efficient generative LLM inference using phase splitting | 2023 | ISCA 2024 线索；本次阅读 arXiv v2，未另外下载 proceedings 版本 | Patel, Pratyush；阶段分离与异构集群配置；[[research/llm-inference/assets/splitwise-2024/index|本地笔记]] |
-| [M7](https://arxiv.org/abs/2401.09670v3) | DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving | 2024 | OSDI 2024；arXiv comments 明确标记 | Zhong, Yinmin；SLO goodput 与 PD placement；[[research/llm-inference/assets/distserve-2024/index|本地笔记]] |
-| [M8](https://arxiv.org/abs/2403.02310v3) | Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve | 2024 | OSDI 2024；官方仓库链接到 USENIX presentation/agrawal | Agrawal, Amey；chunked prefill 与 decode stalls；[[research/llm-inference/assets/sarathi-serve-2024/index|本地笔记]] |
-| [M9](https://arxiv.org/abs/2501.01005v2) | FlashInfer: Efficient and Customizable Attention Engine for LLM Inference Serving | 2025 | MLSys 2025；arXiv comments 明确 Accepted by MLSys 2025 | Ye, Zihao；动态 attention kernel 与 plan/run；[[research/llm-inference/assets/flashinfer-2025/index|本地笔记]] |
+| [M1](https://arxiv.org/abs/2205.14135v2) | FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness | 2022 | NeurIPS 2022；归档 TeX 使用 NeurIPS 2022 模板；出版信息未另外查 proceedings | Dao, Tri；IO-aware exact attention 基础；[[research/llm-inference/assets/flashattention-2022/note|本地笔记]] |
+| [M2](https://arxiv.org/abs/2211.17192v2) | Fast Inference from Transformers via Speculative Decoding | 2022 | ICML 2023；归档 main.tex 包含 ICML 2023 接收版设置，首个 arXiv 版本为2022年 | Leviathan, Yaniv；draft/verify 与精确分布校正；[[research/llm-inference/assets/speculative-decoding-2023/note|本地笔记]] |
+| [M3](https://arxiv.org/abs/2307.08691v1) | FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning | 2023 | 本次证据版本为 arXiv 2023 v1；后续 ICLR 2024 发表信息未独立复核 | Dao, Tri；GPU work partitioning；[[research/llm-inference/assets/flashattention-2-2023/note|本地笔记]] |
+| [M4](https://arxiv.org/abs/2309.06180v1) | Efficient Memory Management for Large Language Model Serving with PagedAttention | 2023 | SOSP 2023；主 TeX 含会议元数据与 DOI 10.1145/3600006.3613165 | Kwon, Woosuk；分页 KV 与服务批处理；[[research/llm-inference/assets/vllm-2023/note|本地笔记]] |
+| [M5](https://arxiv.org/abs/2306.00978v6) | AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration | 2023 | MLSys 2024；arXiv comments 标记 Best Paper Award；本次 v6 含后续实验 | Lin, Ji；低比特权重与端侧 decode；[[research/llm-inference/assets/awq-2024/note|本地笔记]] |
+| [M6](https://arxiv.org/abs/2311.18677v2) | Splitwise: Efficient generative LLM inference using phase splitting | 2023 | ISCA 2024 线索；本次阅读 arXiv v2，未另外下载 proceedings 版本 | Patel, Pratyush；阶段分离与异构集群配置；[[research/llm-inference/assets/splitwise-2024/note|本地笔记]] |
+| [M7](https://arxiv.org/abs/2401.09670v3) | DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving | 2024 | OSDI 2024；arXiv comments 明确标记 | Zhong, Yinmin；SLO goodput 与 PD placement；[[research/llm-inference/assets/distserve-2024/note|本地笔记]] |
+| [M8](https://arxiv.org/abs/2403.02310v3) | Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve | 2024 | OSDI 2024；官方仓库链接到 USENIX presentation/agrawal | Agrawal, Amey；chunked prefill 与 decode stalls；[[research/llm-inference/assets/sarathi-serve-2024/note|本地笔记]] |
+| [M9](https://arxiv.org/abs/2501.01005v2) | FlashInfer: Efficient and Customizable Attention Engine for LLM Inference Serving | 2025 | MLSys 2025；arXiv comments 明确 Accepted by MLSys 2025 | Ye, Zihao；动态 attention kernel 与 plan/run；[[research/llm-inference/assets/flashinfer-2025/note|本地笔记]] |
 
 ## Overview
 
@@ -205,7 +205,7 @@ No additional unverified recall entries added to this targeted identification se
 
 ## Overview
 
-Identified Dream-RSI as the exact requested paper. Live arXiv abstract/version history confirms v1, submitted September 14, 2026; PDF and official repository confirm Google, Google DeepMind, UMD and UVA affiliations. See [[research/misc/assets/dream-rsi-2026/index]].
+Identified Dream-RSI as the exact requested paper. Live arXiv abstract/version history confirms v1, submitted September 14, 2026; PDF and official repository confirm Google, Google DeepMind, UMD and UVA affiliations. See [[research/misc/assets/dream-rsi-2026/note]].
 
 ## Trends
 
@@ -247,7 +247,7 @@ All returned citation counts are zero; no meaningful most-cited ranking. First-a
 
 ## Recommendations for reading
 
-Read Dream-RSI (#1), then the existing [[research/misc/assets/meta-harness/index|Meta-Harness]] and [[research/misc/assets/erl-2026/index|ERL]] notes for harness search versus heuristic-memory comparisons. The latter two are existing wiki context, not additional API hits.
+Read Dream-RSI (#1), then the existing [[research/misc/assets/meta-harness/note|Meta-Harness]] and ERL（原归档已移除） notes for harness search versus heuristic-memory comparisons. The latter two are existing wiki context, not additional API hits.
 
 ## Verbatim search output
 

@@ -17,13 +17,13 @@ tags: [fpga, llm-inference, llama-cpp, ggml, xrt, end-to-end]
 本 area 同时保留不同日期、不同 profile 的证据；Gemma 1B 集成记录与下方 2026-09-07 GPT-2
 profile 快照不能混合计算性能。
 
-2026-09-08 按 Canonical Layout 收敛：本 `index.md` 是唯一正式合成页；`assets/` 是参考资料资产库；历史论文集合、统计与 BibTeX/哈希入口见下文 §Paper Library；`threads/ideaspark_run/` 是两次 IdeaSpark 原始运行存档。原先平铺的 13 个 loose 笔记（foundations、landscape、taxonomy、工具链对照、评测协议、CODO 深读、项目状态、两次文献检索、检索底表、VSTC 结果、失败审计、06-17 历史快照）已折入本页后删除，全文见 git 历史。其中 CODO 深读已合并为 [[research/fpga-llm-inference/assets/codo-2026/index|CODO 正式 paper note]]。2026-09-09 又折入 4 份九月证据页（niche-audit、evidence-matrix、KV-boundary、manuscript-recheck；其 hash 总账与 niche 抓包已删，见 git 历史）。按约定不建 `threads/index.md`。
+2026-09-08 按 Canonical Layout 收敛：本 `index.md` 是唯一正式合成页；`assets/` 是参考资料资产库；历史论文集合、统计与 BibTeX/哈希入口见下文 §Paper Library；`threads/ideaspark_run/` 是两次 IdeaSpark 原始运行存档。原先平铺的 13 个 loose 笔记（foundations、landscape、taxonomy、工具链对照、评测协议、CODO 深读、项目状态、两次文献检索、检索底表、VSTC 结果、失败审计、06-17 历史快照）已折入本页后删除，全文见 git 历史。其中 CODO 深读已合并为 [[research/fpga-llm-inference/assets/codo-2026/note|CODO 正式 paper note]]。2026-09-09 又折入 4 份九月证据页（niche-audit、evidence-matrix、KV-boundary、manuscript-recheck；其 hash 总账与 niche 抓包已删，见 git 历史）。按约定不建 `threads/index.md`。
 
 ## Historical Position (July 2026)
 
 1. **系统集成已经成立，性能尚未成立。** 当前 backend 已严格执行 11 个 GGML operator family（`GET_ROWS`、`SCALE`、`MUL_MAT`、`RMS_NORM`、`MUL`、`ROPE`、`SET_ROWS`、`SOFT_MAX`、`ADD`、`GLU`、`CONT`），开发板 trace 中有 2,422 次 accepted FPGA dispatch、zero fallback。
 2. **首要瓶颈不是单个矩阵核。** `pp512`（1,626 calls → 224,936 launches，138.34/call）与 `tg128`（104,877 calls → 202,530 launches，1.93/call）的 host-observed XRT wait 分别占 operator wall time 的 96.25% 和 79.58%。`pp512` 的 470 个 `MUL_MAT` 展开成 198,176 launches、52 个 `GLU` 展开成 25,656 launches；`tg128` 每个 `MUL_MAT` 平均 4 launches、每个 `GLU` 平均 3 launches。单图 XRT timeline（885.527 ms 窗口）呈 `H2D sync -> run::start -> blocking run::wait -> D2H sync` 重复：blocking wait 71.85%，H2D+D2H 12.90%，launch API 0.73%。xclbin 无 device trace monitor，host wait 尚不能拆成 kernel-active、queueing 与 runtime overhead。
-3. **CODO 是必须重点理解的对照。** 它把 GPT-2 block 编译成 coarse-grained dataflow kernel，报告 U280 上 GPT-2 Medium 的 TTFT、decode token/s 和生成 latency。详见 [[research/fpga-llm-inference/assets/codo-2026/index|CODO]]（含 Table VI 复算、`[64:64]` 行 313.44ms vs 公式 309.12ms 差一个 decode interval 的记录，以及单 block artifact 无法直接溯源 24 层整模型结果的缺口）。
+3. **CODO 是必须重点理解的对照。** 它把 GPT-2 block 编译成 coarse-grained dataflow kernel，报告 U280 上 GPT-2 Medium 的 TTFT、decode token/s 和生成 latency。详见 [[research/fpga-llm-inference/assets/codo-2026/note|CODO]]（含 Table VI 复算、`[64:64]` 行 313.44ms vs 公式 309.12ms 差一个 decode interval 的记录，以及单 block artifact 无法直接溯源 24 层整模型结果的缺口）。
 4. **直接比较数字前必须统一边界。** CODO 的 U280/W4A8/GPT-2 Medium 与当前 Gemma 3 1B F16 `llama-bench` 路径在模型、精度、板卡、batch、长度与计时边界上都不同，不能把 `231.48 tok/s` 与当前 `1.32 tok/s` 直接解释成加速比。`MUL_MAT` 只占 `pp512`/`tg128` operator wall time 的 18.64%/29.77%，清零也只给 1.229x/1.424x Amdahl 上界；decode 用 `n_vec=1`，加宽多向量路径解决不了该 workload。
 5. **一个受限 research idea 已通过审计，但尚无性能结论。** Visibility-Sensitive Trace Compression (VSTC)：按原始 GGML 调用的可观察性分区保留 H 边界、流式解释 B 模板，以严格 zero fallback、artifact identity 和显式错误为前提。它是可证伪的提案，不是已测得的 U280 加速结果。RegionSeal 保留为历史失败审计，而非当前候选。
 
@@ -268,8 +268,8 @@ A downloaded PDF must be publicly reachable, begin with a valid PDF signature, o
 
 ### Layout
 
-- `assets/<ref_slug>/index.md`: paper page and provenance.
-- `assets/<ref_slug>/metadata.yaml`: machine-readable identity, links, download status and validation.
+- `assets/<ref_slug>/note.md`: documented reading or targeted verification only.
+- `assets/<ref_slug>/citation.bib`: citation and preserved historical provenance snapshot.
 - `assets/<ref_slug>/paper-pdf/`: validated public paper PDF, when available.
 - `assets/<ref_slug>/paper-tex/{archives,extracted}/`: source archive and extracted TeX, when available.
 - [manifest.yaml](threads/paper-library/manifest.yaml): preserved historical collection status.
@@ -288,7 +288,7 @@ fixed-graph kernel latency and a complete stateful generation request.
 
 The 2026-07-28 additions are selected from the unfiltered six-query union search (241 source records deduplicated to 142; see [[research/fpga-llm-inference/index]] Literature Provenance for method, admission rule and the 15-record table); they are not claimed to be manuscript citations.
 
-The 2026-09-08 update adds [[research/fpga-llm-inference/assets/secda-llm-2024/index|SECDA-LLM]] after reading its full TeX paper and
+The 2026-09-08 update adds [[research/fpga-llm-inference/assets/secda-llm-2024/note|SECDA-LLM]] after reading its full TeX paper and
 bibliography. The historical audit pinned and archived its official repository and two exact gitlink dependencies;
 backend/KV inspection is targeted and does not establish a reproduced build. Original Hummingbird's
 source is archived for targeted thematic review and remains unprocessed. The revised nine-system
@@ -298,97 +298,97 @@ comparison plus local backend row and selection rationale are in [[research/fpga
 
 | Paper | Year | Related Work category | Cache status | Canonical source |
 |---|---:|---|---|---|
-| [[research/fpga-llm-inference/assets/secda-llm-2024/index|SECDA-LLM: Designing Efficient LLM Accelerators for Edge Devices]] | 2024 | Framework-integrated FPGA LLM inference | `processed; code audit partial` | ARC-LG @ ISCA 2024; arXiv 2408.00462 |
-| [[research/fpga-llm-inference/assets/f-bfq-2025/index|F-BFQ: Flexible Block Floating-Point Quantization Accelerator for LLMs]] | 2025 | Framework-integrated FPGA LLM inference | `abstract and HTML read 2026-09-27` | LG-ARC @ ISCA 2025; arXiv 2510.13401 |
-| [[research/fpga-llm-inference/assets/imax-llm-2025/index|Efficient Kernel Mapping and Comprehensive System Evaluation of LLM Acceleration on a CGLA (IMAX)]] | 2025 | Framework-integrated FPGA LLM inference | `TeX read 2026-09-27` | IEEE Access 2025; arXiv 2512.00335 |
-| [[research/fpga-llm-inference/assets/ftrans-2020/index|FTRANS: Energy-Efficient Acceleration of Transformers using FPGA]] | 2020 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2007.08563 |
-| [[research/fpga-llm-inference/assets/sanger-2021/index|Sanger: A Co-Design Framework for Enabling Sparse Attention using Reconfigurable Architecture]] | 2021 | FPGA Transformer and LLM systems | `downloaded` | DOI `10.1145/3466752.3480125` |
-| [[research/fpga-llm-inference/assets/dfx-2022/index|DFX: A Low-latency Multi-FPGA Appliance for Accelerating Transformer-based Text Generation]] | 2022 | FPGA Transformer and LLM systems | `processed` | arXiv 2209.10797 |
-| [[research/fpga-llm-inference/assets/flightllm-2024/index|FlightLLM: Efficient Large Language Model Inference with a Complete Mapping Flow on FPGAs]] | 2024 | FPGA Transformer and LLM systems | `processed` | arXiv 2401.03868 |
-| [[research/fpga-llm-inference/assets/spatial-llm-2024/index|Understanding the Potential of FPGA-Based Spatial Acceleration for Large Language Model Inference]] | 2024 | FPGA Transformer and LLM systems | `processed` | arXiv 2312.15159 |
-| [[research/fpga-llm-inference/assets/edgellm-2025/index|EdgeLLM: A Highly Efficient CPU-FPGA Heterogeneous Edge Accelerator for Large Language Models]] | 2025 | FPGA Transformer and LLM systems | `processed` | arXiv 2407.21325 |
-| [[research/fpga-llm-inference/assets/glitches-2024/index|GLITCHES: GPU-FPGA LLM Inference Through a Collaborative Heterogeneous System]] | 2024 | FPGA Transformer and LLM systems | `downloaded` | DOI `10.1109/HPEC62836.2024.10938498` |
-| [[research/fpga-llm-inference/assets/streamtensor-2025/index|StreamTensor: Make Tensors Stream in Dataflow Accelerators for LLMs]] | 2025 | FPGA Transformer and LLM systems | `processed` | arXiv 2509.13694 |
-| [[research/fpga-llm-inference/assets/codo-2026/index|CODO: An Automated Compiler for Comprehensive Dataflow Optimization]] | 2026 | FPGA Transformer and LLM systems | `processed` | arXiv 2604.12618 |
-| [[research/fpga-llm-inference/assets/tellme-v2-2026/index|TeLLMe: An Efficient End-to-End Ternary LLM Prefill and Decode Accelerator with Table-Lookup Matmul on Edge FPGAs]] | 2026 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2510.15926 |
-| [[research/fpga-llm-inference/assets/fast-prefill-2026/index|FAST-Prefill: FPGA Accelerated Sparse Attention for Long Context LLM Prefill]] | 2026 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2602.20515 |
-| [[research/fpga-llm-inference/assets/flexllm-hls-2026/index|FlexLLM: Composable HLS Library for Flexible Hybrid LLM Accelerator Design]] | 2026 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2601.15710 |
-| [[research/fpga-llm-inference/assets/hummingbird-plus-2026/index|Hummingbird+: Advancing FPGA-Based LLM Deployment from Research Prototype to Edge Product]] | 2026 | FPGA Transformer and LLM systems | `metadata-only` | DOI `10.1145/3748173.3779189` |
-| [[research/fpga-llm-inference/assets/lut-llm-2026/index|LUT-LLM: Efficient Language Model Inference with Memory-Based Computations on FPGAs]] | 2026 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2511.06174 |
-| [[research/fpga-llm-inference/assets/pd-swap-2025/index|PD-Swap: Prefill-Decode Logic Swapping for End-to-End LLM Inference on Edge FPGAs via Dynamic Partial Reconfiguration]] | 2025 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2512.11550 |
-| [[research/fpga-llm-inference/assets/scalable-gpt2-2023/index|A Scalable GPT-2 Inference Hardware Architecture on FPGA]] | 2023 | Multi-FPGA and distributed inference | `metadata-only` | DOI `10.1109/IJCNN54540.2023.10191067` |
-| [[research/fpga-llm-inference/assets/multi-fpga-transformer-2024/index|The Feasibility of Implementing Large-Scale Transformers on Multi-FPGA Platforms]] | 2024 | Multi-FPGA and distributed inference | `downloaded` | arXiv 2404.16158 |
-| [[research/fpga-llm-inference/assets/looplynx-2025/index|LoopLynx: A Scalable Dataflow Architecture for Efficient LLM Inference]] | 2025 | Multi-FPGA and distributed inference | `downloaded` | arXiv 2504.09561 |
-| [[research/fpga-llm-inference/assets/lora-2026/index|LORA: A Latency-Oriented Recurrent Architecture for Large Language Model on Multi-FPGA Platform With Communication Optimization]] | 2026 | Multi-FPGA and distributed inference | `metadata-only` | DOI `10.1109/TCAD.2025.3629537` |
-| [[research/fpga-llm-inference/assets/terafly-2026/index|TeraFly: A Multinode FPGA-Based Accelerator Design for Efficient Cooperative Inference in LLMs]] | 2026 | Multi-FPGA and distributed inference | `metadata-only` | DOI `10.1109/TCAD.2025.3616078` |
-| [[research/fpga-llm-inference/assets/hlstransform-2024/index|HLSTransform: Energy-Efficient Llama 2 Inference on FPGAs Via High Level Synthesis]] | 2024 | Embedded and low-bit LLM deployment | `downloaded` | arXiv 2405.00738 |
-| [[research/fpga-llm-inference/assets/llamaf-2024/index|LlamaF: An Efficient Llama2 Architecture Accelerator on Embedded FPGAs]] | 2024 | Embedded and low-bit LLM deployment | `downloaded` | arXiv 2409.11424 |
-| [[research/fpga-llm-inference/assets/embedded-bw-2025/index|Pushing up to the Limit of Memory Bandwidth and Capacity Utilization for Efficient LLM Decoding on Embedded FPGA]] | 2025 | Embedded and low-bit LLM deployment | `downloaded` | arXiv 2502.10659 |
-| [[research/fpga-llm-inference/assets/meadow-2025/index|MEADOW: Memory-Efficient Dataflow and Data Packing for Low Power Edge LLMs]] | 2025 | Embedded and low-bit LLM deployment | `downloaded` | arXiv 2503.11663 |
-| [[research/fpga-llm-inference/assets/hummingbird-2025/index|Hummingbird: A Smaller and Faster Large Language Model Accelerator on Embedded FPGA]] | 2025 | Embedded and low-bit LLM deployment | `downloaded` | arXiv 2507.03308 |
-| [[research/fpga-llm-inference/assets/qllama-2025/index|QLlama: An FPGA-Based Microscaling Quantization Accelerator for Energy-Efficient Llama2 Inference]] | 2025 | Embedded and low-bit LLM deployment | `metadata-only` | DOI `10.1109/LES.2025.3600563` |
-| [[research/fpga-llm-inference/assets/tereffic-2025/index|TerEffic: Highly Efficient Ternary LLM Inference on FPGA]] | 2025 | Embedded and low-bit LLM deployment | `downloaded` | arXiv 2502.16473 |
-| [[research/fpga-llm-inference/assets/tenet-2025/index|TENET: An Efficient Sparsity-Aware LUT-Centric Architecture for Ternary LLM Inference on Edge]] | 2025 | Embedded and low-bit LLM deployment | `downloaded` | arXiv 2509.13765 |
-| [[research/fpga-llm-inference/assets/tflop-2026/index|TFLOP: Towards Energy-Efficient LLM Inference, an FPGA-Affinity Accelerator with Unified LUT-Based Optimization]] | 2026 | Embedded and low-bit LLM deployment | `metadata-only` | DOI `10.1109/ASP-DAC66049.2026.11420766` |
-| [[research/fpga-llm-inference/assets/llm-on-fpga-2025/index|LLM on FPGA: Squeezing Language Models by Quantization and Multi-Query Attention and Its Efficient Hardware Architecture]] | 2025 | Embedded and low-bit LLM deployment | `metadata-only` | DOI `10.1109/ISOCC66390.2025.11329964` |
-| [[research/fpga-llm-inference/assets/robot-llm-fpga-2025/index|Computationally Efficient FPGA-Based Large Language Model Inference for Real-Time Decision-Making in Robotic Systems]] | 2025 | Embedded and low-bit LLM deployment | `metadata-only` | DOI `10.1109/IROS60139.2025.11247019` |
-| [[research/fpga-llm-inference/assets/accllm-2025/index|AccLLM: Accelerating Long-Context LLM Inference Via Algorithm-Hardware Co-Design]] | 2025 | Long-context and phase-specialized acceleration | `downloaded; verified 2026-09-27` | IEEE TVLSI 2026, DOI `10.1109/TVLSI.2026.3658524` |
-| [[research/fpga-llm-inference/assets/metal-2025/index|METAL: A Memory-Efficient Transformer Architecture for Long-Context Inference on FPGA]] | 2025 | Long-context and phase-specialized acceleration | `metadata-only` | DOI `10.1109/ASAP65064.2025.00023` |
-| [[research/fpga-llm-inference/assets/cxl-speckv-2025/index|CXL-SpecKV: A Disaggregated FPGA Speculative KV-Cache for Datacenter LLM Serving]] | 2025 | Long-context and phase-specialized acceleration | `downloaded` | arXiv 2512.11920 |
-| [[research/fpga-llm-inference/assets/eliteformer-2026/index|ELiTeFormer: An Efficient Transformer for FPGAs]] | 2026 | Long-context and phase-specialized acceleration | `downloaded` | arXiv 2607.03652 |
-| [[research/fpga-llm-inference/assets/transformer-opu-2023/index|Transformer-OPU: An FPGA-based Overlay Processor for Transformer Networks]] | 2023 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1109/FCCM57271.2023.00049` |
-| [[research/fpga-llm-inference/assets/fet-opu-2023/index|FET-OPU: A Flexible and Efficient FPGA-Based Overlay Processor for Transformer Networks]] | 2023 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1109/ICCAD57390.2023.10323752` |
-| [[research/fpga-llm-inference/assets/cstrans-opu-2024/index|CSTrans-OPU: An FPGA-based Overlay Processor with Full Compilation for Transformer Networks via Sparsity Exploration]] | 2024 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1145/3649329.3657325` |
-| [[research/fpga-llm-inference/assets/chatopu-2024/index|ChatOPU: An FPGA-based Overlay Processor for Large Language Models with Unstructured Sparsity]] | 2024 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1145/3676536.3676761` |
-| [[research/fpga-llm-inference/assets/moe-opu-2025/index|MoE-OPU: An FPGA Overlay Processor Leveraging Expert Parallelism for MoE-Based Large Language Models]] | 2025 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1109/ICCAD66269.2025.11240807` |
-| [[research/fpga-llm-inference/assets/dllm-opu-2026/index|dLLM-OPU: An FPGA Overlay Processor for Accelerated Diffusion Large Language Models]] | 2026 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1109/ASP-DAC66049.2026.11420284` |
-| [[research/fpga-llm-inference/assets/skipopu-2026/index|SkipOPU: An FPGA-Based Overlay Processor for Large Language Models with Dynamically Allocated Computation]] | 2026 | Programmable and specialized FPGA execution | `downloaded` | arXiv 2603.14785 |
-| [[research/fpga-llm-inference/assets/lightmamba-2025/index|LightMamba: Efficient Mamba Acceleration on FPGA with Quantization and Hardware Co-Design]] | 2025 | Programmable and specialized FPGA execution | `downloaded` | arXiv 2502.15260 |
-| [[research/fpga-llm-inference/assets/graphagile-2023/index|GraphAGILE: An FPGA-Based Overlay Accelerator for Low-Latency GNN Inference]] | 2023 | Programmable and specialized FPGA execution | `downloaded` | arXiv 2302.01769 |
-| [[research/fpga-llm-inference/assets/runtime-adaptive-transformer-2026/index|A Runtime-Adaptive Transformer Neural Network Accelerator on FPGAs]] | 2026 | Programmable and specialized FPGA execution | `downloaded` | arXiv 2411.18148 |
-| [[research/fpga-llm-inference/assets/flame-2024/index|FLAME: Fully Leveraging MoE Sparsity for Transformer on FPGA]] | 2024 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1145/3649329.3656507` |
-| [[research/fpga-llm-inference/assets/baqet-2025/index|BAQET: BRAM-aware Quantization for Efficient Transformer Inference via Stream-based Architecture on an FPGA]] | 2025 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1145/3706628.3708849` |
-| [[research/fpga-llm-inference/assets/speedllm-2025/index|SpeedLLM: An FPGA Co-design of Large Language Model Inference Accelerator]] | 2025 | Programmable and specialized FPGA execution | `downloaded` | arXiv 2507.14139 |
-| [[research/fpga-llm-inference/assets/xtramac-2026/index|XtraMAC: An Efficient MAC Architecture for Mixed-Precision LLM Inference on FPGA]] | 2026 | Programmable and specialized FPGA execution | `downloaded` | arXiv 2605.06052 |
-| [[research/fpga-llm-inference/assets/scalehls-2022/index|ScaleHLS: A New Scalable High-Level Synthesis Framework on Multi-Level Intermediate Representation]] | 2022 | Composable accelerator compilation | `downloaded` | arXiv 2107.11673 |
-| [[research/fpga-llm-inference/assets/tapa-2023/index|TAPA: A Scalable Task-parallel Dataflow Programming Framework for Modern FPGAs with Co-optimization of HLS and Physical Design]] | 2023 | Composable accelerator compilation | `downloaded` | arXiv 2209.02663 |
-| [[research/fpga-llm-inference/assets/allo-2024/index|Allo: A Programming Model for Composable Accelerator Design]] | 2024 | Composable accelerator compilation | `downloaded` | arXiv 2404.04815 |
-| [[research/fpga-llm-inference/assets/intrra-2025/index|InTRRA: Inter-Task Resource-Repurposing Accelerator for Efficient Transformer Inference on FPGAs]] | 2025 | Composable accelerator compilation | `metadata-only` | DOI `10.1145/3706628.3708828` |
-| [[research/fpga-llm-inference/assets/integer-fusion-2025/index|Enhancing Transformer Inference Efficiency on FPGA Through Fully Fusion and Integer-Only Quantization Techniques]] | 2025 | Composable accelerator compilation | `metadata-only` | DOI `10.1109/ICCD65941.2025.00020` |
-| [[research/fpga-llm-inference/assets/shuhai-2020/index|Shuhai: Benchmarking High Bandwidth Memory on FPGAs]] | 2020 | HBM topology and data movement | `downloaded` | arXiv 2005.04324 |
-| [[research/fpga-llm-inference/assets/hbm-connect-2021/index|HBM Connect: High-Performance HLS Interconnect for FPGA HBM]] | 2021 | HBM topology and data movement | `downloaded` | DOI `10.1145/3431920.3439301` |
-| [[research/fpga-llm-inference/assets/verilogeval-2023/index|Invited Paper: VerilogEval: Evaluating Large Language Models for Verilog Code Generation]] | 2023 | Kernel generation and evaluation | `downloaded` | arXiv 2309.07544 |
-| [[research/fpga-llm-inference/assets/rtllm-2024/index|RTLLM: An Open-Source Benchmark for Design RTL Generation with Large Language Model]] | 2024 | Kernel generation and evaluation | `downloaded` | arXiv 2308.05345 |
-| [[research/fpga-llm-inference/assets/gpt4aigchip-2023/index|GPT4AIGChip: Towards Next-Generation AI Accelerator Design Automation via Large Language Models]] | 2023 | Kernel generation and evaluation | `downloaded` | arXiv 2309.10730 |
-| [[research/fpga-llm-inference/assets/hlspilot-2024/index|HLSPilot: LLM-based High-Level Synthesis]] | 2024 | Kernel generation and evaluation | `downloaded` | arXiv 2408.06810 |
-| [[research/fpga-llm-inference/assets/llm-aid-2024/index|LLM-AID: Leveraging Large Language Models for Rapid Domain-Specific Accelerator Development]] | 2024 | Kernel generation and evaluation | `metadata-only` | DOI `10.1145/3676536.3697135` |
-| [[research/fpga-llm-inference/assets/rtlrewriter-2024/index|RTLRewriter: Methodologies for Large Models aided RTL Code Optimization]] | 2024 | Kernel generation and evaluation | `downloaded` | arXiv 2409.11414 |
-| [[research/fpga-llm-inference/assets/hls-codegen-benchmark-2025/index|Exploring Code Language Models for Automated HLS-based Hardware Generation: Benchmark, Infrastructure and Analysis]] | 2025 | Kernel generation and evaluation | `downloaded` | arXiv 2502.13921 |
-| [[research/fpga-llm-inference/assets/autodse-2022/index|AutoDSE: Enabling Software Programmers to Design Efficient FPGA Accelerators]] | 2022 | Evidence and optimization methodology | `downloaded` | arXiv 2009.14381 |
-| [[research/fpga-llm-inference/assets/ranktuner-2024/index|RankTuner: When Design Tool Parameter Tuning Meets Preference Bayesian Optimization]] | 2024 | Evidence and optimization methodology | `downloaded` | DOI `10.1145/3676536.3676782` |
-| [[research/fpga-llm-inference/assets/hlsfactory-2024/index|HLSFactory: A Framework Empowering High-Level Synthesis Datasets for Machine Learning and Beyond]] | 2024 | Evidence and optimization methodology | `downloaded` | arXiv 2405.00820 |
-| [[research/fpga-llm-inference/assets/bench4hls-2026/index|Bench4HLS: End-to-End Evaluation of LLMs in High-Level Synthesis Code Generation]] | 2026 | Evidence and optimization methodology | `downloaded` | arXiv 2601.19941 |
-| [[research/fpga-llm-inference/assets/softermax-2021/index|Softermax: Hardware/Software Co-Design of an Efficient Softmax for Transformers]] | 2021 | Evidence and optimization methodology | `downloaded` | arXiv 2103.09301 |
+| [[research/fpga-llm-inference/assets/secda-llm-2024/note|SECDA-LLM: Designing Efficient LLM Accelerators for Edge Devices]] | 2024 | Framework-integrated FPGA LLM inference | `processed; code audit partial` | ARC-LG @ ISCA 2024; arXiv 2408.00462 |
+| [[research/fpga-llm-inference/assets/f-bfq-2025/note|F-BFQ: Flexible Block Floating-Point Quantization Accelerator for LLMs]] | 2025 | Framework-integrated FPGA LLM inference | `abstract and HTML read 2026-09-27` | LG-ARC @ ISCA 2025; arXiv 2510.13401 |
+| [[research/fpga-llm-inference/assets/imax-llm-2025/note|Efficient Kernel Mapping and Comprehensive System Evaluation of LLM Acceleration on a CGLA (IMAX)]] | 2025 | Framework-integrated FPGA LLM inference | `TeX read 2026-09-27` | IEEE Access 2025; arXiv 2512.00335 |
+| [[research/fpga-llm-inference/threads/unread/ftrans-2020|FTRANS: Energy-Efficient Acceleration of Transformers using FPGA]] | 2020 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2007.08563 |
+| [[research/fpga-llm-inference/threads/unread/sanger-2021|Sanger: A Co-Design Framework for Enabling Sparse Attention using Reconfigurable Architecture]] | 2021 | FPGA Transformer and LLM systems | `downloaded` | DOI `10.1145/3466752.3480125` |
+| [[research/fpga-llm-inference/assets/dfx-2022/note|DFX: A Low-latency Multi-FPGA Appliance for Accelerating Transformer-based Text Generation]] | 2022 | FPGA Transformer and LLM systems | `processed` | arXiv 2209.10797 |
+| [[research/fpga-llm-inference/assets/flightllm-2024/note|FlightLLM: Efficient Large Language Model Inference with a Complete Mapping Flow on FPGAs]] | 2024 | FPGA Transformer and LLM systems | `processed` | arXiv 2401.03868 |
+| [[research/fpga-llm-inference/assets/spatial-llm-2024/note|Understanding the Potential of FPGA-Based Spatial Acceleration for Large Language Model Inference]] | 2024 | FPGA Transformer and LLM systems | `processed` | arXiv 2312.15159 |
+| [[research/fpga-llm-inference/assets/edgellm-2025/note|EdgeLLM: A Highly Efficient CPU-FPGA Heterogeneous Edge Accelerator for Large Language Models]] | 2025 | FPGA Transformer and LLM systems | `processed` | arXiv 2407.21325 |
+| [[research/fpga-llm-inference/threads/unread/glitches-2024|GLITCHES: GPU-FPGA LLM Inference Through a Collaborative Heterogeneous System]] | 2024 | FPGA Transformer and LLM systems | `downloaded` | DOI `10.1109/HPEC62836.2024.10938498` |
+| [[research/fpga-llm-inference/assets/streamtensor-2025/note|StreamTensor: Make Tensors Stream in Dataflow Accelerators for LLMs]] | 2025 | FPGA Transformer and LLM systems | `processed` | arXiv 2509.13694 |
+| [[research/fpga-llm-inference/assets/codo-2026/note|CODO: An Automated Compiler for Comprehensive Dataflow Optimization]] | 2026 | FPGA Transformer and LLM systems | `processed` | arXiv 2604.12618 |
+| [[research/fpga-llm-inference/assets/tellme-v2-2026/note|TeLLMe: An Efficient End-to-End Ternary LLM Prefill and Decode Accelerator with Table-Lookup Matmul on Edge FPGAs]] | 2026 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2510.15926 |
+| [[research/fpga-llm-inference/threads/unread/fast-prefill-2026|FAST-Prefill: FPGA Accelerated Sparse Attention for Long Context LLM Prefill]] | 2026 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2602.20515 |
+| [[research/fpga-llm-inference/assets/flexllm-hls-2026/note|FlexLLM: Composable HLS Library for Flexible Hybrid LLM Accelerator Design]] | 2026 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2601.15710 |
+| [[research/fpga-llm-inference/threads/unread/hummingbird-plus-2026|Hummingbird+: Advancing FPGA-Based LLM Deployment from Research Prototype to Edge Product]] | 2026 | FPGA Transformer and LLM systems | `metadata-only` | DOI `10.1145/3748173.3779189` |
+| [[research/fpga-llm-inference/assets/lut-llm-2026/note|LUT-LLM: Efficient Language Model Inference with Memory-Based Computations on FPGAs]] | 2026 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2511.06174 |
+| PD-Swap: Prefill-Decode Logic Swapping for End-to-End LLM Inference on Edge FPGAs via Dynamic Partial Reconfiguration (原目录已移除；历史内容见 git 记录) | 2025 | FPGA Transformer and LLM systems | `downloaded` | arXiv 2512.11550 |
+| [[research/fpga-llm-inference/threads/unread/scalable-gpt2-2023|A Scalable GPT-2 Inference Hardware Architecture on FPGA]] | 2023 | Multi-FPGA and distributed inference | `metadata-only` | DOI `10.1109/IJCNN54540.2023.10191067` |
+| The Feasibility of Implementing Large-Scale Transformers on Multi-FPGA Platforms (原目录已移除；历史内容见 git 记录) | 2024 | Multi-FPGA and distributed inference | `downloaded` | arXiv 2404.16158 |
+| [[research/fpga-llm-inference/threads/unread/looplynx-2025|LoopLynx: A Scalable Dataflow Architecture for Efficient LLM Inference]] | 2025 | Multi-FPGA and distributed inference | `downloaded` | arXiv 2504.09561 |
+| [[research/fpga-llm-inference/threads/unread/lora-2026|LORA: A Latency-Oriented Recurrent Architecture for Large Language Model on Multi-FPGA Platform With Communication Optimization]] | 2026 | Multi-FPGA and distributed inference | `metadata-only` | DOI `10.1109/TCAD.2025.3629537` |
+| [[research/fpga-llm-inference/threads/unread/terafly-2026|TeraFly: A Multinode FPGA-Based Accelerator Design for Efficient Cooperative Inference in LLMs]] | 2026 | Multi-FPGA and distributed inference | `metadata-only` | DOI `10.1109/TCAD.2025.3616078` |
+| [[research/fpga-llm-inference/threads/unread/hlstransform-2024|HLSTransform: Energy-Efficient Llama 2 Inference on FPGAs Via High Level Synthesis]] | 2024 | Embedded and low-bit LLM deployment | `downloaded` | arXiv 2405.00738 |
+| [[research/fpga-llm-inference/threads/unread/llamaf-2024|LlamaF: An Efficient Llama2 Architecture Accelerator on Embedded FPGAs]] | 2024 | Embedded and low-bit LLM deployment | `downloaded` | arXiv 2409.11424 |
+| [[research/fpga-llm-inference/assets/embedded-bw-2025/note|Pushing up to the Limit of Memory Bandwidth and Capacity Utilization for Efficient LLM Decoding on Embedded FPGA]] | 2025 | Embedded and low-bit LLM deployment | `downloaded` | arXiv 2502.10659 |
+| [[research/fpga-llm-inference/threads/unread/meadow-2025|MEADOW: Memory-Efficient Dataflow and Data Packing for Low Power Edge LLMs]] | 2025 | Embedded and low-bit LLM deployment | `downloaded` | arXiv 2503.11663 |
+| [[research/fpga-llm-inference/threads/unread/hummingbird-2025|Hummingbird: A Smaller and Faster Large Language Model Accelerator on Embedded FPGA]] | 2025 | Embedded and low-bit LLM deployment | `downloaded` | arXiv 2507.03308 |
+| [[research/fpga-llm-inference/threads/unread/qllama-2025|QLlama: An FPGA-Based Microscaling Quantization Accelerator for Energy-Efficient Llama2 Inference]] | 2025 | Embedded and low-bit LLM deployment | `metadata-only` | DOI `10.1109/LES.2025.3600563` |
+| TerEffic: Highly Efficient Ternary LLM Inference on FPGA (原目录已移除；历史内容见 git 记录) | 2025 | Embedded and low-bit LLM deployment | `downloaded` | arXiv 2502.16473 |
+| TENET: An Efficient Sparsity-Aware LUT-Centric Architecture for Ternary LLM Inference on Edge (原目录已移除；历史内容见 git 记录) | 2025 | Embedded and low-bit LLM deployment | `downloaded` | arXiv 2509.13765 |
+| [[research/fpga-llm-inference/threads/unread/tflop-2026|TFLOP: Towards Energy-Efficient LLM Inference, an FPGA-Affinity Accelerator with Unified LUT-Based Optimization]] | 2026 | Embedded and low-bit LLM deployment | `metadata-only` | DOI `10.1109/ASP-DAC66049.2026.11420766` |
+| [[research/fpga-llm-inference/threads/unread/llm-on-fpga-2025|LLM on FPGA: Squeezing Language Models by Quantization and Multi-Query Attention and Its Efficient Hardware Architecture]] | 2025 | Embedded and low-bit LLM deployment | `metadata-only` | DOI `10.1109/ISOCC66390.2025.11329964` |
+| [[research/fpga-llm-inference/threads/unread/robot-llm-fpga-2025|Computationally Efficient FPGA-Based Large Language Model Inference for Real-Time Decision-Making in Robotic Systems]] | 2025 | Embedded and low-bit LLM deployment | `metadata-only` | DOI `10.1109/IROS60139.2025.11247019` |
+| [[research/fpga-llm-inference/assets/accllm-2025/note|AccLLM: Accelerating Long-Context LLM Inference Via Algorithm-Hardware Co-Design]] | 2025 | Long-context and phase-specialized acceleration | `downloaded; verified 2026-09-27` | IEEE TVLSI 2026, DOI `10.1109/TVLSI.2026.3658524` |
+| [[research/fpga-llm-inference/threads/unread/metal-2025|METAL: A Memory-Efficient Transformer Architecture for Long-Context Inference on FPGA]] | 2025 | Long-context and phase-specialized acceleration | `metadata-only` | DOI `10.1109/ASAP65064.2025.00023` |
+| [[research/fpga-llm-inference/threads/unread/cxl-speckv-2025|CXL-SpecKV: A Disaggregated FPGA Speculative KV-Cache for Datacenter LLM Serving]] | 2025 | Long-context and phase-specialized acceleration | `downloaded` | arXiv 2512.11920 |
+| ELiTeFormer: An Efficient Transformer for FPGAs (原目录已移除；历史内容见 git 记录) | 2026 | Long-context and phase-specialized acceleration | `downloaded` | arXiv 2607.03652 |
+| [[research/fpga-llm-inference/threads/unread/transformer-opu-2023|Transformer-OPU: An FPGA-based Overlay Processor for Transformer Networks]] | 2023 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1109/FCCM57271.2023.00049` |
+| [[research/fpga-llm-inference/threads/unread/fet-opu-2023|FET-OPU: A Flexible and Efficient FPGA-Based Overlay Processor for Transformer Networks]] | 2023 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1109/ICCAD57390.2023.10323752` |
+| [[research/fpga-llm-inference/threads/unread/cstrans-opu-2024|CSTrans-OPU: An FPGA-based Overlay Processor with Full Compilation for Transformer Networks via Sparsity Exploration]] | 2024 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1145/3649329.3657325` |
+| [[research/fpga-llm-inference/threads/unread/chatopu-2024|ChatOPU: An FPGA-based Overlay Processor for Large Language Models with Unstructured Sparsity]] | 2024 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1145/3676536.3676761` |
+| [[research/fpga-llm-inference/threads/unread/moe-opu-2025|MoE-OPU: An FPGA Overlay Processor Leveraging Expert Parallelism for MoE-Based Large Language Models]] | 2025 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1109/ICCAD66269.2025.11240807` |
+| [[research/fpga-llm-inference/threads/unread/dllm-opu-2026|dLLM-OPU: An FPGA Overlay Processor for Accelerated Diffusion Large Language Models]] | 2026 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1109/ASP-DAC66049.2026.11420284` |
+| [[research/fpga-llm-inference/threads/unread/skipopu-2026|SkipOPU: An FPGA-Based Overlay Processor for Large Language Models with Dynamically Allocated Computation]] | 2026 | Programmable and specialized FPGA execution | `downloaded` | arXiv 2603.14785 |
+| [[research/fpga-llm-inference/threads/unread/lightmamba-2025|LightMamba: Efficient Mamba Acceleration on FPGA with Quantization and Hardware Co-Design]] | 2025 | Programmable and specialized FPGA execution | `downloaded` | arXiv 2502.15260 |
+| [[research/fpga-llm-inference/threads/unread/graphagile-2023|GraphAGILE: An FPGA-Based Overlay Accelerator for Low-Latency GNN Inference]] | 2023 | Programmable and specialized FPGA execution | `downloaded` | arXiv 2302.01769 |
+| [[research/fpga-llm-inference/threads/unread/runtime-adaptive-transformer-2026|A Runtime-Adaptive Transformer Neural Network Accelerator on FPGAs]] | 2026 | Programmable and specialized FPGA execution | `downloaded` | arXiv 2411.18148 |
+| [[research/fpga-llm-inference/threads/unread/flame-2024|FLAME: Fully Leveraging MoE Sparsity for Transformer on FPGA]] | 2024 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1145/3649329.3656507` |
+| [[research/fpga-llm-inference/threads/unread/baqet-2025|BAQET: BRAM-aware Quantization for Efficient Transformer Inference via Stream-based Architecture on an FPGA]] | 2025 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1145/3706628.3708849` |
+| [[research/fpga-llm-inference/threads/unread/speedllm-2025|SpeedLLM: An FPGA Co-design of Large Language Model Inference Accelerator]] | 2025 | Programmable and specialized FPGA execution | `downloaded` | arXiv 2507.14139 |
+| [[research/fpga-llm-inference/threads/unread/xtramac-2026|XtraMAC: An Efficient MAC Architecture for Mixed-Precision LLM Inference on FPGA]] | 2026 | Programmable and specialized FPGA execution | `downloaded` | arXiv 2605.06052 |
+| [[research/fpga-llm-inference/threads/unread/scalehls-2022|ScaleHLS: A New Scalable High-Level Synthesis Framework on Multi-Level Intermediate Representation]] | 2022 | Composable accelerator compilation | `downloaded` | arXiv 2107.11673 |
+| [[research/fpga-llm-inference/threads/unread/tapa-2023|TAPA: A Scalable Task-parallel Dataflow Programming Framework for Modern FPGAs with Co-optimization of HLS and Physical Design]] | 2023 | Composable accelerator compilation | `downloaded` | arXiv 2209.02663 |
+| [[research/fpga-llm-inference/threads/unread/allo-2024|Allo: A Programming Model for Composable Accelerator Design]] | 2024 | Composable accelerator compilation | `downloaded` | arXiv 2404.04815 |
+| [[research/fpga-llm-inference/threads/unread/intrra-2025|InTRRA: Inter-Task Resource-Repurposing Accelerator for Efficient Transformer Inference on FPGAs]] | 2025 | Composable accelerator compilation | `metadata-only` | DOI `10.1145/3706628.3708828` |
+| [[research/fpga-llm-inference/threads/unread/integer-fusion-2025|Enhancing Transformer Inference Efficiency on FPGA Through Fully Fusion and Integer-Only Quantization Techniques]] | 2025 | Composable accelerator compilation | `metadata-only` | DOI `10.1109/ICCD65941.2025.00020` |
+| [[research/fpga-llm-inference/threads/unread/shuhai-2020|Shuhai: Benchmarking High Bandwidth Memory on FPGAs]] | 2020 | HBM topology and data movement | `downloaded` | arXiv 2005.04324 |
+| [[research/fpga-llm-inference/threads/unread/hbm-connect-2021|HBM Connect: High-Performance HLS Interconnect for FPGA HBM]] | 2021 | HBM topology and data movement | `downloaded` | DOI `10.1145/3431920.3439301` |
+| [[research/fpga-llm-inference/threads/unread/verilogeval-2023|Invited Paper: VerilogEval: Evaluating Large Language Models for Verilog Code Generation]] | 2023 | Kernel generation and evaluation | `downloaded` | arXiv 2309.07544 |
+| [[research/fpga-llm-inference/threads/unread/rtllm-2024|RTLLM: An Open-Source Benchmark for Design RTL Generation with Large Language Model]] | 2024 | Kernel generation and evaluation | `downloaded` | arXiv 2308.05345 |
+| [[research/fpga-llm-inference/threads/unread/gpt4aigchip-2023|GPT4AIGChip: Towards Next-Generation AI Accelerator Design Automation via Large Language Models]] | 2023 | Kernel generation and evaluation | `downloaded` | arXiv 2309.10730 |
+| [[research/fpga-llm-inference/threads/unread/hlspilot-2024|HLSPilot: LLM-based High-Level Synthesis]] | 2024 | Kernel generation and evaluation | `downloaded` | arXiv 2408.06810 |
+| [[research/fpga-llm-inference/threads/unread/llm-aid-2024|LLM-AID: Leveraging Large Language Models for Rapid Domain-Specific Accelerator Development]] | 2024 | Kernel generation and evaluation | `metadata-only` | DOI `10.1145/3676536.3697135` |
+| [[research/fpga-llm-inference/threads/unread/rtlrewriter-2024|RTLRewriter: Methodologies for Large Models aided RTL Code Optimization]] | 2024 | Kernel generation and evaluation | `downloaded` | arXiv 2409.11414 |
+| [[research/fpga-llm-inference/threads/unread/hls-codegen-benchmark-2025|Exploring Code Language Models for Automated HLS-based Hardware Generation: Benchmark, Infrastructure and Analysis]] | 2025 | Kernel generation and evaluation | `downloaded` | arXiv 2502.13921 |
+| [[research/fpga-llm-inference/threads/unread/autodse-2022|AutoDSE: Enabling Software Programmers to Design Efficient FPGA Accelerators]] | 2022 | Evidence and optimization methodology | `downloaded` | arXiv 2009.14381 |
+| [[research/fpga-llm-inference/threads/unread/ranktuner-2024|RankTuner: When Design Tool Parameter Tuning Meets Preference Bayesian Optimization]] | 2024 | Evidence and optimization methodology | `downloaded` | DOI `10.1145/3676536.3676782` |
+| [[research/fpga-llm-inference/threads/unread/hlsfactory-2024|HLSFactory: A Framework Empowering High-Level Synthesis Datasets for Machine Learning and Beyond]] | 2024 | Evidence and optimization methodology | `downloaded` | arXiv 2405.00820 |
+| [[research/fpga-llm-inference/threads/unread/bench4hls-2026|Bench4HLS: End-to-End Evaluation of LLMs in High-Level Synthesis Code Generation]] | 2026 | Evidence and optimization methodology | `downloaded` | arXiv 2601.19941 |
+| [[research/fpga-llm-inference/threads/unread/softermax-2021|Softermax: Hardware/Software Co-Design of an Efficient Softmax for Transformers]] | 2021 | Evidence and optimization methodology | `downloaded` | arXiv 2103.09301 |
 
 ### 2026-07-28 Architecture Additions
 
 | Paper | Year | Category | Cache status | Canonical source |
 |---|---:|---|---|---|
-| [[research/fpga-llm-inference/assets/mpk-2025/index|MPK: A Compiler and Runtime for Mega-Kernelizing Tensor Programs]] | 2025 | Coarse-grained and persistent execution | `downloaded` | arXiv 2512.22219 |
-| [[research/fpga-llm-inference/assets/cd-llm-2026/index|CD-LLM: A Heterogeneous Multi-FPGA System for Batched Decoding of 70B+ LLMs Using a Compute-Dedicated Architecture]] | 2026 | HBM-aware and decode architectures | `metadata-only` | DOI `10.1145/3771288` |
-| [[research/fpga-llm-inference/assets/flightopu-2025/index|FlightOPU: An FPGA Overlay Processor for LLM with HBM-Aware Multi-Die Architecture]] | 2025 | HBM-aware and decode architectures | `metadata-only` | DOI `10.1109/ICFPT67023.2025.00048` |
-| [[research/fpga-llm-inference/assets/nyx-2025/index|Nyx: Virtualizing dataflow execution on shared FPGA platforms]] | 2025 | Shared and virtualized FPGA execution | `metadata-only` | DOI `10.1145/3695053.3731094` |
-| [[research/fpga-llm-inference/assets/pcie-coarse-systolic-2025/index|Hardware-Software Co-Design for Efficient LLM Inference on PCIe-Based FPGAs Using Coarse-Grained Systolic Arrays]] | 2025 | Coarse-grained and persistent execution | `metadata-only` | DOI `10.1109/SOCC66126.2025.11235351` |
-| [[research/fpga-llm-inference/assets/riscbench-2026/index|RISCBench: Benchmarking RISC-V Orchestration Efficiency in FPGA and FPGA-Like Computing Engines]] | 2026 | Evidence and orchestration methodology | `metadata-only` | DOI `10.1145/3748173.3779569` |
-| [[research/fpga-llm-inference/assets/h2-llm-2025/index|H2-LLM: Hardware-Dataflow Co-Exploration for Heterogeneous Hybrid-Bonding-based Low-Batch LLM Inference]] | 2025 | HBM-aware and decode architectures | `metadata-only` | DOI `10.1145/3695053.3731008` |
-| [[research/fpga-llm-inference/assets/mcore-opu-2024/index|An FPGA-Based Multi-Core Overlay Processor for Transformer-Based Models]] | 2024 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1109/ISEDA62518.2024.10617729` |
-| [[research/fpga-llm-inference/assets/streaming-vpe-2024/index|An FPGA-Based Efficient Streaming Vector Processing Engine for Transformer-Based Models]] | 2024 | Coarse-grained and persistent execution | `metadata-only` | DOI `10.1109/ISEDA62518.2024.10617499` |
-| [[research/fpga-llm-inference/assets/dtcore-2026/index|DTCore: A Compiler-Directed Control-Minimal FPGA Compute Engine]] | 2026 | Coarse-grained and persistent execution | `metadata-only` | DOI `10.1109/FCCM68464.2026.00053` |
-| [[research/fpga-llm-inference/assets/festal-2026/index|FESTAL: Dataflow Accelerator Synthesis Framework with Graph-Based Fusion for FPGA]] | 2026 | Composable accelerator compilation | `metadata-only` | DOI `10.1109/ASP-DAC66049.2026.11420389` |
-| [[research/fpga-llm-inference/assets/fmc-llm-2025/index|FMC-LLM: Enabling FPGAs for Efficient Batched Decoding of 70B+ LLMs with a Memory-Centric Streaming Architecture]] | 2025 | HBM-aware and decode architectures | `metadata-only` | DOI `10.1145/3706628.3708863` |
-| [[research/fpga-llm-inference/assets/e2e-overlay-compiler-2025/index|End-to-end Compilation is All FPGAs Need: A Unified Overlay-based FPGA Compiler for Deep Learning]] | 2025 | Composable accelerator compilation | `metadata-only` | DOI `10.1145/3658617.3697562` |
-| [[research/fpga-llm-inference/assets/lembda-2026/index|Lembda: Optimizing LLM Inference on Embedded Platforms via CPU/FPGA Co-processing]] | 2026 | CPU-FPGA heterogeneous inference | `metadata-only` | DOI `10.1007/978-981-95-1021-4_35` |
-| [[research/fpga-llm-inference/assets/cgra-space-time-2025/index|Monomorphism-Based CGRA Mapping via Space and Time Decoupling]] | 2025 | Overlay and CGRA mapping | `downloaded` | arXiv 2512.02859 |
+| [[research/fpga-llm-inference/threads/unread/mpk-2025|MPK: A Compiler and Runtime for Mega-Kernelizing Tensor Programs]] | 2025 | Coarse-grained and persistent execution | `downloaded` | arXiv 2512.22219 |
+| [[research/fpga-llm-inference/threads/unread/cd-llm-2026|CD-LLM: A Heterogeneous Multi-FPGA System for Batched Decoding of 70B+ LLMs Using a Compute-Dedicated Architecture]] | 2026 | HBM-aware and decode architectures | `metadata-only` | DOI `10.1145/3771288` |
+| [[research/fpga-llm-inference/threads/unread/flightopu-2025|FlightOPU: An FPGA Overlay Processor for LLM with HBM-Aware Multi-Die Architecture]] | 2025 | HBM-aware and decode architectures | `metadata-only` | DOI `10.1109/ICFPT67023.2025.00048` |
+| [[research/fpga-llm-inference/threads/unread/nyx-2025|Nyx: Virtualizing dataflow execution on shared FPGA platforms]] | 2025 | Shared and virtualized FPGA execution | `metadata-only` | DOI `10.1145/3695053.3731094` |
+| [[research/fpga-llm-inference/threads/unread/pcie-coarse-systolic-2025|Hardware-Software Co-Design for Efficient LLM Inference on PCIe-Based FPGAs Using Coarse-Grained Systolic Arrays]] | 2025 | Coarse-grained and persistent execution | `metadata-only` | DOI `10.1109/SOCC66126.2025.11235351` |
+| [[research/fpga-llm-inference/threads/unread/riscbench-2026|RISCBench: Benchmarking RISC-V Orchestration Efficiency in FPGA and FPGA-Like Computing Engines]] | 2026 | Evidence and orchestration methodology | `metadata-only` | DOI `10.1145/3748173.3779569` |
+| [[research/fpga-llm-inference/threads/unread/h2-llm-2025|H2-LLM: Hardware-Dataflow Co-Exploration for Heterogeneous Hybrid-Bonding-based Low-Batch LLM Inference]] | 2025 | HBM-aware and decode architectures | `metadata-only` | DOI `10.1145/3695053.3731008` |
+| [[research/fpga-llm-inference/threads/unread/mcore-opu-2024|An FPGA-Based Multi-Core Overlay Processor for Transformer-Based Models]] | 2024 | Programmable and specialized FPGA execution | `metadata-only` | DOI `10.1109/ISEDA62518.2024.10617729` |
+| [[research/fpga-llm-inference/threads/unread/streaming-vpe-2024|An FPGA-Based Efficient Streaming Vector Processing Engine for Transformer-Based Models]] | 2024 | Coarse-grained and persistent execution | `metadata-only` | DOI `10.1109/ISEDA62518.2024.10617499` |
+| [[research/fpga-llm-inference/threads/unread/dtcore-2026|DTCore: A Compiler-Directed Control-Minimal FPGA Compute Engine]] | 2026 | Coarse-grained and persistent execution | `metadata-only` | DOI `10.1109/FCCM68464.2026.00053` |
+| [[research/fpga-llm-inference/threads/unread/festal-2026|FESTAL: Dataflow Accelerator Synthesis Framework with Graph-Based Fusion for FPGA]] | 2026 | Composable accelerator compilation | `metadata-only` | DOI `10.1109/ASP-DAC66049.2026.11420389` |
+| [[research/fpga-llm-inference/threads/unread/fmc-llm-2025|FMC-LLM: Enabling FPGAs for Efficient Batched Decoding of 70B+ LLMs with a Memory-Centric Streaming Architecture]] | 2025 | HBM-aware and decode architectures | `metadata-only` | DOI `10.1145/3706628.3708863` |
+| [[research/fpga-llm-inference/threads/unread/e2e-overlay-compiler-2025|End-to-end Compilation is All FPGAs Need: A Unified Overlay-based FPGA Compiler for Deep Learning]] | 2025 | Composable accelerator compilation | `metadata-only` | DOI `10.1145/3658617.3697562` |
+| [[research/fpga-llm-inference/threads/unread/lembda-2026|Lembda: Optimizing LLM Inference on Embedded Platforms via CPU/FPGA Co-processing]] | 2026 | CPU-FPGA heterogeneous inference | `metadata-only` | DOI `10.1007/978-981-95-1021-4_35` |
+| [[research/fpga-llm-inference/threads/unread/cgra-space-time-2025|Monomorphism-Based CGRA Mapping via Space and Time Decoupling]] | 2025 | Overlay and CGRA mapping | `downloaded` | arXiv 2512.02859 |
 
 ### Model coverage recheck — 2026-09-15
 
@@ -402,16 +402,16 @@ Coverage describes implementation binding and observed model scope separately. M
 
 | Work | Model input | Implementation / evidence scope | Models |
 |---|---|---|---|
-| [[assets/lut-llm-2026/index|lut-llm-2026]] | Original checkpoint format NR; random-data testbench | Model-specific implementation | Qwen3-1.7B block; general checkpoint loader not established. |
-| [[assets/streamtensor-2025/index|streamtensor-2025]] | PyTorch model; suffix NR | Cross-architecture (paper) | GPT-2, Qwen, Llama and Gemma; block/phase evidence. |
-| [[assets/spatial-llm-2024/index|spatial-llm-2024]] | Hugging Face checkpoint; suffix NR | Reusable kernels; model-specific composition | BERT and GPT-2 measured; larger LLaMA/Vicuna studies are not equivalent board evidence. |
-| [[assets/dfx-2022/index|dfx-2022]] | Megatron/OpenAI GPT-2 checkpoint; suffix NR | Single family, multiple sizes (paper) | GPT-2 345M, 774M and 1.5B. |
-| [[assets/tellme-v2-2026/index|tellme-v2-2026]] | Original format NR; prepared .bin runtime weights | Model-specific implementation | BitNet-0.73B ternary model. |
-| [[assets/flexllm-hls-2026/index|flexllm-hls-2026]] | Original format NR; prepared .bin weights; GGUF tokenizer only | Reusable library; model-specific implementation | Llama-3.2-1B variants, plus HMT extension. |
-| [[assets/codo-2026/index|codo-2026]] | PyTorch nn.Module in .py | Reusable compiler; one LLM example | GPT-2 block; additional CNN/MLP/operator benchmarks. |
-| [[assets/edgellm-2025/index|edgellm-2025]] | Sparse/quantized model; file format NR | Cross-architecture (paper) | GLM-6B and Qwen-7B. |
-| [[assets/flightllm-2024/index|flightllm-2024]] | PyTorch model; suffix NR; prepared board .bin files | Cross-architecture (paper) | OPT-6.7B and LLaMA2-7B. |
-| [[assets/secda-llm-2024/index|secda-llm-2024]] | GGUF (later source) | Reusable operator backend; one model evaluated | TinyLlama paper evaluation; multiple model configurations in later source. |
+| [[research/fpga-llm-inference/assets/lut-llm-2026/note|lut-llm-2026]] | Original checkpoint format NR; random-data testbench | Model-specific implementation | Qwen3-1.7B block; general checkpoint loader not established. |
+| [[research/fpga-llm-inference/assets/streamtensor-2025/note|streamtensor-2025]] | PyTorch model; suffix NR | Cross-architecture (paper) | GPT-2, Qwen, Llama and Gemma; block/phase evidence. |
+| [[research/fpga-llm-inference/assets/spatial-llm-2024/note|spatial-llm-2024]] | Hugging Face checkpoint; suffix NR | Reusable kernels; model-specific composition | BERT and GPT-2 measured; larger LLaMA/Vicuna studies are not equivalent board evidence. |
+| [[research/fpga-llm-inference/assets/dfx-2022/note|dfx-2022]] | Megatron/OpenAI GPT-2 checkpoint; suffix NR | Single family, multiple sizes (paper) | GPT-2 345M, 774M and 1.5B. |
+| [[research/fpga-llm-inference/assets/tellme-v2-2026/note|tellme-v2-2026]] | Original format NR; prepared .bin runtime weights | Model-specific implementation | BitNet-0.73B ternary model. |
+| [[research/fpga-llm-inference/assets/flexllm-hls-2026/note|flexllm-hls-2026]] | Original format NR; prepared .bin weights; GGUF tokenizer only | Reusable library; model-specific implementation | Llama-3.2-1B variants, plus HMT extension. |
+| [[research/fpga-llm-inference/assets/codo-2026/note|codo-2026]] | PyTorch nn.Module in .py | Reusable compiler; one LLM example | GPT-2 block; additional CNN/MLP/operator benchmarks. |
+| [[research/fpga-llm-inference/assets/edgellm-2025/note|edgellm-2025]] | Sparse/quantized model; file format NR | Cross-architecture (paper) | GLM-6B and Qwen-7B. |
+| [[research/fpga-llm-inference/assets/flightllm-2024/note|flightllm-2024]] | PyTorch model; suffix NR; prepared board .bin files | Cross-architecture (paper) | OPT-6.7B and LLaMA2-7B. |
+| [[research/fpga-llm-inference/assets/secda-llm-2024/note|secda-llm-2024]] | GGUF (later source) | Reusable operator backend; one model evaluated | TinyLlama paper evaluation; multiple model configurations in later source. |
 
 Code availability audit: several pre-existing `repo/` paths were empty despite metadata saying archived. Restored local source caches for five repositories and retained the inspected files under each paper’s `source/code-audit/` so evidence is versioned despite the existing `**/repo/` ignore rule. FlexLLM cache is partial; selected files and their hashes are recorded explicitly. Existing paper PDFs/TeX were reused; EdgeLLM was read through PDF extraction. No bitstreams, weights, toolchains or synthesis outputs were downloaded. Input-format NR means not established, not unsupported.
 
@@ -421,8 +421,8 @@ Code availability audit: several pre-existing `repo/` paths were empty despite m
 
 | 核实对象 | 公开论文证据 | 本轮结论 |
 |---|---|---|
-| [[research/fpga-llm-inference/assets/imax-cgla-2025/index|IMAX / IMAX3-LLM]] | arXiv:2512.00335v1；PDF 首页 IEEE Access DOI；论文直接链接官方仓库 | 新增正式深读条目；llama.cpp CPU MatMul 内 FPGA offload，直接集成相关。不是已证独立 GGML device backend；44.4× 能效为 ASIC 投影 |
-| [[research/fpga-llm-inference/assets/persistent-state-gdn-2026/index|Persistent-state GDN]] | arXiv:2603.05931v1；PDF/TeX 标题作者一致 | 新增正式深读条目；单层状态更新，HLS 估算性能，不是完整 backend，不关联 Tyler913 仓库 |
+| [[research/fpga-llm-inference/assets/imax-cgla-2025/note|IMAX / IMAX3-LLM]] | arXiv:2512.00335v1；PDF 首页 IEEE Access DOI；论文直接链接官方仓库 | 新增正式深读条目；llama.cpp CPU MatMul 内 FPGA offload，直接集成相关。不是已证独立 GGML device backend；44.4× 能效为 ASIC 投影 |
+| Persistent-state GDN (原目录已移除；历史内容见 git 记录) | arXiv:2603.05931v1；PDF/TeX 标题作者一致 | 新增正式深读条目；单层状态更新，HLS 估算性能，不是完整 backend，不关联 Tyler913 仓库 |
 | WPU | README 自称论文题目 “Bit-Exact by Construction: A Verification-First RTL Accelerator that Inherits the GGUF k-Quant Checkpoint Ecosystem”，链接寻求 arXiv endorsement | 项目名/标题检索未找到匹配公开 arXiv；暂不计入。Endorsement 不是公开论文 |
 | Tsavorite / tsisw | Tsavorite 名称检索无匹配公开 arXiv | 实现证据不代替论文，暂不计入 |
 | Loom、fable5、APEX、XMC（Streaming Compressed-Weight）、PolarFire llama、GEMMA3 FPGA、Spanker、KEV GPT | 见归档查询；无项目身份匹配的 arXiv（部分返回无关结果） | 暂不计入，不能把关键词相似论文挂到这些仓库 |
@@ -435,11 +435,11 @@ Code availability audit: several pre-existing `repo/` paths were empty despite m
 
 | 候选 | arXiv | 缓存与状态 |
 |---|---|---|
-| Design Conductor 2.0 | 2605.05170v1 | [metadata](assets/design-conductor-2-2026/metadata.yaml)，12 页；设计自动化方向 |
-| LLM-Driven Design Space Exploration of FPGA-based Accelerators | 2605.05920v1 | [metadata](assets/secda-dse-2026/metadata.yaml)，6 页；SECDA DSE 后续 |
-| Towards Autonomous Accelerator Design: FPGA Accelerator Generation with SECDA | 2606.11117v1 | [metadata](assets/secda-autonomous-2026/metadata.yaml)，6 页；SECDA 设计生成后续 |
-| UNISON: A Co-Designed Near-Memory Scheduler of Session KV Residency for LLM Agents | 2609.09643v1 | [metadata](assets/unison-2026/metadata.yaml)，13 页；session KV scheduler |
-| FlexPosit: Tunable Fractional Precision for LLM Inference Accelerators | 2609.04724v1 | [metadata](assets/flexposit-2026/metadata.yaml)，15 页；数值格式/架构方向 |
+| Design Conductor 2.0 | 2605.05170v1 | [metadata](assets/design-conductor-2-2026/citation.bib)，12 页；设计自动化方向 |
+| LLM-Driven Design Space Exploration of FPGA-based Accelerators | 2605.05920v1 | [metadata](assets/secda-dse-2026/citation.bib)，6 页；SECDA DSE 后续 |
+| Towards Autonomous Accelerator Design: FPGA Accelerator Generation with SECDA | 2606.11117v1 | [metadata](assets/secda-autonomous-2026/citation.bib)，6 页；SECDA 设计生成后续 |
+| UNISON: A Co-Designed Near-Memory Scheduler of Session KV Residency for LLM Agents | 2609.09643v1 | [metadata](assets/unison-2026/citation.bib)，13 页；session KV scheduler |
+| FlexPosit: Tunable Fractional Precision for LLM Inference Accelerators | 2609.04724v1 | [metadata](assets/flexposit-2026/citation.bib)，15 页；数值格式/架构方向 |
 
 检索证据：[查询与结果](threads/paper-eligibility-2026-09-15/arxiv-results.txt)、[脚本](threads/paper-eligibility-2026-09-15/search_arxiv.py)、[WPU README 快照](threads/paper-eligibility-2026-09-15/WPU-README.md)、[哈希清单](threads/paper-eligibility-2026-09-15/manifest.yaml)。查询 HTML 同目录保留，查询名为文件名；检索有名称召回局限，负结果只表示截至本轮未找到匹配，不能证明论文不存在。
 
@@ -475,7 +475,7 @@ Implied traffic = matrix parameters read per token (incl. vocabulary head) x wei
 - AccLLM is published (IEEE TVLSI 2026, DOI 10.1109/TVLSI.2026.3658524); its 164 token/s is simulated. SECDA-LLM appeared at the ARC-LG workshop at ISCA 2024.
 - EdgeLLM's own text reports GLM-6B ~90 token/s at 280 MHz (MatMul), whereas AccLLM tabulates ChatGLM2-6B at 125 MHz and 75 token/s.
 - Spatial Allo fetches each layer's parameters from the host (not device-resident); FlexLLM relays KV through the host between separate prefill and decode bitstreams; TeLLMe runs embedding, LM head and sampling on the ARM host.
-- New entries: [[assets/f-bfq-2025/index|F-BFQ]] (llama.cpp MatMul offload, KV260) and an [[assets/imax-llm-2025/index|IMAX]] note (VPK180 prototype, Qwen3, host-managed KV).
+- New entries: [[research/fpga-llm-inference/assets/f-bfq-2025/note|F-BFQ]] (llama.cpp MatMul offload, KV260) and an [[research/fpga-llm-inference/assets/imax-llm-2025/note|IMAX]] note (VPK180 prototype, Qwen3, host-managed KV).
 
 ### Table eligibility decisions (2026-09-27)
 - Excluded from comparison tables: F-BFQ (LG-ARC workshop, no public code) and SECDA-LLM (ARC-LG workshop; github.com/judeharis/SECDA-LLM created 2026-06-03, labelled [WiP], 0 stars, only SystemC-simulation and cross-compile presets, no bitstream or board flow, so the paper results are not reproducible). SECDA-LLM stays as a one-sentence prose precedent for llama.cpp FPGA offload.
@@ -483,3 +483,82 @@ Implied traffic = matrix parameters read per token (incl. vocabulary head) x wei
 - Public code (checked 2026-09-27): FlexLLM, Allo, TeLLMe, CODO artifact, IMAX3-LLM released; FlightLLM releases only a bitstream and profiler (RTL is Infinigence-AI IP); no released code found for DFX, EdgeLLM, StreamTensor (documentation site only).
 - Feature split used in the paper: whole graph on FPGA vs per-kernel offload, and KV persisting on device vs host-managed KV. IMAX: neither (host runs tokenization, embedding, KV, softmax, RMSNorm, RoPE). CODO public decode kernel: neither (one block, no KV input).
 
+
+## Archive layout and unread records (2026-10-09)
+
+Each reference uses `assets/<slug>/citation.bib`; the BibTeX key equals the unchanged slug. Historical metadata is preserved verbatim in BibTeX comments. `note.md` exists only for recorded reading or targeted original-text checks. Original assets, versions, hashes and repository commits are preserved; this migration did not rerun paper eligibility screening.
+
+[Migration gaps and reading-status conflicts](threads/archive-migration-gaps.md).
+
+- [[research/fpga-llm-inference/threads/unread/allo-2024|allo-2024]] — unread seed; [citation](assets/allo-2024/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/autodse-2022|autodse-2022]] — unread seed; [citation](assets/autodse-2022/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/baqet-2025|baqet-2025]] — unread seed; [citation](assets/baqet-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/bench4hls-2026|bench4hls-2026]] — unread seed; [citation](assets/bench4hls-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/cd-llm-2026|cd-llm-2026]] — unread seed; [citation](assets/cd-llm-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/cgra-space-time-2025|cgra-space-time-2025]] — unread seed; [citation](assets/cgra-space-time-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/chatopu-2024|chatopu-2024]] — unread seed; [citation](assets/chatopu-2024/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/cstrans-opu-2024|cstrans-opu-2024]] — unread seed; [citation](assets/cstrans-opu-2024/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/cxl-speckv-2025|cxl-speckv-2025]] — unread seed; [citation](assets/cxl-speckv-2025/citation.bib).
+- `design-conductor-2-2026` — unread asset-only archive; [citation](assets/design-conductor-2-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/dllm-opu-2026|dllm-opu-2026]] — unread seed; [citation](assets/dllm-opu-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/dtcore-2026|dtcore-2026]] — unread seed; [citation](assets/dtcore-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/e2e-overlay-compiler-2025|e2e-overlay-compiler-2025]] — unread seed; [citation](assets/e2e-overlay-compiler-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/fast-prefill-2026|fast-prefill-2026]] — unread seed; [citation](assets/fast-prefill-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/festal-2026|festal-2026]] — unread seed; [citation](assets/festal-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/fet-opu-2023|fet-opu-2023]] — unread seed; [citation](assets/fet-opu-2023/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/flame-2024|flame-2024]] — unread seed; [citation](assets/flame-2024/citation.bib).
+- `flexposit-2026` — unread asset-only archive; [citation](assets/flexposit-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/flightopu-2025|flightopu-2025]] — unread seed; [citation](assets/flightopu-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/fmc-llm-2025|fmc-llm-2025]] — unread seed; [citation](assets/fmc-llm-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/ftrans-2020|ftrans-2020]] — unread seed; [citation](assets/ftrans-2020/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/glitches-2024|glitches-2024]] — unread seed; [citation](assets/glitches-2024/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/gpt4aigchip-2023|gpt4aigchip-2023]] — unread seed; [citation](assets/gpt4aigchip-2023/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/graphagile-2023|graphagile-2023]] — unread seed; [citation](assets/graphagile-2023/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/h2-llm-2025|h2-llm-2025]] — unread seed; [citation](assets/h2-llm-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/hbm-connect-2021|hbm-connect-2021]] — unread seed; [citation](assets/hbm-connect-2021/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/hls-codegen-benchmark-2025|hls-codegen-benchmark-2025]] — unread seed; [citation](assets/hls-codegen-benchmark-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/hlsfactory-2024|hlsfactory-2024]] — unread seed; [citation](assets/hlsfactory-2024/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/hlspilot-2024|hlspilot-2024]] — unread seed; [citation](assets/hlspilot-2024/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/hlstransform-2024|hlstransform-2024]] — unread seed; [citation](assets/hlstransform-2024/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/hummingbird-2025|hummingbird-2025]] — unread seed; [citation](assets/hummingbird-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/hummingbird-plus-2026|hummingbird-plus-2026]] — unread seed; [citation](assets/hummingbird-plus-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/integer-fusion-2025|integer-fusion-2025]] — unread seed; [citation](assets/integer-fusion-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/intrra-2025|intrra-2025]] — unread seed; [citation](assets/intrra-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/lembda-2026|lembda-2026]] — unread seed; [citation](assets/lembda-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/lightmamba-2025|lightmamba-2025]] — unread seed; [citation](assets/lightmamba-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/llamaf-2024|llamaf-2024]] — unread seed; [citation](assets/llamaf-2024/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/llm-aid-2024|llm-aid-2024]] — unread seed; [citation](assets/llm-aid-2024/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/llm-on-fpga-2025|llm-on-fpga-2025]] — unread seed; [citation](assets/llm-on-fpga-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/looplynx-2025|looplynx-2025]] — unread seed; [citation](assets/looplynx-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/lora-2026|lora-2026]] — unread seed; [citation](assets/lora-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/mcore-opu-2024|mcore-opu-2024]] — unread seed; [citation](assets/mcore-opu-2024/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/meadow-2025|meadow-2025]] — unread seed; [citation](assets/meadow-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/metal-2025|metal-2025]] — unread seed; [citation](assets/metal-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/moe-opu-2025|moe-opu-2025]] — unread seed; [citation](assets/moe-opu-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/mpk-2025|mpk-2025]] — unread seed; [citation](assets/mpk-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/nyx-2025|nyx-2025]] — unread seed; [citation](assets/nyx-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/pcie-coarse-systolic-2025|pcie-coarse-systolic-2025]] — unread seed; [citation](assets/pcie-coarse-systolic-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/qllama-2025|qllama-2025]] — unread seed; [citation](assets/qllama-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/ranktuner-2024|ranktuner-2024]] — unread seed; [citation](assets/ranktuner-2024/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/riscbench-2026|riscbench-2026]] — unread seed; [citation](assets/riscbench-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/robot-llm-fpga-2025|robot-llm-fpga-2025]] — unread seed; [citation](assets/robot-llm-fpga-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/rtllm-2024|rtllm-2024]] — unread seed; [citation](assets/rtllm-2024/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/rtlrewriter-2024|rtlrewriter-2024]] — unread seed; [citation](assets/rtlrewriter-2024/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/runtime-adaptive-transformer-2026|runtime-adaptive-transformer-2026]] — unread seed; [citation](assets/runtime-adaptive-transformer-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/sanger-2021|sanger-2021]] — unread seed; [citation](assets/sanger-2021/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/scalable-gpt2-2023|scalable-gpt2-2023]] — unread seed; [citation](assets/scalable-gpt2-2023/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/scalehls-2022|scalehls-2022]] — unread seed; [citation](assets/scalehls-2022/citation.bib).
+- `secda-autonomous-2026` — unread asset-only archive; [citation](assets/secda-autonomous-2026/citation.bib).
+- `secda-dse-2026` — unread asset-only archive; [citation](assets/secda-dse-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/shuhai-2020|shuhai-2020]] — unread seed; [citation](assets/shuhai-2020/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/skipopu-2026|skipopu-2026]] — unread seed; [citation](assets/skipopu-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/softermax-2021|softermax-2021]] — unread seed; [citation](assets/softermax-2021/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/speedllm-2025|speedllm-2025]] — unread seed; [citation](assets/speedllm-2025/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/streaming-vpe-2024|streaming-vpe-2024]] — unread seed; [citation](assets/streaming-vpe-2024/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/tapa-2023|tapa-2023]] — unread seed; [citation](assets/tapa-2023/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/terafly-2026|terafly-2026]] — unread seed; [citation](assets/terafly-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/tflop-2026|tflop-2026]] — unread seed; [citation](assets/tflop-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/transformer-opu-2023|transformer-opu-2023]] — unread seed; [citation](assets/transformer-opu-2023/citation.bib).
+- `unison-2026` — unread asset-only archive; [citation](assets/unison-2026/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/verilogeval-2023|verilogeval-2023]] — unread seed; [citation](assets/verilogeval-2023/citation.bib).
+- [[research/fpga-llm-inference/threads/unread/xtramac-2026|xtramac-2026]] — unread seed; [citation](assets/xtramac-2026/citation.bib).

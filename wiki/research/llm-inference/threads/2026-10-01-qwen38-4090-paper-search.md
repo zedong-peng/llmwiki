@@ -16,11 +16,11 @@ tags: [paper-search, qwen38, rtx4090, quantization, speculative-decoding]
 
 | 选择 | 新增本地证据 | 保留理由 | Qwen3.8-27B/4090直接部署证据 |
 |---|---|---|---|
-| P0机制 | [[research/llm-inference/assets/qtip-2024/index]] | EXL3官方声明基于QTIP，解释非均匀trellis量化 | 论文原repo主要Llama；目标靠当前ExLlamaV3证据 |
-| P0机制 | [[research/llm-inference/assets/marlin-2024/index]] | Ampere/Ada可用，W4A16小/中batch高效 | kernel，不是完整hybrid engine |
-| P0机制 | [[research/llm-inference/assets/dflash-2026/index]] | 有论文、公开checkpoint、成熟框架集成 | Qwen3.8支持来自后续DFlash2博客/模型，非论文原实验 |
-| P1基础 | [[research/llm-inference/assets/gptq-2023/index]] | 低bit量化与现代GPTQ/Marlin格式基础 | 原始repo不是目标部署入口 |
-| P1对照 | [[research/llm-inference/assets/eagle-3-2025/index]] | 公开训练、广泛engine集成、speculative基线 | 尚未确认目标专用EAGLE3 draft；不能直接套Qwen3 draft |
+| P0机制 | [[research/llm-inference/assets/qtip-2024/note]] | EXL3官方声明基于QTIP，解释非均匀trellis量化 | 论文原repo主要Llama；目标靠当前ExLlamaV3证据 |
+| P0机制 | [[research/llm-inference/assets/marlin-2024/note]] | Ampere/Ada可用，W4A16小/中batch高效 | kernel，不是完整hybrid engine |
+| P0机制 | [[research/llm-inference/assets/dflash-2026/note]] | 有论文、公开checkpoint、成熟框架集成 | Qwen3.8支持来自后续DFlash2博客/模型，非论文原实验 |
+| P1基础 | [[research/llm-inference/assets/gptq-2023/note]] | 低bit量化与现代GPTQ/Marlin格式基础 | 原始repo不是目标部署入口 |
+| P1对照 | [[research/llm-inference/assets/eagle-3-2025/note]] | 公开训练、广泛engine集成、speculative基线 | 尚未确认目标专用EAGLE3 draft；不能直接套Qwen3 draft |
 
 ## 速度证据：报告结果与待测结果分开
 
@@ -60,7 +60,7 @@ PAPER_SEARCH_TIMEOUT_SECONDS=30 PAPER_SEARCH_MAX_ATTEMPTS=1 \
 
 六源：Semantic Scholar、OpenAlex、arXiv、OpenReview、Crossref、DBLP；不设min-score，保留所有低相关与同名噪音。Model knowledge作为额外补召回，随后查primary来源。
 
-[[research/llm-inference/assets/qwen38-4090-paper-search-2026/index]] 保存3个完整stdout/stderr日志及SHA-256；下列完整表保留CLI排序。API citations是检索snapshot，0不代表无人引用，year有时是首次arXiv年或null，venue可能错配；不是当前影响力排名。
+[[research/llm-inference/threads/qwen38-4090-paper-search-2026]] 保存3个完整stdout/stderr日志及SHA-256；下列完整表保留CLI排序。API citations是检索snapshot，0不代表无人引用，year有时是首次arXiv年或null，venue可能错配；不是当前影响力排名。
 
 ## ResearchStudio-Idea完整结果
 
@@ -292,7 +292,7 @@ per-source hits: arxiv=50, dblp=0, open_alex=50, openreview=0, semantic_scholar=
 | [DFlare](https://arxiv.org/abs/2606.02091) / [AdaFlash](https://arxiv.org/abs/2607.19223) | diffusion draft scaling | API新召回，未读全文或审计代码；后续候选 |
 | [xPress](https://arxiv.org/abs/2608.02438) / [DARTree](https://arxiv.org/abs/2608.13524) / [BV Loss](https://arxiv.org/abs/2609.34832) | diffusion refine/tree/training loss | 全部保留新论文长名单，不能仅凭score转成可部署engine |
 
-GDN/FLA既有资料链接：[[research/linear-attention/assets/gated-deltanet-2025/index]]、[[research/linear-attention/assets/fla-2024/index]]、[[research/linear-attention/assets/linear-attn-gpu-kernel-2025/index]]。Qwen3.8 hybrid attention还要求speculation时的recurrent-state rollback，不仅是普通KV cropping。
+GDN/FLA既有资料链接：[[research/linear-attention/assets/gated-deltanet-2025/note]]、[[research/linear-attention/assets/fla-2024/note]]、[[research/linear-attention/assets/linear-attn-gpu-kernel-2025/note]]。Qwen3.8 hybrid attention还要求speculation时的recurrent-state rollback，不仅是普通KV cropping。
 
 ## Overview
 

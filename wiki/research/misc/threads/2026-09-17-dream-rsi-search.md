@@ -35,7 +35,7 @@ No additional unverified recall entries added to this targeted identification se
 
 ## Overview
 
-Identified Dream-RSI as the exact requested paper. Live arXiv abstract/version history confirms v1, submitted September 14, 2026; PDF and official repository confirm Google, Google DeepMind, UMD and UVA affiliations. See [[../assets/dream-rsi-2026/index]].
+Identified Dream-RSI as the exact requested paper. Live arXiv abstract/version history confirms v1, submitted September 14, 2026; PDF and official repository confirm Google, Google DeepMind, UMD and UVA affiliations. See [[../assets/dream-rsi-2026/note]].
 
 ## Trends
 
@@ -77,7 +77,7 @@ All returned citation counts are zero; no meaningful most-cited ranking. First-a
 
 ## Recommendations for reading
 
-Read Dream-RSI (#1), then the existing [[../assets/meta-harness/index|Meta-Harness]] and [[../assets/erl-2026/index|ERL]] notes for harness search versus heuristic-memory comparisons. The latter two are existing wiki context, not additional API hits.
+Read Dream-RSI (#1), then the existing [[../assets/meta-harness/note|Meta-Harness]] and ERL notes for harness search versus heuristic-memory comparisons. The latter two are existing wiki context, not additional API hits.
 
 ## Verbatim search output
 
@@ -171,3 +171,9 @@ Total: 10 unique papers (ranked; surveys sunk to the bottom).
 /Users/pengzedong/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
   warnings.warn(
 ```
+
+## Migration Archive Gaps
+
+The following historical targets are absent in the current working tree (including previously deleted archives). Their labels and research discussion are retained as plain text; migration did not restore deleted material:
+
+- `../assets/erl-2026/index`

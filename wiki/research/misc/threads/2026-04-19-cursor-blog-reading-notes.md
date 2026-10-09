@@ -27,7 +27,7 @@ The immediate question was not just "which post is best," but:
 2. The posts are unusually coherent because research, infra, evals, and product UI are written as one stack.
    `CursorBench`, self-summarization, regex indexing, cloud agents, and the Cursor 3 interface are presented as mutually necessary layers for long-horizon agent work rather than disconnected announcements.
    Local anchors:
-   [[research/misc/assets/cursorbench-2026/index]], claude-code-memory, llm-grep-retrieval
+   [[research/misc/assets/cursorbench-2026/note]], claude-code-memory, llm-grep-retrieval
 
 3. They consistently ground claims in internal operating reality rather than vague futurism.
    Repeated examples:
@@ -124,7 +124,7 @@ Most important claims:
 - model quality is tracked through a hybrid online-offline eval loop
 
 Local relevance:
-- directly connected to [[research/misc/assets/cursorbench-2026/index]]
+- directly connected to [[research/misc/assets/cursorbench-2026/note]]
 - useful for thinking about how to evaluate agent-memory or long-horizon coding systems beyond toy tasks
 
 ### [Training Composer for longer horizons](https://cursor.com/blog/self-summarization) (March 17, 2026)
@@ -190,7 +190,7 @@ This post matters because it demonstrates a serious external task where the agen
 
 1. Cursor's public agenda is highly aligned with current local interests.
    The clearest overlap areas are:
-   - coding-agent evals: [[research/misc/assets/cursorbench-2026/index]]
+   - coding-agent evals: [[research/misc/assets/cursorbench-2026/note]]
    - long-horizon behavior and memory alternatives: claude-code-memory
    - lexical retrieval for agents: llm-grep-retrieval
 

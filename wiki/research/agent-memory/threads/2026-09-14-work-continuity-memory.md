@@ -20,7 +20,7 @@ tags: [agent-memory, lazymem, hindsight, incremental-computation, evidence-audit
 
 ## 改变判断的源码证据
 
-[[research/agent-memory/assets/hindsight-2025/index|Hindsight]] 的本地 checkout `f75251fc5c00bcbc01d12f5dc0dcb8eeb35ec6cb`，2026-04-18：
+[[research/agent-memory/assets/hindsight-2025/note|Hindsight]] 的本地 checkout `f75251fc5c00bcbc01d12f5dc0dcb8eeb35ec6cb`，2026-04-18：
 
 - `hindsight-api-slim/hindsight_api/engine/memory_engine.py:7450`，`compute_mental_model_is_stale` 按 bank、tags、fact types 和创建时间检查范围内新增记忆。新增项不必是旧引用的一部分。
 - 同文件 `:6967`，`refresh_mental_model` 重跑 source_query；`:7120` 之后支持结构化文档局部修订。局部编辑前仍调用 reflect，不意味着检索/推理也已完全增量化。
@@ -33,7 +33,7 @@ tags: [agent-memory, lazymem, hindsight, incremental-computation, evidence-audit
 
 支持引用不等于完整依赖。“共有两次旅行”的旧两条引用不变，新增第三条记录仍会改变计数。否定、最新、排名与计数判断通常依赖检查范围。文件枚举和结构化查询可有确定范围；语义 top-k 的覆盖通常未知。字面搜索零命中不能推出语义不存在。
 
-Hindsight 已有粗粒度范围刷新，因此“只有新方案能发现旧引用以外的新增证据”这一说法不成立。[[research/agent-memory/assets/byterover-2026/index|ByteRover]] 已有 agent 自行维护的文件记忆及缓存；[[research/agent-memory/assets/memoryarena-2026/index|MemoryArena]] 已有跨会话行动依赖评测；[[research/agent-memory/assets/temporal-semantic-memory-2026/index|TSM]] 已有时间有效性和分层刷新。DBSP 的增量视图维护是机制前驱，不能把增量计算换成认知术语就算新颖。
+Hindsight 已有粗粒度范围刷新，因此“只有新方案能发现旧引用以外的新增证据”这一说法不成立。[[research/agent-memory/assets/byterover-2026/note|ByteRover]] 已有 agent 自行维护的文件记忆及缓存；[[research/agent-memory/assets/memoryarena-2026/note|MemoryArena]] 已有跨会话行动依赖评测；[[research/agent-memory/assets/temporal-semantic-memory-2026/note|TSM]] 已有时间有效性和分层刷新。DBSP 的增量视图维护是机制前驱，不能把增量计算换成认知术语就算新颖。
 
 [[research/agent-memory/threads/2026-04-30-arm-proposal-overlap-analysis|早期 ARM 笔记]] 也已经讨论空结果的价值；其中独有性断言是历史判断，本次不作为查新结论。
 
