@@ -9,6 +9,10 @@ tags: [log]
 
 # Super Personal Wiki Log
 
+## [2026-10-09] ingest | zvec-grep (zg)
+
+- Added `research/retrieval/assets/zvec-grep-2026/`: citation, note and repository cache at `a09cd12` (ignored by Git). Read README, pipeline/architecture docs, benchmark READMEs and the RRF fusion code; no code executed. Benchmark results are the repository's own, recorded with their inconsistencies.
+
 ## [2026-10-09] reorg | Split misc into retrieval and agents topics
 
 - Created `research/retrieval/` (31 references: RAG, retrieval optimization, code retrieval benchmarks, AI data systems, long context) and `research/agents/` (11: agent frameworks, coding agents, self-improving agents, agentic science); moved CoALA, Generative Agents and MemRL to `agent-memory`. Threads moved with their topic; `misc` keeps the leaderboard thread as a buffer.

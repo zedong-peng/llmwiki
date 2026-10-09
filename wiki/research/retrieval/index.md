@@ -78,6 +78,12 @@ tags: [research, retrieval, rag, index]
 | [RULER](assets/ruler-2024/note.md) | 2024 | Arxiv | Effective context length benchmark | `processed` |
 | [In-Place TTT](assets/in-place-ttt-2026/note.md) | 2026 | ICLR | Fast-weight long-context adaptation | `processed` |
 
+## Tools
+
+| Tool | Year | Type | Importance | Wiki Status |
+|---|---:|---|---|---|
+| [zvec-grep (zg)](assets/zvec-grep-2026/note.md) | 2026 | Repo | Local ripgrep + BM25 + vector search with RRF, CLI/MCP for coding agents | `processed` |
+
 ## Migration Archive Gaps
 
 FAIR-RAG、RAG-Fusion 与 Query Optimization Survey 的原归档在迁移前已删除，表中保留为纯文本。
